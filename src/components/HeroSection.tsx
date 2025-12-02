@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Search, Briefcase, MapPin, User } from "lucide-react";
+import { Search, Briefcase, User } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import doctorImage from "@/assets/hero-doctor.webp";
+import seloImage from "@/assets/selo.png";
 
 const HeroSection = () => {
   return (
@@ -148,34 +149,12 @@ const HeroSection = () => {
               ou burocracia.
             </p>
 
-            {/* Badge */}
-            <div className="inline-flex items-center justify-center w-28 h-28 bg-secondary rounded-full relative">
-              <div className="text-center px-2">
-                <p className="text-xs font-bold text-primary leading-tight">Saúde e</p>
-                <p className="text-xs font-bold text-primary leading-tight">Facilidade</p>
-                <p className="text-[10px] text-primary/70 leading-tight">sem nenhuma</p>
-                <p className="text-[10px] text-primary/70 leading-tight">Mensalidade</p>
-              </div>
-              {/* Rotating text around badge */}
-              <div className="absolute inset-[-12px] animate-spin" style={{ animationDuration: '15s' }}>
-                <svg viewBox="0 0 120 120" className="w-full h-full">
-                  <defs>
-                    <path id="circlePath" d="M 60, 60 m -48, 0 a 48,48 0 1,1 96,0 a 48,48 0 1,1 -96,0"/>
-                  </defs>
-                  <text className="text-[8px] fill-secondary-foreground font-medium tracking-wider">
-                    <textPath href="#circlePath">
-                      Consulta 100% Segura e Garantida • Consulta 100% Segura e Garantida •
-                    </textPath>
-                  </text>
-                </svg>
-              </div>
-              {/* Checkmark icon */}
-              <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-secondary rounded-full flex items-center justify-center shadow-md">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-primary">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              </div>
-            </div>
+            {/* Selo Image */}
+            <img 
+              src={seloImage} 
+              alt="100% Segura - Saúde e Facilidade sem nenhuma Mensalidade"
+              className="w-32 h-auto mx-auto lg:mx-0"
+            />
           </div>
 
           {/* Right Column - Doctor Image */}
