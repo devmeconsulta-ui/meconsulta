@@ -1,6 +1,6 @@
 import { Target, Lightbulb, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import doctorAbout from "@/assets/doctor-about.avif";
+import doctorAbout from "@/assets/doctor-about.png";
 
 const values = [
   {
