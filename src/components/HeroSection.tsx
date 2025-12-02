@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import doctorImage from "@/assets/doctor-hero.png";
+import doctorImage from "@/assets/hero-doctor.webp";
 
 const HeroSection = () => {
   return (
@@ -151,7 +151,7 @@ const HeroSection = () => {
             <img 
               src={doctorImage}
               alt="Médica profissional"
-              className="w-full max-w-md h-auto object-contain drop-shadow-2xl"
+              className="w-full max-w-md h-auto object-contain"
             />
           </div>
         </div>
