@@ -1,5 +1,6 @@
 import { Target, Eye, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import doctorAbout from "@/assets/doctor-about.avif";
 
 const values = [
   {
@@ -66,11 +67,10 @@ const AboutSection = () => {
           <div className="relative">
             <div className="relative rounded-3xl overflow-hidden shadow-2xl">
               <img 
-                src="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=600&h=700&fit=crop"
+                src={doctorAbout}
                 alt="Médico profissional"
                 className="w-full h-auto"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-primary/30 to-transparent" />
             </div>
             {/* Decorative elements */}
             <div className="absolute -top-4 -right-4 w-24 h-24 bg-secondary rounded-full opacity-80" />

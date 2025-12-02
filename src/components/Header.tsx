@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Menu, User, Grid3X3, MessageSquare, Search } from "lucide-react";
 import { useState } from "react";
+import logo from "@/assets/logo.avif";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -11,11 +12,7 @@ const Header = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <span className="text-2xl font-bold">
-              <span className="text-primary">me</span>
-              <span className="text-secondary">consulta</span>
-            </span>
-            <span className="text-xs text-muted-foreground ml-2 hidden sm:block">facilidade sem mensalidade</span>
+            <img src={logo} alt="MeConsulta" className="h-8" />
           </div>
 
           {/* Desktop Navigation */}
