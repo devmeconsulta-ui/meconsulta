@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Search, Briefcase, MapPin } from "lucide-react";
 import {
@@ -11,8 +12,31 @@ import { Input } from "@/components/ui/input";
 import doctorImage from "@/assets/dra-page.png";
 import seloImage from "@/assets/selo.png";
 import heroBg from "@/assets/hero-background.png";
+import { specialties, brazilStates, citiesByState } from "@/data/brazilData";
 
 const HeroSection = () => {
+  const [selectedState, setSelectedState] = useState("");
+  const [selectedCity, setSelectedCity] = useState("");
+  const [selectedSpecialty, setSelectedSpecialty] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const cities = selectedState ? citiesByState[selectedState] || [] : [];
+
+  const handleStateChange = (value: string) => {
+    setSelectedState(value);
+    setSelectedCity("");
+  };
+
+  const handleSearch = () => {
+    console.log({
+      searchTerm,
+      specialty: selectedSpecialty,
+      state: selectedState,
+      city: selectedCity
+    });
+    // Futuramente integrar com busca real
+  };
+
   return (
     <section 
       className="relative overflow-hidden pt-20"
@@ -39,23 +63,24 @@ const HeroSection = () => {
                   <Input 
                     placeholder="Procurar por..." 
                     className="pl-10 h-11 rounded-lg border-border bg-muted/30"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
 
                 {/* Specialty Select */}
                 <div className="relative">
                   <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary z-10" />
-                  <Select>
+                  <Select value={selectedSpecialty} onValueChange={setSelectedSpecialty}>
                     <SelectTrigger className="pl-10 h-11 rounded-lg border-border bg-muted/30">
-                      <SelectValue placeholder="Carregando..." />
+                      <SelectValue placeholder="Especialidade" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cardiologia">Cardiologia</SelectItem>
-                      <SelectItem value="dermatologia">Dermatologia</SelectItem>
-                      <SelectItem value="ginecologia">Ginecologia</SelectItem>
-                      <SelectItem value="ortopedia">Ortopedia</SelectItem>
-                      <SelectItem value="pediatria">Pediatria</SelectItem>
-                      <SelectItem value="psiquiatria">Psiquiatria</SelectItem>
+                    <SelectContent className="max-h-60">
+                      {specialties.map((specialty) => (
+                        <SelectItem key={specialty} value={specialty.toLowerCase()}>
+                          {specialty}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -64,35 +89,41 @@ const HeroSection = () => {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground z-10" />
-                    <Select>
+                    <Select value={selectedState} onValueChange={handleStateChange}>
                       <SelectTrigger className="pl-10 h-11 rounded-lg border-border bg-muted/30 text-sm">
-                        <SelectValue placeholder="Carregando..." />
+                        <SelectValue placeholder="Estado" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="mg">Minas Gerais</SelectItem>
-                        <SelectItem value="sp">São Paulo</SelectItem>
-                        <SelectItem value="rj">Rio de Janeiro</SelectItem>
-                        <SelectItem value="ba">Bahia</SelectItem>
+                      <SelectContent className="max-h-60">
+                        {brazilStates.map((state) => (
+                          <SelectItem key={state.sigla} value={state.sigla}>
+                            {state.nome}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground z-10" />
-                    <Select>
+                    <Select value={selectedCity} onValueChange={setSelectedCity} disabled={!selectedState}>
                       <SelectTrigger className="pl-10 h-11 rounded-lg border-border bg-muted/30 text-sm">
-                        <SelectValue placeholder="Carregando..." />
+                        <SelectValue placeholder="Cidade" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="bh">Belo Horizonte</SelectItem>
-                        <SelectItem value="mc">Montes Claros</SelectItem>
-                        <SelectItem value="ub">Uberlândia</SelectItem>
+                      <SelectContent className="max-h-60">
+                        {cities.map((city) => (
+                          <SelectItem key={city} value={city.toLowerCase()}>
+                            {city}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
                 {/* Search Button */}
-                <Button className="w-full h-11 rounded-lg bg-primary hover:bg-primary/90 font-medium">
+                <Button 
+                  className="w-full h-11 rounded-lg bg-primary hover:bg-primary/90 font-medium"
+                  onClick={handleSearch}
+                >
                   Buscar
                 </Button>
               </div>

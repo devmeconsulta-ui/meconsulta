@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 const ContactSection = () => {
   return (
-    <section className="py-20 bg-background">
+    <section className="py-16 bg-background">
       <div className="container mx-auto px-4">
         <div className="grid lg:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
           {/* Left - Image & Text */}
@@ -15,16 +15,24 @@ const ContactSection = () => {
             <h3 className="text-xl text-foreground mb-6">
               Ficou com alguma dúvida?
             </h3>
-            <p className="text-muted-foreground leading-relaxed">
+            <p className="text-muted-foreground leading-relaxed mb-6">
               Entre em contato conosco através dos
               canais de atendimento que ficaremos
               felizes em te atender.
             </p>
 
-            {/* Decorative image placeholder */}
-            <div className="mt-8 hidden lg:block">
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="rounded-full border-primary text-primary hover:bg-primary hover:text-primary-foreground animate-glow mb-8"
+            >
+              Fale conosco
+            </Button>
+
+            {/* Foto da moça */}
+            <div className="mt-4 hidden lg:block">
               <img 
-                src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=400&h=300&fit=crop"
+                src="https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=400&h=350&fit=crop"
                 alt="Atendimento médico"
                 className="rounded-2xl shadow-lg"
               />
@@ -53,7 +61,7 @@ const ContactSection = () => {
                 placeholder="Mensagem" 
                 className="min-h-[120px] rounded-xl resize-none"
               />
-              <Button variant="hero" size="lg" className="w-full">
+              <Button className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90">
                 Enviar
               </Button>
             </form>
