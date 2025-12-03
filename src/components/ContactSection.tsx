@@ -24,17 +24,17 @@ const ContactSection = () => {
           <div className="space-y-4">
             <Input 
               placeholder="Nome" 
-              className="h-12 rounded-none border-0 border-b border-border bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0"
+              className="h-12 rounded-none border-0 border-b-2 border-muted-foreground/40 bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0"
             />
             <Input 
               type="email" 
               placeholder="E-mail" 
-              className="h-12 rounded-none border-0 border-b border-border bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0"
+              className="h-12 rounded-none border-0 border-b-2 border-muted-foreground/40 bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0"
             />
             <Input 
               type="tel" 
               placeholder="Telefone" 
-              className="h-12 rounded-none border-0 border-b border-border bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0"
+              className="h-12 rounded-none border-0 border-b-2 border-muted-foreground/40 bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0"
             />
           </div>
 
@@ -42,7 +42,7 @@ const ContactSection = () => {
           <div>
             <Textarea 
               placeholder="Mensagem" 
-              className="h-full min-h-[180px] rounded-none border-0 border-b border-border bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0 resize-none"
+              className="h-full min-h-[180px] rounded-none border-0 border-b-2 border-muted-foreground/40 bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0 resize-none"
             />
           </div>
 
