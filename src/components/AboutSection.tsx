@@ -26,7 +26,7 @@ const AboutSection = () => {
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-4 items-end max-w-6xl mx-auto">
           {/* Left - Content */}
           <div className="pb-8 lg:pb-16">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-6 italic">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-6">
               <span className="text-primary">O que é</span><br />
               <span className="text-primary">o Meconsulta</span>
             </h2>
