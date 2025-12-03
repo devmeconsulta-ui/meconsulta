@@ -107,7 +107,10 @@ const SpecialtiesSection = () => {
                 </div>
                 <div className="p-4 text-center">
                   <h3 className="font-semibold text-foreground mb-1">{specialist.name}</h3>
-                  <p className="text-sm text-primary font-medium">{specialist.specialty}</p>
+                  <p className="text-sm text-primary font-medium mb-3">{specialist.specialty}</p>
+                  <button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium py-2 px-4 rounded-lg transition-colors">
+                    Marcar Consulta
+                  </button>
                 </div>
               </div>
             </div>
