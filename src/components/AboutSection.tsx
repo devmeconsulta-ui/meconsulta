@@ -21,16 +21,16 @@ const values = [
 
 const AboutSection = () => {
   return (
-    <section className="bg-background relative pb-0">
+    <section className="bg-background relative">
       <div className="container mx-auto px-4 pt-16 lg:pt-20">
-        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-start max-w-6xl mx-auto">
+        <div className="grid lg:grid-cols-2 gap-8 lg:gap-4 items-end max-w-6xl mx-auto">
           {/* Left - Content */}
-          <div className="pb-16 lg:pb-24">
+          <div className="pb-8 lg:pb-16">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-6 italic">
               <span className="text-primary">O que é</span><br />
               <span className="text-primary">o Meconsulta</span>
             </h2>
-            <p className="text-sm sm:text-base text-muted-foreground mb-8 leading-relaxed max-w-lg">
+            <p className="text-sm sm:text-base text-muted-foreground mb-8 leading-relaxed max-w-xl">
               Facilitar o trabalho do médico, com segurança e agilidade, é essencial. O meconsulta 
               acredita e investe em recursos tecnológicos de suporte 
               à tomada de decisão clínica, que agilizam a rotina médica e melhoram 
@@ -57,24 +57,28 @@ const AboutSection = () => {
               ))}
             </div>
 
-            <Button variant="outline" size="lg" className="mt-8 rounded-full border-primary text-primary hover:bg-primary hover:text-primary-foreground text-sm sm:text-base">
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="mt-8 rounded-full border-primary text-primary hover:bg-primary hover:text-primary-foreground text-sm sm:text-base animate-glow"
+            >
               Fale conosco
             </Button>
           </div>
 
           {/* Right - Image positioned to touch yellow border */}
-          <div className="relative flex justify-end items-end">
+          <div className="relative flex justify-center lg:justify-end">
             <img 
               src={doctorAbout}
               alt="Médico profissional"
-              className="w-full max-w-sm lg:max-w-md h-auto object-contain relative z-10"
+              className="w-auto h-[400px] sm:h-[500px] lg:h-[600px] object-contain object-bottom"
             />
           </div>
         </div>
       </div>
       
       {/* Yellow border that touches the doctor image */}
-      <div className="h-2 bg-secondary w-full" />
+      <div className="h-2 bg-secondary w-full absolute bottom-0 left-0 right-0" />
     </section>
   );
 };
