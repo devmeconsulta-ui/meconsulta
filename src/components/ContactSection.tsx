@@ -5,68 +5,58 @@ import { Textarea } from "@/components/ui/textarea";
 const ContactSection = () => {
   return (
     <section className="py-16 bg-background">
-      <div className="container mx-auto px-4">
-        <div className="grid lg:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
-          {/* Left - Image & Text */}
-          <div className="text-center lg:text-left">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              <span className="text-secondary">Descubra o MeConsulta</span>
-            </h2>
-            <h3 className="text-xl text-foreground mb-6">
-              Ficou com alguma dúvida?
-            </h3>
-            <p className="text-muted-foreground leading-relaxed mb-6">
-              Entre em contato conosco através dos
-              canais de atendimento que ficaremos
-              felizes em te atender.
-            </p>
-
-            <Button 
-              variant="outline" 
-              size="lg" 
-              className="rounded-full border-primary text-primary hover:bg-primary hover:text-primary-foreground animate-glow mb-8"
-            >
-              Fale conosco
-            </Button>
-
-            {/* Foto da moça */}
-            <div className="mt-4 hidden lg:block">
-              <img 
-                src="https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=400&h=350&fit=crop"
-                alt="Atendimento médico"
-                className="rounded-2xl shadow-lg"
-              />
-            </div>
-          </div>
-
-          {/* Right - Contact Form */}
-          <div className="bg-card rounded-2xl p-8 shadow-xl">
-            <form className="space-y-4">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Input 
-                  placeholder="Nome" 
-                  className="h-12 rounded-xl"
-                />
-                <Input 
-                  type="email" 
-                  placeholder="E-mail" 
-                  className="h-12 rounded-xl"
-                />
-              </div>
-              <Input 
-                placeholder="Assunto" 
-                className="h-12 rounded-xl"
-              />
-              <Textarea 
-                placeholder="Mensagem" 
-                className="min-h-[120px] rounded-xl resize-none"
-              />
-              <Button className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90">
-                Enviar
-              </Button>
-            </form>
-          </div>
+      <div className="container mx-auto px-4 max-w-4xl">
+        {/* Header */}
+        <div className="text-center mb-10">
+          <h2 className="text-2xl md:text-3xl font-semibold text-secondary mb-4">
+            Ficou com alguma dúvida?
+          </h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Entre em contato conosco através dos<br />
+            <span className="text-primary">canais de atendimento</span> que ficaremos<br />
+            felizes em te atender.
+          </p>
         </div>
+
+        {/* Form */}
+        <form className="grid md:grid-cols-2 gap-6">
+          {/* Left - Input fields */}
+          <div className="space-y-4">
+            <Input 
+              placeholder="Nome" 
+              className="h-12 rounded-none border-0 border-b border-border bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0"
+            />
+            <Input 
+              type="email" 
+              placeholder="E-mail" 
+              className="h-12 rounded-none border-0 border-b border-border bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0"
+            />
+            <Input 
+              type="tel" 
+              placeholder="Telefone" 
+              className="h-12 rounded-none border-0 border-b border-border bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0"
+            />
+          </div>
+
+          {/* Right - Textarea */}
+          <div>
+            <Textarea 
+              placeholder="Mensagem" 
+              className="h-full min-h-[180px] rounded-none border-0 border-b border-border bg-transparent focus-visible:ring-0 focus-visible:border-primary px-0 resize-none"
+            />
+          </div>
+
+          {/* Submit Button */}
+          <div className="md:col-span-2 flex justify-center mt-6">
+            <Button 
+              type="submit"
+              variant="outline" 
+              className="rounded-full px-12 py-2 border-secondary text-secondary hover:bg-secondary hover:text-secondary-foreground"
+            >
+              Enviar
+            </Button>
+          </div>
+        </form>
       </div>
     </section>
   );
