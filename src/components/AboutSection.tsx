@@ -30,7 +30,7 @@ const AboutSection = () => {
               <span className="text-primary">O que é</span><br />
               <span className="text-primary">o Meconsulta</span>
             </h2>
-            <p className="text-sm sm:text-base text-muted-foreground mb-8 leading-relaxed max-w-xl">
+            <p className="text-sm sm:text-base text-muted-foreground mb-8 leading-relaxed max-w-xl text-justify">
               Facilitar o trabalho do médico, com segurança e agilidade, é essencial. O meconsulta 
               acredita e investe em recursos tecnológicos de suporte 
               à tomada de decisão clínica, que agilizam a rotina médica e melhoram 
