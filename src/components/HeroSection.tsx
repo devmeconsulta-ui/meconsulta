@@ -13,7 +13,7 @@ import seloImage from "@/assets/selo.png";
 
 const HeroSection = () => {
   return (
-    <section className="relative min-h-[600px] lg:min-h-[700px] bg-primary overflow-hidden pt-20">
+    <section className="relative bg-primary overflow-hidden pt-20">
       {/* Yellow M Logo Shape - Left Side */}
       <div className="absolute -left-16 -top-16 w-[350px] h-[350px] lg:w-[400px] lg:h-[400px]">
         <div className="relative w-full h-full bg-secondary rounded-full flex items-center justify-center">
@@ -57,10 +57,10 @@ const HeroSection = () => {
         </svg>
       </div>
 
-      <div className="container mx-auto px-4 relative z-10 py-8 lg:py-12">
-        <div className="grid lg:grid-cols-12 gap-6 lg:gap-8 items-center">
+      <div className="container mx-auto px-4 relative z-10">
+        <div className="grid lg:grid-cols-12 gap-6 lg:gap-8 items-end min-h-[580px] lg:min-h-[650px]">
           {/* Left Column - Search Form */}
-          <div className="lg:col-span-4 order-2 lg:order-1">
+          <div className="lg:col-span-4 order-2 lg:order-1 pb-12 lg:pb-16">
             <div className="bg-card rounded-2xl p-6 shadow-xl max-w-md mx-auto lg:mx-0">
               <h2 className="text-lg font-semibold text-foreground mb-5 text-center">
                 Encontrar especialista
@@ -134,7 +134,7 @@ const HeroSection = () => {
           </div>
 
           {/* Center Column - Hero Text + Selo */}
-          <div className="lg:col-span-4 order-1 lg:order-2 text-center lg:text-left flex flex-col items-center lg:items-start">
+          <div className="lg:col-span-4 order-1 lg:order-2 text-center lg:text-left flex flex-col items-center lg:items-start pb-12 lg:pb-16">
             <div className="mb-6">
               <p className="text-primary-foreground/90 text-lg lg:text-xl mb-1">Acesse</p>
               <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-secondary mb-3 italic">
@@ -160,7 +160,7 @@ const HeroSection = () => {
             <img 
               src={doctorImage}
               alt="Médica profissional"
-              className="w-full max-w-md h-auto object-contain"
+              className="h-[550px] xl:h-[620px] w-auto object-contain object-bottom"
             />
           </div>
         </div>
