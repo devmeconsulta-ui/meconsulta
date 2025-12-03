@@ -93,8 +93,9 @@ const SpecialtiesSection = () => {
           }}
         >
           {extendedSpecialists.map((specialist, index) => (
-            <div 
+            <a 
               key={index}
+              href={`/medico/${specialist.name.toLowerCase().replace(/\s+/g, '-').replace(/\./g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')}`}
               className="flex-shrink-0 w-[280px] sm:w-[300px] cursor-pointer"
             >
               <div className="bg-card rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group">
@@ -108,12 +109,12 @@ const SpecialtiesSection = () => {
                 <div className="p-4 text-center">
                   <h3 className="font-semibold text-foreground mb-1">{specialist.name}</h3>
                   <p className="text-sm text-primary font-medium mb-3">{specialist.specialty}</p>
-                  <button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium py-2 px-4 rounded-lg transition-colors">
+                  <span className="block w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium py-2 px-4 rounded-lg transition-colors">
                     Marcar Consulta
-                  </button>
+                  </span>
                 </div>
               </div>
-            </div>
+            </a>
           ))}
         </div>
       </div>
