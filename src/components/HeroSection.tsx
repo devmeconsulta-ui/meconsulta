@@ -57,11 +57,11 @@ const HeroSection = () => {
               </h2>
               
               <div className="space-y-3">
-                {/* Search Input */}
+                {/* Doctor Name Search Input */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary" />
                   <Input 
-                    placeholder="Procurar por..." 
+                    placeholder="Procurar por nome do médico..." 
                     className="pl-10 h-11 rounded-lg border-border bg-muted/30"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
