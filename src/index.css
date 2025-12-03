@@ -145,8 +145,21 @@
     animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite;
+  }
+
   @keyframes float {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
+  }
+
+  @keyframes glow {
+    0%, 100% { 
+      box-shadow: 0 0 5px hsl(214 100% 35% / 0.3), 0 0 10px hsl(214 100% 35% / 0.2);
+    }
+    50% { 
+      box-shadow: 0 0 15px hsl(214 100% 35% / 0.5), 0 0 25px hsl(214 100% 35% / 0.3);
+    }
   }
 }
