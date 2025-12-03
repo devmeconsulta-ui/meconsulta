@@ -10,53 +10,19 @@ import {
 import { Input } from "@/components/ui/input";
 import doctorImage from "@/assets/dra-page.png";
 import seloImage from "@/assets/selo.png";
+import heroBg from "@/assets/hero-background.png";
 
 const HeroSection = () => {
   return (
-    <section className="relative bg-primary overflow-hidden pt-20">
-      {/* Yellow M Logo Shape - Left Side */}
-      <div className="absolute -left-16 -top-16 w-[350px] h-[350px] lg:w-[400px] lg:h-[400px]">
-        <div className="relative w-full h-full bg-secondary rounded-full flex items-center justify-center">
-          <svg width="200" height="200" viewBox="0 0 200 200" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-            {/* Sun rays */}
-            <line x1="100" y1="15" x2="100" y2="35" stroke="#1a4a7c" strokeWidth="10" strokeLinecap="round" />
-            <line x1="55" y1="30" x2="68" y2="48" stroke="#1a4a7c" strokeWidth="10" strokeLinecap="round" />
-            <line x1="145" y1="30" x2="132" y2="48" stroke="#1a4a7c" strokeWidth="10" strokeLinecap="round" />
-            
-            {/* M hands shape */}
-            <path 
-              d="M 50 170 L 50 95 Q 50 65 75 65 L 75 65 Q 90 65 90 85 L 90 105 L 90 85 Q 90 65 100 65 Q 110 65 110 85 L 110 105 L 110 85 Q 110 65 125 65 L 125 65 Q 150 65 150 95 L 150 170" 
-              stroke="#1a4a7c" 
-              strokeWidth="18"
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-      </div>
-      
-      {/* Stethoscope pattern - Right Side */}
-      <div className="absolute right-0 top-20 opacity-15 pointer-events-none">
-        <svg width="350" height="600" viewBox="0 0 350 600" fill="none">
-          <path 
-            d="M220 30 Q 300 100 300 250 Q 300 400 220 500" 
-            stroke="white" 
-            strokeWidth="20"
-            fill="none"
-            strokeLinecap="round"
-          />
-          <circle cx="220" cy="540" r="45" stroke="white" strokeWidth="20" fill="none" />
-          <path 
-            d="M175 540 L 175 580 Q 175 610 140 610" 
-            stroke="white" 
-            strokeWidth="20"
-            fill="none"
-            strokeLinecap="round"
-          />
-        </svg>
-      </div>
-
+    <section 
+      className="relative overflow-hidden pt-20"
+      style={{
+        backgroundImage: `url(${heroBg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundColor: 'hsl(214, 100%, 35%)'
+      }}
+    >
       <div className="container mx-auto px-4 relative z-10">
         <div className="grid lg:grid-cols-12 gap-6 lg:gap-8 items-end min-h-[580px] lg:min-h-[650px]">
           {/* Left Column - Search Form */}
