@@ -3,9 +3,9 @@ import logo from "@/assets/logo.avif";
 
 const Footer = () => {
   return (
-    <footer className="py-16" style={{ backgroundColor: 'hsl(210, 11%, 85%)' }}>
+    <footer className="py-10" style={{ backgroundColor: 'hsl(210, 11%, 85%)' }}>
       <div className="container mx-auto px-4">
-        <div className="grid md:grid-cols-5 gap-8 mb-12">
+        <div className="grid md:grid-cols-5 gap-6">
           {/* Logo & Description */}
           <div className="md:col-span-1">
             <div className="mb-6">
