@@ -9,35 +9,37 @@ const Header = () => {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background shadow-sm">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-14">
+        <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <img src={logo} alt="MeConsulta" className="h-7" />
+            <img src={logo} alt="MeConsulta" className="h-8" />
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
-            <a href="#especialidades" className="flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors">
-              <Grid3X3 className="w-4 h-4 text-primary" />
+          <nav className="hidden md:flex items-center gap-10">
+            <a href="#especialidades" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+              <Grid3X3 className="w-5 h-5 text-primary" />
               Especialidades
             </a>
-            <a href="#depoimentos" className="flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors">
-              <MessageSquare className="w-4 h-4 text-primary" />
+            <a href="#depoimentos" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+              <MessageSquare className="w-5 h-5 text-primary" />
               Depoimentos
             </a>
-            <a href="#especialistas" className="flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors">
-              <Search className="w-4 h-4 text-primary" />
+            <a href="#especialistas" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+              <Search className="w-5 h-5 text-primary" />
               Especialistas
             </a>
           </nav>
 
           {/* Desktop Auth Buttons */}
-          <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" className="flex items-center gap-2 text-foreground">
-              <User className="w-4 h-4" />
+          <div className="hidden md:flex items-center gap-4">
+            <Button variant="ghost" className="flex items-center gap-2 text-foreground font-medium">
+              <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                <User className="w-3.5 h-3.5 text-primary-foreground" />
+              </div>
               Entrar
             </Button>
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-6">
+            <Button className="bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-full px-8 font-semibold">
               Inscrever-se
             </Button>
           </div>
@@ -69,7 +71,7 @@ const Header = () => {
               </a>
               <div className="flex gap-2 pt-2">
                 <Button variant="ghost" className="flex-1">Entrar</Button>
-                <Button className="flex-1 bg-primary rounded-full">Inscrever-se</Button>
+                <Button className="flex-1 bg-secondary text-secondary-foreground rounded-full">Inscrever-se</Button>
               </div>
             </nav>
           </div>

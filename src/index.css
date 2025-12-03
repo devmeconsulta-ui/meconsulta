@@ -43,6 +43,8 @@
     --green-whatsapp: 142 70% 45%;
     --text-dark: 215 25% 20%;
     --text-light: 215 16% 47%;
+    --footer-bg: 210 11% 85%;
+    --footer-text: 214 35% 35%;
 
     /* Gradients */
     --gradient-hero: linear-gradient(135deg, hsl(214, 100%, 35%) 0%, hsl(214, 100%, 28%) 100%);
