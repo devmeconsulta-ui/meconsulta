@@ -73,8 +73,8 @@ const Footer = () => {
               <p>CNPJ: 54.677.548/0001-08</p>
               <p>Rua Agapito dos Anjos 750A, Montes Claros MG</p>
               <p className="pt-2">
-                <a href="mailto:contato@meconsulta.site" className="text-primary hover:underline">
-                  contato@meconsulta.site
+                <a href="mailto:contato@meconsulta.app.br" className="text-primary hover:underline">
+                  contato@meconsulta.app.br
                 </a>
               </p>
               <p>(38) 3214-7415</p>
