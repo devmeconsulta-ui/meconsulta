@@ -329,12 +329,51 @@ export type Database = {
           },
         ]
       }
+      paciente_favoritos: {
+        Row: {
+          created_at: string | null
+          id: string
+          medico_id: string
+          paciente_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          medico_id: string
+          paciente_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          medico_id?: string
+          paciente_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paciente_favoritos_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "paciente_favoritos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pacientes: {
         Row: {
           asaas_customer_id: string | null
+          bairro: string | null
+          cidade: string | null
           cpf: string | null
           created_at: string | null
           data_nascimento: string | null
+          estado: string | null
           id: string
           nome: string
           telefone: string | null
@@ -342,9 +381,12 @@ export type Database = {
         }
         Insert: {
           asaas_customer_id?: string | null
+          bairro?: string | null
+          cidade?: string | null
           cpf?: string | null
           created_at?: string | null
           data_nascimento?: string | null
+          estado?: string | null
           id?: string
           nome: string
           telefone?: string | null
@@ -352,9 +394,12 @@ export type Database = {
         }
         Update: {
           asaas_customer_id?: string | null
+          bairro?: string | null
+          cidade?: string | null
           cpf?: string | null
           created_at?: string | null
           data_nascimento?: string | null
+          estado?: string | null
           id?: string
           nome?: string
           telefone?: string | null
