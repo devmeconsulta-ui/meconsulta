@@ -41,13 +41,13 @@ const menuItems: MenuItem[] = [
     title: "Médicos", 
     url: "/admin/medicos", 
     icon: Stethoscope,
-    allowedRoles: ["admin", "superadmin"]
+    allowedRoles: ["atendente", "supervisor", "admin", "superadmin"]
   },
   { 
     title: "Pacientes", 
     url: "/admin/pacientes", 
     icon: Users,
-    allowedRoles: ["supervisor", "admin", "superadmin"]
+    allowedRoles: ["atendente", "supervisor", "admin", "superadmin"]
   },
   { 
     title: "Consultas", 
@@ -59,13 +59,13 @@ const menuItems: MenuItem[] = [
     title: "Financeiro", 
     url: "/admin/financeiro", 
     icon: DollarSign,
-    allowedRoles: ["admin", "superadmin"]
+    allowedRoles: ["atendente", "supervisor", "admin", "superadmin"]
   },
   { 
     title: "Configurações", 
     url: "/admin/configuracoes", 
     icon: Settings,
-    allowedRoles: ["admin", "superadmin"]
+    allowedRoles: ["atendente", "supervisor", "admin", "superadmin"]
   },
 ];
 
