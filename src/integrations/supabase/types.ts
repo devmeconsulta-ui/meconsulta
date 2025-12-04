@@ -249,6 +249,7 @@ export type Database = {
       medicos: {
         Row: {
           agencia: string | null
+          aparecer_home: boolean | null
           ativo: boolean | null
           banco_codigo: string | null
           banco_nome: string | null
@@ -257,6 +258,7 @@ export type Database = {
           created_at: string | null
           crm: string | null
           especialidade: string | null
+          formacao: string[] | null
           foto_url: string | null
           id: string
           nome: string
@@ -271,6 +273,7 @@ export type Database = {
         }
         Insert: {
           agencia?: string | null
+          aparecer_home?: boolean | null
           ativo?: boolean | null
           banco_codigo?: string | null
           banco_nome?: string | null
@@ -279,6 +282,7 @@ export type Database = {
           created_at?: string | null
           crm?: string | null
           especialidade?: string | null
+          formacao?: string[] | null
           foto_url?: string | null
           id?: string
           nome: string
@@ -293,6 +297,7 @@ export type Database = {
         }
         Update: {
           agencia?: string | null
+          aparecer_home?: boolean | null
           ativo?: boolean | null
           banco_codigo?: string | null
           banco_nome?: string | null
@@ -301,6 +306,7 @@ export type Database = {
           created_at?: string | null
           crm?: string | null
           especialidade?: string | null
+          formacao?: string[] | null
           foto_url?: string | null
           id?: string
           nome?: string
