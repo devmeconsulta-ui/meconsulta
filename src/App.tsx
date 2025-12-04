@@ -10,7 +10,6 @@ import BuscarMedicos from "./pages/BuscarMedicos";
 import PerfilMedico from "./pages/PerfilMedico";
 import Checkout from "./pages/Checkout";
 import Entrar from "./pages/Entrar";
-import AreaPaciente from "./pages/AreaPaciente";
 import NotFound from "./pages/NotFound";
 
 // Admin pages
@@ -33,6 +32,14 @@ import MedicoDadosBancarios from "./pages/medico/MedicoDadosBancarios";
 import MedicoAvaliacoes from "./pages/medico/MedicoAvaliacoes";
 import MedicoConfiguracoes from "./pages/medico/MedicoConfiguracoes";
 
+// Paciente pages
+import { PacienteLayout } from "./components/paciente/PacienteLayout";
+import PacienteDashboard from "./pages/paciente/PacienteDashboard";
+import PacienteConsultas from "./pages/paciente/PacienteConsultas";
+import PacienteMarcar from "./pages/paciente/PacienteMarcar";
+import PacienteFavoritos from "./pages/paciente/PacienteFavoritos";
+import PacientePerfil from "./pages/paciente/PacientePerfil";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -51,8 +58,14 @@ const App = () => (
             <Route path="/checkout/:id" element={<Checkout />} />
             <Route path="/entrar" element={<Entrar />} />
 
-            {/* User area routes */}
-            <Route path="/paciente" element={<AreaPaciente />} />
+            {/* Paciente routes */}
+            <Route path="/paciente" element={<PacienteLayout />}>
+              <Route index element={<PacienteDashboard />} />
+              <Route path="consultas" element={<PacienteConsultas />} />
+              <Route path="marcar" element={<PacienteMarcar />} />
+              <Route path="favoritos" element={<PacienteFavoritos />} />
+              <Route path="perfil" element={<PacientePerfil />} />
+            </Route>
 
             {/* Medico routes */}
             <Route path="/medico" element={<MedicoLayout />}>
