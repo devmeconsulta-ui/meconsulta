@@ -10,7 +10,6 @@ import BuscarMedicos from "./pages/BuscarMedicos";
 import PerfilMedico from "./pages/PerfilMedico";
 import Checkout from "./pages/Checkout";
 import Entrar from "./pages/Entrar";
-import AreaMedico from "./pages/AreaMedico";
 import AreaPaciente from "./pages/AreaPaciente";
 import NotFound from "./pages/NotFound";
 
@@ -23,6 +22,16 @@ import AdminPacientes from "./pages/admin/AdminPacientes";
 import AdminConsultas from "./pages/admin/AdminConsultas";
 import AdminFinanceiro from "./pages/admin/AdminFinanceiro";
 import AdminConfiguracoes from "./pages/admin/AdminConfiguracoes";
+
+// Medico pages
+import { MedicoLayout } from "./components/medico/MedicoLayout";
+import MedicoDashboard from "./pages/medico/MedicoDashboard";
+import MedicoLocais from "./pages/medico/MedicoLocais";
+import MedicoAgenda from "./pages/medico/MedicoAgenda";
+import MedicoPaginaPublica from "./pages/medico/MedicoPaginaPublica";
+import MedicoDadosBancarios from "./pages/medico/MedicoDadosBancarios";
+import MedicoAvaliacoes from "./pages/medico/MedicoAvaliacoes";
+import MedicoConfiguracoes from "./pages/medico/MedicoConfiguracoes";
 
 const queryClient = new QueryClient();
 
@@ -43,8 +52,18 @@ const App = () => (
             <Route path="/entrar" element={<Entrar />} />
 
             {/* User area routes */}
-            <Route path="/medico" element={<AreaMedico />} />
             <Route path="/paciente" element={<AreaPaciente />} />
+
+            {/* Medico routes */}
+            <Route path="/medico" element={<MedicoLayout />}>
+              <Route index element={<MedicoDashboard />} />
+              <Route path="locais" element={<MedicoLocais />} />
+              <Route path="agenda" element={<MedicoAgenda />} />
+              <Route path="pagina-publica" element={<MedicoPaginaPublica />} />
+              <Route path="dados-bancarios" element={<MedicoDadosBancarios />} />
+              <Route path="avaliacoes" element={<MedicoAvaliacoes />} />
+              <Route path="configuracoes" element={<MedicoConfiguracoes />} />
+            </Route>
 
             {/* Admin routes */}
             <Route path="/admin" element={<AdminLayout />}>
