@@ -1,4 +1,5 @@
-import { Bell, User } from "lucide-react";
+import { Bell, User, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -6,8 +7,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function AdminHeader() {
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/entrar");
+  };
+
   return (
     <header className="sticky top-0 z-30 h-16 bg-background border-b border-border flex items-center justify-between px-6 lg:px-8">
       <div className="lg:hidden w-10" /> {/* Spacer for mobile menu button */}
@@ -31,14 +41,17 @@ export function AdminHeader() {
                 <User className="h-4 w-4 text-primary-foreground" />
               </div>
               <span className="hidden sm:inline text-sm font-medium">
-                Administrador
+                {currentUser ? `Olá, ${currentUser.nome} (Admin)` : "Administrador"}
               </span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem>Perfil</DropdownMenuItem>
             <DropdownMenuItem>Configurações</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">Sair</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sair
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
