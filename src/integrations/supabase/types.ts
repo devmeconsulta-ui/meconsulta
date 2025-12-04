@@ -14,6 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      agenda_slots: {
+        Row: {
+          created_at: string | null
+          data_hora: string
+          disponivel: boolean | null
+          id: string
+          local_id: string
+          medico_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          data_hora: string
+          disponivel?: boolean | null
+          id?: string
+          local_id: string
+          medico_id: string
+        }
+        Update: {
+          created_at?: string | null
+          data_hora?: string
+          disponivel?: boolean | null
+          id?: string
+          local_id?: string
+          medico_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_slots_local_id_fkey"
+            columns: ["local_id"]
+            isOneToOne: false
+            referencedRelation: "locais_atendimento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agenda_slots_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      avaliacoes_medico: {
+        Row: {
+          aprovada_admin: boolean | null
+          comentario: string | null
+          created_at: string | null
+          id: string
+          medico_id: string
+          nota: number
+          paciente_id: string
+          resposta_medico: string | null
+        }
+        Insert: {
+          aprovada_admin?: boolean | null
+          comentario?: string | null
+          created_at?: string | null
+          id?: string
+          medico_id: string
+          nota: number
+          paciente_id: string
+          resposta_medico?: string | null
+        }
+        Update: {
+          aprovada_admin?: boolean | null
+          comentario?: string | null
+          created_at?: string | null
+          id?: string
+          medico_id?: string
+          nota?: number
+          paciente_id?: string
+          resposta_medico?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avaliacoes_medico_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "avaliacoes_medico_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consultas: {
         Row: {
           asaas_payment_id: string | null
@@ -74,43 +164,152 @@ export type Database = {
           },
         ]
       }
-      medicos: {
+      locais_atendimento: {
+        Row: {
+          ativo: boolean | null
+          cep: string | null
+          cidade: string | null
+          created_at: string | null
+          endereco: string | null
+          estado: string | null
+          id: string
+          medico_id: string
+          nome_local: string
+          observacoes: string | null
+          tipo_atendimento: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          cep?: string | null
+          cidade?: string | null
+          created_at?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          medico_id: string
+          nome_local: string
+          observacoes?: string | null
+          tipo_atendimento: string
+        }
+        Update: {
+          ativo?: boolean | null
+          cep?: string | null
+          cidade?: string | null
+          created_at?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          medico_id?: string
+          nome_local?: string
+          observacoes?: string | null
+          tipo_atendimento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "locais_atendimento_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      medico_servicos: {
         Row: {
           ativo: boolean | null
           created_at: string | null
+          id: string
+          medico_id: string
+          nome_servico: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          medico_id: string
+          nome_servico: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          medico_id?: string
+          nome_servico?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medico_servicos_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      medicos: {
+        Row: {
+          agencia: string | null
+          ativo: boolean | null
+          banco_codigo: string | null
+          banco_nome: string | null
+          bio: string | null
+          conta: string | null
+          created_at: string | null
           crm: string | null
           especialidade: string | null
+          foto_url: string | null
           id: string
           nome: string
           percentual_repasse: number
           pix_key: string | null
           pix_key_type: string | null
+          tipo_conta: string | null
+          titular_cpf_cnpj: string | null
+          titular_nome: string | null
           usuario_id: string | null
           valor_consulta: number
         }
         Insert: {
+          agencia?: string | null
           ativo?: boolean | null
+          banco_codigo?: string | null
+          banco_nome?: string | null
+          bio?: string | null
+          conta?: string | null
           created_at?: string | null
           crm?: string | null
           especialidade?: string | null
+          foto_url?: string | null
           id?: string
           nome: string
           percentual_repasse?: number
           pix_key?: string | null
           pix_key_type?: string | null
+          tipo_conta?: string | null
+          titular_cpf_cnpj?: string | null
+          titular_nome?: string | null
           usuario_id?: string | null
           valor_consulta?: number
         }
         Update: {
+          agencia?: string | null
           ativo?: boolean | null
+          banco_codigo?: string | null
+          banco_nome?: string | null
+          bio?: string | null
+          conta?: string | null
           created_at?: string | null
           crm?: string | null
           especialidade?: string | null
+          foto_url?: string | null
           id?: string
           nome?: string
           percentual_repasse?: number
           pix_key?: string | null
           pix_key_type?: string | null
+          tipo_conta?: string | null
+          titular_cpf_cnpj?: string | null
+          titular_nome?: string | null
           usuario_id?: string | null
           valor_consulta?: number
         }
