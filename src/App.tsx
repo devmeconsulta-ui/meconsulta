@@ -39,6 +39,9 @@ import PacienteConsultas from "./pages/paciente/PacienteConsultas";
 import PacienteMarcar from "./pages/paciente/PacienteMarcar";
 import PacienteFavoritos from "./pages/paciente/PacienteFavoritos";
 import PacientePerfil from "./pages/paciente/PacientePerfil";
+import PacienteHistorico from "./pages/paciente/PacienteHistorico";
+import PacienteNotificacoes from "./pages/paciente/PacienteNotificacoes";
+import PacienteConfiguracoes from "./pages/paciente/PacienteConfiguracoes";
 
 const queryClient = new QueryClient();
 
@@ -64,7 +67,10 @@ const App = () => (
               <Route path="consultas" element={<PacienteConsultas />} />
               <Route path="marcar" element={<PacienteMarcar />} />
               <Route path="favoritos" element={<PacienteFavoritos />} />
+              <Route path="historico" element={<PacienteHistorico />} />
+              <Route path="notificacoes" element={<PacienteNotificacoes />} />
               <Route path="perfil" element={<PacientePerfil />} />
+              <Route path="configuracoes" element={<PacienteConfiguracoes />} />
             </Route>
 
             {/* Medico routes */}
