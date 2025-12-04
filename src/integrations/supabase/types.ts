@@ -14,16 +14,228 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      consultas: {
+        Row: {
+          asaas_payment_id: string | null
+          created_at: string | null
+          data_hora: string
+          id: string
+          medico_id: string | null
+          paciente_id: string | null
+          status_consulta: string
+          status_pagamento: string
+          status_repasse: string
+          valor_consulta: number
+          valor_medico: number
+          valor_plataforma: number
+        }
+        Insert: {
+          asaas_payment_id?: string | null
+          created_at?: string | null
+          data_hora: string
+          id?: string
+          medico_id?: string | null
+          paciente_id?: string | null
+          status_consulta?: string
+          status_pagamento?: string
+          status_repasse?: string
+          valor_consulta: number
+          valor_medico: number
+          valor_plataforma: number
+        }
+        Update: {
+          asaas_payment_id?: string | null
+          created_at?: string | null
+          data_hora?: string
+          id?: string
+          medico_id?: string | null
+          paciente_id?: string | null
+          status_consulta?: string
+          status_pagamento?: string
+          status_repasse?: string
+          valor_consulta?: number
+          valor_medico?: number
+          valor_plataforma?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultas_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultas_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      medicos: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          crm: string | null
+          especialidade: string | null
+          id: string
+          nome: string
+          percentual_repasse: number
+          pix_key: string | null
+          pix_key_type: string | null
+          usuario_id: string | null
+          valor_consulta: number
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          crm?: string | null
+          especialidade?: string | null
+          id?: string
+          nome: string
+          percentual_repasse?: number
+          pix_key?: string | null
+          pix_key_type?: string | null
+          usuario_id?: string | null
+          valor_consulta?: number
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          crm?: string | null
+          especialidade?: string | null
+          id?: string
+          nome?: string
+          percentual_repasse?: number
+          pix_key?: string | null
+          pix_key_type?: string | null
+          usuario_id?: string | null
+          valor_consulta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medicos_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pacientes: {
+        Row: {
+          asaas_customer_id: string | null
+          cpf: string | null
+          created_at: string | null
+          data_nascimento: string | null
+          id: string
+          nome: string
+          telefone: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          asaas_customer_id?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          data_nascimento?: string | null
+          id?: string
+          nome: string
+          telefone?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          asaas_customer_id?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          data_nascimento?: string | null
+          id?: string
+          nome?: string
+          telefone?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pacientes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      usuarios: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          email: string
+          id: string
+          nome: string
+          senha_hash: string | null
+          tipo: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          email: string
+          id?: string
+          nome: string
+          senha_hash?: string | null
+          tipo: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          nome?: string
+          senha_hash?: string | null
+          tipo?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "medico" | "paciente"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +362,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "medico", "paciente"],
+    },
   },
 } as const
