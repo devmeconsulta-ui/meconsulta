@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { User, Plus, X, MapPin, Star, Edit, Save, Eye } from "lucide-react";
+import { User, Plus, X, MapPin, Star, Edit, Save, Eye, Upload, Image, GraduationCap, Home } from "lucide-react";
 
 interface MedicoContext {
   medicoData: any;
@@ -39,15 +40,20 @@ export default function MedicoPaginaPublica() {
   const { medicoData } = useOutletContext<MedicoContext>();
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [locais, setLocais] = useState<Local[]>([]);
   const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([]);
   const [novoServico, setNovoServico] = useState("");
+  const [novaFormacao, setNovaFormacao] = useState("");
   const [formData, setFormData] = useState({
     bio: "",
     foto_url: "",
+    aparecer_home: false,
+    formacao: [] as string[],
   });
   const [mediaAvaliacao, setMediaAvaliacao] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchData();
@@ -93,17 +99,64 @@ export default function MedicoPaginaPublica() {
     setFormData({
       bio: medicoData.bio || "",
       foto_url: medicoData.foto_url || "",
+      aparecer_home: medicoData.aparecer_home || false,
+      formacao: medicoData.formacao || [],
     });
 
     setLoading(false);
   }
 
-  async function handleSaveBio() {
+  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !medicoData?.id) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Por favor, selecione uma imagem");
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("A imagem deve ter no máximo 2MB");
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${medicoData.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("fotos-medicos")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("fotos-medicos")
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, foto_url: publicUrl });
+      toast.success("Foto enviada com sucesso!");
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Erro ao enviar foto");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleSave() {
     const { error } = await supabase
       .from("medicos")
       .update({
         bio: formData.bio,
         foto_url: formData.foto_url,
+        aparecer_home: formData.aparecer_home,
+        formacao: formData.formacao,
       })
       .eq("id", medicoData.id);
 
@@ -114,6 +167,39 @@ export default function MedicoPaginaPublica() {
 
     toast.success("Perfil atualizado!");
     setEditing(false);
+  }
+
+  async function handleToggleAparecerHome(checked: boolean) {
+    setFormData({ ...formData, aparecer_home: checked });
+    
+    const { error } = await supabase
+      .from("medicos")
+      .update({ aparecer_home: checked })
+      .eq("id", medicoData.id);
+
+    if (error) {
+      toast.error("Erro ao atualizar");
+      setFormData({ ...formData, aparecer_home: !checked });
+      return;
+    }
+
+    toast.success(checked ? "Você agora aparece na página principal!" : "Removido da página principal");
+  }
+
+  function handleAddFormacao() {
+    if (!novaFormacao.trim()) return;
+    setFormData({
+      ...formData,
+      formacao: [...formData.formacao, novaFormacao.trim()],
+    });
+    setNovaFormacao("");
+  }
+
+  function handleRemoveFormacao(index: number) {
+    setFormData({
+      ...formData,
+      formacao: formData.formacao.filter((_, i) => i !== index),
+    });
   }
 
   async function handleAddServico() {
@@ -169,17 +255,82 @@ export default function MedicoPaginaPublica() {
         </Button>
       </div>
 
+      {/* Toggle Aparecer na Home */}
+      <Card className="card-shadow border-primary/20">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Home className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Aparecer na Página Principal</h3>
+                <p className="text-sm text-muted-foreground">
+                  Ative para aparecer no carrossel de especialistas e ter mais visibilidade
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={formData.aparecer_home}
+              onCheckedChange={handleToggleAparecerHome}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Editor */}
         <div className="space-y-6">
-          {/* Foto e Bio */}
+          {/* Foto */}
+          <Card className="card-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Image className="w-5 h-5" />
+                Foto do Perfil
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-24 h-24 rounded-xl bg-muted flex items-center justify-center overflow-hidden">
+                  {formData.foto_url ? (
+                    <img src={formData.foto_url} alt="Foto" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-10 h-10 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {uploading ? "Enviando..." : "Enviar Foto"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Tamanho recomendado: 400x400px • Máximo: 2MB • Formatos: JPG, PNG
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Bio */}
           <Card className="card-shadow">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Perfil</CardTitle>
+              <CardTitle>Sobre Mim</CardTitle>
               <Button
                 variant={editing ? "default" : "outline"}
                 size="sm"
-                onClick={() => editing ? handleSaveBio() : setEditing(true)}
+                onClick={() => editing ? handleSave() : setEditing(true)}
                 className="gap-2"
               >
                 {editing ? (
@@ -195,26 +346,64 @@ export default function MedicoPaginaPublica() {
                 )}
               </Button>
             </CardHeader>
+            <CardContent>
+              <Textarea
+                value={formData.bio}
+                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                placeholder="Conte um pouco sobre você, sua experiência e abordagem..."
+                rows={5}
+                disabled={!editing}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Formação */}
+          <Card className="card-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GraduationCap className="w-5 h-5" />
+                Formação Acadêmica
+              </CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label>URL da Foto</Label>
+              <div className="flex gap-2">
                 <Input
-                  value={formData.foto_url}
-                  onChange={(e) => setFormData({ ...formData, foto_url: e.target.value })}
-                  placeholder="https://..."
-                  disabled={!editing}
+                  value={novaFormacao}
+                  onChange={(e) => setNovaFormacao(e.target.value)}
+                  placeholder="Ex: Residência em Cardiologia - USP 2020"
+                  onKeyDown={(e) => e.key === "Enter" && handleAddFormacao()}
                 />
+                <Button onClick={handleAddFormacao} size="icon">
+                  <Plus className="w-4 h-4" />
+                </Button>
               </div>
-              <div>
-                <Label>Bio / Apresentação</Label>
-                <Textarea
-                  value={formData.bio}
-                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                  placeholder="Conte um pouco sobre você..."
-                  rows={4}
-                  disabled={!editing}
-                />
+              <div className="space-y-2">
+                {formData.formacao.map((item, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-primary rounded-full" />
+                      <span className="text-sm">{item}</span>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveFormacao(index)}
+                      className="hover:bg-destructive/20 rounded-full p-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                {formData.formacao.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Nenhuma formação cadastrada</p>
+                )}
               </div>
+              {formData.formacao.length > 0 && (
+                <Button onClick={handleSave} variant="outline" size="sm" className="w-full">
+                  Salvar Formações
+                </Button>
+              )}
             </CardContent>
           </Card>
 
@@ -260,7 +449,7 @@ export default function MedicoPaginaPublica() {
         </div>
 
         {/* Preview */}
-        <Card className="card-shadow">
+        <Card className="card-shadow h-fit lg:sticky lg:top-24">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Eye className="w-5 h-5" />
@@ -309,6 +498,21 @@ export default function MedicoPaginaPublica() {
                 <div className="mb-4">
                   <h4 className="font-semibold mb-1">Sobre</h4>
                   <p className="text-sm text-muted-foreground">{formData.bio}</p>
+                </div>
+              )}
+
+              {/* Formação */}
+              {formData.formacao.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="font-semibold mb-2">Formação</h4>
+                  <ul className="space-y-1">
+                    {formData.formacao.map((item, index) => (
+                      <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <span className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
