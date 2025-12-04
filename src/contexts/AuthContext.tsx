@@ -6,6 +6,7 @@ export interface CurrentUser {
   nome: string;
   email: string;
   tipo: "admin" | "medico" | "paciente";
+  papel?: "atendente" | "supervisor" | "admin" | "superadmin";
 }
 
 interface AuthContextType {

@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Stethoscope,
   Users,
+  UserCog,
   Calendar,
   DollarSign,
   Settings,
@@ -12,19 +13,68 @@ import {
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
-const menuItems = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-  { title: "Médicos", url: "/admin/medicos", icon: Stethoscope },
-  { title: "Pacientes", url: "/admin/pacientes", icon: Users },
-  { title: "Consultas", url: "/admin/consultas", icon: Calendar },
-  { title: "Financeiro", url: "/admin/financeiro", icon: DollarSign },
-  { title: "Configurações", url: "/admin/configuracoes", icon: Settings },
+type Papel = "atendente" | "supervisor" | "admin" | "superadmin";
+
+interface MenuItem {
+  title: string;
+  url: string;
+  icon: typeof LayoutDashboard;
+  allowedRoles: Papel[];
+}
+
+const menuItems: MenuItem[] = [
+  { 
+    title: "Dashboard", 
+    url: "/admin", 
+    icon: LayoutDashboard,
+    allowedRoles: ["atendente", "supervisor", "admin", "superadmin"]
+  },
+  { 
+    title: "Usuários", 
+    url: "/admin/usuarios", 
+    icon: UserCog,
+    allowedRoles: ["admin", "superadmin"]
+  },
+  { 
+    title: "Médicos", 
+    url: "/admin/medicos", 
+    icon: Stethoscope,
+    allowedRoles: ["admin", "superadmin"]
+  },
+  { 
+    title: "Pacientes", 
+    url: "/admin/pacientes", 
+    icon: Users,
+    allowedRoles: ["supervisor", "admin", "superadmin"]
+  },
+  { 
+    title: "Consultas", 
+    url: "/admin/consultas", 
+    icon: Calendar,
+    allowedRoles: ["atendente", "supervisor", "admin", "superadmin"]
+  },
+  { 
+    title: "Financeiro", 
+    url: "/admin/financeiro", 
+    icon: DollarSign,
+    allowedRoles: ["admin", "superadmin"]
+  },
+  { 
+    title: "Configurações", 
+    url: "/admin/configuracoes", 
+    icon: Settings,
+    allowedRoles: ["admin", "superadmin"]
+  },
 ];
 
 export function AdminSidebar() {
   const location = useLocation();
+  const { currentUser } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+
+  const userPapel = (currentUser?.papel as Papel) || "atendente";
 
   const isActive = (path: string) => {
     if (path === "/admin") {
@@ -32,6 +82,11 @@ export function AdminSidebar() {
     }
     return location.pathname.startsWith(path);
   };
+
+  // Filter menu items based on user role
+  const visibleMenuItems = menuItems.filter((item) =>
+    item.allowedRoles.includes(userPapel)
+  );
 
   return (
     <>
@@ -73,7 +128,7 @@ export function AdminSidebar() {
 
         {/* Navigation */}
         <nav className="p-4 space-y-1">
-          {menuItems.map((item) => (
+          {visibleMenuItems.map((item) => (
             <NavLink
               key={item.url}
               to={item.url}

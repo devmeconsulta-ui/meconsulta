@@ -31,7 +31,7 @@ export default function Entrar() {
     try {
       const { data, error } = await supabase
         .from("usuarios")
-        .select("id, nome, email, tipo")
+        .select("id, nome, email, tipo, papel")
         .eq("email", email.trim())
         .eq("senha_hash", senha)
         .eq("ativo", true)
@@ -54,6 +54,7 @@ export default function Entrar() {
         nome: data.nome,
         email: data.email,
         tipo: data.tipo as "admin" | "medico" | "paciente",
+        papel: data.papel as "atendente" | "supervisor" | "admin" | "superadmin",
       });
 
       // Redirect based on user type

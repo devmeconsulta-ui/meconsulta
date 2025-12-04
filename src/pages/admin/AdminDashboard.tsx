@@ -1,5 +1,6 @@
 import { Stethoscope, Users, Calendar, CreditCard } from "lucide-react";
 import { StatCard } from "@/components/admin/StatCard";
+import { WelcomeHeader } from "@/components/admin/WelcomeHeader";
 import { useDashboardStats, useLatestConsultas } from "@/hooks/useAdminData";
 import {
   Table,
@@ -33,6 +34,9 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
+      {/* Welcome Header with Date/Time and Weather */}
+      <WelcomeHeader />
+
       <div>
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground">Visão geral do sistema MeConsulta</p>

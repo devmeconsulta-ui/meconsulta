@@ -198,6 +198,7 @@ export type Database = {
           email: string
           id: string
           nome: string
+          papel: string | null
           senha_hash: string | null
           tipo: string
         }
@@ -207,6 +208,7 @@ export type Database = {
           email: string
           id?: string
           nome: string
+          papel?: string | null
           senha_hash?: string | null
           tipo: string
         }
@@ -216,6 +218,7 @@ export type Database = {
           email?: string
           id?: string
           nome?: string
+          papel?: string | null
           senha_hash?: string | null
           tipo?: string
         }
