@@ -37,6 +37,7 @@ interface AgendaSlot {
   id: string;
   data_hora: string;
   disponivel: boolean;
+  local_id: string;
 }
 
 interface Avaliacao {
@@ -57,6 +58,7 @@ const PerfilMedico = () => {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<AgendaSlot | null>(null);
   const [weekStart, setWeekStart] = useState(0);
   const [mediaAvaliacao, setMediaAvaliacao] = useState(0);
 
@@ -106,7 +108,7 @@ const PerfilMedico = () => {
         .limit(10),
       supabase
         .from("agenda_slots")
-        .select("id, data_hora, disponivel")
+        .select("id, data_hora, disponivel, local_id")
         .eq("medico_id", id)
         .eq("disponivel", true)
         .gte("data_hora", new Date().toISOString())
@@ -160,13 +162,15 @@ const PerfilMedico = () => {
     return days;
   };
 
-  const getTimesForDate = (dateStr: string) => {
-    return agendaSlots
-      .filter(slot => {
-        const slotDate = format(new Date(slot.data_hora), "yyyy-MM-dd");
-        return slotDate === dateStr && slot.disponivel;
-      })
-      .map(slot => format(new Date(slot.data_hora), "HH:mm"));
+  const getSlotsForDate = (dateStr: string) => {
+    return agendaSlots.filter(slot => {
+      const slotDate = format(new Date(slot.data_hora), "yyyy-MM-dd");
+      return slotDate === dateStr && slot.disponivel;
+    });
+  };
+
+  const getLocalForSlot = (slot: AgendaSlot) => {
+    return locais.find(local => local.id === slot.local_id);
   };
 
   const hasSlotForDate = (dateStr: string) => {
@@ -367,6 +371,7 @@ const PerfilMedico = () => {
                             if (hasSlots) {
                               setSelectedDate(dateStr);
                               setSelectedTime(null);
+                              setSelectedSlot(null);
                             }
                           }}
                           disabled={!hasSlots}
@@ -404,28 +409,56 @@ const PerfilMedico = () => {
                     </div>
                     
                     <div className="grid grid-cols-3 gap-2">
-                      {getTimesForDate(selectedDate).map((time) => (
-                        <button
-                          key={time}
-                          onClick={() => setSelectedTime(time)}
-                          className={`
-                            py-2 px-3 rounded-lg text-sm font-medium transition-all
-                            ${selectedTime === time 
-                              ? "bg-primary text-primary-foreground" 
-                              : "bg-muted hover:bg-primary/20 text-foreground"
-                            }
-                          `}
-                        >
-                          {time}
-                        </button>
-                      ))}
+                      {getSlotsForDate(selectedDate).map((slot) => {
+                        const time = format(new Date(slot.data_hora), "HH:mm");
+                        const isSelected = selectedSlot?.id === slot.id;
+                        return (
+                          <button
+                            key={slot.id}
+                            onClick={() => {
+                              setSelectedTime(time);
+                              setSelectedSlot(slot);
+                            }}
+                            className={`
+                              py-2 px-3 rounded-lg text-sm font-medium transition-all
+                              ${isSelected 
+                                ? "bg-primary text-primary-foreground" 
+                                : "bg-muted hover:bg-primary/20 text-foreground"
+                              }
+                            `}
+                          >
+                            {time}
+                          </button>
+                        );
+                      })}
                     </div>
 
-                    {getTimesForDate(selectedDate).length === 0 && (
+                    {getSlotsForDate(selectedDate).length === 0 && (
                       <p className="text-sm text-muted-foreground text-center py-4">
                         Nenhum horário disponível para esta data
                       </p>
                     )}
+                  </div>
+                )}
+
+                {/* Selected Clinic */}
+                {selectedSlot && (
+                  <div className="mb-6 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <MapPin className="w-4 h-4 text-primary" />
+                      <span className="font-semibold text-foreground text-sm">Local da consulta</span>
+                    </div>
+                    {(() => {
+                      const local = getLocalForSlot(selectedSlot);
+                      if (!local) return <p className="text-sm text-muted-foreground">Local não encontrado</p>;
+                      return (
+                        <div className="text-sm text-muted-foreground">
+                          <p className="font-medium text-foreground">{local.nome_local}</p>
+                          {local.endereco && <p>{local.endereco}</p>}
+                          {local.cidade && <p>{local.cidade}/{local.estado}</p>}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
