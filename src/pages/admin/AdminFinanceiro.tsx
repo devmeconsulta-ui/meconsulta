@@ -53,7 +53,7 @@ export default function AdminFinanceiro() {
   const [especialidadeFilter, setEspecialidadeFilter] = useState("todas");
   const [dateRange, setDateRange] = useState({
     inicio: format(subDays(new Date(), 30), "yyyy-MM-dd"),
-    fim: format(new Date(), "yyyy-MM-dd"),
+    fim: format(subDays(new Date(), -90), "yyyy-MM-dd"), // Include future consultations
   });
 
   // Fetch financial data
@@ -251,7 +251,7 @@ export default function AdminFinanceiro() {
     const dias = parseInt(value);
     setDateRange({
       inicio: format(subDays(new Date(), dias), "yyyy-MM-dd"),
-      fim: format(new Date(), "yyyy-MM-dd"),
+      fim: format(subDays(new Date(), -90), "yyyy-MM-dd"), // Include future consultations
     });
   };
 
