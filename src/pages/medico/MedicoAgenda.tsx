@@ -300,6 +300,12 @@ export default function MedicoAgenda() {
     );
   }
 
+  // Handle opening modal for booking
+  function openBookingModal(slot: Slot) {
+    setSelectedSlot(slot);
+    setAgendaModalOpen(true);
+  }
+
   // Render slot item
   function renderSlot(slot: Slot, compact = false) {
     const slotInfo = getSlotStatus(slot);
@@ -307,21 +313,11 @@ export default function MedicoAgenda() {
     const isOnline = slotInfo.origem === "online";
     const isInterna = slotInfo.origem === "interna";
 
-    const handleClick = (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (isLivre) {
-        setSelectedSlot(slot);
-        setAgendaModalOpen(true);
-      }
-    };
-
     return (
-      <div
-        key={slot.id}
-        onClick={handleClick}
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
+        onClick={() => isLivre && openBookingModal(slot)}
+        disabled={!isLivre}
         className={`w-full p-2 rounded-lg text-left transition-all text-xs select-none ${
           isLivre
             ? "bg-primary/10 hover:bg-primary/20 cursor-pointer border border-primary/20 hover:border-primary/40 hover:scale-[1.02] active:scale-[0.98]"
@@ -357,7 +353,7 @@ export default function MedicoAgenda() {
             )}
           </>
         )}
-      </div>
+      </button>
     );
   }
 
