@@ -109,8 +109,10 @@ export type Database = {
           asaas_payment_id: string | null
           created_at: string | null
           data_hora: string
+          dependente_id: string | null
           id: string
           medico_id: string | null
+          nome_paciente_consulta: string | null
           paciente_id: string | null
           status_consulta: string
           status_pagamento: string
@@ -123,8 +125,10 @@ export type Database = {
           asaas_payment_id?: string | null
           created_at?: string | null
           data_hora: string
+          dependente_id?: string | null
           id?: string
           medico_id?: string | null
+          nome_paciente_consulta?: string | null
           paciente_id?: string | null
           status_consulta?: string
           status_pagamento?: string
@@ -137,8 +141,10 @@ export type Database = {
           asaas_payment_id?: string | null
           created_at?: string | null
           data_hora?: string
+          dependente_id?: string | null
           id?: string
           medico_id?: string | null
+          nome_paciente_consulta?: string | null
           paciente_id?: string | null
           status_consulta?: string
           status_pagamento?: string
@@ -148,6 +154,13 @@ export type Database = {
           valor_plataforma?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "consultas_dependente_id_fkey"
+            columns: ["dependente_id"]
+            isOneToOne: false
+            referencedRelation: "paciente_dependentes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "consultas_medico_id_fkey"
             columns: ["medico_id"]
@@ -325,6 +338,50 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      paciente_dependentes: {
+        Row: {
+          ativo: boolean | null
+          cpf: string | null
+          created_at: string | null
+          data_nascimento: string | null
+          id: string
+          nome: string
+          paciente_id: string
+          parentesco: string
+          telefone: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          cpf?: string | null
+          created_at?: string | null
+          data_nascimento?: string | null
+          id?: string
+          nome: string
+          paciente_id: string
+          parentesco: string
+          telefone?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          cpf?: string | null
+          created_at?: string | null
+          data_nascimento?: string | null
+          id?: string
+          nome?: string
+          paciente_id?: string
+          parentesco?: string
+          telefone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paciente_dependentes_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
             referencedColumns: ["id"]
           },
         ]
