@@ -36,8 +36,6 @@ interface ConfigAsaas {
 
 interface ConfigWhatsApp {
   id?: string;
-  api_base_url: string;
-  api_token: string;
   webhook_medico_url: string;
   webhook_paciente_url: string;
   ativo: boolean;
@@ -61,8 +59,6 @@ export default function AdminIntegracoes() {
   });
 
   const [configWhatsApp, setConfigWhatsApp] = useState<ConfigWhatsApp>({
-    api_base_url: "",
-    api_token: "",
     webhook_medico_url: "",
     webhook_paciente_url: "",
     ativo: false,
@@ -106,8 +102,6 @@ export default function AdminIntegracoes() {
     if (whatsappData) {
       setConfigWhatsApp({
         id: whatsappData.id,
-        api_base_url: whatsappData.api_base_url || "",
-        api_token: whatsappData.api_token || "",
         webhook_medico_url: whatsappData.webhook_medico_url || "",
         webhook_paciente_url: whatsappData.webhook_paciente_url || "",
         ativo: whatsappData.ativo ?? false,
@@ -187,8 +181,6 @@ export default function AdminIntegracoes() {
         const { error } = await supabase
           .from("config_whatsapp")
           .update({
-            api_base_url: configWhatsApp.api_base_url,
-            api_token: configWhatsApp.api_token,
             webhook_medico_url: configWhatsApp.webhook_medico_url,
             webhook_paciente_url: configWhatsApp.webhook_paciente_url,
             ativo: configWhatsApp.ativo,
@@ -201,8 +193,6 @@ export default function AdminIntegracoes() {
         const { data, error } = await supabase
           .from("config_whatsapp")
           .insert({
-            api_base_url: configWhatsApp.api_base_url,
-            api_token: configWhatsApp.api_token,
             webhook_medico_url: configWhatsApp.webhook_medico_url,
             webhook_paciente_url: configWhatsApp.webhook_paciente_url,
             ativo: configWhatsApp.ativo,
@@ -378,13 +368,15 @@ export default function AdminIntegracoes() {
                 <MessageSquare className="w-6 h-6 text-green-500" />
               </div>
               <div>
-                <CardTitle className="text-xl">Integração com WhatsApp</CardTitle>
+                <CardTitle className="text-xl">Integração com WhatsApp (Notificações)</CardTitle>
                 <CardDescription>
-                  Configure os dados do seu sistema de disparo de WhatsApp para notificações
+                  Informe aqui as URLs de webhook fornecidas pelo seu sistema de disparo de WhatsApp
                 </CardDescription>
               </div>
             </div>
-            <Badge variant="secondary">Em breve</Badge>
+            <Badge variant={configWhatsApp.id ? "default" : "secondary"}>
+              {configWhatsApp.id ? "Configurado" : "Não configurado"}
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -394,56 +386,37 @@ export default function AdminIntegracoes() {
             </div>
           ) : (
             <>
-              <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                <p className="text-sm text-amber-800 dark:text-amber-200">
-                  <strong>Atenção:</strong> Configure aqui os dados do seu sistema de disparo de WhatsApp. 
+              <div className="p-4 bg-muted/50 border border-border rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  O MeConsulta irá enviar os dados das consultas para essas URLs quando a automação estiver configurada. 
                   As automações serão conectadas depois que a integração com pagamentos estiver 100% estável.
                 </p>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
-                  <Label>API Base URL</Label>
-                  <Input
-                    value={configWhatsApp.api_base_url}
-                    onChange={(e) => setConfigWhatsApp({ ...configWhatsApp, api_base_url: e.target.value })}
-                    placeholder="https://api.seuwhatsapp.com"
-                  />
-                </div>
-
-                <div>
-                  <Label>API Token</Label>
-                  <Input
-                    type="password"
-                    value={configWhatsApp.api_token}
-                    onChange={(e) => setConfigWhatsApp({ ...configWhatsApp, api_token: e.target.value })}
-                    placeholder="Seu token de autenticação"
-                  />
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label>Webhook para Médico</Label>
+                  <Label>URL de webhook para médico</Label>
                   <Input
                     value={configWhatsApp.webhook_medico_url}
                     onChange={(e) => setConfigWhatsApp({ ...configWhatsApp, webhook_medico_url: e.target.value })}
-                    placeholder="URL do webhook para notificar médicos"
+                    placeholder="https://exemplo.suaapi.com/webhookcapture/capture/xxxxx"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    URL que receberá eventos de consultas para notificar o médico
+                    Esta é a URL para onde o MeConsulta irá enviar os dados quando uma consulta for criada/alterada para o médico 
+                    (por exemplo: "Parabéns, você tem uma nova consulta via MeConsulta...").
                   </p>
                 </div>
 
                 <div>
-                  <Label>Webhook para Paciente</Label>
+                  <Label>URL de webhook para paciente</Label>
                   <Input
                     value={configWhatsApp.webhook_paciente_url}
                     onChange={(e) => setConfigWhatsApp({ ...configWhatsApp, webhook_paciente_url: e.target.value })}
-                    placeholder="URL do webhook para notificar pacientes"
+                    placeholder="https://exemplo.suaapi.com/webhookcapture/capture/xxxxx"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    URL que receberá eventos de consultas para notificar o paciente
+                    Esta é a URL para onde o MeConsulta irá enviar os dados quando a consulta do paciente for confirmada e paga 
+                    (mensagens como "Sua consulta foi agendada com sucesso...").
                   </p>
                 </div>
               </div>
@@ -457,13 +430,13 @@ export default function AdminIntegracoes() {
                   <Label>Integração ativa</Label>
                 </div>
 
-                <Button onClick={handleSaveWhatsApp} disabled={savingWhatsApp} variant="outline" className="gap-2">
+                <Button onClick={handleSaveWhatsApp} disabled={savingWhatsApp} variant="outline" className="gap-2 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950">
                   {savingWhatsApp ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Save className="w-4 h-4" />
                   )}
-                  Salvar Configuração
+                  Salvar Configuração de WhatsApp
                 </Button>
               </div>
             </>
