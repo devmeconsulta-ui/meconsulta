@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -24,17 +25,28 @@ import {
   Building2,
   User,
   Filter,
+  Calendar,
+  CalendarDays,
+  LayoutGrid,
 } from "lucide-react";
 import {
   format,
   addWeeks,
   subWeeks,
+  addDays,
+  subDays,
+  addMonths,
+  subMonths,
   startOfWeek,
   endOfWeek,
+  startOfMonth,
+  endOfMonth,
   eachDayOfInterval,
   parseISO,
   isSameDay,
+  isSameMonth,
   isToday,
+  getDay,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AgendaInternaModal } from "@/components/medico/AgendaInternaModal";
@@ -76,17 +88,19 @@ interface UsuarioClinica {
   papel: string;
 }
 
+type ViewMode = "dia" | "semana" | "mes";
+
 export default function MedicoAgenda() {
   const { medicoData } = useOutletContext<MedicoContext>();
   const [locais, setLocais] = useState<Local[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [usuariosClinica, setUsuariosClinica] = useState<UsuarioClinica[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [viewMode, setViewMode] = useState<ViewMode>("semana");
 
   // Filters
+  const [filterLocal, setFilterLocal] = useState("todos");
   const [filterOrigem, setFilterOrigem] = useState("todos");
 
   // Modals
@@ -94,16 +108,30 @@ export default function MedicoAgenda() {
   const [gerarSlotsModalOpen, setGerarSlotsModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
 
-  const weekDays = eachDayOfInterval({
-    start: currentWeekStart,
-    end: endOfWeek(currentWeekStart, { weekStartsOn: 1 }),
-  });
+  // Date range helpers
+  function getDateRange() {
+    if (viewMode === "dia") {
+      return { start: currentDate, end: currentDate };
+    } else if (viewMode === "semana") {
+      return {
+        start: startOfWeek(currentDate, { weekStartsOn: 1 }),
+        end: endOfWeek(currentDate, { weekStartsOn: 1 }),
+      };
+    } else {
+      return {
+        start: startOfMonth(currentDate),
+        end: endOfMonth(currentDate),
+      };
+    }
+  }
+
+  const { start: rangeStart, end: rangeEnd } = getDateRange();
 
   useEffect(() => {
     if (medicoData?.id) {
       fetchData();
     }
-  }, [medicoData, currentWeekStart]);
+  }, [medicoData, currentDate, viewMode]);
 
   async function fetchData() {
     setLoading(true);
@@ -117,8 +145,8 @@ export default function MedicoAgenda() {
 
     setLocais(locaisData || []);
 
-    // Fetch slots for the week
-    const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
+    // Fetch slots for the range
+    const { start, end } = getDateRange();
 
     const { data: slotsData } = await supabase
       .from("agenda_slots")
@@ -127,8 +155,8 @@ export default function MedicoAgenda() {
         locais_atendimento(id, nome_local, tipo_atendimento)
       `)
       .eq("medico_id", medicoData.id)
-      .gte("data_hora", currentWeekStart.toISOString())
-      .lte("data_hora", weekEnd.toISOString())
+      .gte("data_hora", start.toISOString())
+      .lte("data_hora", end.toISOString())
       .order("data_hora", { ascending: true });
 
     // Fetch consultations for these slots
@@ -170,16 +198,28 @@ export default function MedicoAgenda() {
     setLoading(false);
   }
 
-  function handlePrevWeek() {
-    setCurrentWeekStart(subWeeks(currentWeekStart, 1));
+  function handlePrev() {
+    if (viewMode === "dia") {
+      setCurrentDate(subDays(currentDate, 1));
+    } else if (viewMode === "semana") {
+      setCurrentDate(subWeeks(currentDate, 1));
+    } else {
+      setCurrentDate(subMonths(currentDate, 1));
+    }
   }
 
-  function handleNextWeek() {
-    setCurrentWeekStart(addWeeks(currentWeekStart, 1));
+  function handleNext() {
+    if (viewMode === "dia") {
+      setCurrentDate(addDays(currentDate, 1));
+    } else if (viewMode === "semana") {
+      setCurrentDate(addWeeks(currentDate, 1));
+    } else {
+      setCurrentDate(addMonths(currentDate, 1));
+    }
   }
 
-  function handleThisWeek() {
-    setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  function handleToday() {
+    setCurrentDate(new Date());
   }
 
   function handleSlotClick(slot: Slot) {
@@ -205,19 +245,50 @@ export default function MedicoAgenda() {
     return { status: "livre", origem: null, pacienteNome: null, statusConsulta: null };
   }
 
-  function getSlotsForDay(day: Date) {
-    return slots
-      .filter((slot) => isSameDay(parseISO(slot.data_hora), day))
-      .filter((slot) => {
-        if (filterOrigem === "todos") return true;
-        if (filterOrigem === "livres") {
-          const info = getSlotStatus(slot);
-          return info.status === "livre";
-        }
+  function getFilteredSlots() {
+    return slots.filter((slot) => {
+      // Filter by location
+      if (filterLocal !== "todos" && slot.local_id !== filterLocal) {
+        return false;
+      }
+
+      // Filter by origin
+      if (filterOrigem === "todos") return true;
+      if (filterOrigem === "livres") {
         const info = getSlotStatus(slot);
-        return info.origem === filterOrigem;
-      });
+        return info.status === "livre";
+      }
+      const info = getSlotStatus(slot);
+      return info.origem === filterOrigem;
+    });
   }
+
+  function getSlotsForDay(day: Date) {
+    return getFilteredSlots().filter((slot) => isSameDay(parseISO(slot.data_hora), day));
+  }
+
+  function getNavigationLabel() {
+    if (viewMode === "dia") {
+      return format(currentDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+    } else if (viewMode === "semana") {
+      const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
+      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+      return `${format(weekStart, "dd/MM", { locale: ptBR })} - ${format(weekEnd, "dd/MM/yyyy", { locale: ptBR })}`;
+    } else {
+      return format(currentDate, "MMMM 'de' yyyy", { locale: ptBR });
+    }
+  }
+
+  function getTodayLabel() {
+    if (viewMode === "dia") return "Hoje";
+    if (viewMode === "semana") return "Esta semana";
+    return "Este mês";
+  }
+
+  // Get current location name for display
+  const currentLocalName = filterLocal === "todos" 
+    ? "Todos os locais" 
+    : locais.find(l => l.id === filterLocal)?.nome_local || "Local";
 
   if (loading) {
     return (
@@ -227,13 +298,247 @@ export default function MedicoAgenda() {
     );
   }
 
+  // Render slot item
+  function renderSlot(slot: Slot, compact = false) {
+    const slotInfo = getSlotStatus(slot);
+    const isLivre = slotInfo.status === "livre";
+    const isOnline = slotInfo.origem === "online";
+    const isInterna = slotInfo.origem === "interna";
+
+    return (
+      <button
+        key={slot.id}
+        onClick={() => handleSlotClick(slot)}
+        disabled={!isLivre}
+        className={`w-full p-2 rounded-lg text-left transition-all text-xs ${
+          isLivre
+            ? "bg-primary/10 hover:bg-primary/20 cursor-pointer border border-primary/20 hover:border-primary/40"
+            : isOnline
+            ? "bg-blue-600/90 dark:bg-blue-700/90 text-white border-l-4 border-l-blue-400 cursor-default shadow-sm"
+            : isInterna
+            ? "bg-emerald-600/90 dark:bg-emerald-700/90 text-white border-l-4 border-l-emerald-400 cursor-default shadow-sm"
+            : "bg-muted/50 cursor-default"
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <Clock className={`w-3 h-3 shrink-0 ${isLivre ? "" : "text-white/80"}`} />
+          <span className="font-semibold">
+            {format(parseISO(slot.data_hora), "HH:mm")}
+          </span>
+        </div>
+
+        {!compact && (
+          <>
+            {slotInfo.pacienteNome ? (
+              <div className="mt-1 flex items-center gap-1">
+                {isOnline ? (
+                  <Globe className="w-3 h-3 text-white/80" />
+                ) : (
+                  <Building2 className="w-3 h-3 text-white/80" />
+                )}
+                <span className="truncate text-white/90">
+                  {slotInfo.pacienteNome}
+                </span>
+              </div>
+            ) : (
+              <p className="mt-1 text-primary/70 font-medium">Disponível</p>
+            )}
+          </>
+        )}
+      </button>
+    );
+  }
+
+  // Render day view
+  function renderDayView() {
+    const daySlots = getSlotsForDay(currentDate);
+
+    return (
+      <Card className="card-shadow">
+        <CardContent className="p-4 md:p-6">
+          <div className="flex items-center gap-3 mb-4 pb-3 border-b">
+            <div className={`p-3 rounded-xl ${isToday(currentDate) ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+              <span className="text-2xl font-bold">{format(currentDate, "dd")}</span>
+            </div>
+            <div>
+              <p className="text-lg font-semibold capitalize">
+                {format(currentDate, "EEEE", { locale: ptBR })}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })}
+              </p>
+            </div>
+          </div>
+
+          {daySlots.length === 0 ? (
+            <div className="text-center py-12">
+              <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" />
+              <p className="text-muted-foreground">Nenhum horário para este dia</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {daySlots.map((slot) => renderSlot(slot))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Render week view
+  function renderWeekView() {
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+    const weekDays = eachDayOfInterval({
+      start: weekStart,
+      end: endOfWeek(weekStart, { weekStartsOn: 1 }),
+    });
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+        {weekDays.map((day) => {
+          const daySlots = getSlotsForDay(day);
+          const dayIsToday = isToday(day);
+
+          return (
+            <Card
+              key={day.toISOString()}
+              className={`card-shadow ${dayIsToday ? "ring-2 ring-primary shadow-lg" : ""}`}
+            >
+              <CardContent className="p-3">
+                {/* Day header */}
+                <div className={`text-center mb-3 pb-2 border-b ${dayIsToday ? "border-primary" : "border-border"}`}>
+                  <p className={`text-xs uppercase font-medium ${dayIsToday ? "text-primary" : "text-muted-foreground"}`}>
+                    {format(day, "EEE", { locale: ptBR })}
+                  </p>
+                  <p className={`text-lg font-bold ${dayIsToday ? "text-primary" : "text-foreground"}`}>
+                    {format(day, "dd")}
+                  </p>
+                </div>
+
+                {/* Slots for this day */}
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {daySlots.length === 0 ? (
+                    <p className="text-xs text-center text-muted-foreground py-4">
+                      Sem horários
+                    </p>
+                  ) : (
+                    daySlots.map((slot) => renderSlot(slot))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Render month view
+  function renderMonthView() {
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    
+    // Get the first day of the calendar grid (may be from previous month)
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    
+    const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+
+    return (
+      <Card className="card-shadow">
+        <CardContent className="p-4">
+          {/* Week day headers */}
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((day) => (
+              <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar grid */}
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDays.map((day) => {
+              const daySlots = getSlotsForDay(day);
+              const dayIsToday = isToday(day);
+              const isCurrentMonth = isSameMonth(day, currentDate);
+              
+              const freeSlots = daySlots.filter(s => getSlotStatus(s).status === "livre").length;
+              const bookedSlots = daySlots.filter(s => getSlotStatus(s).status === "reservado").length;
+
+              return (
+                <div
+                  key={day.toISOString()}
+                  className={`min-h-[80px] md:min-h-[100px] p-1 md:p-2 rounded-lg border transition-all ${
+                    !isCurrentMonth 
+                      ? "bg-muted/30 border-transparent" 
+                      : dayIsToday 
+                      ? "bg-primary/10 border-primary" 
+                      : "bg-background border-border/50 hover:border-primary/30"
+                  }`}
+                >
+                  <p className={`text-xs md:text-sm font-semibold mb-1 ${
+                    !isCurrentMonth 
+                      ? "text-muted-foreground/50" 
+                      : dayIsToday 
+                      ? "text-primary" 
+                      : "text-foreground"
+                  }`}>
+                    {format(day, "d")}
+                  </p>
+
+                  {isCurrentMonth && daySlots.length > 0 && (
+                    <div className="space-y-1">
+                      {freeSlots > 0 && (
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-full bg-primary/50"></div>
+                          <span className="text-[10px] text-muted-foreground">{freeSlots} livre{freeSlots > 1 ? 's' : ''}</span>
+                        </div>
+                      )}
+                      {bookedSlots > 0 && (
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                          <span className="text-[10px] text-muted-foreground">{bookedSlots} agend.</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-foreground">Agenda Semanal</h2>
-          <p className="text-sm text-muted-foreground">Visualize e gerencie seus horários da semana</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-xl md:text-2xl font-bold text-foreground">Agenda</h2>
+            <p className="text-sm text-muted-foreground">Visualize e gerencie seus horários</p>
+          </div>
+
+          {/* View mode tabs */}
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)} className="w-full sm:w-auto">
+            <TabsList className="grid w-full grid-cols-3 sm:w-auto">
+              <TabsTrigger value="dia" className="gap-2">
+                <Calendar className="w-4 h-4" />
+                <span className="hidden sm:inline">Dia</span>
+              </TabsTrigger>
+              <TabsTrigger value="semana" className="gap-2">
+                <CalendarDays className="w-4 h-4" />
+                <span className="hidden sm:inline">Semana</span>
+              </TabsTrigger>
+              <TabsTrigger value="mes" className="gap-2">
+                <LayoutGrid className="w-4 h-4" />
+                <span className="hidden sm:inline">Mês</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         {/* Action buttons */}
@@ -251,49 +556,100 @@ export default function MedicoAgenda() {
         </div>
       </div>
 
-      {/* Week navigation */}
+      {/* Navigation */}
       <Card className="card-shadow">
         <CardContent className="p-3 md:p-4">
           <div className="flex items-center justify-between gap-2">
-            <Button variant="ghost" size="icon" onClick={handlePrevWeek}>
+            <Button variant="ghost" size="icon" onClick={handlePrev}>
               <ChevronLeft className="w-5 h-5" />
             </Button>
 
             <div className="flex-1 text-center">
               <Button
                 variant="ghost"
-                onClick={handleThisWeek}
+                onClick={handleToday}
                 className="text-xs text-muted-foreground mb-1"
               >
-                Esta semana
+                {getTodayLabel()}
               </Button>
-              <p className="text-sm md:text-base font-semibold">
-                {format(currentWeekStart, "dd/MM", { locale: ptBR })} - {format(endOfWeek(currentWeekStart, { weekStartsOn: 1 }), "dd/MM/yyyy", { locale: ptBR })}
+              <p className="text-sm md:text-base font-semibold capitalize">
+                {getNavigationLabel()}
               </p>
             </div>
 
-            <Button variant="ghost" size="icon" onClick={handleNextWeek}>
+            <Button variant="ghost" size="icon" onClick={handleNext}>
               <ChevronRight className="w-5 h-5" />
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Filter */}
-      <div className="flex gap-2">
-        <Select value={filterOrigem} onValueChange={setFilterOrigem}>
-          <SelectTrigger className="w-full sm:w-48">
-            <Filter className="w-4 h-4 mr-2 shrink-0" />
-            <SelectValue placeholder="Filtrar" />
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        {/* Location filter */}
+        <Select value={filterLocal} onValueChange={setFilterLocal}>
+          <SelectTrigger className="w-full sm:w-64">
+            <MapPin className="w-4 h-4 mr-2 shrink-0 text-muted-foreground" />
+            <SelectValue placeholder="Local de atendimento" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
+            <SelectItem value="todos">Todos os locais</SelectItem>
+            {locais.map((local) => (
+              <SelectItem key={local.id} value={local.id}>
+                <div className="flex items-center gap-2">
+                  {local.tipo_atendimento === "online" ? (
+                    <Globe className="w-3 h-3 text-blue-500" />
+                  ) : (
+                    <Building2 className="w-3 h-3 text-emerald-500" />
+                  )}
+                  {local.nome_local}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Origin filter */}
+        <Select value={filterOrigem} onValueChange={setFilterOrigem}>
+          <SelectTrigger className="w-full sm:w-48">
+            <Filter className="w-4 h-4 mr-2 shrink-0 text-muted-foreground" />
+            <SelectValue placeholder="Filtrar status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os status</SelectItem>
             <SelectItem value="livres">Livres</SelectItem>
-            <SelectItem value="online">Online</SelectItem>
-            <SelectItem value="interna">Interna</SelectItem>
+            <SelectItem value="online">Agendados Online</SelectItem>
+            <SelectItem value="interna">Agendados Interna</SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {/* Current filter badge */}
+      {(filterLocal !== "todos" || filterOrigem !== "todos") && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filtros ativos:</span>
+          {filterLocal !== "todos" && (
+            <Badge variant="secondary" className="gap-1">
+              <MapPin className="w-3 h-3" />
+              {currentLocalName}
+            </Badge>
+          )}
+          {filterOrigem !== "todos" && (
+            <Badge variant="secondary" className="gap-1">
+              <Filter className="w-3 h-3" />
+              {filterOrigem === "livres" ? "Livres" : filterOrigem === "online" ? "Online" : "Interna"}
+            </Badge>
+          )}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => { setFilterLocal("todos"); setFilterOrigem("todos"); }}
+            className="h-6 text-xs"
+          >
+            Limpar
+          </Button>
+        </div>
+      )}
 
       {/* No locations message */}
       {locais.length === 0 ? (
@@ -306,102 +662,26 @@ export default function MedicoAgenda() {
           </CardContent>
         </Card>
       ) : (
-        /* Weekly view */
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-          {weekDays.map((day) => {
-            const daySlots = getSlotsForDay(day);
-            const dayIsToday = isToday(day);
-
-            return (
-              <Card
-                key={day.toISOString()}
-                className={`card-shadow ${dayIsToday ? "ring-2 ring-primary" : ""}`}
-              >
-                <CardContent className="p-3">
-                  {/* Day header */}
-                  <div className={`text-center mb-3 pb-2 border-b ${dayIsToday ? "border-primary" : "border-border"}`}>
-                    <p className={`text-xs uppercase font-medium ${dayIsToday ? "text-primary" : "text-muted-foreground"}`}>
-                      {format(day, "EEE", { locale: ptBR })}
-                    </p>
-                    <p className={`text-lg font-bold ${dayIsToday ? "text-primary" : "text-foreground"}`}>
-                      {format(day, "dd")}
-                    </p>
-                  </div>
-
-                  {/* Slots for this day */}
-                  <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {daySlots.length === 0 ? (
-                      <p className="text-xs text-center text-muted-foreground py-4">
-                        Sem horários
-                      </p>
-                    ) : (
-                      daySlots.map((slot) => {
-                        const slotInfo = getSlotStatus(slot);
-                        const isLivre = slotInfo.status === "livre";
-                        const isOnline = slotInfo.origem === "online";
-                        const isInterna = slotInfo.origem === "interna";
-
-                        return (
-                          <button
-                            key={slot.id}
-                            onClick={() => handleSlotClick(slot)}
-                            disabled={!isLivre}
-                            className={`w-full p-2 rounded-lg text-left transition-all text-xs ${
-                              isLivre
-                                ? "bg-muted hover:bg-muted/80 cursor-pointer border border-transparent hover:border-primary/30"
-                                : isOnline
-                                ? "bg-blue-100 dark:bg-blue-900/30 border-l-2 border-l-blue-500 cursor-default"
-                                : isInterna
-                                ? "bg-green-100 dark:bg-green-900/30 border-l-2 border-l-green-500 cursor-default"
-                                : "bg-muted/50 cursor-default"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-3 h-3 shrink-0" />
-                              <span className="font-medium">
-                                {format(parseISO(slot.data_hora), "HH:mm")}
-                              </span>
-                            </div>
-
-                            {slotInfo.pacienteNome ? (
-                              <div className="mt-1 flex items-center gap-1">
-                                {isOnline ? (
-                                  <Globe className="w-3 h-3 text-blue-600" />
-                                ) : (
-                                  <Building2 className="w-3 h-3 text-green-600" />
-                                )}
-                                <span className="truncate text-muted-foreground">
-                                  {slotInfo.pacienteNome}
-                                </span>
-                              </div>
-                            ) : (
-                              <p className="mt-1 text-muted-foreground">Livre</p>
-                            )}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <>
+          {viewMode === "dia" && renderDayView()}
+          {viewMode === "semana" && renderWeekView()}
+          {viewMode === "mes" && renderMonthView()}
+        </>
       )}
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-muted rounded"></div>
-          <span>Livre</span>
+          <div className="w-3 h-3 bg-primary/30 rounded border border-primary/40"></div>
+          <span>Disponível</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-blue-500 rounded"></div>
-          <span>Online</span>
+          <div className="w-3 h-3 bg-blue-600 rounded"></div>
+          <span>Agendado Online</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-green-500 rounded"></div>
-          <span>Interna</span>
+          <div className="w-3 h-3 bg-emerald-600 rounded"></div>
+          <span>Agendado Interno</span>
         </div>
       </div>
 
@@ -429,7 +709,7 @@ export default function MedicoAgenda() {
         medicoId={medicoData.id}
         onSuccess={(firstDate) => {
           if (firstDate) {
-            setCurrentWeekStart(startOfWeek(firstDate, { weekStartsOn: 1 }));
+            setCurrentDate(firstDate);
           }
           fetchData();
         }}
