@@ -4,15 +4,16 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, ChevronLeft, CreditCard, User, FileText, Users, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { Calendar, MapPin, ChevronLeft, CreditCard, User, FileText, Users, Copy, ExternalLink, Loader2, Mail, Lock, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, CurrentUser } from "@/contexts/AuthContext";
 
 interface PaymentData {
   paymentId: string;
@@ -54,7 +55,7 @@ const Checkout = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, setCurrentUser } = useAuth();
   
   const selectedDate = searchParams.get("data") || "";
   const selectedTime = searchParams.get("horario") || "";
@@ -69,9 +70,20 @@ const Checkout = () => {
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   
+  // Registration form state
+  const [registerData, setRegisterData] = useState({
+    nome: "",
+    cpf: "",
+    email: "",
+    telefone: "",
+    senha: "",
+    confirmarSenha: "",
+  });
+  const [isRegistering, setIsRegistering] = useState(false);
+  
   const [formData, setFormData] = useState({
     tipoServico: "",
-    paraQuem: "eu", // 'eu' ou ID do dependente
+    paraQuem: "eu",
     motivoConsulta: "",
     sintomas: "",
     observacoes: "",
@@ -82,6 +94,25 @@ const Checkout = () => {
       fetchData();
     }
   }, [id, localId]);
+
+  useEffect(() => {
+    // Re-fetch dependents when user logs in
+    if (currentUser?.pacienteId) {
+      fetchDependentes();
+    }
+  }, [currentUser?.pacienteId]);
+
+  async function fetchDependentes() {
+    if (!currentUser?.pacienteId) return;
+    
+    const { data: dependentesData } = await supabase
+      .from("paciente_dependentes")
+      .select("id, nome, parentesco")
+      .eq("paciente_id", currentUser.pacienteId)
+      .eq("ativo", true);
+    
+    setDependentes(dependentesData || []);
+  }
 
   async function fetchData() {
     setLoading(true);
@@ -136,6 +167,125 @@ const Checkout = () => {
     setLoading(false);
   }
 
+  // Format CPF as user types
+  const formatCPF = (value: string) => {
+    const numbers = value.replace(/\D/g, "");
+    if (numbers.length <= 3) return numbers;
+    if (numbers.length <= 6) return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
+    if (numbers.length <= 9) return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
+    return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`;
+  };
+
+  // Format phone as user types
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, "");
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+  };
+
+  const handleRegister = async () => {
+    // Validate registration form
+    if (!registerData.nome.trim()) {
+      toast.error("Por favor, informe seu nome completo");
+      return;
+    }
+    if (!registerData.cpf || registerData.cpf.replace(/\D/g, "").length !== 11) {
+      toast.error("Por favor, informe um CPF válido");
+      return;
+    }
+    if (!registerData.email || !registerData.email.includes("@")) {
+      toast.error("Por favor, informe um email válido");
+      return;
+    }
+    if (!registerData.senha || registerData.senha.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+    if (registerData.senha !== registerData.confirmarSenha) {
+      toast.error("As senhas não coincidem");
+      return;
+    }
+
+    setIsRegistering(true);
+
+    try {
+      // Check if email already exists
+      const { data: existingUser } = await supabase
+        .from("usuarios")
+        .select("id")
+        .eq("email", registerData.email.toLowerCase())
+        .maybeSingle();
+
+      if (existingUser) {
+        toast.error("Este email já está cadastrado. Por favor, faça login.");
+        setIsRegistering(false);
+        return;
+      }
+
+      // Check if CPF already exists
+      const cpfClean = registerData.cpf.replace(/\D/g, "");
+      const { data: existingCpf } = await supabase
+        .from("pacientes")
+        .select("id")
+        .eq("cpf", cpfClean)
+        .maybeSingle();
+
+      if (existingCpf) {
+        toast.error("Este CPF já está cadastrado. Por favor, faça login.");
+        setIsRegistering(false);
+        return;
+      }
+
+      // Create user in usuarios table
+      const { data: newUser, error: userError } = await supabase
+        .from("usuarios")
+        .insert({
+          nome: registerData.nome.trim(),
+          email: registerData.email.toLowerCase().trim(),
+          tipo: "paciente",
+          senha_hash: registerData.senha, // In production, this should be hashed
+          ativo: true,
+        })
+        .select("id, nome, email, tipo")
+        .single();
+
+      if (userError) throw userError;
+
+      // Create patient record
+      const { data: newPaciente, error: pacienteError } = await supabase
+        .from("pacientes")
+        .insert({
+          usuario_id: newUser.id,
+          nome: registerData.nome.trim(),
+          cpf: cpfClean,
+          telefone: registerData.telefone.replace(/\D/g, "") || null,
+        })
+        .select("id")
+        .single();
+
+      if (pacienteError) throw pacienteError;
+
+      // Auto-login the user
+      const loggedUser: CurrentUser = {
+        id: newUser.id,
+        nome: newUser.nome,
+        email: newUser.email,
+        tipo: "paciente",
+        pacienteId: newPaciente.id,
+      };
+
+      setCurrentUser(loggedUser);
+      toast.success("Conta criada com sucesso!");
+
+    } catch (error) {
+      console.error("Registration error:", error);
+      toast.error("Erro ao criar conta. Tente novamente.");
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -174,8 +324,7 @@ const Checkout = () => {
     }
 
     if (!currentUser?.pacienteId) {
-      toast.error("Você precisa estar logado como paciente para agendar uma consulta");
-      navigate("/entrar");
+      toast.error("Você precisa criar uma conta para agendar");
       return;
     }
 
@@ -372,7 +521,129 @@ const Checkout = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form - Left Column */}
             <div className="lg:col-span-2">
-              <div className="bg-card rounded-2xl p-6 shadow-md">
+              {/* Registration Form - Show if not logged in */}
+              {!currentUser?.pacienteId && (
+                <div className="bg-card rounded-2xl p-6 shadow-md mb-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <User className="w-5 h-5 text-primary" />
+                    <h2 className="text-xl font-bold text-foreground">Criar sua conta</h2>
+                  </div>
+                  <p className="text-muted-foreground mb-6">
+                    Preencha seus dados para continuar com o agendamento
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <Label htmlFor="nome">Nome completo *</Label>
+                      <Input
+                        id="nome"
+                        value={registerData.nome}
+                        onChange={(e) => setRegisterData(prev => ({ ...prev, nome: e.target.value }))}
+                        placeholder="Seu nome completo"
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="cpf">CPF *</Label>
+                      <Input
+                        id="cpf"
+                        value={registerData.cpf}
+                        onChange={(e) => setRegisterData(prev => ({ ...prev, cpf: formatCPF(e.target.value) }))}
+                        placeholder="000.000.000-00"
+                        maxLength={14}
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="telefone">Telefone</Label>
+                      <div className="relative mt-1">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="telefone"
+                          value={registerData.telefone}
+                          onChange={(e) => setRegisterData(prev => ({ ...prev, telefone: formatPhone(e.target.value) }))}
+                          placeholder="(00) 00000-0000"
+                          maxLength={15}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <Label htmlFor="email">Email *</Label>
+                      <div className="relative mt-1">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="email"
+                          type="email"
+                          value={registerData.email}
+                          onChange={(e) => setRegisterData(prev => ({ ...prev, email: e.target.value }))}
+                          placeholder="seu@email.com"
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="senha">Senha *</Label>
+                      <div className="relative mt-1">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="senha"
+                          type="password"
+                          value={registerData.senha}
+                          onChange={(e) => setRegisterData(prev => ({ ...prev, senha: e.target.value }))}
+                          placeholder="Mínimo 6 caracteres"
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="confirmarSenha">Confirmar senha *</Label>
+                      <div className="relative mt-1">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="confirmarSenha"
+                          type="password"
+                          value={registerData.confirmarSenha}
+                          onChange={(e) => setRegisterData(prev => ({ ...prev, confirmarSenha: e.target.value }))}
+                          placeholder="Repita a senha"
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button 
+                    onClick={handleRegister}
+                    disabled={isRegistering}
+                    className="w-full mt-6"
+                  >
+                    {isRegistering ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Criando conta...
+                      </>
+                    ) : "Criar conta e continuar"}
+                  </Button>
+
+                  <p className="text-center text-sm text-muted-foreground mt-4">
+                    Já tem uma conta?{" "}
+                    <button 
+                      onClick={() => navigate("/entrar")}
+                      className="text-primary hover:underline font-medium"
+                    >
+                      Faça login
+                    </button>
+                  </p>
+                </div>
+              )}
+
+              {/* Consultation Form - Show after registration/login */}
+              <div className={`bg-card rounded-2xl p-6 shadow-md ${!currentUser?.pacienteId ? 'opacity-50 pointer-events-none' : ''}`}>
                 <h1 className="text-2xl font-bold text-foreground mb-6">
                   Informações da Consulta
                 </h1>
@@ -404,7 +675,7 @@ const Checkout = () => {
                         </div>
                       ))}
                     </RadioGroup>
-                    {dependentes.length === 0 && (
+                    {dependentes.length === 0 && currentUser?.pacienteId && (
                       <p className="text-sm text-muted-foreground mt-2">
                         Você pode cadastrar dependentes no seu perfil para agendar consultas para eles.
                       </p>
@@ -487,7 +758,7 @@ const Checkout = () => {
                   <Button 
                     type="submit" 
                     className="w-full h-12 text-base font-semibold"
-                    disabled={submitting}
+                    disabled={submitting || !currentUser?.pacienteId}
                   >
                     {submitting ? (
                       <>
