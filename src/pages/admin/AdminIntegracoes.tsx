@@ -227,6 +227,9 @@ export default function AdminIntegracoes() {
   async function handleTestAsaasWebhook() {
     setTestingAsaas(true);
 
+    // Gera um UUID válido para teste (não vai encontrar consulta, mas não vai dar erro de sintaxe)
+    const testUuid = crypto.randomUUID();
+
     const dadosTeste = {
       event: "PAYMENT_CONFIRMED",
       payment: {
@@ -236,7 +239,7 @@ export default function AdminIntegracoes() {
         netValue: 245.00,
         status: "CONFIRMED",
         billingType: "PIX",
-        externalReference: "consulta-teste-uuid",
+        externalReference: testUuid,
         confirmedDate: new Date().toISOString(),
         paymentDate: new Date().toISOString(),
       }
