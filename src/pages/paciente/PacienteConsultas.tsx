@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +36,8 @@ import {
   X,
   CheckCircle,
   AlertCircle,
-  XCircle
+  XCircle,
+  RefreshCw
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -69,6 +70,7 @@ const statusLabels = {
 
 export default function PacienteConsultas() {
   const { pacienteData } = useOutletContext<PacienteContext>();
+  const navigate = useNavigate();
   const [proximas, setProximas] = useState<any[]>([]);
   const [historico, setHistorico] = useState<any[]>([]);
   const [avaliacoes, setAvaliacoes] = useState<Record<string, any>>({});
@@ -258,14 +260,25 @@ export default function PacienteConsultas() {
                 )}
                 
                 {!isHistorico && status !== "cancelada" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => setCancelarModal(consulta)}
-                  >
-                    Cancelar consulta
-                  </Button>
+                  <>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => navigate(`/paciente/marcar?remarcar=${consulta.id}&medico=${consulta.medico_id}`)}
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Remarcar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setCancelarModal(consulta)}
+                    >
+                      Cancelar consulta
+                    </Button>
+                  </>
                 )}
 
                 {isHistorico && !avaliacao && status === "realizada" && (
