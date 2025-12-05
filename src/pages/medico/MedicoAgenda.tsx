@@ -223,7 +223,9 @@ export default function MedicoAgenda() {
   }
 
   function handleSlotClick(slot: Slot) {
-    if (slot.disponivel && (!slot.consultas || slot.consultas.length === 0)) {
+    console.log("Slot clicado:", slot);
+    const slotInfo = getSlotStatus(slot);
+    if (slotInfo.status === "livre") {
       setSelectedSlot(slot);
       setAgendaModalOpen(true);
     }
