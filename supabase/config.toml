@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.cancel-asaas-payment]
 verify_jwt = false
+
+[functions.auto-cancel-unpaid]
+verify_jwt = false

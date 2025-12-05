@@ -245,6 +245,7 @@ export type Database = {
       }
       consultas: {
         Row: {
+          agenda_slot_id: string | null
           asaas_invoice_url: string | null
           asaas_payment_id: string | null
           created_at: string | null
@@ -255,17 +256,20 @@ export type Database = {
           motivo_consulta: string | null
           nome_paciente_consulta: string | null
           observacoes_paciente: string | null
+          origem: string | null
           paciente_id: string | null
           sintomas: string | null
           status_consulta: string
           status_pagamento: string
           status_repasse: string
           tipo_servico: string | null
+          usuario_clinica_id: string | null
           valor_consulta: number
           valor_medico: number
           valor_plataforma: number
         }
         Insert: {
+          agenda_slot_id?: string | null
           asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
           created_at?: string | null
@@ -276,17 +280,20 @@ export type Database = {
           motivo_consulta?: string | null
           nome_paciente_consulta?: string | null
           observacoes_paciente?: string | null
+          origem?: string | null
           paciente_id?: string | null
           sintomas?: string | null
           status_consulta?: string
           status_pagamento?: string
           status_repasse?: string
           tipo_servico?: string | null
+          usuario_clinica_id?: string | null
           valor_consulta: number
           valor_medico: number
           valor_plataforma: number
         }
         Update: {
+          agenda_slot_id?: string | null
           asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
           created_at?: string | null
@@ -297,17 +304,26 @@ export type Database = {
           motivo_consulta?: string | null
           nome_paciente_consulta?: string | null
           observacoes_paciente?: string | null
+          origem?: string | null
           paciente_id?: string | null
           sintomas?: string | null
           status_consulta?: string
           status_pagamento?: string
           status_repasse?: string
           tipo_servico?: string | null
+          usuario_clinica_id?: string | null
           valor_consulta?: number
           valor_medico?: number
           valor_plataforma?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "consultas_agenda_slot_id_fkey"
+            columns: ["agenda_slot_id"]
+            isOneToOne: false
+            referencedRelation: "agenda_slots"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "consultas_dependente_id_fkey"
             columns: ["dependente_id"]
@@ -327,6 +343,13 @@ export type Database = {
             columns: ["paciente_id"]
             isOneToOne: false
             referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultas_usuario_clinica_id_fkey"
+            columns: ["usuario_clinica_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
             referencedColumns: ["id"]
           },
         ]
@@ -725,6 +748,47 @@ export type Database = {
           tipo?: string
         }
         Relationships: []
+      }
+      usuarios_clinica: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          email: string | null
+          id: string
+          medico_id: string
+          nome: string
+          papel: string
+          telefone: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          medico_id: string
+          nome: string
+          papel?: string
+          telefone?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          medico_id?: string
+          nome?: string
+          papel?: string
+          telefone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usuarios_clinica_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
