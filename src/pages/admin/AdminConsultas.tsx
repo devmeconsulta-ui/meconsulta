@@ -429,12 +429,18 @@ export default function AdminConsultas() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          style={{ backgroundColor: COLORS[consulta.status_pagamento as keyof typeof COLORS] }}
-                          className="text-white"
-                        >
-                          {statusPagamentoLabels[consulta.status_pagamento] || consulta.status_pagamento}
-                        </Badge>
+                        {consulta.origem === 'interna' ? (
+                          <Badge className="bg-purple-500 text-white">
+                            Pago Clínica
+                          </Badge>
+                        ) : (
+                          <Badge
+                            style={{ backgroundColor: COLORS[consulta.status_pagamento as keyof typeof COLORS] }}
+                            className="text-white"
+                          >
+                            {statusPagamentoLabels[consulta.status_pagamento] || consulta.status_pagamento}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" title="Ver detalhes">
