@@ -104,6 +104,11 @@ export default function Entrar() {
                 placeholder="seu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onPaste={(e) => {
+                  const pastedText = e.clipboardData.getData('text');
+                  setTimeout(() => setEmail(pastedText.trim()), 0);
+                }}
+                autoComplete="email"
                 disabled={isLoading}
               />
             </div>
@@ -116,6 +121,11 @@ export default function Entrar() {
                 placeholder="••••••••"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
+                onPaste={(e) => {
+                  const pastedText = e.clipboardData.getData('text');
+                  setTimeout(() => setSenha(pastedText), 0);
+                }}
+                autoComplete="current-password"
                 disabled={isLoading}
               />
             </div>
