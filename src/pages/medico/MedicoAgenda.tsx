@@ -25,7 +25,17 @@ import {
   User,
   Filter,
 } from "lucide-react";
-import { format, addDays, subDays, startOfDay, endOfDay, parseISO, isSameDay } from "date-fns";
+import {
+  format,
+  addWeeks,
+  subWeeks,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  parseISO,
+  isSameDay,
+  isToday,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AgendaInternaModal } from "@/components/medico/AgendaInternaModal";
 import { GerarSlotsModal } from "@/components/medico/GerarSlotsModal";
@@ -72,22 +82,28 @@ export default function MedicoAgenda() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [usuariosClinica, setUsuariosClinica] = useState<UsuarioClinica[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
 
   // Filters
   const [filterOrigem, setFilterOrigem] = useState("todos");
-  const [filterStatus, setFilterStatus] = useState("todos");
 
   // Modals
   const [agendaModalOpen, setAgendaModalOpen] = useState(false);
   const [gerarSlotsModalOpen, setGerarSlotsModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
 
+  const weekDays = eachDayOfInterval({
+    start: currentWeekStart,
+    end: endOfWeek(currentWeekStart, { weekStartsOn: 1 }),
+  });
+
   useEffect(() => {
     if (medicoData?.id) {
       fetchData();
     }
-  }, [medicoData, selectedDate]);
+  }, [medicoData, currentWeekStart]);
 
   async function fetchData() {
     setLoading(true);
@@ -101,9 +117,8 @@ export default function MedicoAgenda() {
 
     setLocais(locaisData || []);
 
-    // Fetch slots for selected date
-    const dayStart = startOfDay(selectedDate).toISOString();
-    const dayEnd = endOfDay(selectedDate).toISOString();
+    // Fetch slots for the week
+    const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
 
     const { data: slotsData } = await supabase
       .from("agenda_slots")
@@ -112,8 +127,8 @@ export default function MedicoAgenda() {
         locais_atendimento(id, nome_local, tipo_atendimento)
       `)
       .eq("medico_id", medicoData.id)
-      .gte("data_hora", dayStart)
-      .lte("data_hora", dayEnd)
+      .gte("data_hora", currentWeekStart.toISOString())
+      .lte("data_hora", weekEnd.toISOString())
       .order("data_hora", { ascending: true });
 
     // Fetch consultations for these slots
@@ -155,16 +170,16 @@ export default function MedicoAgenda() {
     setLoading(false);
   }
 
-  function handlePrevDay() {
-    setSelectedDate(subDays(selectedDate, 1));
+  function handlePrevWeek() {
+    setCurrentWeekStart(subWeeks(currentWeekStart, 1));
   }
 
-  function handleNextDay() {
-    setSelectedDate(addDays(selectedDate, 1));
+  function handleNextWeek() {
+    setCurrentWeekStart(addWeeks(currentWeekStart, 1));
   }
 
-  function handleToday() {
-    setSelectedDate(new Date());
+  function handleThisWeek() {
+    setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
   }
 
   function handleSlotClick(slot: Slot) {
@@ -190,25 +205,19 @@ export default function MedicoAgenda() {
     return { status: "livre", origem: null, pacienteNome: null, statusConsulta: null };
   }
 
-  function filterSlots(slot: Slot) {
-    const slotInfo = getSlotStatus(slot);
-
-    // Filter by origin
-    if (filterOrigem !== "todos") {
-      if (slotInfo.status === "livre" && filterOrigem !== "livres") return false;
-      if (slotInfo.status === "reservado" && slotInfo.origem !== filterOrigem) return false;
-    }
-
-    // Filter by status
-    if (filterStatus !== "todos") {
-      if (filterStatus === "livres" && slotInfo.status !== "livre") return false;
-      if (filterStatus === "agendados" && slotInfo.status !== "reservado") return false;
-    }
-
-    return true;
+  function getSlotsForDay(day: Date) {
+    return slots
+      .filter((slot) => isSameDay(parseISO(slot.data_hora), day))
+      .filter((slot) => {
+        if (filterOrigem === "todos") return true;
+        if (filterOrigem === "livres") {
+          const info = getSlotStatus(slot);
+          return info.status === "livre";
+        }
+        const info = getSlotStatus(slot);
+        return info.origem === filterOrigem;
+      });
   }
-
-  const filteredSlots = slots.filter(filterSlots);
 
   if (loading) {
     return (
@@ -223,8 +232,8 @@ export default function MedicoAgenda() {
       {/* Header */}
       <div className="flex flex-col gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold text-foreground">Agenda</h2>
-          <p className="text-sm text-muted-foreground">Gerencie seus horários de atendimento</p>
+          <h2 className="text-xl md:text-2xl font-bold text-foreground">Agenda Semanal</h2>
+          <p className="text-sm text-muted-foreground">Visualize e gerencie seus horários da semana</p>
         </div>
 
         {/* Action buttons */}
@@ -242,197 +251,158 @@ export default function MedicoAgenda() {
         </div>
       </div>
 
-      {/* Date navigation - Mobile optimized */}
+      {/* Week navigation */}
       <Card className="card-shadow">
         <CardContent className="p-3 md:p-4">
           <div className="flex items-center justify-between gap-2">
-            <Button variant="ghost" size="icon" onClick={handlePrevDay}>
+            <Button variant="ghost" size="icon" onClick={handlePrevWeek}>
               <ChevronLeft className="w-5 h-5" />
             </Button>
 
             <div className="flex-1 text-center">
               <Button
                 variant="ghost"
-                onClick={handleToday}
+                onClick={handleThisWeek}
                 className="text-xs text-muted-foreground mb-1"
               >
-                Hoje
+                Esta semana
               </Button>
-              <p className="text-base md:text-lg font-semibold capitalize">
-                {format(selectedDate, "EEEE", { locale: ptBR })}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              <p className="text-sm md:text-base font-semibold">
+                {format(currentWeekStart, "dd/MM", { locale: ptBR })} - {format(endOfWeek(currentWeekStart, { weekStartsOn: 1 }), "dd/MM/yyyy", { locale: ptBR })}
               </p>
             </div>
 
-            <Button variant="ghost" size="icon" onClick={handleNextDay}>
+            <Button variant="ghost" size="icon" onClick={handleNextWeek}>
               <ChevronRight className="w-5 h-5" />
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Filters - Mobile optimized */}
-      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-        <div className="flex-1">
-          <Select value={filterOrigem} onValueChange={setFilterOrigem}>
-            <SelectTrigger className="w-full">
-              <Filter className="w-4 h-4 mr-2 shrink-0" />
-              <SelectValue placeholder="Origem" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todas as origens</SelectItem>
-              <SelectItem value="online">Online</SelectItem>
-              <SelectItem value="interna">Interna</SelectItem>
-              <SelectItem value="livres">Apenas livres</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex-1">
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-full">
-              <Filter className="w-4 h-4 mr-2 shrink-0" />
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os status</SelectItem>
-              <SelectItem value="livres">Livres</SelectItem>
-              <SelectItem value="agendados">Agendados</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      {/* Filter */}
+      <div className="flex gap-2">
+        <Select value={filterOrigem} onValueChange={setFilterOrigem}>
+          <SelectTrigger className="w-full sm:w-48">
+            <Filter className="w-4 h-4 mr-2 shrink-0" />
+            <SelectValue placeholder="Filtrar" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            <SelectItem value="livres">Livres</SelectItem>
+            <SelectItem value="online">Online</SelectItem>
+            <SelectItem value="interna">Interna</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Slots list - Mobile optimized cards */}
-      <div className="space-y-3">
-        {locais.length === 0 ? (
-          <Card className="card-shadow">
-            <CardContent className="p-8 text-center">
-              <MapPin className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-              <p className="text-muted-foreground">
-                Cadastre um local de atendimento primeiro
-              </p>
-            </CardContent>
-          </Card>
-        ) : filteredSlots.length === 0 ? (
-          <Card className="card-shadow">
-            <CardContent className="p-8 text-center">
-              <Clock className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-              <p className="text-muted-foreground">
-                Nenhum horário encontrado para esta data
-              </p>
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={() => setGerarSlotsModalOpen(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Gerar Horários
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          filteredSlots.map((slot) => {
-            const slotInfo = getSlotStatus(slot);
-            const isLivre = slotInfo.status === "livre";
-            const isOnline = slotInfo.origem === "online";
-            const isInterna = slotInfo.origem === "interna";
+      {/* No locations message */}
+      {locais.length === 0 ? (
+        <Card className="card-shadow">
+          <CardContent className="p-8 text-center">
+            <MapPin className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+            <p className="text-muted-foreground">
+              Cadastre um local de atendimento primeiro
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        /* Weekly view */
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+          {weekDays.map((day) => {
+            const daySlots = getSlotsForDay(day);
+            const dayIsToday = isToday(day);
 
             return (
               <Card
-                key={slot.id}
-                className={`card-shadow transition-all cursor-pointer ${
-                  isLivre
-                    ? "hover:border-primary/50 hover:shadow-md"
-                    : "cursor-default"
-                } ${
-                  isOnline
-                    ? "border-l-4 border-l-blue-500"
-                    : isInterna
-                    ? "border-l-4 border-l-green-500"
-                    : ""
-                }`}
-                onClick={() => handleSlotClick(slot)}
+                key={day.toISOString()}
+                className={`card-shadow ${dayIsToday ? "ring-2 ring-primary" : ""}`}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    {/* Time and location */}
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                          isLivre
-                            ? "bg-muted text-muted-foreground"
-                            : isOnline
-                            ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30"
-                            : "bg-green-100 text-green-600 dark:bg-green-900/30"
-                        }`}
-                      >
-                        <Clock className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-lg font-semibold">
-                          {format(parseISO(slot.data_hora), "HH:mm")}
-                        </p>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <MapPin className="w-3 h-3 shrink-0" />
-                          <span className="truncate">
-                            {slot.locais_atendimento?.nome_local}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Status badges */}
-                    <div className="flex flex-col items-end gap-1">
-                      {isLivre ? (
-                        <Badge variant="outline" className="bg-muted">
-                          Livre
-                        </Badge>
-                      ) : (
-                        <>
-                          <Badge
-                            variant="default"
-                            className={
-                              isOnline
-                                ? "bg-blue-500 hover:bg-blue-600"
-                                : "bg-green-500 hover:bg-green-600"
-                            }
-                          >
-                            {isOnline ? (
-                              <Globe className="w-3 h-3 mr-1" />
-                            ) : (
-                              <Building2 className="w-3 h-3 mr-1" />
-                            )}
-                            {isOnline ? "Online" : "Interna"}
-                          </Badge>
-                        </>
-                      )}
-                    </div>
+                <CardContent className="p-3">
+                  {/* Day header */}
+                  <div className={`text-center mb-3 pb-2 border-b ${dayIsToday ? "border-primary" : "border-border"}`}>
+                    <p className={`text-xs uppercase font-medium ${dayIsToday ? "text-primary" : "text-muted-foreground"}`}>
+                      {format(day, "EEE", { locale: ptBR })}
+                    </p>
+                    <p className={`text-lg font-bold ${dayIsToday ? "text-primary" : "text-foreground"}`}>
+                      {format(day, "dd")}
+                    </p>
                   </div>
 
-                  {/* Patient info for reserved slots */}
-                  {slotInfo.pacienteNome && (
-                    <div className="mt-3 pt-3 border-t border-border">
-                      <div className="flex items-center gap-2 text-sm">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        <span className="font-medium">{slotInfo.pacienteNome}</span>
-                      </div>
-                    </div>
-                  )}
+                  {/* Slots for this day */}
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {daySlots.length === 0 ? (
+                      <p className="text-xs text-center text-muted-foreground py-4">
+                        Sem horários
+                      </p>
+                    ) : (
+                      daySlots.map((slot) => {
+                        const slotInfo = getSlotStatus(slot);
+                        const isLivre = slotInfo.status === "livre";
+                        const isOnline = slotInfo.origem === "online";
+                        const isInterna = slotInfo.origem === "interna";
 
-                  {/* Tap to book hint for free slots */}
-                  {isLivre && (
-                    <p className="mt-3 text-xs text-center text-muted-foreground">
-                      Toque para agendar consulta interna
-                    </p>
-                  )}
+                        return (
+                          <button
+                            key={slot.id}
+                            onClick={() => handleSlotClick(slot)}
+                            disabled={!isLivre}
+                            className={`w-full p-2 rounded-lg text-left transition-all text-xs ${
+                              isLivre
+                                ? "bg-muted hover:bg-muted/80 cursor-pointer border border-transparent hover:border-primary/30"
+                                : isOnline
+                                ? "bg-blue-100 dark:bg-blue-900/30 border-l-2 border-l-blue-500 cursor-default"
+                                : isInterna
+                                ? "bg-green-100 dark:bg-green-900/30 border-l-2 border-l-green-500 cursor-default"
+                                : "bg-muted/50 cursor-default"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-3 h-3 shrink-0" />
+                              <span className="font-medium">
+                                {format(parseISO(slot.data_hora), "HH:mm")}
+                              </span>
+                            </div>
+
+                            {slotInfo.pacienteNome ? (
+                              <div className="mt-1 flex items-center gap-1">
+                                {isOnline ? (
+                                  <Globe className="w-3 h-3 text-blue-600" />
+                                ) : (
+                                  <Building2 className="w-3 h-3 text-green-600" />
+                                )}
+                                <span className="truncate text-muted-foreground">
+                                  {slotInfo.pacienteNome}
+                                </span>
+                              </div>
+                            ) : (
+                              <p className="mt-1 text-muted-foreground">Livre</p>
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
-          })
-        )}
+          })}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-muted rounded"></div>
+          <span>Livre</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-blue-500 rounded"></div>
+          <span>Online</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-green-500 rounded"></div>
+          <span>Interna</span>
+        </div>
       </div>
 
       {/* Internal booking modal */}
@@ -459,7 +429,7 @@ export default function MedicoAgenda() {
         medicoId={medicoData.id}
         onSuccess={(firstDate) => {
           if (firstDate) {
-            setSelectedDate(firstDate);
+            setCurrentWeekStart(startOfWeek(firstDate, { weekStartsOn: 1 }));
           }
           fetchData();
         }}
