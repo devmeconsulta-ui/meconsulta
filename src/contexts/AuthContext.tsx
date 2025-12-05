@@ -7,6 +7,8 @@ export interface CurrentUser {
   email: string;
   tipo: "admin" | "medico" | "paciente";
   papel?: "atendente" | "supervisor" | "admin" | "superadmin";
+  pacienteId?: string;
+  medicoId?: string;
 }
 
 interface AuthContextType {
@@ -27,7 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const savedUser = localStorage.getItem("meconsulta_user");
     if (savedUser) {
       try {
-        setCurrentUser(JSON.parse(savedUser));
+        const user = JSON.parse(savedUser);
+        setCurrentUser(user);
+        // Fetch related IDs if not present
+        if (user && !user.pacienteId && !user.medicoId) {
+          fetchRelatedIds(user);
+        }
       } catch {
         localStorage.removeItem("meconsulta_user");
       }
@@ -35,11 +42,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const handleSetCurrentUser = (user: CurrentUser | null) => {
-    setCurrentUser(user);
+  async function fetchRelatedIds(user: CurrentUser) {
+    if (user.tipo === "paciente") {
+      const { data } = await supabase
+        .from("pacientes")
+        .select("id")
+        .eq("usuario_id", user.id)
+        .maybeSingle();
+      
+      if (data) {
+        const updatedUser = { ...user, pacienteId: data.id };
+        setCurrentUser(updatedUser);
+        localStorage.setItem("meconsulta_user", JSON.stringify(updatedUser));
+      }
+    } else if (user.tipo === "medico") {
+      const { data } = await supabase
+        .from("medicos")
+        .select("id")
+        .eq("usuario_id", user.id)
+        .maybeSingle();
+      
+      if (data) {
+        const updatedUser = { ...user, medicoId: data.id };
+        setCurrentUser(updatedUser);
+        localStorage.setItem("meconsulta_user", JSON.stringify(updatedUser));
+      }
+    }
+  }
+
+  const handleSetCurrentUser = async (user: CurrentUser | null) => {
     if (user) {
-      localStorage.setItem("meconsulta_user", JSON.stringify(user));
+      // Fetch related IDs on login
+      let updatedUser = { ...user };
+      
+      if (user.tipo === "paciente") {
+        const { data } = await supabase
+          .from("pacientes")
+          .select("id")
+          .eq("usuario_id", user.id)
+          .maybeSingle();
+        
+        if (data) {
+          updatedUser.pacienteId = data.id;
+        }
+      } else if (user.tipo === "medico") {
+        const { data } = await supabase
+          .from("medicos")
+          .select("id")
+          .eq("usuario_id", user.id)
+          .maybeSingle();
+        
+        if (data) {
+          updatedUser.medicoId = data.id;
+        }
+      }
+      
+      setCurrentUser(updatedUser);
+      localStorage.setItem("meconsulta_user", JSON.stringify(updatedUser));
     } else {
+      setCurrentUser(null);
       localStorage.removeItem("meconsulta_user");
     }
   };

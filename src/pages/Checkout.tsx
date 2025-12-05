@@ -3,15 +3,16 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Calendar, MapPin, ChevronLeft, CreditCard, User } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar, MapPin, ChevronLeft, CreditCard, User, FileText, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Medico {
   id: string;
@@ -29,10 +30,22 @@ interface Local {
   estado: string | null;
 }
 
+interface Servico {
+  id: string;
+  nome_servico: string;
+}
+
+interface Dependente {
+  id: string;
+  nome: string;
+  parentesco: string;
+}
+
 const Checkout = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   
   const selectedDate = searchParams.get("data") || "";
   const selectedTime = searchParams.get("horario") || "";
@@ -40,15 +53,17 @@ const Checkout = () => {
   
   const [medico, setMedico] = useState<Medico | null>(null);
   const [local, setLocal] = useState<Local | null>(null);
+  const [servicos, setServicos] = useState<Servico[]>([]);
+  const [dependentes, setDependentes] = useState<Dependente[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isFirstVisit, setIsFirstVisit] = useState<string>("sim");
-  const [noInsurance, setNoInsurance] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    cpf: ""
+    tipoServico: "",
+    paraQuem: "eu", // 'eu' ou ID do dependente
+    motivoConsulta: "",
+    sintomas: "",
+    observacoes: "",
   });
 
   useEffect(() => {
@@ -87,6 +102,26 @@ const Checkout = () => {
       setLocal(localData);
     }
 
+    // Fetch services offered by the doctor
+    const { data: servicosData } = await supabase
+      .from("medico_servicos")
+      .select("id, nome_servico")
+      .eq("medico_id", id)
+      .eq("ativo", true);
+    
+    setServicos(servicosData || []);
+
+    // Fetch user's dependents if logged in
+    if (currentUser?.pacienteId) {
+      const { data: dependentesData } = await supabase
+        .from("paciente_dependentes")
+        .select("id, nome, parentesco")
+        .eq("paciente_id", currentUser.pacienteId)
+        .eq("ativo", true);
+      
+      setDependentes(dependentesData || []);
+    }
+
     setLoading(false);
   }
 
@@ -119,22 +154,65 @@ const Checkout = () => {
     ? format(parseISO(selectedDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
     : "";
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.email || !formData.phone || !formData.cpf) {
-      toast.error("Por favor, preencha todos os campos obrigatórios");
+    if (!formData.motivoConsulta) {
+      toast.error("Por favor, informe o motivo da consulta");
       return;
     }
-    
-    // Here would go the payment integration
-    toast.success("Consulta agendada com sucesso! Você receberá um e-mail com os detalhes.");
-    navigate("/");
+
+    if (!currentUser?.pacienteId) {
+      toast.error("Você precisa estar logado como paciente para agendar uma consulta");
+      navigate("/entrar");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const dependenteId = formData.paraQuem !== "eu" ? formData.paraQuem : null;
+      let nomePacienteConsulta = currentUser.nome;
+      
+      if (dependenteId) {
+        const dependente = dependentes.find(d => d.id === dependenteId);
+        if (dependente) {
+          nomePacienteConsulta = dependente.nome;
+        }
+      }
+
+      const dataHora = `${selectedDate}T${selectedTime}:00`;
+
+      const { error } = await supabase
+        .from("consultas")
+        .insert({
+          medico_id: medico.id,
+          paciente_id: currentUser.pacienteId,
+          dependente_id: dependenteId,
+          nome_paciente_consulta: nomePacienteConsulta,
+          data_hora: dataHora,
+          valor_consulta: medico.valor_consulta,
+          valor_medico: medico.valor_consulta * 0.7,
+          valor_plataforma: medico.valor_consulta * 0.3,
+          motivo_consulta: formData.motivoConsulta,
+          sintomas: formData.sintomas,
+          tipo_servico: formData.tipoServico,
+          observacoes_paciente: formData.observacoes,
+          status_consulta: "aguardando_pagamento",
+          status_pagamento: "pendente",
+          status_repasse: "pendente",
+        });
+
+      if (error) throw error;
+
+      toast.success("Consulta agendada com sucesso! Você receberá um e-mail com os detalhes.");
+      navigate("/paciente/consultas");
+    } catch (error) {
+      console.error("Error creating consultation:", error);
+      toast.error("Erro ao agendar consulta. Tente novamente.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -158,113 +236,99 @@ const Checkout = () => {
             <div className="lg:col-span-2">
               <div className="bg-card rounded-2xl p-6 shadow-md">
                 <h1 className="text-2xl font-bold text-foreground mb-6">
-                  Selecione as opções da consulta
+                  Informações da Consulta
                 </h1>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* Consultation Type */}
+                  {/* Para quem é a consulta */}
                   <div>
-                    <Label className="text-base font-medium">Tipo de visita *</Label>
-                    <div className="mt-2 p-4 bg-muted rounded-lg flex justify-between items-center">
-                      <span className="text-foreground">
-                        Primeira consulta {medico.especialidade?.toLowerCase() || ""} • R$ {medico.valor_consulta.toFixed(2).replace(".", ",")}
-                      </span>
-                      <button type="button" className="text-primary font-medium hover:underline">
-                        Altere
-                      </button>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Users className="w-5 h-5 text-primary" />
+                      <Label className="text-base font-medium">Para quem é esta consulta? *</Label>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Os preços são para pacientes sem convênio médico
-                    </p>
-                  </div>
-
-                  {/* Insurance */}
-                  <div>
-                    <Label className="text-base font-medium">Convênio médico *</Label>
-                    <div className="mt-2 p-4 bg-muted rounded-lg">
-                      <span className="text-foreground">Consulta particular</span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-3">
-                      <Checkbox 
-                        id="no-insurance"
-                        checked={noInsurance}
-                        onCheckedChange={(checked) => setNoInsurance(checked as boolean)}
-                      />
-                      <label htmlFor="no-insurance" className="text-sm text-foreground cursor-pointer">
-                        Estou agendando sem convênio médico
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* First Visit */}
-                  <div>
-                    <Label className="text-base font-medium">É a sua primeira consulta com este especialista? *</Label>
-                    <RadioGroup value={isFirstVisit} onValueChange={setIsFirstVisit} className="mt-3">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="first-yes" />
-                        <Label htmlFor="first-yes" className="cursor-pointer">Sim</Label>
+                    <RadioGroup 
+                      value={formData.paraQuem} 
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, paraQuem: value }))}
+                      className="space-y-2"
+                    >
+                      <div className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer">
+                        <RadioGroupItem value="eu" id="para-mim" />
+                        <Label htmlFor="para-mim" className="cursor-pointer flex-1">
+                          Para mim
+                        </Label>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="first-no" />
-                        <Label htmlFor="first-no" className="cursor-pointer">Não</Label>
-                      </div>
+                      {dependentes.map((dep) => (
+                        <div key={dep.id} className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer">
+                          <RadioGroupItem value={dep.id} id={`dep-${dep.id}`} />
+                          <Label htmlFor={`dep-${dep.id}`} className="cursor-pointer flex-1">
+                            {dep.nome} <span className="text-muted-foreground">({dep.parentesco})</span>
+                          </Label>
+                        </div>
+                      ))}
                     </RadioGroup>
+                    {dependentes.length === 0 && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Você pode cadastrar dependentes no seu perfil para agendar consultas para eles.
+                      </p>
+                    )}
                   </div>
 
-                  {/* Separator */}
-                  <div className="border-t border-border pt-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <User className="w-5 h-5 text-primary" />
-                      <h2 className="text-xl font-bold text-foreground">Seus dados</h2>
+                  {/* Tipo de serviço */}
+                  {servicos.length > 0 && (
+                    <div>
+                      <Label className="text-base font-medium">Tipo de serviço</Label>
+                      <Select 
+                        value={formData.tipoServico}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, tipoServico: value }))}
+                      >
+                        <SelectTrigger className="mt-2">
+                          <SelectValue placeholder="Selecione o tipo de serviço (opcional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {servicos.map((servico) => (
+                            <SelectItem key={servico.id} value={servico.nome_servico}>
+                              {servico.nome_servico}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
+                  )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="name">Nome completo *</Label>
-                        <Input 
-                          id="name"
-                          name="name"
-                          value={formData.name}
-                          onChange={handleInputChange}
-                          placeholder="Digite seu nome completo"
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="cpf">CPF *</Label>
-                        <Input 
-                          id="cpf"
-                          name="cpf"
-                          value={formData.cpf}
-                          onChange={handleInputChange}
-                          placeholder="000.000.000-00"
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="email">E-mail *</Label>
-                        <Input 
-                          id="email"
-                          name="email"
-                          type="email"
-                          value={formData.email}
-                          onChange={handleInputChange}
-                          placeholder="seu@email.com"
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="phone">Telefone *</Label>
-                        <Input 
-                          id="phone"
-                          name="phone"
-                          value={formData.phone}
-                          onChange={handleInputChange}
-                          placeholder="(00) 00000-0000"
-                          className="mt-1"
-                        />
-                      </div>
+                  {/* Motivo da consulta */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileText className="w-5 h-5 text-primary" />
+                      <Label className="text-base font-medium">Qual o motivo da consulta? *</Label>
                     </div>
+                    <Textarea 
+                      value={formData.motivoConsulta}
+                      onChange={(e) => setFormData(prev => ({ ...prev, motivoConsulta: e.target.value }))}
+                      placeholder="Ex: Dor nas costas, check-up de rotina, acompanhamento..."
+                      className="min-h-[80px]"
+                    />
+                  </div>
+
+                  {/* Sintomas */}
+                  <div>
+                    <Label className="text-base font-medium">Descreva seus sintomas (opcional)</Label>
+                    <Textarea 
+                      value={formData.sintomas}
+                      onChange={(e) => setFormData(prev => ({ ...prev, sintomas: e.target.value }))}
+                      placeholder="Descreva brevemente os sintomas que está sentindo..."
+                      className="mt-2 min-h-[80px]"
+                    />
+                  </div>
+
+                  {/* Observações */}
+                  <div>
+                    <Label className="text-base font-medium">Observações adicionais (opcional)</Label>
+                    <Textarea 
+                      value={formData.observacoes}
+                      onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
+                      placeholder="Alguma informação adicional que o médico deva saber..."
+                      className="mt-2 min-h-[60px]"
+                    />
                   </div>
 
                   {/* Payment */}
@@ -274,10 +338,6 @@ const Checkout = () => {
                       <h2 className="text-xl font-bold text-foreground">Pagamento</h2>
                     </div>
                     
-                    <p className="text-muted-foreground mb-4">
-                      O pagamento será processado de forma segura.
-                    </p>
-
                     <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
                       <p className="text-sm text-foreground">
                         💳 Integração com gateway de pagamento será adicionada posteriormente.
@@ -286,8 +346,12 @@ const Checkout = () => {
                   </div>
 
                   {/* Submit */}
-                  <Button type="submit" className="w-full h-12 text-base font-semibold">
-                    Confirmar Agendamento
+                  <Button 
+                    type="submit" 
+                    className="w-full h-12 text-base font-semibold"
+                    disabled={submitting}
+                  >
+                    {submitting ? "Agendando..." : "Confirmar Agendamento"}
                   </Button>
                 </form>
               </div>

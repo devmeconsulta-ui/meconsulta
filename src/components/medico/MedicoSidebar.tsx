@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/medico" },
+  { icon: Stethoscope, label: "Consultas", path: "/medico/consultas" },
   { icon: MapPin, label: "Locais de Atendimento", path: "/medico/locais" },
   { icon: Calendar, label: "Agenda", path: "/medico/agenda" },
   { icon: User, label: "Minha Página Pública", path: "/medico/pagina-publica" },

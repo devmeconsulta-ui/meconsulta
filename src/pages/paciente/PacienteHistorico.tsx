@@ -1,50 +1,154 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   FileText, 
   Calendar, 
-  User, 
   Download,
   Plus,
   Pill,
   Heart,
   Activity,
-  Stethoscope
+  Stethoscope,
+  Trash2,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
-// Mock data - in production would come from Supabase
-const historicoMedico = {
-  alergias: ["Dipirona", "Penicilina"],
-  condicoes: ["Hipertensão", "Diabetes Tipo 2"],
-  medicamentos: [
-    { nome: "Losartana 50mg", frequencia: "1x ao dia" },
-    { nome: "Metformina 500mg", frequencia: "2x ao dia" },
-  ],
-};
+interface HistoricoItem {
+  id: string;
+  tipo: string;
+  descricao: string;
+  detalhes: string | null;
+  ativo: boolean;
+}
 
-const consultasAnteriores = [
-  {
-    id: "1",
-    data: new Date(Date.now() - 30 * 86400000).toISOString(),
-    medico: "Dr. João Silva",
-    especialidade: "Cardiologia",
-    diagnostico: "Check-up cardiovascular",
-    prescricao: true,
-  },
-  {
-    id: "2",
-    data: new Date(Date.now() - 90 * 86400000).toISOString(),
-    medico: "Dra. Maria Santos",
-    especialidade: "Endocrinologia",
-    diagnostico: "Acompanhamento diabetes",
-    prescricao: true,
-  },
-];
+interface ConsultaAnterior {
+  id: string;
+  data_hora: string;
+  medico: { nome: string; especialidade: string | null } | null;
+  motivo_consulta: string | null;
+  status_consulta: string;
+}
 
 export default function PacienteHistorico() {
+  const { currentUser } = useAuth();
+  const [historico, setHistorico] = useState<HistoricoItem[]>([]);
+  const [consultas, setConsultas] = useState<ConsultaAnterior[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  
+  const [novoItem, setNovoItem] = useState({
+    tipo: "alergia",
+    descricao: "",
+    detalhes: "",
+  });
+
+  useEffect(() => {
+    if (currentUser?.pacienteId) {
+      fetchData();
+    }
+  }, [currentUser?.pacienteId]);
+
+  async function fetchData() {
+    if (!currentUser?.pacienteId) return;
+    
+    setLoading(true);
+    
+    // Fetch historical medical data
+    const { data: historicoData } = await supabase
+      .from("historico_medico_paciente")
+      .select("*")
+      .eq("paciente_id", currentUser.pacienteId)
+      .eq("ativo", true)
+      .order("created_at", { ascending: false });
+
+    setHistorico(historicoData || []);
+
+    // Fetch past consultations
+    const { data: consultasData } = await supabase
+      .from("consultas")
+      .select(`
+        id,
+        data_hora,
+        motivo_consulta,
+        status_consulta,
+        medico:medicos(nome, especialidade)
+      `)
+      .eq("paciente_id", currentUser.pacienteId)
+      .eq("status_consulta", "realizada")
+      .order("data_hora", { ascending: false })
+      .limit(10);
+
+    setConsultas(consultasData || []);
+    setLoading(false);
+  }
+
+  async function handleAddItem() {
+    if (!novoItem.descricao || !currentUser?.pacienteId) {
+      toast.error("Preencha a descrição");
+      return;
+    }
+
+    setSaving(true);
+    
+    const { error } = await supabase
+      .from("historico_medico_paciente")
+      .insert({
+        paciente_id: currentUser.pacienteId,
+        tipo: novoItem.tipo,
+        descricao: novoItem.descricao,
+        detalhes: novoItem.detalhes || null,
+      });
+
+    if (error) {
+      toast.error("Erro ao adicionar item");
+    } else {
+      toast.success("Item adicionado com sucesso");
+      setNovoItem({ tipo: "alergia", descricao: "", detalhes: "" });
+      setDialogOpen(false);
+      fetchData();
+    }
+    
+    setSaving(false);
+  }
+
+  async function handleDeleteItem(id: string) {
+    const { error } = await supabase
+      .from("historico_medico_paciente")
+      .update({ ativo: false })
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Erro ao remover item");
+    } else {
+      toast.success("Item removido");
+      fetchData();
+    }
+  }
+
+  const alergias = historico.filter(h => h.tipo === "alergia");
+  const condicoes = historico.filter(h => h.tipo === "condicao");
+  const medicamentos = historico.filter(h => h.tipo === "medicamento");
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -54,7 +158,7 @@ export default function PacienteHistorico() {
             Acompanhe seu histórico de saúde e consultas
           </p>
         </div>
-        <Button className="gap-2">
+        <Button variant="outline" className="gap-2">
           <Download className="w-4 h-4" />
           Exportar histórico
         </Button>
@@ -69,7 +173,7 @@ export default function PacienteHistorico() {
                 <Heart className="w-5 h-5 text-red-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{historicoMedico.alergias.length}</p>
+                <p className="text-2xl font-bold">{alergias.length}</p>
                 <p className="text-xs text-muted-foreground">Alergias</p>
               </div>
             </div>
@@ -83,7 +187,7 @@ export default function PacienteHistorico() {
                 <Activity className="w-5 h-5 text-yellow-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{historicoMedico.condicoes.length}</p>
+                <p className="text-2xl font-bold">{condicoes.length}</p>
                 <p className="text-xs text-muted-foreground">Condições</p>
               </div>
             </div>
@@ -97,7 +201,7 @@ export default function PacienteHistorico() {
                 <Pill className="w-5 h-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{historicoMedico.medicamentos.length}</p>
+                <p className="text-2xl font-bold">{medicamentos.length}</p>
                 <p className="text-xs text-muted-foreground">Medicamentos</p>
               </div>
             </div>
@@ -111,7 +215,7 @@ export default function PacienteHistorico() {
                 <Stethoscope className="w-5 h-5 text-green-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{consultasAnteriores.length}</p>
+                <p className="text-2xl font-bold">{consultas.length}</p>
                 <p className="text-xs text-muted-foreground">Consultas</p>
               </div>
             </div>
@@ -136,17 +240,57 @@ export default function PacienteHistorico() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-medium">Alergias</h4>
-                <Button variant="ghost" size="sm">
-                  <Plus className="w-4 h-4 mr-1" />
-                  Adicionar
-                </Button>
+                <Dialog open={dialogOpen && novoItem.tipo === "alergia"} onOpenChange={(open) => {
+                  setDialogOpen(open);
+                  if (open) setNovoItem({ ...novoItem, tipo: "alergia" });
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Plus className="w-4 h-4 mr-1" />
+                      Adicionar
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Adicionar Alergia</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Nome da substância *</Label>
+                        <Input 
+                          value={novoItem.descricao}
+                          onChange={(e) => setNovoItem({ ...novoItem, descricao: e.target.value })}
+                          placeholder="Ex: Dipirona, Penicilina..."
+                        />
+                      </div>
+                      <div>
+                        <Label>Detalhes (opcional)</Label>
+                        <Input 
+                          value={novoItem.detalhes}
+                          onChange={(e) => setNovoItem({ ...novoItem, detalhes: e.target.value })}
+                          placeholder="Ex: Causa inchaço, erupção cutânea..."
+                        />
+                      </div>
+                      <Button onClick={handleAddItem} disabled={saving} className="w-full">
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Adicionar"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
               <div className="flex flex-wrap gap-2">
-                {historicoMedico.alergias.map((alergia, i) => (
-                  <Badge key={i} variant="destructive" className="px-3 py-1">
-                    {alergia}
-                  </Badge>
-                ))}
+                {alergias.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhuma alergia cadastrada</p>
+                ) : (
+                  alergias.map((alergia) => (
+                    <Badge key={alergia.id} variant="destructive" className="px-3 py-1 gap-2">
+                      {alergia.descricao}
+                      <button onClick={() => handleDeleteItem(alergia.id)} className="hover:text-destructive-foreground/70">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))
+                )}
               </div>
             </div>
 
@@ -154,17 +298,57 @@ export default function PacienteHistorico() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-medium">Condições de Saúde</h4>
-                <Button variant="ghost" size="sm">
-                  <Plus className="w-4 h-4 mr-1" />
-                  Adicionar
-                </Button>
+                <Dialog open={dialogOpen && novoItem.tipo === "condicao"} onOpenChange={(open) => {
+                  setDialogOpen(open);
+                  if (open) setNovoItem({ tipo: "condicao", descricao: "", detalhes: "" });
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Plus className="w-4 h-4 mr-1" />
+                      Adicionar
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Adicionar Condição de Saúde</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Nome da condição *</Label>
+                        <Input 
+                          value={novoItem.descricao}
+                          onChange={(e) => setNovoItem({ ...novoItem, descricao: e.target.value })}
+                          placeholder="Ex: Hipertensão, Diabetes..."
+                        />
+                      </div>
+                      <div>
+                        <Label>Detalhes (opcional)</Label>
+                        <Input 
+                          value={novoItem.detalhes}
+                          onChange={(e) => setNovoItem({ ...novoItem, detalhes: e.target.value })}
+                          placeholder="Ex: Diagnosticado em 2020..."
+                        />
+                      </div>
+                      <Button onClick={handleAddItem} disabled={saving} className="w-full">
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Adicionar"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
               <div className="flex flex-wrap gap-2">
-                {historicoMedico.condicoes.map((condicao, i) => (
-                  <Badge key={i} variant="secondary" className="px-3 py-1">
-                    {condicao}
-                  </Badge>
-                ))}
+                {condicoes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhuma condição cadastrada</p>
+                ) : (
+                  condicoes.map((condicao) => (
+                    <Badge key={condicao.id} variant="secondary" className="px-3 py-1 gap-2">
+                      {condicao.descricao}
+                      <button onClick={() => handleDeleteItem(condicao.id)} className="hover:text-foreground/70">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))
+                )}
               </div>
             </div>
 
@@ -172,26 +356,68 @@ export default function PacienteHistorico() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-medium">Medicamentos em Uso</h4>
-                <Button variant="ghost" size="sm">
-                  <Plus className="w-4 h-4 mr-1" />
-                  Adicionar
-                </Button>
+                <Dialog open={dialogOpen && novoItem.tipo === "medicamento"} onOpenChange={(open) => {
+                  setDialogOpen(open);
+                  if (open) setNovoItem({ tipo: "medicamento", descricao: "", detalhes: "" });
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Plus className="w-4 h-4 mr-1" />
+                      Adicionar
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Adicionar Medicamento</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Nome do medicamento *</Label>
+                        <Input 
+                          value={novoItem.descricao}
+                          onChange={(e) => setNovoItem({ ...novoItem, descricao: e.target.value })}
+                          placeholder="Ex: Losartana 50mg..."
+                        />
+                      </div>
+                      <div>
+                        <Label>Frequência (opcional)</Label>
+                        <Input 
+                          value={novoItem.detalhes}
+                          onChange={(e) => setNovoItem({ ...novoItem, detalhes: e.target.value })}
+                          placeholder="Ex: 1x ao dia pela manhã..."
+                        />
+                      </div>
+                      <Button onClick={handleAddItem} disabled={saving} className="w-full">
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Adicionar"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
               <div className="space-y-2">
-                {historicoMedico.medicamentos.map((med, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Pill className="w-4 h-4 text-primary" />
-                      <div>
-                        <p className="font-medium text-sm">{med.nome}</p>
-                        <p className="text-xs text-muted-foreground">{med.frequencia}</p>
+                {medicamentos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhum medicamento cadastrado</p>
+                ) : (
+                  medicamentos.map((med) => (
+                    <div
+                      key={med.id}
+                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Pill className="w-4 h-4 text-primary" />
+                        <div>
+                          <p className="font-medium text-sm">{med.descricao}</p>
+                          {med.detalhes && (
+                            <p className="text-xs text-muted-foreground">{med.detalhes}</p>
+                          )}
+                        </div>
                       </div>
+                      <button onClick={() => handleDeleteItem(med.id)} className="text-muted-foreground hover:text-destructive">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </CardContent>
@@ -202,7 +428,7 @@ export default function PacienteHistorico() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />
-              Consultas Anteriores
+              Consultas Realizadas
             </CardTitle>
             <CardDescription>
               Histórico das suas consultas realizadas
@@ -210,38 +436,40 @@ export default function PacienteHistorico() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {consultasAnteriores.map((consulta) => (
-                <div
-                  key={consulta.id}
-                  className="p-4 bg-muted/50 rounded-xl border border-border/50"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-medium">{consulta.medico}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {consulta.especialidade}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {format(new Date(consulta.data), "dd 'de' MMMM 'de' yyyy", {
-                          locale: ptBR,
-                        })}
-                      </p>
+              {consultas.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  Nenhuma consulta realizada ainda
+                </p>
+              ) : (
+                consultas.map((consulta) => (
+                  <div
+                    key={consulta.id}
+                    className="p-4 bg-muted/50 rounded-xl border border-border/50"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium">{consulta.medico?.nome || "Médico"}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {consulta.medico?.especialidade}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {format(new Date(consulta.data_hora), "dd 'de' MMMM 'de' yyyy", {
+                            locale: ptBR,
+                          })}
+                        </p>
+                      </div>
                     </div>
-                    {consulta.prescricao && (
-                      <Button variant="outline" size="sm">
-                        <FileText className="w-4 h-4 mr-1" />
-                        Receita
-                      </Button>
+                    {consulta.motivo_consulta && (
+                      <div className="mt-3 p-2 bg-background rounded-lg">
+                        <p className="text-sm">
+                          <span className="font-medium">Motivo:</span>{" "}
+                          {consulta.motivo_consulta}
+                        </p>
+                      </div>
                     )}
                   </div>
-                  <div className="mt-3 p-2 bg-background rounded-lg">
-                    <p className="text-sm">
-                      <span className="font-medium">Diagnóstico:</span>{" "}
-                      {consulta.diagnostico}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
