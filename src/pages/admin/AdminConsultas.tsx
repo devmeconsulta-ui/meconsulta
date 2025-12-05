@@ -51,7 +51,7 @@ const statusPagamentoLabels: Record<string, string> = {
 export default function AdminConsultas() {
   const [filters, setFilters] = useState({
     dataInicio: format(subDays(new Date(), 30), "yyyy-MM-dd"),
-    dataFim: format(new Date(), "yyyy-MM-dd"),
+    dataFim: format(new Date(new Date().setMonth(new Date().getMonth() + 3)), "yyyy-MM-dd"), // Include future appointments
     statusConsulta: "all",
     statusPagamento: "all",
     search: "",
@@ -142,7 +142,7 @@ export default function AdminConsultas() {
   const clearFilters = () => {
     setFilters({
       dataInicio: format(subDays(new Date(), 30), "yyyy-MM-dd"),
-      dataFim: format(new Date(), "yyyy-MM-dd"),
+      dataFim: format(new Date(new Date().setMonth(new Date().getMonth() + 3)), "yyyy-MM-dd"),
       statusConsulta: "all",
       statusPagamento: "all",
       search: "",
