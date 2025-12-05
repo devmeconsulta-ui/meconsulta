@@ -230,6 +230,21 @@ serve(async (req) => {
       body: JSON.stringify(paymentPayload),
     });
 
+    // Check if response is JSON
+    const paymentContentType = paymentResponse.headers.get('content-type');
+    if (!paymentContentType?.includes('application/json')) {
+      const textResponse = await paymentResponse.text();
+      console.error('Asaas payments returned non-JSON response:', textResponse.substring(0, 500));
+      console.error('Status:', paymentResponse.status);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro na API do Asaas', 
+          details: `Status: ${paymentResponse.status}. Verifique a API Key.` 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const paymentResult = await paymentResponse.json();
     console.log('Payment response:', JSON.stringify(paymentResult));
 
