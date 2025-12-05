@@ -11,7 +11,9 @@ import {
   Clock,
   Eye,
   Loader2,
-  FileText
+  FileText,
+  Globe,
+  Building2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -25,6 +27,7 @@ interface Consulta {
   status_consulta: string;
   motivo_consulta: string | null;
   nome_paciente_consulta: string | null;
+  origem: string | null;
   paciente: {
     id: string;
     nome: string;
@@ -83,6 +86,7 @@ export default function MedicoConsultas() {
         status_consulta,
         motivo_consulta,
         nome_paciente_consulta,
+        origem,
         paciente:pacientes(id, nome, cpf, data_nascimento, cidade, estado, bairro),
         dependente:paciente_dependentes(id, nome, parentesco)
       `)
@@ -270,6 +274,22 @@ export default function MedicoConsultas() {
                     </div>
                     
                     <div className="flex items-center gap-3">
+                      {/* Origin badge */}
+                      {consulta.origem === "online" ? (
+                        <Badge className="bg-blue-500/10 text-blue-600 gap-1">
+                          <Globe className="w-3 h-3" />
+                          Online
+                        </Badge>
+                      ) : consulta.origem === "interna" ? (
+                        <Badge className="bg-emerald-500/10 text-emerald-600 gap-1">
+                          <Building2 className="w-3 h-3" />
+                          Interna
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-muted text-muted-foreground">
+                          -
+                        </Badge>
+                      )}
                       <Badge className={statusColors[consulta.status_consulta] || "bg-muted"}>
                         {statusLabels[consulta.status_consulta] || consulta.status_consulta}
                       </Badge>
