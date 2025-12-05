@@ -53,6 +53,7 @@ export default function AdminIntegracoes() {
   const [testingMedico, setTestingMedico] = useState(false);
   const [testingPaciente, setTestingPaciente] = useState(false);
   const [testingAsaas, setTestingAsaas] = useState(false);
+  const [testingApiAsaas, setTestingApiAsaas] = useState(false);
 
   const [configAsaas, setConfigAsaas] = useState<ConfigAsaas>({
     ambiente: "sandbox",
@@ -222,6 +223,52 @@ export default function AdminIntegracoes() {
     setCopied(true);
     toast.success("URL copiada!");
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleTestAsaasApi() {
+    if (!configAsaas.api_key || !configAsaas.base_url) {
+      toast.error("Configure a API Key e Base URL antes de testar");
+      return;
+    }
+
+    setTestingApiAsaas(true);
+
+    try {
+      console.log("Testando conexão com API Asaas:", configAsaas.base_url);
+
+      const response = await fetch(`${configAsaas.base_url}/customers?limit=1`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'access_token': configAsaas.api_key,
+        },
+      });
+
+      const contentType = response.headers.get('content-type');
+      
+      if (!contentType?.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error("Resposta não-JSON da API:", textResponse.substring(0, 500));
+        toast.error(`Erro: A API retornou uma resposta inesperada. Verifique a API Key e URL.`);
+        return;
+      }
+
+      const data = await response.json();
+      console.log("Resposta da API:", data);
+
+      if (response.ok) {
+        toast.success(`✅ API Asaas conectada com sucesso! Ambiente: ${configAsaas.ambiente}`);
+      } else if (response.status === 401) {
+        toast.error("❌ API Key inválida ou expirada");
+      } else {
+        toast.error(`Erro ao conectar: ${data.errors?.[0]?.description || response.status}`);
+      }
+    } catch (error) {
+      console.error("Erro ao testar API Asaas:", error);
+      toast.error("Erro ao conectar com a API do Asaas. Verifique a configuração.");
+    } finally {
+      setTestingApiAsaas(false);
+    }
   }
 
   async function handleTestAsaasWebhook() {
@@ -515,14 +562,29 @@ O MeConsulta te proporciona um atendimento de ponta e sem complicação. Aguarda
                   <Label>Integração ativa</Label>
                 </div>
 
-                <Button onClick={handleSaveAsaas} disabled={savingAsaas} className="gap-2">
-                  {savingAsaas ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4" />
-                  )}
-                  Salvar Configuração
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline"
+                    onClick={handleTestAsaasApi} 
+                    disabled={testingApiAsaas || !configAsaas.api_key} 
+                    className="gap-2"
+                  >
+                    {testingApiAsaas ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
+                    Testar Conexão API
+                  </Button>
+                  <Button onClick={handleSaveAsaas} disabled={savingAsaas} className="gap-2">
+                    {savingAsaas ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    Salvar Configuração
+                  </Button>
+                </div>
               </div>
             </>
           )}
