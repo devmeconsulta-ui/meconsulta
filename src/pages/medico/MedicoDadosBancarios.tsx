@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Wallet, Save, Building, CreditCard, Key } from "lucide-react";
+import { Wallet, Save, Building, CreditCard, Key, MessageSquare } from "lucide-react";
 
 interface MedicoContext {
   medicoData: any;
@@ -33,6 +33,7 @@ export default function MedicoDadosBancarios() {
     titular_cpf_cnpj: "",
     pix_key: "",
     pix_key_type: "cpf",
+    telefone_whatsapp: "",
   });
 
   useEffect(() => {
@@ -47,6 +48,7 @@ export default function MedicoDadosBancarios() {
         titular_cpf_cnpj: medicoData.titular_cpf_cnpj || "",
         pix_key: medicoData.pix_key || "",
         pix_key_type: medicoData.pix_key_type || "cpf",
+        telefone_whatsapp: medicoData.telefone_whatsapp || "",
       });
       setLoading(false);
     }
@@ -250,6 +252,32 @@ export default function MedicoDadosBancarios() {
                     }
                   />
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* WhatsApp Notifications */}
+          <Card className="card-shadow lg:col-span-2 border-l-4 border-l-green-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-green-500" />
+                Notificações por WhatsApp
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Informe seu número de WhatsApp para receber notificações sobre novas consultas e alterações.
+              </p>
+              <div className="max-w-md">
+                <Label>Telefone/WhatsApp</Label>
+                <Input
+                  value={formData.telefone_whatsapp}
+                  onChange={(e) => setFormData({ ...formData, telefone_whatsapp: e.target.value })}
+                  placeholder="(00) 00000-0000"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Esse será o número usado para receber notificações de novas consultas e alterações.
+                </p>
               </div>
             </CardContent>
           </Card>
