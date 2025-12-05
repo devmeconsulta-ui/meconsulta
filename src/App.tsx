@@ -25,6 +25,7 @@ import AdminConfiguracoes from "./pages/admin/AdminConfiguracoes";
 // Medico pages
 import { MedicoLayout } from "./components/medico/MedicoLayout";
 import MedicoDashboard from "./pages/medico/MedicoDashboard";
+import MedicoConsultas from "./pages/medico/MedicoConsultas";
 import MedicoLocais from "./pages/medico/MedicoLocais";
 import MedicoAgenda from "./pages/medico/MedicoAgenda";
 import MedicoPaginaPublica from "./pages/medico/MedicoPaginaPublica";
@@ -76,6 +77,7 @@ const App = () => (
             {/* Medico routes */}
             <Route path="/medico" element={<MedicoLayout />}>
               <Route index element={<MedicoDashboard />} />
+              <Route path="consultas" element={<MedicoConsultas />} />
               <Route path="locais" element={<MedicoLocais />} />
               <Route path="agenda" element={<MedicoAgenda />} />
               <Route path="pagina-publica" element={<MedicoPaginaPublica />} />

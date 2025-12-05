@@ -56,6 +56,79 @@ export type Database = {
           },
         ]
       }
+      anamneses: {
+        Row: {
+          antecedentes_familiares: string | null
+          antecedentes_pessoais: string | null
+          conduta: string | null
+          consulta_id: string | null
+          created_at: string | null
+          exame_fisico: string | null
+          hipotese_diagnostica: string | null
+          historia_doenca_atual: string | null
+          id: string
+          medico_id: string
+          observacoes: string | null
+          paciente_id: string
+          queixa_principal: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          antecedentes_familiares?: string | null
+          antecedentes_pessoais?: string | null
+          conduta?: string | null
+          consulta_id?: string | null
+          created_at?: string | null
+          exame_fisico?: string | null
+          hipotese_diagnostica?: string | null
+          historia_doenca_atual?: string | null
+          id?: string
+          medico_id: string
+          observacoes?: string | null
+          paciente_id: string
+          queixa_principal?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          antecedentes_familiares?: string | null
+          antecedentes_pessoais?: string | null
+          conduta?: string | null
+          consulta_id?: string | null
+          created_at?: string | null
+          exame_fisico?: string | null
+          hipotese_diagnostica?: string | null
+          historia_doenca_atual?: string | null
+          id?: string
+          medico_id?: string
+          observacoes?: string | null
+          paciente_id?: string
+          queixa_principal?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anamneses_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anamneses_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anamneses_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       avaliacoes_medico: {
         Row: {
           aprovada_admin: boolean | null
@@ -112,11 +185,15 @@ export type Database = {
           dependente_id: string | null
           id: string
           medico_id: string | null
+          motivo_consulta: string | null
           nome_paciente_consulta: string | null
+          observacoes_paciente: string | null
           paciente_id: string | null
+          sintomas: string | null
           status_consulta: string
           status_pagamento: string
           status_repasse: string
+          tipo_servico: string | null
           valor_consulta: number
           valor_medico: number
           valor_plataforma: number
@@ -128,11 +205,15 @@ export type Database = {
           dependente_id?: string | null
           id?: string
           medico_id?: string | null
+          motivo_consulta?: string | null
           nome_paciente_consulta?: string | null
+          observacoes_paciente?: string | null
           paciente_id?: string | null
+          sintomas?: string | null
           status_consulta?: string
           status_pagamento?: string
           status_repasse?: string
+          tipo_servico?: string | null
           valor_consulta: number
           valor_medico: number
           valor_plataforma: number
@@ -144,11 +225,15 @@ export type Database = {
           dependente_id?: string | null
           id?: string
           medico_id?: string | null
+          motivo_consulta?: string | null
           nome_paciente_consulta?: string | null
+          observacoes_paciente?: string | null
           paciente_id?: string | null
+          sintomas?: string | null
           status_consulta?: string
           status_pagamento?: string
           status_repasse?: string
+          tipo_servico?: string | null
           valor_consulta?: number
           valor_medico?: number
           valor_plataforma?: number
@@ -170,6 +255,44 @@ export type Database = {
           },
           {
             foreignKeyName: "consultas_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historico_medico_paciente: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          descricao: string
+          detalhes: string | null
+          id: string
+          paciente_id: string
+          tipo: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao: string
+          detalhes?: string | null
+          id?: string
+          paciente_id: string
+          tipo: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string
+          detalhes?: string | null
+          id?: string
+          paciente_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historico_medico_paciente_paciente_id_fkey"
             columns: ["paciente_id"]
             isOneToOne: false
             referencedRelation: "pacientes"
