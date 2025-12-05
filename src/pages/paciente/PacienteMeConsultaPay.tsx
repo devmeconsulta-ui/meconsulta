@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,9 @@ import {
   DollarSign,
   BarChart3,
   PieChart,
+  Sparkles,
+  Target,
+  Heart,
 } from "lucide-react";
 import {
   BarChart,
@@ -38,23 +41,38 @@ import {
   Pie,
   Cell,
   Legend,
+  AreaChart,
+  Area,
 } from "recharts";
+import logo from "@/assets/logo.avif";
 
-// Mock data for charts
-const creditEvolutionData = [
-  { month: "Jan", valor: 2500 },
-  { month: "Fev", valor: 3200 },
-  { month: "Mar", valor: 2800 },
-  { month: "Abr", valor: 4100 },
-  { month: "Mai", valor: 3800 },
-  { month: "Jun", valor: 5200 },
+// Mock data for credit request simulation
+const creditRequestData = [
+  { mes: "Jan", solicitacoes: 2, aprovados: 1 },
+  { mes: "Fev", solicitacoes: 3, aprovados: 2 },
+  { mes: "Mar", solicitacoes: 4, aprovados: 3 },
+  { mes: "Abr", solicitacoes: 2, aprovados: 2 },
+  { mes: "Mai", solicitacoes: 5, aprovados: 4 },
+  { mes: "Jun", solicitacoes: 3, aprovados: 3 },
 ];
 
-const usageProfileData = [
-  { name: "Saúde", value: 45, color: "hsl(var(--primary))" },
-  { name: "Educação", value: 25, color: "hsl(210, 100%, 60%)" },
-  { name: "Lazer", value: 20, color: "hsl(280, 100%, 60%)" },
-  { name: "Outros", value: 10, color: "hsl(var(--muted))" },
+const loanPurposeData = [
+  { name: "Saúde", value: 45, color: "hsl(214, 100%, 35%)" },
+  { name: "Emergência", value: 30, color: "hsl(45, 100%, 51%)" },
+  { name: "Procedimentos", value: 15, color: "hsl(142, 70%, 45%)" },
+  { name: "Outros", value: 10, color: "hsl(var(--muted-foreground))" },
+];
+
+// Motivational phrases for people in debt
+const motivationalPhrases = [
+  "💪 Dívida é só um número. Você é muito mais que isso!",
+  "🌟 O primeiro passo para sair do vermelho? Você já deu: buscando ajuda!",
+  "🚀 Seu score não define seu valor. Vamos juntos reconstruir!",
+  "💡 Endividado hoje, investidor amanhã. É questão de tempo!",
+  "🎯 Cada real pago é uma vitória. Continue assim!",
+  "❤️ Cuidar da saúde não tem preço. Nós te ajudamos com o resto!",
+  "✨ Não é sobre a queda, é sobre levantar. E você está levantando!",
+  "🌈 Depois da tempestade financeira, vem a bonança. Aguente firme!",
 ];
 
 type PacienteContext = {
@@ -78,8 +96,18 @@ export default function PacienteMeConsultaPay() {
     nome_mae: "",
   });
 
+  const [currentPhrase, setCurrentPhrase] = useState(0);
+
+  // Rotate motivational phrases
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentPhrase((prev) => (prev + 1) % motivationalPhrases.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Initialize form with patient data
-  useState(() => {
+  useEffect(() => {
     if (paciente) {
       setFormData((prev) => ({
         ...prev,
@@ -88,7 +116,7 @@ export default function PacienteMeConsultaPay() {
         data_nascimento: paciente.data_nascimento || "",
       }));
     }
-  });
+  }, [paciente]);
 
   // Fetch patient's previous requests
   const { data: solicitacoes, isLoading: loadingSolicitacoes } = useQuery({
@@ -227,24 +255,37 @@ export default function PacienteMeConsultaPay() {
 
   return (
     <div className="space-y-6">
+      {/* Motivational Banner */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-secondary/20 to-primary/10 p-4 border border-secondary/30">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0">
+            <Heart className="w-5 h-5 text-secondary" />
+          </div>
+          <p className="text-sm sm:text-base font-medium text-foreground transition-all duration-500">
+            {motivationalPhrases[currentPhrase]}
+          </p>
+        </div>
+        <Sparkles className="absolute top-2 right-4 w-5 h-5 text-secondary/50 animate-pulse" />
+      </div>
+
       {/* Hero Section with Credit Card */}
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Main Credit Card */}
         <div className="lg:col-span-2">
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-800 p-6 text-white shadow-2xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-[hsl(214,100%,28%)] p-6 text-primary-foreground shadow-2xl">
             {/* Background decorations */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/20 rounded-full translate-y-1/2 -translate-x-1/2" />
 
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                  <CreditCard className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center p-2">
+                  <img src={logo} alt="MeConsulta" className="w-full h-full object-contain" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold">MeConsulta Pay</h1>
-                  <p className="text-white/80 text-sm">
-                    Solicite análise de crédito de forma rápida e segura
+                  <p className="text-primary-foreground/80 text-sm">
+                    Crédito rápido para cuidar da sua saúde
                   </p>
                 </div>
               </div>
@@ -252,10 +293,9 @@ export default function PacienteMeConsultaPay() {
               {/* Virtual Card */}
               <div className="bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/20">
                 <div className="flex justify-between items-start mb-8">
-                  <div className="w-12 h-8 bg-gradient-to-r from-yellow-400 to-yellow-500 rounded" />
+                  <div className="w-12 h-8 bg-gradient-to-r from-secondary to-secondary/80 rounded" />
                   <div className="text-right">
-                    <p className="text-xs text-white/60">MeConsulta</p>
-                    <p className="text-lg font-bold">PAY</p>
+                    <img src={logo} alt="MeConsulta" className="w-16 h-8 object-contain ml-auto opacity-80" />
                   </div>
                 </div>
 
@@ -265,30 +305,34 @@ export default function PacienteMeConsultaPay() {
 
                 <div className="flex justify-between items-end">
                   <div>
-                    <p className="text-xs text-white/60 uppercase">Titular</p>
-                    <p className="font-medium">{paciente?.nome || "NOME DO PACIENTE"}</p>
+                    <p className="text-xs text-primary-foreground/60 uppercase">Titular</p>
+                    <p className="font-medium">{paciente?.nome?.toUpperCase() || "NOME DO PACIENTE"}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-white/60">Limite pré-aprovado</p>
-                    <p className="text-xl font-bold text-yellow-400">Em análise</p>
+                    <p className="text-xs text-primary-foreground/60">Limite pré-aprovado</p>
+                    <p className="text-2xl font-bold text-secondary">R$ 8.000</p>
                   </div>
                 </div>
               </div>
+
+              <p className="text-xs text-primary-foreground/60 mt-4 text-center">
+                * Limite sujeito à análise de crédito. Condições especiais para pacientes MeConsulta.
+              </p>
             </div>
           </div>
         </div>
 
         {/* Side Stats */}
         <div className="grid gap-4">
-          <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+          <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-primary" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{stats.pendentes}</p>
-                  <p className="text-xs text-muted-foreground">Solicitações pendentes</p>
+                  <p className="text-xs text-muted-foreground">Em análise</p>
                 </div>
               </div>
             </CardContent>
@@ -308,15 +352,15 @@ export default function PacienteMeConsultaPay() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+          <Card className="bg-gradient-to-br from-secondary/10 to-secondary/5 border-secondary/20">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-purple-600" />
+                <div className="w-10 h-10 rounded-lg bg-secondary/20 flex items-center justify-center">
+                  <Target className="w-5 h-5 text-secondary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.total}</p>
-                  <p className="text-xs text-muted-foreground">Total de solicitações</p>
+                  <p className="text-2xl font-bold">R$ 8k</p>
+                  <p className="text-xs text-muted-foreground">Limite disponível</p>
                 </div>
               </div>
             </CardContent>
@@ -326,19 +370,32 @@ export default function PacienteMeConsultaPay() {
 
       {/* Charts Section */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Credit Evolution Chart */}
+        {/* Loan Requests Evolution */}
         <Card>
           <CardHeader className="pb-4">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-primary" />
-              <CardTitle className="text-lg">Evolução de Crédito</CardTitle>
+              <CardTitle className="text-lg">Histórico de Solicitações</CardTitle>
             </div>
+            <p className="text-sm text-muted-foreground">
+              Acompanhe suas solicitações de crédito
+            </p>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={creditEvolutionData}>
+              <AreaChart data={creditRequestData}>
+                <defs>
+                  <linearGradient id="colorSolicitacoes" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(214, 100%, 35%)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(214, 100%, 35%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorAprovados" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(142, 70%, 45%)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(142, 70%, 45%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                 <Tooltip
                   contentStyle={{
@@ -347,37 +404,44 @@ export default function PacienteMeConsultaPay() {
                     borderRadius: "8px",
                   }}
                   labelStyle={{ color: "hsl(var(--foreground))" }}
-                  formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, "Valor"]}
                 />
-                <Bar
-                  dataKey="valor"
-                  fill="url(#creditGradient)"
-                  radius={[6, 6, 0, 0]}
+                <Area
+                  type="monotone"
+                  dataKey="solicitacoes"
+                  stroke="hsl(214, 100%, 35%)"
+                  fillOpacity={1}
+                  fill="url(#colorSolicitacoes)"
+                  name="Solicitações"
                 />
-                <defs>
-                  <linearGradient id="creditGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" />
-                    <stop offset="100%" stopColor="hsl(260, 100%, 60%)" />
-                  </linearGradient>
-                </defs>
-              </BarChart>
+                <Area
+                  type="monotone"
+                  dataKey="aprovados"
+                  stroke="hsl(142, 70%, 45%)"
+                  fillOpacity={1}
+                  fill="url(#colorAprovados)"
+                  name="Aprovados"
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Usage Profile Chart */}
+        {/* Loan Purpose Chart */}
         <Card>
           <CardHeader className="pb-4">
             <div className="flex items-center gap-2">
               <PieChart className="w-5 h-5 text-primary" />
-              <CardTitle className="text-lg">Perfil de Uso</CardTitle>
+              <CardTitle className="text-lg">Finalidade do Crédito</CardTitle>
             </div>
+            <p className="text-sm text-muted-foreground">
+              Para que nossos pacientes usam o MeConsulta Pay
+            </p>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
               <RePieChart>
                 <Pie
-                  data={usageProfileData}
+                  data={loanPurposeData}
                   cx="50%"
                   cy="50%"
                   innerRadius={50}
@@ -385,7 +449,7 @@ export default function PacienteMeConsultaPay() {
                   paddingAngle={4}
                   dataKey="value"
                 >
-                  {usageProfileData.map((entry, index) => (
+                  {loanPurposeData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -415,9 +479,46 @@ export default function PacienteMeConsultaPay() {
         </Card>
       </div>
 
+      {/* Benefits Section */}
+      <div className="grid sm:grid-cols-3 gap-4">
+        <Card className="bg-gradient-to-br from-primary/5 to-transparent border-primary/10">
+          <CardContent className="p-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-primary/10 mx-auto mb-3 flex items-center justify-center">
+              <Sparkles className="w-6 h-6 text-primary" />
+            </div>
+            <h3 className="font-semibold mb-1">Aprovação Rápida</h3>
+            <p className="text-xs text-muted-foreground">
+              Análise em até 24h úteis
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-secondary/5 to-transparent border-secondary/10">
+          <CardContent className="p-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-secondary/10 mx-auto mb-3 flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-secondary" />
+            </div>
+            <h3 className="font-semibold mb-1">Taxas Especiais</h3>
+            <p className="text-xs text-muted-foreground">
+              Condições exclusivas para pacientes
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-green-500/5 to-transparent border-green-500/10">
+          <CardContent className="p-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-green-500/10 mx-auto mb-3 flex items-center justify-center">
+              <Heart className="w-6 h-6 text-green-600" />
+            </div>
+            <h3 className="font-semibold mb-1">Foco em Saúde</h3>
+            <p className="text-xs text-muted-foreground">
+              Crédito pensado para você cuidar de si
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Request Form */}
       <Card className="border-2 border-primary/20">
-        <CardHeader className="bg-gradient-to-r from-primary/5 to-purple-500/5">
+        <CardHeader className="bg-gradient-to-r from-primary/5 to-secondary/5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
               <Send className="w-5 h-5 text-primary" />
@@ -425,7 +526,7 @@ export default function PacienteMeConsultaPay() {
             <div>
               <CardTitle>Solicitar Análise de Crédito</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                Preencha seus dados para receber uma análise personalizada
+                Preencha seus dados para receber sua análise personalizada
               </p>
             </div>
           </div>
@@ -499,8 +600,8 @@ export default function PacienteMeConsultaPay() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
-              <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
+            <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-lg border border-primary/10">
+              <AlertCircle className="w-5 h-5 text-primary flex-shrink-0" />
               <p className="text-sm text-muted-foreground">
                 Seus dados são tratados com total sigilo e segurança. A análise não afeta seu score de crédito.
               </p>
@@ -509,7 +610,7 @@ export default function PacienteMeConsultaPay() {
             <Button
               type="submit"
               size="lg"
-              className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-700"
+              className="w-full bg-gradient-to-r from-primary to-[hsl(214,100%,28%)] hover:from-primary/90 hover:to-[hsl(214,100%,25%)]"
               disabled={createMutation.isPending}
             >
               {createMutation.isPending ? (
@@ -574,7 +675,7 @@ export default function PacienteMeConsultaPay() {
                 Você ainda não fez nenhuma solicitação de crédito.
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                Preencha o formulário acima para começar.
+                Preencha o formulário acima para começar!
               </p>
             </div>
           )}

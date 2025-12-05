@@ -23,10 +23,10 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Início", path: "/paciente" },
   { icon: Calendar, label: "Minhas Consultas", path: "/paciente/consultas" },
   { icon: Plus, label: "Marcar Consulta", path: "/paciente/marcar", highlight: true },
-  { icon: CreditCard, label: "MeConsulta Pay", path: "/paciente/meconsulta-pay", highlight: true },
   { icon: Heart, label: "Favoritos", path: "/paciente/favoritos" },
   { icon: FileText, label: "Histórico Médico", path: "/paciente/historico" },
   { icon: Bell, label: "Notificações", path: "/paciente/notificacoes" },
+  { icon: CreditCard, label: "MeConsulta Pay", path: "/paciente/meconsulta-pay", highlight: true },
   { icon: User, label: "Meu Perfil", path: "/paciente/perfil" },
   { icon: Settings, label: "Configurações", path: "/paciente/configuracoes" },
 ];
