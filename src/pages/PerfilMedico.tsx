@@ -201,8 +201,9 @@ const PerfilMedico = () => {
   };
 
   const handleContinue = () => {
-    if (selectedDate && selectedTime) {
-      navigate(`/checkout/${medico.id}?data=${selectedDate}&horario=${selectedTime}`);
+    if (selectedDate && selectedTime && selectedSlot) {
+      const localParam = selectedSlot.local_id ? `&local=${selectedSlot.local_id}` : "";
+      navigate(`/checkout/${medico.id}?data=${selectedDate}&horario=${selectedTime}${localParam}`);
     }
   };
 
