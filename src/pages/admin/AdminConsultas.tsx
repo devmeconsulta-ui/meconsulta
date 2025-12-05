@@ -100,14 +100,16 @@ export default function AdminConsultas() {
     },
   });
 
-  // Stats
+  // Stats - consultas internas não geram receita
+  const consultasOnline = consultas?.filter((c) => c.origem !== 'interna') || [];
   const stats = {
     total: consultas?.length || 0,
     confirmadas: consultas?.filter((c) => c.status_consulta === "confirmada").length || 0,
     aguardando: consultas?.filter((c) => c.status_consulta === "aguardando_pagamento").length || 0,
     canceladas: consultas?.filter((c) => c.status_consulta === "cancelada").length || 0,
-    valorTotal: consultas?.reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
-    valorPago: consultas?.filter((c) => c.status_pagamento === "pago").reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
+    // Valores financeiros apenas de consultas online
+    valorTotal: consultasOnline.reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
+    valorPago: consultasOnline.filter((c) => c.status_pagamento === "pago").reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
   };
 
   // Chart data - Status Consulta

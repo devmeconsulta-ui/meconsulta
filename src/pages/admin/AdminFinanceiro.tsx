@@ -55,23 +55,24 @@ export default function AdminFinanceiro() {
     },
   });
 
-  // Calculate financial metrics
+  // Calculate financial metrics - consultas internas não geram receita
+  const consultasOnline = consultas?.filter((c) => c.origem !== 'interna') || [];
   const metrics = {
-    receitaTotal: consultas?.reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
-    receitaPaga: consultas?.filter((c) => c.status_pagamento === "pago").reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
-    receitaPendente: consultas?.filter((c) => c.status_pagamento === "pendente").reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
-    totalRepasses: consultas?.reduce((acc, c) => acc + Number(c.valor_medico), 0) || 0,
-    lucroPlataforma: consultas?.reduce((acc, c) => acc + Number(c.valor_plataforma), 0) || 0,
-    consultasPagas: consultas?.filter((c) => c.status_pagamento === "pago").length || 0,
-    consultasPendentes: consultas?.filter((c) => c.status_pagamento === "pendente").length || 0,
+    receitaTotal: consultasOnline.reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
+    receitaPaga: consultasOnline.filter((c) => c.status_pagamento === "pago").reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
+    receitaPendente: consultasOnline.filter((c) => c.status_pagamento === "pendente").reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
+    totalRepasses: consultasOnline.reduce((acc, c) => acc + Number(c.valor_medico), 0) || 0,
+    lucroPlataforma: consultasOnline.reduce((acc, c) => acc + Number(c.valor_plataforma), 0) || 0,
+    consultasPagas: consultasOnline.filter((c) => c.status_pagamento === "pago").length || 0,
+    consultasPendentes: consultasOnline.filter((c) => c.status_pagamento === "pendente").length || 0,
   };
 
-  // Chart data - Receita por dia
+  // Chart data - Receita por dia (apenas consultas online)
   const receitaPorDia = (() => {
-    if (!consultas) return [];
+    if (!consultasOnline.length) return [];
     const days: Record<string, { receita: number; repasse: number; lucro: number }> = {};
     
-    consultas.forEach((c) => {
+    consultasOnline.forEach((c) => {
       const day = format(new Date(c.data_hora), "dd/MM");
       if (!days[day]) {
         days[day] = { receita: 0, repasse: 0, lucro: 0 };
@@ -98,12 +99,12 @@ export default function AdminFinanceiro() {
     { name: "Pendente", value: metrics.receitaPendente, color: "#F59E0B" },
   ];
 
-  // Top médicos por receita
+  // Top médicos por receita (apenas consultas online)
   const topMedicos = (() => {
-    if (!consultas) return [];
+    if (!consultasOnline.length) return [];
     const medicos: Record<string, { nome: string; receita: number; consultas: number }> = {};
     
-    consultas.forEach((c: any) => {
+    consultasOnline.forEach((c: any) => {
       const nome = c.medico?.nome || "Desconhecido";
       if (!medicos[nome]) {
         medicos[nome] = { nome, receita: 0, consultas: 0 };
