@@ -162,19 +162,33 @@ const [nota, setNota] = useState(5);
     if (!cancelarModal) return;
 
     setEnviando(true);
-    const { error } = await supabase
-      .from("consultas")
-      .update({ status_consulta: "cancelada" })
-      .eq("id", cancelarModal.id);
+    
+    try {
+      // Usar edge function para cancelar no sistema e no Asaas
+      const { data, error } = await supabase.functions.invoke('cancel-asaas-payment', {
+        body: { consulta_id: cancelarModal.id }
+      });
 
-    if (error) {
-      toast.error("Erro ao cancelar consulta");
-    } else {
+      if (error) {
+        console.error('Erro na edge function:', error);
+        toast.error("Erro ao cancelar consulta");
+        return;
+      }
+
+      if (!data.success) {
+        toast.error(data.error || "Erro ao cancelar consulta");
+        return;
+      }
+
       toast.success("Consulta cancelada com sucesso");
       fetchConsultas();
+    } catch (err) {
+      console.error('Erro ao cancelar:', err);
+      toast.error("Erro ao cancelar consulta");
+    } finally {
+      setCancelarModal(null);
+      setEnviando(false);
     }
-    setCancelarModal(null);
-    setEnviando(false);
   }
 
   async function handleFinalizarPagamento(consulta: any) {

@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.create-asaas-payment]
 verify_jwt = false
+
+[functions.cancel-asaas-payment]
+verify_jwt = false
