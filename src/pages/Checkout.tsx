@@ -192,8 +192,11 @@ const Checkout = () => {
       return;
     }
 
+    // Check if user needs to complete paciente record
+    const needsPacienteRecord = currentUser?.id && !currentUser?.pacienteId;
+
     // Validate personal data for new users
-    if (!isLoggedIn) {
+    if (!isLoggedIn && !needsPacienteRecord) {
       if (!formData.nome.trim()) {
         toast.error("Por favor, informe seu nome completo");
         return;
@@ -212,6 +215,14 @@ const Checkout = () => {
       }
       if (formData.senha !== formData.confirmarSenha) {
         toast.error("As senhas não coincidem");
+        return;
+      }
+    }
+
+    // Validate CPF for logged-in users without paciente record
+    if (needsPacienteRecord) {
+      if (!formData.cpf || formData.cpf.replace(/\D/g, "").length !== 11) {
+        toast.error("Por favor, informe seu CPF para completar o cadastro");
         return;
       }
     }
@@ -235,8 +246,11 @@ const Checkout = () => {
       let userId = currentUser?.id;
       let userName = currentUser?.nome;
 
-      // Create user if not logged in
-      if (!isLoggedIn) {
+      // If user is logged in but doesn't have pacienteId, we need to create paciente record
+      const needsPacienteRecord = currentUser?.id && !currentUser?.pacienteId;
+      
+      // Create user if not logged in OR create paciente if logged in without paciente record
+      if (!isLoggedIn && !needsPacienteRecord) {
         // Check if email already exists
         const { data: existingUser } = await supabase
           .from("usuarios")
@@ -308,6 +322,66 @@ const Checkout = () => {
         setCurrentUser(loggedUser);
         
         toast.success("Conta criada com sucesso!");
+      } else if (needsPacienteRecord) {
+        // User is logged in but doesn't have paciente record - create one
+        // This shouldn't normally happen, but handle it gracefully
+        if (!formData.cpf || formData.cpf.replace(/\D/g, "").length !== 11) {
+          toast.error("Por favor, informe seu CPF para completar o cadastro");
+          setSubmitting(false);
+          return;
+        }
+
+        const cpfClean = formData.cpf.replace(/\D/g, "");
+        
+        // Check if CPF already exists
+        const { data: existingCpf } = await supabase
+          .from("pacientes")
+          .select("id")
+          .eq("cpf", cpfClean)
+          .maybeSingle();
+
+        if (existingCpf) {
+          toast.error("Este CPF já está cadastrado em outra conta.");
+          setSubmitting(false);
+          return;
+        }
+
+        // Create paciente record for existing user
+        const { data: newPaciente, error: pacienteError } = await supabase
+          .from("pacientes")
+          .insert({
+            usuario_id: currentUser!.id,
+            nome: currentUser!.nome,
+            cpf: cpfClean,
+            telefone: formData.telefone.replace(/\D/g, "") || null,
+          })
+          .select("id")
+          .single();
+
+        if (pacienteError) {
+          console.error("Error creating paciente:", pacienteError);
+          toast.error("Erro ao completar cadastro. Tente novamente.");
+          setSubmitting(false);
+          return;
+        }
+
+        pacienteId = newPaciente.id;
+        
+        // Update currentUser with pacienteId
+        const updatedUser: CurrentUser = {
+          ...currentUser!,
+          pacienteId: newPaciente.id,
+        };
+        setCurrentUser(updatedUser);
+        
+        toast.success("Cadastro completado!");
+      }
+
+      // Ensure we have a valid pacienteId
+      if (!pacienteId) {
+        toast.error("Erro: Não foi possível identificar o paciente. Faça login novamente.");
+        setSubmitting(false);
+        return;
       }
 
       // Determine patient name for the consultation
@@ -372,9 +446,17 @@ const Checkout = () => {
       setShowPayment(true);
       toast.success("Cobrança gerada com sucesso!");
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating consultation:", error);
-      toast.error("Erro ao agendar consulta. Tente novamente.");
+      
+      // Provide more specific error message
+      if (error?.message?.includes("duplicate") || error?.code === "23505") {
+        toast.error("Este horário já está reservado. Por favor, escolha outro.");
+      } else if (error?.message?.includes("violates foreign key")) {
+        toast.error("Erro de dados. Por favor, atualize a página e tente novamente.");
+      } else {
+        toast.error("Erro ao agendar consulta. Tente novamente.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -527,8 +609,48 @@ const Checkout = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* CPF Section - For logged users without paciente record */}
+                {currentUser?.id && !currentUser?.pacienteId && (
+                  <div className="bg-card rounded-2xl p-6 shadow-md">
+                    <div className="flex items-center gap-2 mb-4">
+                      <User className="w-5 h-5 text-primary" />
+                      <h2 className="text-xl font-bold text-foreground">Complete seu cadastro</h2>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Para continuar, precisamos do seu CPF.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="cpf">CPF *</Label>
+                        <Input
+                          id="cpf"
+                          value={formData.cpf}
+                          onChange={(e) => setFormData(prev => ({ ...prev, cpf: formatCPF(e.target.value) }))}
+                          placeholder="000.000.000-00"
+                          maxLength={14}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="telefone">Telefone</Label>
+                        <div className="relative mt-1">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            id="telefone"
+                            value={formData.telefone}
+                            onChange={(e) => setFormData(prev => ({ ...prev, telefone: formatPhone(e.target.value) }))}
+                            placeholder="(00) 00000-0000"
+                            maxLength={15}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Personal Data Section - Only for non-logged users */}
-                {!isLoggedIn && (
+                {!isLoggedIn && !currentUser?.id && (
                   <div className="bg-card rounded-2xl p-6 shadow-md">
                     <div className="flex items-center gap-2 mb-4">
                       <User className="w-5 h-5 text-primary" />
