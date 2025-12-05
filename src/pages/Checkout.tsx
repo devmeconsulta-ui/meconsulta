@@ -701,38 +701,25 @@ const Checkout = () => {
                               className="mt-1"
                             />
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <Label htmlFor="outraPessoaCpf">CPF</Label>
-                              <Input
-                                id="outraPessoaCpf"
-                                value={formData.outraPessoaCpf}
-                                onChange={(e) => setFormData(prev => ({ ...prev, outraPessoaCpf: formatCPF(e.target.value) }))}
-                                placeholder="000.000.000-00"
-                                maxLength={14}
-                                className="mt-1"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="outraPessoaParentesco">Parentesco *</Label>
-                              <Select 
-                                value={formData.outraPessoaParentesco}
-                                onValueChange={(value) => setFormData(prev => ({ ...prev, outraPessoaParentesco: value }))}
-                              >
-                                <SelectTrigger className="mt-1">
-                                  <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="filho">Filho(a)</SelectItem>
-                                  <SelectItem value="conjuge">Cônjuge</SelectItem>
-                                  <SelectItem value="pai">Pai</SelectItem>
-                                  <SelectItem value="mae">Mãe</SelectItem>
-                                  <SelectItem value="irmao">Irmão(ã)</SelectItem>
-                                  <SelectItem value="avo">Avô/Avó</SelectItem>
-                                  <SelectItem value="outro">Outro</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
+                          <div>
+                            <Label htmlFor="outraPessoaParentesco">Parentesco *</Label>
+                            <Select 
+                              value={formData.outraPessoaParentesco}
+                              onValueChange={(value) => setFormData(prev => ({ ...prev, outraPessoaParentesco: value }))}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="filho">Filho(a)</SelectItem>
+                                <SelectItem value="conjuge">Cônjuge</SelectItem>
+                                <SelectItem value="pai">Pai</SelectItem>
+                                <SelectItem value="mae">Mãe</SelectItem>
+                                <SelectItem value="irmao">Irmão(ã)</SelectItem>
+                                <SelectItem value="avo">Avô/Avó</SelectItem>
+                                <SelectItem value="outro">Outro</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                       )}
