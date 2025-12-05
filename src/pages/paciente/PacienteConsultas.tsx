@@ -253,8 +253,11 @@ export default function PacienteConsultas() {
                   Ver detalhes
                 </Button>
                 
-                {!isHistorico && consulta.status_pagamento === "pendente" && (
-                  <Button size="sm">
+                {!isHistorico && consulta.status_pagamento === "pendente" && consulta.asaas_invoice_url && (
+                  <Button 
+                    size="sm"
+                    onClick={() => window.open(consulta.asaas_invoice_url, '_blank')}
+                  >
                     Finalizar pagamento
                   </Button>
                 )}

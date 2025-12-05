@@ -351,7 +351,7 @@ const Checkout = () => {
       if (error) throw error;
 
       // Create Asaas payment
-      toast.info("Gerando cobrança PIX...");
+      toast.info("Gerando cobrança...");
       
       const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke(
         'create-asaas-payment',
@@ -370,7 +370,7 @@ const Checkout = () => {
       // Show payment screen
       setPaymentData(paymentResponse);
       setShowPayment(true);
-      toast.success("Cobrança PIX gerada! Escaneie o QR Code ou copie o código.");
+      toast.success("Cobrança gerada com sucesso!");
       
     } catch (error) {
       console.error("Error creating consultation:", error);
@@ -433,7 +433,7 @@ const Checkout = () => {
                 Consulta Agendada!
               </h1>
               <p className="text-muted-foreground mb-6">
-                Pague via PIX para confirmar sua consulta
+                Pague via PIX ou cartão de crédito para confirmar sua consulta
               </p>
 
               {paymentData.pixQrCode && (
@@ -794,7 +794,7 @@ const Checkout = () => {
                   
                   <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg mb-6">
                     <p className="text-sm text-foreground">
-                      💳 Após confirmar, você receberá um QR Code PIX para pagamento instantâneo.
+                      💳 Após confirmar, você poderá pagar via PIX ou cartão de crédito.
                     </p>
                   </div>
 
