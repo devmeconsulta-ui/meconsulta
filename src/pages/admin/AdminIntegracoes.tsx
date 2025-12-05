@@ -52,6 +52,7 @@ export default function AdminIntegracoes() {
   const [copied, setCopied] = useState(false);
   const [testingMedico, setTestingMedico] = useState(false);
   const [testingPaciente, setTestingPaciente] = useState(false);
+  const [testingAsaas, setTestingAsaas] = useState(false);
 
   const [configAsaas, setConfigAsaas] = useState<ConfigAsaas>({
     ambiente: "sandbox",
@@ -221,6 +222,52 @@ export default function AdminIntegracoes() {
     setCopied(true);
     toast.success("URL copiada!");
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleTestAsaasWebhook() {
+    setTestingAsaas(true);
+
+    const dadosTeste = {
+      event: "PAYMENT_CONFIRMED",
+      payment: {
+        id: "pay_teste_123456",
+        customer: "cus_teste_789",
+        value: 250.00,
+        netValue: 245.00,
+        status: "CONFIRMED",
+        billingType: "PIX",
+        externalReference: "consulta-teste-uuid",
+        confirmedDate: new Date().toISOString(),
+        paymentDate: new Date().toISOString(),
+      }
+    };
+
+    try {
+      console.log("Testando webhook Asaas:", WEBHOOK_URL);
+      console.log("Dados:", JSON.stringify(dadosTeste, null, 2));
+
+      const response = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dadosTeste),
+      });
+
+      const responseData = await response.json();
+      console.log("Resposta:", responseData);
+
+      if (response.ok) {
+        toast.success("Teste do webhook Asaas enviado com sucesso! Verifique os logs.");
+      } else {
+        toast.error(`Erro ao testar webhook: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Erro ao testar webhook Asaas:", error);
+      toast.error("Erro ao conectar com o webhook Asaas");
+    } finally {
+      setTestingAsaas(false);
+    }
   }
 
   async function handleTestWebhook(tipo: 'medico' | 'paciente') {
@@ -429,14 +476,31 @@ O MeConsulta te proporciona um atendimento de ponta e sem complicação. Aguarda
                 <p className="text-xs text-muted-foreground">
                   Cadastre esta URL no painel do Asaas: Minha Conta → Integrações → Webhooks → Adicionar
                 </p>
-                <a 
-                  href="https://www.asaas.com/webhooks" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  Abrir configuração de Webhooks no Asaas <ExternalLink className="w-3 h-3" />
-                </a>
+                <div className="flex items-center gap-2">
+                  <a 
+                    href="https://www.asaas.com/webhooks" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Abrir configuração de Webhooks no Asaas <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestAsaasWebhook}
+                    disabled={testingAsaas}
+                    className="gap-2"
+                  >
+                    {testingAsaas ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Send className="w-3 h-3" />
+                    )}
+                    Testar Webhook
+                  </Button>
+                </div>
               </div>
 
               <div className="flex items-center justify-between">
