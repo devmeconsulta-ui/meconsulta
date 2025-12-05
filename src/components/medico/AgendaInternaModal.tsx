@@ -22,20 +22,23 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import { 
   User, 
   Search, 
-  MapPin, 
-  Clock, 
   ChevronDown, 
   Calendar,
-  Phone,
-  FileText,
-  Building2
+  CalendarIcon,
 } from "lucide-react";
 
 interface UsuarioClinica {
@@ -85,6 +88,8 @@ export function AgendaInternaModal({
   locais,
   onSuccess,
 }: AgendaInternaModalProps) {
+  const isManualBooking = slotId.startsWith('manual-');
+  
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
@@ -94,12 +99,20 @@ export function AgendaInternaModal({
   const [historicoConsultas, setHistoricoConsultas] = useState<any[]>([]);
   const [useCpf, setUseCpf] = useState(true);
   const [hasDesconto, setHasDesconto] = useState(false);
+  
+  // For manual booking date/time selection
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    slotDataHora ? new Date(slotDataHora) : new Date()
+  );
+  const [selectedTime, setSelectedTime] = useState(
+    slotDataHora ? format(new Date(slotDataHora), "HH:mm") : "08:00"
+  );
 
   const [formData, setFormData] = useState({
     nome: "",
     telefone: "",
     cpf: "",
-    localSelecionado: localId,
+    localSelecionado: localId || (locais.length > 0 ? locais[0].id : ""),
     tipoAtendimento: "presencial",
     status: "agendado",
     procedimento: "consulta",
@@ -113,11 +126,18 @@ export function AgendaInternaModal({
       searchPacientes("");
       setFormData((prev) => ({
         ...prev,
-        localSelecionado: localId,
+        localSelecionado: localId || (locais.length > 0 ? locais[0].id : ""),
         valor: valorConsulta,
       }));
+      if (isManualBooking) {
+        setSelectedDate(new Date());
+        setSelectedTime("08:00");
+      } else if (slotDataHora) {
+        setSelectedDate(new Date(slotDataHora));
+        setSelectedTime(format(new Date(slotDataHora), "HH:mm"));
+      }
     }
-  }, [open, localId, valorConsulta]);
+  }, [open, localId, valorConsulta, locais, isManualBooking, slotDataHora]);
 
   useEffect(() => {
     if (selectedPaciente) {
@@ -183,7 +203,7 @@ export function AgendaInternaModal({
       nome: "",
       telefone: "",
       cpf: "",
-      localSelecionado: localId,
+      localSelecionado: localId || (locais.length > 0 ? locais[0].id : ""),
       tipoAtendimento: "presencial",
       status: "agendado",
       procedimento: "consulta",
@@ -206,6 +226,11 @@ export function AgendaInternaModal({
 
     if (!formData.telefone.trim()) {
       toast.error("Telefone é obrigatório");
+      return;
+    }
+
+    if (!formData.localSelecionado) {
+      toast.error("Selecione um local de atendimento");
       return;
     }
 
@@ -238,18 +263,66 @@ export function AgendaInternaModal({
       const valorMedico = (valorFinal * percentualRepasse) / 100;
       const valorPlataforma = valorFinal - valorMedico;
 
+      // Get the final date/time
+      let finalDataHora: string;
+      let finalSlotId: string | null = null;
+
+      if (isManualBooking) {
+        // Manual booking - create the slot first or use date directly
+        const [hours, minutes] = selectedTime.split(':').map(Number);
+        const dateTime = new Date(selectedDate!);
+        dateTime.setHours(hours, minutes, 0, 0);
+        finalDataHora = dateTime.toISOString();
+
+        // Check if a slot already exists for this time/location
+        const { data: existingSlot } = await supabase
+          .from("agenda_slots")
+          .select("id, disponivel")
+          .eq("medico_id", medicoId)
+          .eq("local_id", formData.localSelecionado)
+          .eq("data_hora", finalDataHora)
+          .maybeSingle();
+
+        if (existingSlot) {
+          if (!existingSlot.disponivel) {
+            throw new Error("Este horário já está ocupado");
+          }
+          finalSlotId = existingSlot.id;
+        } else {
+          // Create new slot
+          const { data: newSlot, error: slotError } = await supabase
+            .from("agenda_slots")
+            .insert({
+              medico_id: medicoId,
+              local_id: formData.localSelecionado,
+              data_hora: finalDataHora,
+              disponivel: false,
+            })
+            .select()
+            .single();
+
+          if (slotError) {
+            throw new Error("Erro ao criar horário");
+          }
+          finalSlotId = newSlot.id;
+        }
+      } else {
+        finalDataHora = slotDataHora;
+        finalSlotId = slotId;
+      }
+
       // Create consultation
       const { error: consultaError } = await supabase.from("consultas").insert({
         medico_id: medicoId,
         paciente_id: pacienteId,
-        data_hora: slotDataHora,
+        data_hora: finalDataHora,
         origem: "interna",
         status_consulta: formData.status === "agendado" ? "confirmada" : formData.status,
         status_pagamento: "pendente",
         valor_consulta: valorFinal,
         valor_medico: valorMedico,
         valor_plataforma: valorPlataforma,
-        agenda_slot_id: slotId,
+        agenda_slot_id: finalSlotId,
         usuario_clinica_id: formData.usuarioClinicaId || null,
         nome_paciente_consulta: formData.nome,
         tipo_servico: formData.procedimento,
@@ -260,11 +333,13 @@ export function AgendaInternaModal({
         throw new Error("Erro ao criar consulta");
       }
 
-      // Mark slot as unavailable
-      await supabase
-        .from("agenda_slots")
-        .update({ disponivel: false })
-        .eq("id", slotId);
+      // Mark slot as unavailable (if not already)
+      if (finalSlotId && !isManualBooking) {
+        await supabase
+          .from("agenda_slots")
+          .update({ disponivel: false })
+          .eq("id", finalSlotId);
+      }
 
       toast.success("Consulta agendada com sucesso!");
       onOpenChange(false);
@@ -277,13 +352,22 @@ export function AgendaInternaModal({
     }
   }
 
-  const dataFormatada = slotDataHora 
-    ? format(parseISO(slotDataHora), "dd/MM/yyyy", { locale: ptBR })
-    : "";
+  const dataFormatada = isManualBooking 
+    ? (selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione")
+    : (slotDataHora ? format(parseISO(slotDataHora), "dd/MM/yyyy", { locale: ptBR }) : "");
 
-  const horaInicial = slotDataHora
-    ? format(parseISO(slotDataHora), "HH:mm", { locale: ptBR })
-    : "";
+  const horaInicial = isManualBooking 
+    ? selectedTime 
+    : (slotDataHora ? format(parseISO(slotDataHora), "HH:mm", { locale: ptBR }) : "");
+
+  // Generate time options
+  const timeOptions = [];
+  for (let h = 6; h < 22; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      timeOptions.push(time);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
@@ -291,14 +375,14 @@ export function AgendaInternaModal({
         <DialogHeader className="bg-primary/10 -mx-6 -mt-6 px-6 py-4 rounded-t-lg">
           <DialogTitle className="text-primary flex items-center gap-2">
             <Calendar className="w-5 h-5" />
-            Novo agendamento para {dataFormatada}
+            {isManualBooking ? "Novo Agendamento" : `Novo agendamento para ${dataFormatada}`}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 pt-4">
-          {/* Row 1: Patient search + Local + Blocked */}
+          {/* Row 1: Patient search + Local */}
           <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-5">
+            <div className="col-span-6">
               <div className="flex items-center gap-2 mb-1.5">
                 <Label className="text-sm">Paciente</Label>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -317,7 +401,7 @@ export function AgendaInternaModal({
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                      placeholder="Nome, código ou data de nascimento..."
+                      placeholder="Nome, telefone ou CPF..."
                       value={searchTerm}
                       onChange={(e) => handleSearchChange(e.target.value)}
                       className="pl-10 h-9 text-sm"
@@ -325,10 +409,11 @@ export function AgendaInternaModal({
                   </div>
 
                   {pacientes.length > 0 && searchTerm && (
-                    <div className="border rounded-lg max-h-32 overflow-y-auto absolute z-10 bg-background w-full shadow-lg">
+                    <div className="border rounded-lg max-h-32 overflow-y-auto bg-background shadow-lg">
                       {pacientes.map((paciente) => (
                         <button
                           key={paciente.id}
+                          type="button"
                           className="w-full p-2 text-left hover:bg-muted transition-colors border-b last:border-b-0 text-sm"
                           onClick={() => selectPaciente(paciente)}
                         >
@@ -342,6 +427,7 @@ export function AgendaInternaModal({
                   )}
 
                   <Button
+                    type="button"
                     variant="outline"
                     size="sm"
                     className="w-full"
@@ -361,6 +447,7 @@ export function AgendaInternaModal({
                     placeholder="Nome do paciente"
                   />
                   <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => {
@@ -376,7 +463,7 @@ export function AgendaInternaModal({
               )}
             </div>
 
-            <div className="col-span-4">
+            <div className="col-span-6">
               <Label className="text-sm mb-1.5 block">Local</Label>
               <Select
                 value={formData.localSelecionado}
@@ -394,51 +481,114 @@ export function AgendaInternaModal({
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="col-span-3 flex flex-col items-center justify-end">
-              <Label className="text-sm mb-1.5">Bloqueado</Label>
-              <Switch disabled />
-            </div>
           </div>
 
-          {/* Row 2: Professional + Times */}
+          {/* Row 2: Date + Times (for manual booking) or Professional + Times */}
           <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-5">
-              <Label className="text-sm mb-1.5 block">Profissional</Label>
-              <Select
-                value={formData.usuarioClinicaId}
-                onValueChange={(v) => setFormData({ ...formData, usuarioClinicaId: v })}
-              >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Selecione quem está agendando" />
-                </SelectTrigger>
-                <SelectContent>
-                  {usuariosClinica.map((usuario) => (
-                    <SelectItem key={usuario.id} value={usuario.id}>
-                      {usuario.nome} ({usuario.papel})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {isManualBooking ? (
+              <>
+                <div className="col-span-5">
+                  <Label className="text-sm mb-1.5 block">Data</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full h-9 justify-start text-left font-normal text-sm",
+                          !selectedDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={setSelectedDate}
+                        initialFocus
+                        locale={ptBR}
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
-            <div className="col-span-3">
-              <Label className="text-sm mb-1.5 block">Hora inicial</Label>
-              <div className="bg-primary text-primary-foreground rounded-md h-9 flex items-center justify-center text-sm font-medium">
-                {horaInicial}
-              </div>
-            </div>
+                <div className="col-span-3">
+                  <Label className="text-sm mb-1.5 block">Hora</Label>
+                  <Select value={selectedTime} onValueChange={setSelectedTime}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {timeOptions.map((time) => (
+                        <SelectItem key={time} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="col-span-4">
-              <Label className="text-sm mb-1.5 block">Hora final</Label>
-              <div className="bg-primary text-primary-foreground rounded-md h-9 flex items-center justify-center text-sm font-medium">
-                {/* Assuming 30min slot duration */}
-                {slotDataHora ? format(new Date(new Date(slotDataHora).getTime() + 30 * 60000), "HH:mm") : ""}
-              </div>
-            </div>
+                <div className="col-span-4">
+                  <Label className="text-sm mb-1.5 block">Agendado por</Label>
+                  <Select
+                    value={formData.usuarioClinicaId}
+                    onValueChange={(v) => setFormData({ ...formData, usuarioClinicaId: v })}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {usuariosClinica.map((usuario) => (
+                        <SelectItem key={usuario.id} value={usuario.id}>
+                          {usuario.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="col-span-5">
+                  <Label className="text-sm mb-1.5 block">Agendado por</Label>
+                  <Select
+                    value={formData.usuarioClinicaId}
+                    onValueChange={(v) => setFormData({ ...formData, usuarioClinicaId: v })}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {usuariosClinica.map((usuario) => (
+                        <SelectItem key={usuario.id} value={usuario.id}>
+                          {usuario.nome} ({usuario.papel})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="col-span-3">
+                  <Label className="text-sm mb-1.5 block">Hora inicial</Label>
+                  <div className="bg-primary text-primary-foreground rounded-md h-9 flex items-center justify-center text-sm font-medium">
+                    {horaInicial}
+                  </div>
+                </div>
+
+                <div className="col-span-4">
+                  <Label className="text-sm mb-1.5 block">Hora final</Label>
+                  <div className="bg-primary text-primary-foreground rounded-md h-9 flex items-center justify-center text-sm font-medium">
+                    {slotDataHora ? format(new Date(new Date(slotDataHora).getTime() + 30 * 60000), "HH:mm") : ""}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Row 3: Status + Repetition */}
+          {/* Row 3: Status + Procedure */}
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-5">
               <Label className="text-sm mb-1.5 block">Status</Label>
@@ -457,15 +607,7 @@ export function AgendaInternaModal({
               </Select>
             </div>
 
-            <div className="col-span-7 flex items-end gap-2">
-              <Label className="text-sm">Repetição</Label>
-              <Switch disabled />
-            </div>
-          </div>
-
-          {/* Row 4: Procedure + Service Type */}
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-5">
+            <div className="col-span-7">
               <Label className="text-sm mb-1.5 block">Procedimento</Label>
               <Select
                 value={formData.procedimento}
@@ -482,8 +624,11 @@ export function AgendaInternaModal({
                 </SelectContent>
               </Select>
             </div>
+          </div>
 
-            <div className="col-span-7">
+          {/* Row 4: Service Type + Value + Discount */}
+          <div className="grid grid-cols-12 gap-4">
+            <div className="col-span-4">
               <div className="flex items-center gap-1 mb-1.5">
                 <Label className="text-sm">Tipo de atendimento</Label>
                 <span className="text-destructive">*</span>
@@ -501,23 +646,6 @@ export function AgendaInternaModal({
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          {/* Row 5: Insurance + Value + Discount */}
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-5">
-              <Label className="text-sm mb-1.5 block">Convênio do paciente</Label>
-              <Select>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Selecione o convênio..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="particular">Particular</SelectItem>
-                  <SelectItem value="unimed">Unimed</SelectItem>
-                  <SelectItem value="bradesco">Bradesco Saúde</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
             <div className="col-span-4">
               <Label className="text-sm mb-1.5 block">Valor</Label>
@@ -532,7 +660,7 @@ export function AgendaInternaModal({
               />
             </div>
 
-            <div className="col-span-3 flex flex-col items-center justify-end">
+            <div className="col-span-4 flex flex-col items-center justify-end">
               <Label className="text-sm mb-1.5">Desconto</Label>
               <Switch 
                 checked={hasDesconto} 
@@ -541,11 +669,11 @@ export function AgendaInternaModal({
             </div>
           </div>
 
-          {/* Row 6: CPF toggle + CPF + Phone */}
-          {(showNewPatient || !selectedPaciente) && (
+          {/* Row 5: CPF + Phone (for new patient) */}
+          {(showNewPatient || !selectedPaciente) && (selectedPaciente === null || showNewPatient) && (
             <div className="grid grid-cols-12 gap-4">
               <div className="col-span-2 flex flex-col">
-                <Label className="text-sm mb-1.5">Não tem CPF?</Label>
+                <Label className="text-sm mb-1.5">Sem CPF?</Label>
                 <Switch 
                   checked={!useCpf}
                   onCheckedChange={(v) => setUseCpf(!v)}
@@ -557,14 +685,14 @@ export function AgendaInternaModal({
                 <Input
                   value={formData.cpf}
                   onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
-                  disabled={!useCpf || !!selectedPaciente}
+                  disabled={!useCpf}
                   placeholder="___.___.___-__"
                   className="h-9 text-sm"
                 />
               </div>
 
               <div className="col-span-6">
-                <Label className="text-sm mb-1.5 block">Telefone Celular</Label>
+                <Label className="text-sm mb-1.5 block">Telefone Celular *</Label>
                 <div className="flex gap-2">
                   <Select defaultValue="+55">
                     <SelectTrigger className="h-9 text-sm w-20">
@@ -577,7 +705,6 @@ export function AgendaInternaModal({
                   <Input
                     value={formData.telefone}
                     onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                    disabled={!!selectedPaciente}
                     placeholder="(__) _____-____"
                     className="h-9 text-sm flex-1"
                   />
@@ -632,14 +759,15 @@ export function AgendaInternaModal({
           {/* Action Buttons */}
           <div className="flex justify-between gap-4 pt-2">
             <Button
+              type="button"
               variant="outline"
               onClick={() => { resetForm(); onOpenChange(false); }}
               className="flex-1"
             >
-              <Calendar className="w-4 h-4 mr-2" />
               Cancelar
             </Button>
             <Button
+              type="button"
               onClick={handleSubmit}
               disabled={loading || (!selectedPaciente && !showNewPatient)}
               className="flex-1 bg-primary hover:bg-primary/90"

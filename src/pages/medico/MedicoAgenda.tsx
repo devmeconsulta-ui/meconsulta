@@ -307,14 +307,24 @@ export default function MedicoAgenda() {
     const isOnline = slotInfo.origem === "online";
     const isInterna = slotInfo.origem === "interna";
 
+    const handleClick = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isLivre) {
+        setSelectedSlot(slot);
+        setAgendaModalOpen(true);
+      }
+    };
+
     return (
-      <button
+      <div
         key={slot.id}
-        onClick={() => handleSlotClick(slot)}
-        disabled={!isLivre}
-        className={`w-full p-2 rounded-lg text-left transition-all text-xs ${
+        onClick={handleClick}
+        role="button"
+        tabIndex={0}
+        className={`w-full p-2 rounded-lg text-left transition-all text-xs select-none ${
           isLivre
-            ? "bg-primary/10 hover:bg-primary/20 cursor-pointer border border-primary/20 hover:border-primary/40"
+            ? "bg-primary/10 hover:bg-primary/20 cursor-pointer border border-primary/20 hover:border-primary/40 hover:scale-[1.02] active:scale-[0.98]"
             : isOnline
             ? "bg-blue-600/90 dark:bg-blue-700/90 text-white border-l-4 border-l-blue-400 cursor-default shadow-sm"
             : isInterna
@@ -347,7 +357,7 @@ export default function MedicoAgenda() {
             )}
           </>
         )}
-      </button>
+      </div>
     );
   }
 
@@ -545,6 +555,31 @@ export default function MedicoAgenda() {
 
         {/* Action buttons */}
         <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => {
+              if (locais.length > 0) {
+                // Create a temporary slot for manual booking
+                const tempSlot: Slot = {
+                  id: 'manual-' + Date.now(),
+                  local_id: locais[0].id,
+                  data_hora: new Date().toISOString(),
+                  disponivel: true,
+                  locais_atendimento: locais[0],
+                  consultas: [],
+                };
+                setSelectedSlot(tempSlot);
+                setAgendaModalOpen(true);
+              } else {
+                toast.error("Cadastre um local de atendimento primeiro");
+              }
+            }}
+            className="gap-2"
+            disabled={locais.length === 0}
+          >
+            <User className="w-4 h-4" />
+            <span className="hidden sm:inline">Agendar Paciente</span>
+            <span className="sm:hidden">Agendar</span>
+          </Button>
           <Button
             variant="outline"
             onClick={() => setGerarSlotsModalOpen(true)}
