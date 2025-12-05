@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   User, 
   Calendar, 
@@ -19,8 +18,6 @@ import {
   Loader2,
   AlertCircle,
   Clock,
-  ChevronDown,
-  ChevronUp,
   Pencil,
   X
 } from "lucide-react";
@@ -91,8 +88,9 @@ export default function ConsultaDetalhesModal({
   const [anamneses, setAnamneses] = useState<Anamnese[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [expandedAnamnese, setExpandedAnamnese] = useState<string | null>(null);
-  const [editingAnamnese, setEditingAnamnese] = useState<string | null>(null);
+  const [selectedAnamnese, setSelectedAnamnese] = useState<Anamnese | null>(null);
+  const [isAnamneseModalOpen, setIsAnamneseModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Anamnese>>({});
   
   const [novaAnamnese, setNovaAnamnese] = useState({
@@ -151,7 +149,8 @@ export default function ConsultaDetalhesModal({
     setLoading(false);
   }
 
-  async function handleUpdateAnamnese(anamneseId: string) {
+  async function handleUpdateAnamnese() {
+    if (!selectedAnamnese) return;
     setSaving(true);
 
     const { error } = await supabase
@@ -166,13 +165,14 @@ export default function ConsultaDetalhesModal({
         conduta: editData.conduta,
         observacoes: editData.observacoes,
       })
-      .eq("id", anamneseId);
+      .eq("id", selectedAnamnese.id);
 
     if (error) {
       toast.error("Erro ao atualizar anamnese");
     } else {
       toast.success("Anamnese atualizada com sucesso");
-      setEditingAnamnese(null);
+      setIsEditing(false);
+      setIsAnamneseModalOpen(false);
       fetchData();
       onUpdate();
     }
@@ -180,19 +180,25 @@ export default function ConsultaDetalhesModal({
     setSaving(false);
   }
 
-  function startEditing(anamnese: Anamnese) {
-    setEditingAnamnese(anamnese.id);
+  function openAnamneseDetails(anamnese: Anamnese) {
+    setSelectedAnamnese(anamnese);
+    setIsEditing(false);
+    setIsAnamneseModalOpen(true);
+  }
+
+  function startEditing() {
+    if (!selectedAnamnese) return;
     setEditData({
-      queixa_principal: anamnese.queixa_principal || "",
-      historia_doenca_atual: anamnese.historia_doenca_atual || "",
-      antecedentes_pessoais: anamnese.antecedentes_pessoais || "",
-      antecedentes_familiares: anamnese.antecedentes_familiares || "",
-      exame_fisico: anamnese.exame_fisico || "",
-      hipotese_diagnostica: anamnese.hipotese_diagnostica || "",
-      conduta: anamnese.conduta || "",
-      observacoes: anamnese.observacoes || "",
+      queixa_principal: selectedAnamnese.queixa_principal || "",
+      historia_doenca_atual: selectedAnamnese.historia_doenca_atual || "",
+      antecedentes_pessoais: selectedAnamnese.antecedentes_pessoais || "",
+      antecedentes_familiares: selectedAnamnese.antecedentes_familiares || "",
+      exame_fisico: selectedAnamnese.exame_fisico || "",
+      hipotese_diagnostica: selectedAnamnese.hipotese_diagnostica || "",
+      conduta: selectedAnamnese.conduta || "",
+      observacoes: selectedAnamnese.observacoes || "",
     });
-    setExpandedAnamnese(anamnese.id);
+    setIsEditing(true);
   }
 
   async function handleSaveAnamnese() {
@@ -462,217 +468,233 @@ export default function ConsultaDetalhesModal({
                   <p className="text-muted-foreground">Nenhuma anamnese registrada para este paciente</p>
                 </div>
               ) : (
-                anamneses.map((anamnese) => {
-                  const isExpanded = expandedAnamnese === anamnese.id;
-                  const isEditing = editingAnamnese === anamnese.id;
-
-                  return (
-                    <Collapsible 
+                <div className="grid gap-3">
+                  {anamneses.map((anamnese) => (
+                    <Card 
                       key={anamnese.id} 
-                      open={isExpanded} 
-                      onOpenChange={(open) => {
-                        setExpandedAnamnese(open ? anamnese.id : null);
-                        if (!open) setEditingAnamnese(null);
-                      }}
+                      className="border-l-4 border-l-primary/60 hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-primary/5 to-transparent"
+                      onClick={() => openAnamneseDetails(anamnese)}
                     >
-                      <Card className="border">
-                        <CollapsibleTrigger asChild>
-                          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Badge variant="outline" className="text-xs">
-                                    {anamnese.medico?.nome || "Médico"}
-                                  </Badge>
-                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    {format(new Date(anamnese.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                                  </span>
-                                </div>
-                                <p className="text-sm font-medium line-clamp-1">
-                                  {anamnese.queixa_principal || "Sem queixa principal registrada"}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2 ml-4">
-                                {isExpanded ? (
-                                  <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                                ) : (
-                                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                                )}
-                              </div>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-0">
+                                {anamnese.medico?.nome || "Médico"}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {format(new Date(anamnese.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                              </span>
                             </div>
-                          </CardHeader>
-                        </CollapsibleTrigger>
-
-                        <CollapsibleContent>
-                          <CardContent className="pt-0 space-y-4">
-                            {isEditing ? (
-                              <>
-                                <div className="space-y-4">
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">Queixa Principal</Label>
-                                    <Textarea
-                                      value={editData.queixa_principal || ""}
-                                      onChange={(e) => setEditData({ ...editData, queixa_principal: e.target.value })}
-                                      className="mt-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">História da Doença Atual</Label>
-                                    <Textarea
-                                      value={editData.historia_doenca_atual || ""}
-                                      onChange={(e) => setEditData({ ...editData, historia_doenca_atual: e.target.value })}
-                                      className="mt-1"
-                                    />
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Antecedentes Pessoais</Label>
-                                      <Textarea
-                                        value={editData.antecedentes_pessoais || ""}
-                                        onChange={(e) => setEditData({ ...editData, antecedentes_pessoais: e.target.value })}
-                                        className="mt-1"
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Antecedentes Familiares</Label>
-                                      <Textarea
-                                        value={editData.antecedentes_familiares || ""}
-                                        onChange={(e) => setEditData({ ...editData, antecedentes_familiares: e.target.value })}
-                                        className="mt-1"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">Exame Físico</Label>
-                                    <Textarea
-                                      value={editData.exame_fisico || ""}
-                                      onChange={(e) => setEditData({ ...editData, exame_fisico: e.target.value })}
-                                      className="mt-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">Hipótese Diagnóstica</Label>
-                                    <Textarea
-                                      value={editData.hipotese_diagnostica || ""}
-                                      onChange={(e) => setEditData({ ...editData, hipotese_diagnostica: e.target.value })}
-                                      className="mt-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">Conduta</Label>
-                                    <Textarea
-                                      value={editData.conduta || ""}
-                                      onChange={(e) => setEditData({ ...editData, conduta: e.target.value })}
-                                      className="mt-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">Observações</Label>
-                                    <Textarea
-                                      value={editData.observacoes || ""}
-                                      onChange={(e) => setEditData({ ...editData, observacoes: e.target.value })}
-                                      className="mt-1"
-                                    />
-                                  </div>
-                                </div>
-                                <div className="flex gap-2 pt-2">
-                                  <Button 
-                                    size="sm" 
-                                    onClick={() => handleUpdateAnamnese(anamnese.id)}
-                                    disabled={saving}
-                                    className="gap-1"
-                                  >
-                                    {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                                    Salvar
-                                  </Button>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline" 
-                                    onClick={() => setEditingAnamnese(null)}
-                                    className="gap-1"
-                                  >
-                                    <X className="w-3 h-3" />
-                                    Cancelar
-                                  </Button>
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <div className="space-y-3">
-                                  {anamnese.queixa_principal && (
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Queixa Principal</Label>
-                                      <p className="text-sm">{anamnese.queixa_principal}</p>
-                                    </div>
-                                  )}
-                                  {anamnese.historia_doenca_atual && (
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">História da Doença Atual</Label>
-                                      <p className="text-sm">{anamnese.historia_doenca_atual}</p>
-                                    </div>
-                                  )}
-                                  {anamnese.antecedentes_pessoais && (
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Antecedentes Pessoais</Label>
-                                      <p className="text-sm">{anamnese.antecedentes_pessoais}</p>
-                                    </div>
-                                  )}
-                                  {anamnese.antecedentes_familiares && (
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Antecedentes Familiares</Label>
-                                      <p className="text-sm">{anamnese.antecedentes_familiares}</p>
-                                    </div>
-                                  )}
-                                  {anamnese.exame_fisico && (
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Exame Físico</Label>
-                                      <p className="text-sm">{anamnese.exame_fisico}</p>
-                                    </div>
-                                  )}
-                                  {anamnese.hipotese_diagnostica && (
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Hipótese Diagnóstica</Label>
-                                      <p className="text-sm">{anamnese.hipotese_diagnostica}</p>
-                                    </div>
-                                  )}
-                                  {anamnese.conduta && (
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Conduta</Label>
-                                      <p className="text-sm">{anamnese.conduta}</p>
-                                    </div>
-                                  )}
-                                  {anamnese.observacoes && (
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Observações</Label>
-                                      <p className="text-sm">{anamnese.observacoes}</p>
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="pt-2 border-t">
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline" 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      startEditing(anamnese);
-                                    }}
-                                    className="gap-1"
-                                  >
-                                    <Pencil className="w-3 h-3" />
-                                    Editar
-                                  </Button>
-                                </div>
-                              </>
+                            <p className="font-medium text-foreground">
+                              {anamnese.queixa_principal || "Sem queixa principal registrada"}
+                            </p>
+                            {anamnese.hipotese_diagnostica && (
+                              <p className="text-sm text-muted-foreground line-clamp-1">
+                                <span className="font-medium">Diagnóstico:</span> {anamnese.hipotese_diagnostica}
+                              </p>
                             )}
-                          </CardContent>
-                        </CollapsibleContent>
-                      </Card>
-                    </Collapsible>
-                  );
-                })
+                          </div>
+                          <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10">
+                            <FileText className="w-4 h-4 mr-1" />
+                            Ver Detalhes
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               )}
             </TabsContent>
+
+            {/* Modal de Detalhes da Anamnese */}
+            <Dialog open={isAnamneseModalOpen} onOpenChange={setIsAnamneseModalOpen}>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-primary">
+                    <FileText className="w-5 h-5" />
+                    Detalhes da Anamnese
+                  </DialogTitle>
+                </DialogHeader>
+                
+                {selectedAnamnese && (
+                  <ScrollArea className="max-h-[65vh] pr-4">
+                    <div className="space-y-4">
+                      {/* Header Info */}
+                      <div className="flex items-center gap-3 p-3 bg-primary/10 rounded-lg">
+                        <Badge className="bg-primary text-primary-foreground">
+                          {selectedAnamnese.medico?.nome || "Médico"}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {format(new Date(selectedAnamnese.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                      </div>
+
+                      {isEditing ? (
+                        /* Modo Edição */
+                        <div className="space-y-4">
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                            <Label className="text-amber-600 font-medium flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4" />
+                              Queixa Principal
+                            </Label>
+                            <Textarea
+                              value={editData.queixa_principal || ""}
+                              onChange={(e) => setEditData({ ...editData, queixa_principal: e.target.value })}
+                              className="mt-2 border-amber-500/30 focus:border-amber-500"
+                            />
+                          </div>
+                          
+                          <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                            <Label className="text-blue-600 font-medium">História da Doença Atual</Label>
+                            <Textarea
+                              value={editData.historia_doenca_atual || ""}
+                              onChange={(e) => setEditData({ ...editData, historia_doenca_atual: e.target.value })}
+                              className="mt-2 border-blue-500/30 focus:border-blue-500"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                              <Label className="text-purple-600 font-medium">Antecedentes Pessoais</Label>
+                              <Textarea
+                                value={editData.antecedentes_pessoais || ""}
+                                onChange={(e) => setEditData({ ...editData, antecedentes_pessoais: e.target.value })}
+                                className="mt-2 border-purple-500/30 focus:border-purple-500"
+                              />
+                            </div>
+                            <div className="p-3 bg-pink-500/10 border border-pink-500/30 rounded-lg">
+                              <Label className="text-pink-600 font-medium">Antecedentes Familiares</Label>
+                              <Textarea
+                                value={editData.antecedentes_familiares || ""}
+                                onChange={(e) => setEditData({ ...editData, antecedentes_familiares: e.target.value })}
+                                className="mt-2 border-pink-500/30 focus:border-pink-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                            <Label className="text-cyan-600 font-medium">Exame Físico</Label>
+                            <Textarea
+                              value={editData.exame_fisico || ""}
+                              onChange={(e) => setEditData({ ...editData, exame_fisico: e.target.value })}
+                              className="mt-2 border-cyan-500/30 focus:border-cyan-500"
+                            />
+                          </div>
+
+                          <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                            <Label className="text-green-600 font-medium">Hipótese Diagnóstica</Label>
+                            <Textarea
+                              value={editData.hipotese_diagnostica || ""}
+                              onChange={(e) => setEditData({ ...editData, hipotese_diagnostica: e.target.value })}
+                              className="mt-2 border-green-500/30 focus:border-green-500"
+                            />
+                          </div>
+
+                          <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                            <Label className="text-orange-600 font-medium">Conduta</Label>
+                            <Textarea
+                              value={editData.conduta || ""}
+                              onChange={(e) => setEditData({ ...editData, conduta: e.target.value })}
+                              className="mt-2 border-orange-500/30 focus:border-orange-500"
+                            />
+                          </div>
+
+                          <div className="p-3 bg-slate-500/10 border border-slate-500/30 rounded-lg">
+                            <Label className="text-slate-600 font-medium">Observações</Label>
+                            <Textarea
+                              value={editData.observacoes || ""}
+                              onChange={(e) => setEditData({ ...editData, observacoes: e.target.value })}
+                              className="mt-2 border-slate-500/30 focus:border-slate-500"
+                            />
+                          </div>
+
+                          <div className="flex gap-2 pt-2">
+                            <Button onClick={handleUpdateAnamnese} disabled={saving} className="gap-2">
+                              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                              Salvar Alterações
+                            </Button>
+                            <Button variant="outline" onClick={() => setIsEditing(false)} className="gap-2">
+                              <X className="w-4 h-4" />
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Modo Visualização */
+                        <div className="space-y-3">
+                          {selectedAnamnese.queixa_principal && (
+                            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                              <Label className="text-amber-600 font-medium text-xs uppercase tracking-wide">Queixa Principal</Label>
+                              <p className="mt-1 text-foreground">{selectedAnamnese.queixa_principal}</p>
+                            </div>
+                          )}
+
+                          {selectedAnamnese.historia_doenca_atual && (
+                            <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                              <Label className="text-blue-600 font-medium text-xs uppercase tracking-wide">História da Doença Atual</Label>
+                              <p className="mt-1 text-foreground">{selectedAnamnese.historia_doenca_atual}</p>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {selectedAnamnese.antecedentes_pessoais && (
+                              <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                                <Label className="text-purple-600 font-medium text-xs uppercase tracking-wide">Antecedentes Pessoais</Label>
+                                <p className="mt-1 text-foreground text-sm">{selectedAnamnese.antecedentes_pessoais}</p>
+                              </div>
+                            )}
+                            {selectedAnamnese.antecedentes_familiares && (
+                              <div className="p-3 bg-pink-500/10 border border-pink-500/30 rounded-lg">
+                                <Label className="text-pink-600 font-medium text-xs uppercase tracking-wide">Antecedentes Familiares</Label>
+                                <p className="mt-1 text-foreground text-sm">{selectedAnamnese.antecedentes_familiares}</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {selectedAnamnese.exame_fisico && (
+                            <div className="p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                              <Label className="text-cyan-600 font-medium text-xs uppercase tracking-wide">Exame Físico</Label>
+                              <p className="mt-1 text-foreground">{selectedAnamnese.exame_fisico}</p>
+                            </div>
+                          )}
+
+                          {selectedAnamnese.hipotese_diagnostica && (
+                            <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                              <Label className="text-green-600 font-medium text-xs uppercase tracking-wide">Hipótese Diagnóstica</Label>
+                              <p className="mt-1 text-foreground">{selectedAnamnese.hipotese_diagnostica}</p>
+                            </div>
+                          )}
+
+                          {selectedAnamnese.conduta && (
+                            <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                              <Label className="text-orange-600 font-medium text-xs uppercase tracking-wide">Conduta</Label>
+                              <p className="mt-1 text-foreground">{selectedAnamnese.conduta}</p>
+                            </div>
+                          )}
+
+                          {selectedAnamnese.observacoes && (
+                            <div className="p-3 bg-slate-500/10 border border-slate-500/30 rounded-lg">
+                              <Label className="text-slate-600 font-medium text-xs uppercase tracking-wide">Observações</Label>
+                              <p className="mt-1 text-foreground">{selectedAnamnese.observacoes}</p>
+                            </div>
+                          )}
+
+                          <div className="pt-3 border-t">
+                            <Button variant="outline" onClick={startEditing} className="gap-2">
+                              <Pencil className="w-4 h-4" />
+                              Editar Anamnese
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                )}
+              </DialogContent>
+            </Dialog>
 
             {/* Tab: New Anamnese */}
             <TabsContent value="nova-anamnese" className="space-y-4">
