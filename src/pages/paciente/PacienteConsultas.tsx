@@ -37,7 +37,8 @@ import {
   CheckCircle,
   AlertCircle,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -78,9 +79,10 @@ export default function PacienteConsultas() {
   const [avaliarModal, setAvaliarModal] = useState<any>(null);
   const [cancelarModal, setCancelarModal] = useState<any>(null);
   const [detalhesModal, setDetalhesModal] = useState<any>(null);
-  const [nota, setNota] = useState(5);
+const [nota, setNota] = useState(5);
   const [comentario, setComentario] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [processandoPagamento, setProcessandoPagamento] = useState<string | null>(null);
 
   useEffect(() => {
     fetchConsultas();
@@ -175,6 +177,47 @@ export default function PacienteConsultas() {
     setEnviando(false);
   }
 
+  async function handleFinalizarPagamento(consulta: any) {
+    // Se já tem URL do Asaas, abrir direto
+    if (consulta.asaas_invoice_url) {
+      window.open(consulta.asaas_invoice_url, '_blank');
+      return;
+    }
+
+    // Se não tem, criar o pagamento
+    setProcessandoPagamento(consulta.id);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('create-asaas-payment', {
+        body: { consulta_id: consulta.id }
+      });
+
+      if (error) {
+        console.error('Erro na edge function:', error);
+        toast.error('Erro ao gerar pagamento. Tente novamente.');
+        return;
+      }
+
+      if (!data.success) {
+        console.error('Erro do Asaas:', data.error);
+        toast.error(data.error || 'Erro ao gerar pagamento');
+        return;
+      }
+
+      // Abrir URL de pagamento
+      if (data.invoiceUrl) {
+        window.open(data.invoiceUrl, '_blank');
+        toast.success('Pagamento gerado! Complete o pagamento na nova aba.');
+        fetchConsultas(); // Atualizar lista para mostrar nova URL
+      }
+    } catch (err) {
+      console.error('Erro ao processar pagamento:', err);
+      toast.error('Erro ao conectar com o serviço de pagamento');
+    } finally {
+      setProcessandoPagamento(null);
+    }
+  }
+
   const renderConsultaCard = (consulta: any, isHistorico: boolean) => {
     const avaliacao = avaliacoes[consulta.medicos?.id];
     const status = consulta.status_consulta as keyof typeof statusLabels;
@@ -253,12 +296,24 @@ export default function PacienteConsultas() {
                   Ver detalhes
                 </Button>
                 
-                {!isHistorico && consulta.status_pagamento === "pendente" && consulta.asaas_invoice_url && (
+                {!isHistorico && consulta.status_pagamento === "pendente" && (
                   <Button 
                     size="sm"
-                    onClick={() => window.open(consulta.asaas_invoice_url, '_blank')}
+                    disabled={processandoPagamento === consulta.id}
+                    onClick={() => handleFinalizarPagamento(consulta)}
+                    className="gap-1"
                   >
-                    Finalizar pagamento
+                    {processandoPagamento === consulta.id ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Processando...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-4 h-4" />
+                        Finalizar pagamento
+                      </>
+                    )}
                   </Button>
                 )}
                 
