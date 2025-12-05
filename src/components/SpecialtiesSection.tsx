@@ -10,40 +10,6 @@ interface Medico {
   foto_url: string | null;
 }
 
-// Fallback specialists for when no doctors are available
-const fallbackSpecialists = [
-  {
-    id: "fallback-1",
-    nome: "Dra. Ana Silva",
-    especialidade: "Cardiologia",
-    foto_url: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400&h=400&fit=crop&crop=face"
-  },
-  {
-    id: "fallback-2",
-    nome: "Dr. Carlos Santos",
-    especialidade: "Dermatologia",
-    foto_url: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&h=400&fit=crop&crop=face"
-  },
-  {
-    id: "fallback-3",
-    nome: "Dra. Maria Costa",
-    especialidade: "Ginecologia",
-    foto_url: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=400&h=400&fit=crop&crop=face"
-  },
-  {
-    id: "fallback-4",
-    nome: "Dr. Pedro Lima",
-    especialidade: "Ortopedia",
-    foto_url: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400&h=400&fit=crop&crop=face"
-  },
-  {
-    id: "fallback-5",
-    nome: "Dra. Julia Oliveira",
-    especialidade: "Pediatria",
-    foto_url: "https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=400&h=400&fit=crop&crop=face"
-  },
-];
-
 const SpecialtiesSection = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [medicos, setMedicos] = useState<Medico[]>([]);
@@ -63,16 +29,12 @@ const SpecialtiesSection = () => {
 
     if (error) {
       console.error("Error fetching medicos:", error);
-      setMedicos(fallbackSpecialists);
-    } else if (data && data.length > 0) {
-      setMedicos(data);
+      setMedicos([]);
     } else {
-      setMedicos(fallbackSpecialists);
+      setMedicos(data || []);
     }
     setLoading(false);
   }
-  
-  const extendedMedicos = [...medicos, ...medicos];
   
   const nextSlide = useCallback(() => {
     setCurrentIndex((prev) => {
@@ -109,6 +71,11 @@ const SpecialtiesSection = () => {
     );
   }
 
+  // Se não houver médicos com aparecer_home = true, não mostra a seção
+  if (medicos.length === 0) {
+    return null;
+  }
+
   return (
     <section id="especialistas" className="py-16 bg-muted overflow-hidden">
       <div className="container mx-auto px-4">
@@ -129,9 +96,8 @@ const SpecialtiesSection = () => {
             transform: `translateX(-${currentIndex * (100 / 4)}%)`
           }}
         >
-          {extendedMedicos.map((medico, index) => {
-            const isFallback = medico.id.startsWith("fallback");
-            const href = isFallback ? "#" : `/medico/${medico.id}`;
+          {medicos.map((medico, index) => {
+            const href = `/medico/${medico.id}`;
             
             return (
               <Link 
