@@ -129,8 +129,9 @@ serve(async (req) => {
 
     // 5. Create or get Asaas customer
     let asaasCustomerId = paciente.asaas_customer_id;
-
-    if (!asaasCustomerId) {
+    
+    // Helper function to create a new customer
+    const createAsaasCustomer = async (): Promise<string | null> => {
       console.log('Creating new Asaas customer...');
       
       // Format CPF - remove non-numeric characters
@@ -160,15 +161,7 @@ serve(async (req) => {
       if (!contentType?.includes('application/json')) {
         const textResponse = await customerResponse.text();
         console.error('Asaas returned non-JSON response:', textResponse.substring(0, 500));
-        console.error('Status:', customerResponse.status);
-        console.error('URL used:', `${config.base_url}/customers`);
-        return new Response(
-          JSON.stringify({ 
-            error: 'Erro na API do Asaas', 
-            details: `Status: ${customerResponse.status}. A API retornou uma resposta inesperada. Verifique a API Key e URL.` 
-          }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return null;
       }
 
       const customerResult = await customerResponse.json();
@@ -188,20 +181,27 @@ serve(async (req) => {
           const searchResult = await searchResponse.json();
           
           if (searchResult.data?.[0]?.id) {
-            asaasCustomerId = searchResult.data[0].id;
-            console.log('Found existing customer:', asaasCustomerId);
+            console.log('Found existing customer:', searchResult.data[0].id);
+            return searchResult.data[0].id;
           }
         }
         
-        if (!asaasCustomerId) {
-          console.error('Failed to create customer:', customerResult);
-          return new Response(
-            JSON.stringify({ error: 'Erro ao criar cliente no Asaas', details: customerResult }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      } else {
-        asaasCustomerId = customerResult.id;
+        console.error('Failed to create customer:', customerResult);
+        return null;
+      }
+      
+      return customerResult.id;
+    };
+
+    // If no customer ID stored, create new customer
+    if (!asaasCustomerId) {
+      asaasCustomerId = await createAsaasCustomer();
+      
+      if (!asaasCustomerId) {
+        return new Response(
+          JSON.stringify({ error: 'Erro ao criar cliente no Asaas' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
       // Save customer ID to paciente
@@ -214,61 +214,88 @@ serve(async (req) => {
     }
 
     // 6. Create payment with UNDEFINED billing type (allows PIX, Card, Boleto)
-    console.log('Creating payment with multiple payment options...');
-    
-    // Due date: 3 days from now
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 3);
-    const dueDateStr = dueDate.toISOString().split('T')[0];
+    const createPayment = async (customerId: string) => {
+      console.log('Creating payment with multiple payment options...');
+      
+      // Due date: 3 days from now
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 3);
+      const dueDateStr = dueDate.toISOString().split('T')[0];
 
-    const paymentPayload = {
-      customer: asaasCustomerId,
-      billingType: 'UNDEFINED', // Allows customer to choose between PIX, Card, or Boleto
-      value: consulta.valor_consulta,
-      dueDate: dueDateStr,
-      description: `Consulta médica - MeConsulta`,
-      externalReference: consulta.id,
+      const paymentPayload = {
+        customer: customerId,
+        billingType: 'UNDEFINED', // Allows customer to choose between PIX, Card, or Boleto
+        value: consulta.valor_consulta,
+        dueDate: dueDateStr,
+        description: `Consulta médica - MeConsulta`,
+        externalReference: consulta.id,
+      };
+
+      console.log('Payment payload:', JSON.stringify(paymentPayload));
+
+      const paymentResponse = await fetch(`${config.base_url}/payments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'access_token': config.api_key,
+        },
+        body: JSON.stringify(paymentPayload),
+      });
+
+      // Check if response is JSON
+      const paymentContentType = paymentResponse.headers.get('content-type');
+      if (!paymentContentType?.includes('application/json')) {
+        const textResponse = await paymentResponse.text();
+        console.error('Asaas payments returned non-JSON response:', textResponse.substring(0, 500));
+        return { ok: false, error: 'Erro na API do Asaas', result: null, dueDate: dueDateStr };
+      }
+
+      const paymentResult = await paymentResponse.json();
+      console.log('Payment response:', JSON.stringify(paymentResult));
+
+      return { ok: paymentResponse.ok, result: paymentResult, dueDate: dueDateStr };
     };
 
-    console.log('Payment payload:', JSON.stringify(paymentPayload));
-
-    const paymentResponse = await fetch(`${config.base_url}/payments`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'access_token': config.api_key,
-      },
-      body: JSON.stringify(paymentPayload),
-    });
-
-    // Check if response is JSON
-    const paymentContentType = paymentResponse.headers.get('content-type');
-    if (!paymentContentType?.includes('application/json')) {
-      const textResponse = await paymentResponse.text();
-      console.error('Asaas payments returned non-JSON response:', textResponse.substring(0, 500));
-      console.error('Status:', paymentResponse.status);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Erro na API do Asaas', 
-          details: `Status: ${paymentResponse.status}. Verifique a API Key.` 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const paymentResult = await paymentResponse.json();
-    console.log('Payment response:', JSON.stringify(paymentResult));
-
-    if (!paymentResponse.ok) {
-      console.error('Failed to create payment:', paymentResult);
+    // Try to create payment with existing customer
+    let paymentData = await createPayment(asaasCustomerId!);
+    
+    // If failed due to removed customer, create new customer and retry
+    if (!paymentData.ok && paymentData.result?.errors?.[0]?.code === 'invalid_customer') {
+      console.log('Customer was removed from Asaas, creating new customer...');
       
-      // Check for specific error messages
-      const errorDesc = paymentResult.errors?.[0]?.description || 'Erro ao criar cobrança';
+      // Clear old customer ID and create new one
+      asaasCustomerId = await createAsaasCustomer();
+      
+      if (!asaasCustomerId) {
+        return new Response(
+          JSON.stringify({ error: 'Erro ao criar cliente no Asaas' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Save new customer ID to paciente
+      await supabase
+        .from('pacientes')
+        .update({ asaas_customer_id: asaasCustomerId })
+        .eq('id', paciente.id);
+      
+      console.log('Saved new Asaas customer ID to paciente:', asaasCustomerId);
+      
+      // Retry payment with new customer
+      paymentData = await createPayment(asaasCustomerId);
+    }
+
+    if (!paymentData.ok) {
+      console.error('Failed to create payment:', paymentData.result);
+      const errorDesc = paymentData.result?.errors?.[0]?.description || 'Erro ao criar cobrança';
       return new Response(
-        JSON.stringify({ error: errorDesc, details: paymentResult }),
+        JSON.stringify({ error: errorDesc, details: paymentData.result }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const paymentResult = paymentData.result;
+    const dueDateStr = paymentData.dueDate;
 
     // 7. Update consulta with payment info
     const { error: updateError } = await supabase
