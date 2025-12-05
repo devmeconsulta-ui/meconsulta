@@ -474,15 +474,38 @@ export default function MedicoAgenda() {
               const freeSlots = daySlots.filter(s => getSlotStatus(s).status === "livre").length;
               const bookedSlots = daySlots.filter(s => getSlotStatus(s).status === "reservado").length;
 
+              // Handle clicking on a day cell to open booking modal
+              const handleDayClick = () => {
+                if (!isCurrentMonth || locais.length === 0) return;
+                
+                // Create a temporary slot for this day
+                const dateTime = new Date(day);
+                dateTime.setHours(8, 0, 0, 0);
+                
+                const tempSlot: Slot = {
+                  id: 'manual-' + Date.now(),
+                  local_id: locais[0].id,
+                  data_hora: dateTime.toISOString(),
+                  disponivel: true,
+                  locais_atendimento: locais[0],
+                  consultas: [],
+                };
+                setSelectedSlot(tempSlot);
+                setAgendaModalOpen(true);
+              };
+
               return (
-                <div
+                <button
+                  type="button"
                   key={day.toISOString()}
-                  className={`min-h-[80px] md:min-h-[100px] p-1 md:p-2 rounded-lg border transition-all ${
+                  onClick={handleDayClick}
+                  disabled={!isCurrentMonth || locais.length === 0}
+                  className={`min-h-[80px] md:min-h-[100px] p-1 md:p-2 rounded-lg border transition-all text-left ${
                     !isCurrentMonth 
-                      ? "bg-muted/30 border-transparent" 
+                      ? "bg-muted/30 border-transparent cursor-default" 
                       : dayIsToday 
-                      ? "bg-primary/10 border-primary" 
-                      : "bg-background border-border/50 hover:border-primary/30"
+                      ? "bg-primary/10 border-primary cursor-pointer hover:bg-primary/20" 
+                      : "bg-background border-border/50 hover:border-primary/30 cursor-pointer hover:bg-muted/50"
                   }`}
                 >
                   <p className={`text-xs md:text-sm font-semibold mb-1 ${
@@ -511,7 +534,7 @@ export default function MedicoAgenda() {
                       )}
                     </div>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
