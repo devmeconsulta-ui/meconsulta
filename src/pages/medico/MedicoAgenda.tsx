@@ -692,11 +692,13 @@ export default function MedicoAgenda() {
           onOpenChange={setAgendaModalOpen}
           slotId={selectedSlot.id}
           slotDataHora={selectedSlot.data_hora}
+          localId={selectedSlot.local_id}
           localNome={selectedSlot.locais_atendimento?.nome_local || ""}
           medicoId={medicoData.id}
           valorConsulta={medicoData.valor_consulta || 0}
           percentualRepasse={medicoData.percentual_repasse || 70}
           usuariosClinica={usuariosClinica}
+          locais={locais}
           onSuccess={fetchData}
         />
       )}
