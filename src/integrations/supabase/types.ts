@@ -442,6 +442,47 @@ export type Database = {
           },
         ]
       }
+      meconsulta_pay_solicitacoes: {
+        Row: {
+          cpf: string
+          created_at: string
+          data_nascimento: string
+          id: string
+          nome_completo: string
+          nome_mae: string
+          paciente_id: string
+          status: string
+        }
+        Insert: {
+          cpf: string
+          created_at?: string
+          data_nascimento: string
+          id?: string
+          nome_completo: string
+          nome_mae: string
+          paciente_id: string
+          status?: string
+        }
+        Update: {
+          cpf?: string
+          created_at?: string
+          data_nascimento?: string
+          id?: string
+          nome_completo?: string
+          nome_mae?: string
+          paciente_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meconsulta_pay_solicitacoes_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       medico_servicos: {
         Row: {
           ativo: boolean | null
