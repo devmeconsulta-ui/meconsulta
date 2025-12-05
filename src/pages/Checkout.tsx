@@ -7,12 +7,21 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, ChevronLeft, CreditCard, User, FileText, Users } from "lucide-react";
+import { Calendar, MapPin, ChevronLeft, CreditCard, User, FileText, Users, Copy, ExternalLink, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+
+interface PaymentData {
+  paymentId: string;
+  invoiceUrl: string;
+  pixQrCode?: string;
+  pixCopyPaste?: string;
+  dueDate: string;
+  value: number;
+}
 
 interface Medico {
   id: string;
@@ -57,6 +66,8 @@ const Checkout = () => {
   const [dependentes, setDependentes] = useState<Dependente[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
+  const [showPayment, setShowPayment] = useState(false);
   
   const [formData, setFormData] = useState({
     tipoServico: "",
@@ -183,7 +194,8 @@ const Checkout = () => {
 
       const dataHora = `${selectedDate}T${selectedTime}:00`;
 
-      const { error } = await supabase
+      // Create consultation
+      const { data: consultaData, error } = await supabase
         .from("consultas")
         .insert({
           medico_id: medico.id,
@@ -201,12 +213,34 @@ const Checkout = () => {
           status_consulta: "aguardando_pagamento",
           status_pagamento: "pendente",
           status_repasse: "pendente",
-        });
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
 
-      toast.success("Consulta agendada com sucesso! Você receberá um e-mail com os detalhes.");
-      navigate("/paciente/consultas");
+      // Create Asaas payment
+      toast.info("Gerando cobrança PIX...");
+      
+      const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke(
+        'create-asaas-payment',
+        {
+          body: { consulta_id: consultaData.id }
+        }
+      );
+
+      if (paymentError || !paymentResponse?.success) {
+        console.error("Payment error:", paymentError || paymentResponse);
+        toast.warning("Consulta criada, mas houve um erro ao gerar o pagamento. Você pode pagar depois.");
+        navigate("/paciente/consultas");
+        return;
+      }
+
+      // Show payment screen
+      setPaymentData(paymentResponse);
+      setShowPayment(true);
+      toast.success("Cobrança PIX gerada! Escaneie o QR Code ou copie o código.");
+      
     } catch (error) {
       console.error("Error creating consultation:", error);
       toast.error("Erro ao agendar consulta. Tente novamente.");
@@ -214,6 +248,110 @@ const Checkout = () => {
       setSubmitting(false);
     }
   };
+
+  const copyPixCode = () => {
+    if (paymentData?.pixCopyPaste) {
+      navigator.clipboard.writeText(paymentData.pixCopyPaste);
+      toast.success("Código PIX copiado!");
+    }
+  };
+
+  // Payment success screen
+  if (showPayment && paymentData) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        
+        <main className="py-8">
+          <div className="container mx-auto px-4 max-w-2xl">
+            <div className="bg-card rounded-2xl p-8 shadow-md text-center">
+              <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
+                <CreditCard className="w-8 h-8 text-green-600" />
+              </div>
+              
+              <h1 className="text-2xl font-bold text-foreground mb-2">
+                Consulta Agendada!
+              </h1>
+              <p className="text-muted-foreground mb-6">
+                Pague via PIX para confirmar sua consulta
+              </p>
+
+              {/* PIX QR Code */}
+              {paymentData.pixQrCode && (
+                <div className="mb-6">
+                  <div className="inline-block p-4 bg-white rounded-xl shadow-inner">
+                    <img 
+                      src={`data:image/png;base64,${paymentData.pixQrCode}`}
+                      alt="QR Code PIX"
+                      className="w-48 h-48"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* PIX Copy & Paste */}
+              {paymentData.pixCopyPaste && (
+                <div className="mb-6">
+                  <p className="text-sm text-muted-foreground mb-2">Ou copie o código PIX:</p>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={paymentData.pixCopyPaste}
+                      readOnly
+                      className="flex-1 px-3 py-2 text-sm bg-muted rounded-lg border border-border truncate"
+                    />
+                    <Button onClick={copyPixCode} variant="outline" size="sm">
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copiar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Info */}
+              <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="text-foreground">Valor a pagar:</span>
+                  <span className="text-xl font-bold text-foreground">
+                    R$ {paymentData.value.toFixed(2).replace(".", ",")}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Vencimento: {format(new Date(paymentData.dueDate + 'T12:00:00'), "dd/MM/yyyy")}
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col gap-3">
+                {paymentData.invoiceUrl && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.open(paymentData.invoiceUrl, '_blank')}
+                    className="w-full"
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Abrir página de pagamento
+                  </Button>
+                )}
+                <Button 
+                  onClick={() => navigate("/paciente/consultas")}
+                  className="w-full"
+                >
+                  Ver minhas consultas
+                </Button>
+              </div>
+
+              <p className="text-xs text-muted-foreground mt-6">
+                Após o pagamento, sua consulta será confirmada automaticamente.
+              </p>
+            </div>
+          </div>
+        </main>
+
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -340,7 +478,7 @@ const Checkout = () => {
                     
                     <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
                       <p className="text-sm text-foreground">
-                        💳 Integração com gateway de pagamento será adicionada posteriormente.
+                        💳 Após confirmar, você receberá um QR Code PIX para pagamento.
                       </p>
                     </div>
                   </div>
@@ -351,7 +489,12 @@ const Checkout = () => {
                     className="w-full h-12 text-base font-semibold"
                     disabled={submitting}
                   >
-                    {submitting ? "Agendando..." : "Confirmar Agendamento"}
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Gerando pagamento...
+                      </>
+                    ) : "Confirmar e Pagar"}
                   </Button>
                 </form>
               </div>
