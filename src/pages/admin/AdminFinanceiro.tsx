@@ -1,8 +1,12 @@
-import { useState } from "react";
-import { DollarSign, TrendingUp, TrendingDown, CreditCard, ArrowUpRight, ArrowDownRight, Filter, Download, Calendar } from "lucide-react";
+import { useState, useMemo } from "react";
+import { 
+  DollarSign, TrendingUp, TrendingDown, CreditCard, ArrowUpRight, ArrowDownRight, 
+  Filter, Download, Calendar, Users, Activity, Percent, PieChart as PieChartIcon,
+  BarChart3, Clock, CheckCircle2, XCircle, AlertCircle, RefreshCw
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -23,28 +28,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format, subDays, subMonths } from "date-fns";
+import { format, subDays, subMonths, startOfMonth, endOfMonth, parseISO, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from "recharts";
+import { 
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, 
+  BarChart, Bar, PieChart, Pie, Cell, Legend, RadialBarChart, RadialBar,
+  ComposedChart, Line, CartesianGrid
+} from "recharts";
 
-const COLORS = ["#0066CC", "#10B981", "#F59E0B", "#8B5CF6"];
+const CHART_COLORS = {
+  primary: "#0066CC",
+  secondary: "#10B981", 
+  warning: "#F59E0B",
+  purple: "#8B5CF6",
+  pink: "#EC4899",
+  cyan: "#06B6D4",
+  orange: "#F97316",
+  indigo: "#6366F1"
+};
 
 export default function AdminFinanceiro() {
   const [periodo, setPeriodo] = useState("30");
+  const [statusFilter, setStatusFilter] = useState("todos");
+  const [especialidadeFilter, setEspecialidadeFilter] = useState("todas");
   const [dateRange, setDateRange] = useState({
     inicio: format(subDays(new Date(), 30), "yyyy-MM-dd"),
     fim: format(new Date(), "yyyy-MM-dd"),
   });
 
   // Fetch financial data
-  const { data: consultas, isLoading } = useQuery({
+  const { data: consultas, isLoading, refetch } = useQuery({
     queryKey: ["admin-financeiro", dateRange],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consultas")
         .select(`
           *,
-          medico:medicos(nome, especialidade, percentual_repasse)
+          medico:medicos(nome, especialidade, percentual_repasse),
+          paciente:pacientes(nome)
         `)
         .gte("data_hora", `${dateRange.inicio}T00:00:00`)
         .lte("data_hora", `${dateRange.fim}T23:59:59`)
@@ -55,59 +76,137 @@ export default function AdminFinanceiro() {
     },
   });
 
-  // Calculate financial metrics - consultas internas não geram receita
-  const consultasOnline = consultas?.filter((c) => c.origem !== 'interna') || [];
-  const metrics = {
-    receitaTotal: consultasOnline.reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
-    receitaPaga: consultasOnline.filter((c) => c.status_pagamento === "pago").reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
-    receitaPendente: consultasOnline.filter((c) => c.status_pagamento === "pendente").reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
-    totalRepasses: consultasOnline.reduce((acc, c) => acc + Number(c.valor_medico), 0) || 0,
-    lucroPlataforma: consultasOnline.reduce((acc, c) => acc + Number(c.valor_plataforma), 0) || 0,
-    consultasPagas: consultasOnline.filter((c) => c.status_pagamento === "pago").length || 0,
-    consultasPendentes: consultasOnline.filter((c) => c.status_pagamento === "pendente").length || 0,
-  };
+  // Fetch all medicos for filter
+  const { data: medicos } = useQuery({
+    queryKey: ["admin-medicos-filter"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("medicos")
+        .select("id, nome, especialidade")
+        .eq("ativo", true);
+      if (error) throw error;
+      return data;
+    },
+  });
 
-  // Chart data - Receita por dia (apenas consultas online)
-  const receitaPorDia = (() => {
+  // Get unique specialties
+  const especialidades = useMemo(() => {
+    if (!medicos) return [];
+    const specs = [...new Set(medicos.map(m => m.especialidade).filter(Boolean))];
+    return specs.sort();
+  }, [medicos]);
+
+  // Filter consultas - only online generate revenue
+  const consultasOnline = useMemo(() => {
+    let filtered = consultas?.filter((c) => c.origem !== 'interna') || [];
+    
+    if (statusFilter !== "todos") {
+      filtered = filtered.filter(c => c.status_pagamento === statusFilter);
+    }
+    
+    if (especialidadeFilter !== "todas") {
+      filtered = filtered.filter(c => (c.medico as any)?.especialidade === especialidadeFilter);
+    }
+    
+    return filtered;
+  }, [consultas, statusFilter, especialidadeFilter]);
+
+  // Calculate financial metrics
+  const metrics = useMemo(() => {
+    const allOnline = consultas?.filter((c) => c.origem !== 'interna') || [];
+    return {
+      receitaTotal: allOnline.reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
+      receitaPaga: allOnline.filter((c) => c.status_pagamento === "pago").reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
+      receitaPendente: allOnline.filter((c) => c.status_pagamento === "pendente").reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
+      receitaCancelada: allOnline.filter((c) => c.status_pagamento === "cancelado").reduce((acc, c) => acc + Number(c.valor_consulta), 0) || 0,
+      totalRepasses: allOnline.reduce((acc, c) => acc + Number(c.valor_medico), 0) || 0,
+      repassesPagos: allOnline.filter((c) => c.status_repasse === "pago").reduce((acc, c) => acc + Number(c.valor_medico), 0) || 0,
+      repassesPendentes: allOnline.filter((c) => c.status_pagamento === "pago" && c.status_repasse === "pendente").reduce((acc, c) => acc + Number(c.valor_medico), 0) || 0,
+      lucroPlataforma: allOnline.reduce((acc, c) => acc + Number(c.valor_plataforma), 0) || 0,
+      lucroPago: allOnline.filter((c) => c.status_pagamento === "pago").reduce((acc, c) => acc + Number(c.valor_plataforma), 0) || 0,
+      consultasTotal: allOnline.length || 0,
+      consultasPagas: allOnline.filter((c) => c.status_pagamento === "pago").length || 0,
+      consultasPendentes: allOnline.filter((c) => c.status_pagamento === "pendente").length || 0,
+      consultasCanceladas: allOnline.filter((c) => c.status_pagamento === "cancelado").length || 0,
+      ticketMedio: allOnline.length > 0 ? allOnline.reduce((acc, c) => acc + Number(c.valor_consulta), 0) / allOnline.length : 0,
+    };
+  }, [consultas]);
+
+  // Chart data - Receita por dia with comparison bars
+  const receitaPorDia = useMemo(() => {
     if (!consultasOnline.length) return [];
-    const days: Record<string, { receita: number; repasse: number; lucro: number }> = {};
+    const days: Record<string, { receita: number; repasse: number; lucro: number; count: number }> = {};
     
     consultasOnline.forEach((c) => {
       const day = format(new Date(c.data_hora), "dd/MM");
       if (!days[day]) {
-        days[day] = { receita: 0, repasse: 0, lucro: 0 };
+        days[day] = { receita: 0, repasse: 0, lucro: 0, count: 0 };
       }
       days[day].receita += Number(c.valor_consulta);
       days[day].repasse += Number(c.valor_medico);
       days[day].lucro += Number(c.valor_plataforma);
+      days[day].count += 1;
     });
 
     return Object.entries(days)
       .slice(-14)
       .map(([name, values]) => ({ name, ...values }));
-  })();
+  }, [consultasOnline]);
 
-  // Chart data - Distribuição de receita
-  const distribuicaoReceita = [
-    { name: "Repasses Médicos", value: metrics.totalRepasses, color: "#0066CC" },
-    { name: "Lucro Plataforma", value: metrics.lucroPlataforma, color: "#10B981" },
-  ];
-
-  // Chart data - Status de pagamento
-  const statusPagamento = [
-    { name: "Pago", value: metrics.receitaPaga, color: "#10B981" },
-    { name: "Pendente", value: metrics.receitaPendente, color: "#F59E0B" },
-  ];
-
-  // Top médicos por receita (apenas consultas online)
-  const topMedicos = (() => {
+  // Chart data - Receita por especialidade
+  const receitaPorEspecialidade = useMemo(() => {
     if (!consultasOnline.length) return [];
-    const medicos: Record<string, { nome: string; receita: number; consultas: number }> = {};
+    const specs: Record<string, { receita: number; count: number }> = {};
+    
+    consultasOnline.forEach((c: any) => {
+      const esp = c.medico?.especialidade || "Não informado";
+      if (!specs[esp]) {
+        specs[esp] = { receita: 0, count: 0 };
+      }
+      specs[esp].receita += Number(c.valor_consulta);
+      specs[esp].count += 1;
+    });
+
+    return Object.entries(specs)
+      .map(([name, values]) => ({ name, ...values }))
+      .sort((a, b) => b.receita - a.receita)
+      .slice(0, 6);
+  }, [consultasOnline]);
+
+  // Radial chart data for status
+  const statusRadialData = useMemo(() => {
+    const total = metrics.consultasTotal || 1;
+    return [
+      { 
+        name: "Pagas", 
+        value: Math.round((metrics.consultasPagas / total) * 100), 
+        fill: CHART_COLORS.secondary,
+        count: metrics.consultasPagas
+      },
+      { 
+        name: "Pendentes", 
+        value: Math.round((metrics.consultasPendentes / total) * 100), 
+        fill: CHART_COLORS.warning,
+        count: metrics.consultasPendentes
+      },
+      { 
+        name: "Canceladas", 
+        value: Math.round((metrics.consultasCanceladas / total) * 100), 
+        fill: "#EF4444",
+        count: metrics.consultasCanceladas
+      },
+    ];
+  }, [metrics]);
+
+  // Top médicos por receita
+  const topMedicos = useMemo(() => {
+    if (!consultasOnline.length) return [];
+    const medicos: Record<string, { nome: string; receita: number; consultas: number; especialidade: string }> = {};
     
     consultasOnline.forEach((c: any) => {
       const nome = c.medico?.nome || "Desconhecido";
       if (!medicos[nome]) {
-        medicos[nome] = { nome, receita: 0, consultas: 0 };
+        medicos[nome] = { nome, receita: 0, consultas: 0, especialidade: c.medico?.especialidade || "" };
       }
       medicos[nome].receita += Number(c.valor_consulta);
       medicos[nome].consultas += 1;
@@ -116,7 +215,36 @@ export default function AdminFinanceiro() {
     return Object.values(medicos)
       .sort((a, b) => b.receita - a.receita)
       .slice(0, 5);
-  })();
+  }, [consultasOnline]);
+
+  // Analytics metrics for progress bars
+  const analyticsMetrics = useMemo(() => {
+    const total = metrics.receitaTotal || 1;
+    const maxReceita = topMedicos[0]?.receita || 1;
+    
+    return [
+      { 
+        label: "Taxa de Conversão", 
+        value: metrics.consultasTotal > 0 ? Math.round((metrics.consultasPagas / metrics.consultasTotal) * 100) : 0,
+        color: "bg-primary"
+      },
+      { 
+        label: "Repasses Realizados", 
+        value: metrics.totalRepasses > 0 ? Math.round((metrics.repassesPagos / metrics.totalRepasses) * 100) : 0,
+        color: "bg-green-500"
+      },
+      { 
+        label: "Lucro vs Repasse", 
+        value: metrics.receitaTotal > 0 ? Math.round((metrics.lucroPlataforma / metrics.receitaTotal) * 100) : 0,
+        color: "bg-purple-500"
+      },
+      { 
+        label: "Consultas Confirmadas", 
+        value: metrics.consultasTotal > 0 ? Math.round((metrics.consultasPagas / metrics.consultasTotal) * 100) : 0,
+        color: "bg-cyan-500"
+      },
+    ];
+  }, [metrics, topMedicos]);
 
   const handlePeriodoChange = (value: string) => {
     setPeriodo(value);
@@ -130,18 +258,37 @@ export default function AdminFinanceiro() {
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-background/95 backdrop-blur-sm border border-border rounded-lg p-3 shadow-lg">
+          <p className="font-medium text-foreground mb-2">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={index} className="text-sm" style={{ color: entry.color }}>
+              {entry.name}: {formatCurrency(entry.value)}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <DollarSign className="h-7 w-7" />
-            Financeiro
+            <DollarSign className="h-7 w-7 text-primary" />
+            Painel Financeiro
           </h1>
-          <p className="text-muted-foreground">Gestão financeira e relatórios da plataforma</p>
+          <p className="text-muted-foreground">
+            Período: {format(parseISO(dateRange.inicio), "dd/MM/yyyy")} - {format(parseISO(dateRange.fim), "dd/MM/yyyy")} 
+            ({differenceInDays(parseISO(dateRange.fim), parseISO(dateRange.inicio))} dias)
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Select value={periodo} onValueChange={handlePeriodoChange}>
             <SelectTrigger className="w-40">
               <Calendar className="h-4 w-4 mr-2" />
@@ -150,10 +297,39 @@ export default function AdminFinanceiro() {
             <SelectContent>
               <SelectItem value="7">Últimos 7 dias</SelectItem>
               <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="60">Últimos 60 dias</SelectItem>
               <SelectItem value="90">Últimos 90 dias</SelectItem>
+              <SelectItem value="180">Últimos 6 meses</SelectItem>
               <SelectItem value="365">Último ano</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="pago">Pagos</SelectItem>
+              <SelectItem value="pendente">Pendentes</SelectItem>
+              <SelectItem value="cancelado">Cancelados</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={especialidadeFilter} onValueChange={setEspecialidadeFilter}>
+            <SelectTrigger className="w-44">
+              <Activity className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Especialidade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas Especialidades</SelectItem>
+              {especialidades.map((esp) => (
+                <SelectItem key={esp} value={esp}>{esp}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
           <Button variant="outline" className="gap-2">
             <Download className="h-4 w-4" />
             Exportar
@@ -161,168 +337,339 @@ export default function AdminFinanceiro() {
         </div>
       </div>
 
-      {/* Main Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-primary/10 to-primary/5">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+      {/* Main Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <Card className="col-span-2 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-primary/20">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Receita Total</p>
-                <p className="text-2xl font-bold text-foreground">{formatCurrency(metrics.receitaTotal)}</p>
-                <p className="text-xs text-green-600 flex items-center mt-1">
-                  <ArrowUpRight className="h-3 w-3 mr-1" />
-                  {consultas?.length || 0} consultas
-                </p>
+                <p className="text-sm font-medium text-muted-foreground">Receita Total</p>
+                <p className="text-3xl font-bold text-foreground mt-1">{formatCurrency(metrics.receitaTotal)}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant="secondary" className="bg-primary/20 text-primary">
+                    {metrics.consultasTotal} consultas
+                  </Badge>
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-primary" />
+              <div className="w-14 h-14 rounded-xl bg-primary/20 flex items-center justify-center">
+                <DollarSign className="h-7 w-7 text-primary" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+        <Card className="bg-gradient-to-br from-green-500/10 via-green-500/5 to-transparent border-green-500/20">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Receita Paga</p>
+                <p className="text-sm font-medium text-muted-foreground">Pago</p>
                 <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.receitaPaga)}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {metrics.consultasPagas} consultas pagas
+                <p className="text-xs text-green-600 flex items-center mt-1">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  {metrics.consultasPagas} pagas
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-green-600" />
+              <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 text-green-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-yellow-500/10 to-yellow-500/5">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+        <Card className="bg-gradient-to-br from-yellow-500/10 via-yellow-500/5 to-transparent border-yellow-500/20">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Pendente</p>
+                <p className="text-sm font-medium text-muted-foreground">Pendente</p>
                 <p className="text-2xl font-bold text-yellow-600">{formatCurrency(metrics.receitaPendente)}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {metrics.consultasPendentes} consultas pendentes
+                <p className="text-xs text-yellow-600 flex items-center mt-1">
+                  <Clock className="h-3 w-3 mr-1" />
+                  {metrics.consultasPendentes} aguardando
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center">
-                <CreditCard className="h-6 w-6 text-yellow-600" />
+              <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                <AlertCircle className="h-5 w-5 text-yellow-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+        <Card className="bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent border-purple-500/20">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Lucro Plataforma</p>
+                <p className="text-sm font-medium text-muted-foreground">Lucro</p>
                 <p className="text-2xl font-bold text-purple-600">{formatCurrency(metrics.lucroPlataforma)}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Taxa de serviço
+                <p className="text-xs text-purple-600 flex items-center mt-1">
+                  <Percent className="h-3 w-3 mr-1" />
+                  Taxa da plataforma
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-purple-600" />
+              <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                <PieChartIcon className="h-5 w-5 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-cyan-500/10 via-cyan-500/5 to-transparent border-cyan-500/20">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Ticket Médio</p>
+                <p className="text-2xl font-bold text-cyan-600">{formatCurrency(metrics.ticketMedio)}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  por consulta
+                </p>
+              </div>
+              <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <CreditCard className="h-5 w-5 text-cyan-600" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Evolução da Receita</CardTitle>
+      {/* Charts Row 1 - Main charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Bar Chart - Receita e Lucro por dia */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  Receita vs Lucro por Dia
+                </CardTitle>
+                <CardDescription>Comparativo diário de receita e lucro da plataforma</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {receitaPorDia.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={receitaPorDia}>
-                  <defs>
-                    <linearGradient id="colorReceita" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0066CC" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#0066CC" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorLucro" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="name" />
-                  <YAxis tickFormatter={(v) => `R$${v}`} />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                <ComposedChart data={receitaPorDia}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `R$${v}`} />
+                  <Tooltip content={<CustomTooltip />} />
                   <Legend />
-                  <Area type="monotone" dataKey="receita" name="Receita" stroke="#0066CC" fillOpacity={1} fill="url(#colorReceita)" />
-                  <Area type="monotone" dataKey="lucro" name="Lucro" stroke="#10B981" fillOpacity={1} fill="url(#colorLucro)" />
-                </AreaChart>
+                  <Bar dataKey="receita" name="Receita" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="lucro" name="Lucro" fill={CHART_COLORS.secondary} radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="count" name="Consultas" stroke={CHART_COLORS.purple} strokeWidth={2} dot={{ r: 4 }} yAxisId={0} />
+                </ComposedChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-center text-muted-foreground py-8">Sem dados disponíveis</p>
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                <p>Sem dados para o período selecionado</p>
+              </div>
             )}
           </CardContent>
         </Card>
 
+        {/* Radial Charts - Status */}
         <Card>
-          <CardHeader>
-            <CardTitle>Distribuição de Receita</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-primary" />
+              Status das Consultas
+            </CardTitle>
+            <CardDescription>Distribuição por status de pagamento</CardDescription>
           </CardHeader>
           <CardContent>
-            {distribuicaoReceita.some((d) => d.value > 0) ? (
-              <ResponsiveContainer width="100%" height={300}>
+            <div className="space-y-6">
+              {statusRadialData.map((item, index) => (
+                <div key={index} className="flex items-center gap-4">
+                  <div className="relative w-20 h-20">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadialBarChart 
+                        cx="50%" 
+                        cy="50%" 
+                        innerRadius="60%" 
+                        outerRadius="100%" 
+                        data={[item]}
+                        startAngle={90}
+                        endAngle={-270}
+                      >
+                        <RadialBar
+                          background={{ fill: 'hsl(var(--muted))' }}
+                          dataKey="value"
+                          cornerRadius={10}
+                        />
+                      </RadialBarChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-sm font-bold" style={{ color: item.fill }}>{item.value}%</span>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">{item.name}</p>
+                    <p className="text-sm text-muted-foreground">{item.count} consultas</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Row 2 - Analytics */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Receita por Especialidade */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <PieChartIcon className="h-5 w-5 text-primary" />
+              Receita por Especialidade
+            </CardTitle>
+            <CardDescription>Top 6 especialidades por faturamento</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {receitaPorEspecialidade.length > 0 ? (
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
-                    data={distribuicaoReceita}
+                    data={receitaPorEspecialidade}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={3}
+                    dataKey="receita"
                   >
-                    {distribuicaoReceita.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    {receitaPorEspecialidade.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={Object.values(CHART_COLORS)[index % Object.values(CHART_COLORS).length]} 
+                      />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  <Legend 
+                    layout="vertical" 
+                    align="right" 
+                    verticalAlign="middle"
+                    formatter={(value, entry: any) => (
+                      <span className="text-xs text-foreground">{value}</span>
+                    )}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-center text-muted-foreground py-8">Sem dados disponíveis</p>
+              <div className="flex items-center justify-center h-[280px] text-muted-foreground">
+                <p>Sem dados disponíveis</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Analytics Progress Bars */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Indicadores
+            </CardTitle>
+            <CardDescription>Métricas de performance da plataforma</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-5">
+              {analyticsMetrics.map((metric, index) => (
+                <div key={index} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-foreground font-medium">{metric.label}</span>
+                    <span className="text-muted-foreground font-bold">{metric.value}%</span>
+                  </div>
+                  <Progress value={metric.value} className="h-2" />
+                </div>
+              ))}
+            </div>
+            
+            {/* Mini Stats */}
+            <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-border">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-primary">{formatCurrency(metrics.repassesPendentes)}</p>
+                <p className="text-xs text-muted-foreground">Repasses Pendentes</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.lucroPago)}</p>
+                <p className="text-xs text-muted-foreground">Lucro Realizado</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Top Médicos */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Top 5 Médicos
+            </CardTitle>
+            <CardDescription>Ranking por receita gerada</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {topMedicos.length > 0 ? (
+              <div className="space-y-4">
+                {topMedicos.map((medico, index) => {
+                  const maxReceita = topMedicos[0]?.receita || 1;
+                  const percentage = Math.round((medico.receita / maxReceita) * 100);
+                  return (
+                    <div key={index} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                            index === 0 ? 'bg-yellow-500 text-yellow-950' :
+                            index === 1 ? 'bg-gray-300 text-gray-700' :
+                            index === 2 ? 'bg-amber-600 text-amber-950' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground truncate max-w-[120px]">{medico.nome}</p>
+                            <p className="text-xs text-muted-foreground">{medico.consultas} consultas</p>
+                          </div>
+                        </div>
+                        <p className="text-sm font-bold text-primary">{formatCurrency(medico.receita)}</p>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ 
+                            width: `${percentage}%`,
+                            backgroundColor: Object.values(CHART_COLORS)[index % Object.values(CHART_COLORS).length]
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+                <p>Sem dados disponíveis</p>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Top Médicos */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Top 5 Médicos por Receita</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {topMedicos.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={topMedicos} layout="vertical">
-                <XAxis type="number" tickFormatter={(v) => `R$${v}`} />
-                <YAxis type="category" dataKey="nome" width={150} />
-                <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                <Bar dataKey="receita" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-center text-muted-foreground py-8">Sem dados disponíveis</p>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Repasses Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Repasses Pendentes para Médicos</CardTitle>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-primary" />
+                Repasses Pendentes para Médicos
+              </CardTitle>
+              <CardDescription>Consultas pagas aguardando transferência para médicos</CardDescription>
+            </div>
+            <Badge variant="outline" className="text-yellow-600 border-yellow-300">
+              {consultas?.filter((c) => c.status_pagamento === "pago" && c.status_repasse === "pendente" && c.origem !== 'interna').length || 0} pendentes
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -331,29 +678,34 @@ export default function AdminFinanceiro() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : consultas && consultas.filter((c) => c.status_pagamento === "pago" && c.status_repasse === "pendente").length > 0 ? (
+          ) : consultas && consultas.filter((c) => c.status_pagamento === "pago" && c.status_repasse === "pendente" && c.origem !== 'interna').length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Médico</TableHead>
+                    <TableHead>Especialidade</TableHead>
+                    <TableHead>Paciente</TableHead>
                     <TableHead>Data Consulta</TableHead>
-                    <TableHead>Valor Consulta</TableHead>
-                    <TableHead>Valor Repasse</TableHead>
+                    <TableHead className="text-right">Valor Consulta</TableHead>
+                    <TableHead className="text-right">Valor Repasse</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {consultas
-                    .filter((c) => c.status_pagamento === "pago" && c.status_repasse === "pendente")
+                    .filter((c) => c.status_pagamento === "pago" && c.status_repasse === "pendente" && c.origem !== 'interna')
+                    .slice(0, 10)
                     .map((consulta: any) => (
                       <TableRow key={consulta.id}>
                         <TableCell className="font-medium">{consulta.medico?.nome || "—"}</TableCell>
+                        <TableCell className="text-muted-foreground">{consulta.medico?.especialidade || "—"}</TableCell>
+                        <TableCell>{consulta.nome_paciente_consulta || consulta.paciente?.nome || "—"}</TableCell>
                         <TableCell>
-                          {format(new Date(consulta.data_hora), "dd/MM/yyyy", { locale: ptBR })}
+                          {format(new Date(consulta.data_hora), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                         </TableCell>
-                        <TableCell>{formatCurrency(consulta.valor_consulta)}</TableCell>
-                        <TableCell className="font-semibold text-primary">
+                        <TableCell className="text-right">{formatCurrency(consulta.valor_consulta)}</TableCell>
+                        <TableCell className="text-right font-semibold text-primary">
                           {formatCurrency(consulta.valor_medico)}
                         </TableCell>
                         <TableCell>
@@ -367,7 +719,11 @@ export default function AdminFinanceiro() {
               </Table>
             </div>
           ) : (
-            <p className="text-muted-foreground text-center py-8">Nenhum repasse pendente.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <CheckCircle2 className="h-12 w-12 mb-4 text-green-500" />
+              <p className="font-medium">Nenhum repasse pendente</p>
+              <p className="text-sm">Todos os repasses estão em dia!</p>
+            </div>
           )}
         </CardContent>
       </Card>
