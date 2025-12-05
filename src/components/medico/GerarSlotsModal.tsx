@@ -32,7 +32,7 @@ interface GerarSlotsModalProps {
   onOpenChange: (open: boolean) => void;
   locais: Local[];
   medicoId: string;
-  onSuccess: () => void;
+  onSuccess: (firstDate?: Date) => void;
 }
 
 const intervalOptions = [
@@ -147,7 +147,7 @@ export function GerarSlotsModal({
 
       toast.success(`${newSlots.length} horários criados com sucesso!`);
       onOpenChange(false);
-      onSuccess();
+      onSuccess(dateRange.from);
     } catch (error) {
       console.error(error);
       toast.error("Erro ao gerar horários");
