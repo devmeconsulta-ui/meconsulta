@@ -144,6 +144,22 @@ serve(async (req) => {
         body: JSON.stringify(customerPayload),
       });
 
+      // Check if response is JSON
+      const contentType = customerResponse.headers.get('content-type');
+      if (!contentType?.includes('application/json')) {
+        const textResponse = await customerResponse.text();
+        console.error('Asaas returned non-JSON response:', textResponse.substring(0, 500));
+        console.error('Status:', customerResponse.status);
+        console.error('URL used:', `${config.base_url}/customers`);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Erro na API do Asaas', 
+            details: `Status: ${customerResponse.status}. A API retornou uma resposta inesperada. Verifique a API Key e URL.` 
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       const customerResult = await customerResponse.json();
       console.log('Customer response:', JSON.stringify(customerResult));
 
