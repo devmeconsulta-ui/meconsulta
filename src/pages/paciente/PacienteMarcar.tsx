@@ -31,7 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Star, Heart, MapPin, Calendar, Clock, User, ChevronRight, UserPlus, Users, RefreshCw, Plus, Trash2 } from "lucide-react";
+import { Search, Star, Heart, MapPin, Calendar, Clock, User, ChevronRight, UserPlus, Users, RefreshCw, Plus, Trash2, Video, Building2, Check } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -87,6 +87,7 @@ export default function PacienteMarcar() {
   const [slots, setSlots] = useState<any[]>([]);
   const [locais, setLocais] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<any>(null);
+  const [selectedLocal, setSelectedLocal] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [agendando, setAgendando] = useState(false);
 
@@ -261,6 +262,7 @@ export default function PacienteMarcar() {
   async function verAgenda(medico: any) {
     setSelectedMedico(medico);
     setSelectedSlot(null);
+    setSelectedLocal(null);
     
     const now = new Date().toISOString();
     
@@ -405,8 +407,19 @@ export default function PacienteMarcar() {
     setDeleteDependenteId(null);
   }
 
+  // Filtrar slots por local selecionado
+  const filteredSlots = selectedLocal 
+    ? slots.filter(slot => slot.local_id === selectedLocal)
+    : slots;
+
+  // Contar slots por local
+  const slotsPerLocal = locais.reduce((acc, local) => {
+    acc[local.id] = slots.filter(slot => slot.local_id === local.id).length;
+    return acc;
+  }, {} as Record<string, number>);
+
   // Agrupar slots por data
-  const slotsPorData = slots.reduce((acc, slot) => {
+  const slotsPorData = filteredSlots.reduce((acc, slot) => {
     const date = format(new Date(slot.data_hora), "yyyy-MM-dd");
     if (!acc[date]) acc[date] = [];
     acc[date].push(slot);
@@ -414,6 +427,7 @@ export default function PacienteMarcar() {
   }, {} as Record<string, any[]>);
 
   const dependenteSelecionado = paraQuem !== "eu" ? dependentes.find(d => d.id === paraQuem) : null;
+  const selectedLocalData = selectedLocal ? locais.find(l => l.id === selectedLocal) : null;
 
   return (
     <div className="space-y-6">
@@ -679,22 +693,67 @@ export default function PacienteMarcar() {
               </p>
             </div>
 
-            {/* Locais */}
+            {/* Locais - Clicáveis */}
             {locais.length > 0 && (
               <div>
-                <p className="text-sm font-medium mb-2">Locais de atendimento:</p>
+                <p className="text-sm font-medium mb-2">Selecione o local de atendimento:</p>
                 <div className="space-y-2">
-                  {locais.map(local => (
-                    <div key={local.id} className="p-2 bg-muted/50 rounded-lg text-sm">
-                      <p className="font-medium">{local.nome_local}</p>
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <MapPin className="w-3 h-3" />
-                        {local.tipo_atendimento === "online" 
-                          ? "Atendimento Online"
-                          : `${local.cidade}, ${local.estado}`
-                        }
-                      </div>
+                  {/* Opção todos os locais */}
+                  <button
+                    onClick={() => {
+                      setSelectedLocal(null);
+                      setSelectedSlot(null);
+                    }}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
+                      selectedLocal === null
+                        ? "bg-primary/10 border-2 border-primary"
+                        : "bg-muted/50 hover:bg-muted border-2 border-transparent"
+                    }`}
+                  >
+                    <Building2 className={`w-4 h-4 ${selectedLocal === null ? "text-primary" : "text-muted-foreground"}`} />
+                    <div className="flex-1">
+                      <p className={`font-medium text-sm ${selectedLocal === null ? "text-primary" : "text-foreground"}`}>
+                        Todos os locais
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {slots.length} horário(s)
+                      </p>
                     </div>
+                    {selectedLocal === null && <Check className="w-4 h-4 text-primary" />}
+                  </button>
+
+                  {locais.map(local => (
+                    <button
+                      key={local.id}
+                      onClick={() => {
+                        setSelectedLocal(local.id);
+                        setSelectedSlot(null);
+                      }}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
+                        selectedLocal === local.id
+                          ? "bg-primary/10 border-2 border-primary"
+                          : "bg-muted/50 hover:bg-muted border-2 border-transparent"
+                      }`}
+                    >
+                      {local.tipo_atendimento === "online" ? (
+                        <Video className={`w-4 h-4 ${selectedLocal === local.id ? "text-primary" : "text-muted-foreground"}`} />
+                      ) : (
+                        <MapPin className={`w-4 h-4 ${selectedLocal === local.id ? "text-primary" : "text-muted-foreground"}`} />
+                      )}
+                      <div className="flex-1">
+                        <p className={`font-medium text-sm ${selectedLocal === local.id ? "text-primary" : "text-foreground"}`}>
+                          {local.nome_local}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {local.tipo_atendimento === "online" 
+                            ? "Atendimento Online"
+                            : `${local.cidade || ""}, ${local.estado || ""}`
+                          }
+                          {" · "}{slotsPerLocal[local.id] || 0} horário(s)
+                        </p>
+                      </div>
+                      {selectedLocal === local.id && <Check className="w-4 h-4 text-primary" />}
+                    </button>
                   ))}
                 </div>
               </div>
