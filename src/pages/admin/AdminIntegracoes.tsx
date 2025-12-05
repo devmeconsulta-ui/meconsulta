@@ -281,9 +281,15 @@ export default function AdminIntegracoes() {
             cidade: "São Paulo",
             estado: "SP"
           },
-          valor_consulta: 250.00,
-          status_pagamento: "pago",
-          mensagem_sugerida: "Olá Maria Santos! Sua consulta foi confirmada com sucesso via MeConsulta. Médico: Dr. João Silva (Cardiologia). Data: " + new Date().toLocaleDateString('pt-BR') + ". Local: Clínica Centro, Rua das Flores, 123 - Centro."
+          mensagem_sugerida: `Parabéns Maria Santos! 🎉
+
+Sua consulta está marcada com Dr. João Silva (Cardiologia) na data ${new Date().toLocaleDateString('pt-BR')}.
+
+📍 Local: Clínica Centro - Rua das Flores, 123 - Centro, São Paulo/SP
+
+⏰ Lembre-se de chegar 15 minutos antes do horário agendado.
+
+O MeConsulta te proporciona um atendimento de ponta e sem complicação. Aguardamos você na consulta!`
         };
 
     try {
