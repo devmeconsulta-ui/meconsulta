@@ -21,6 +21,7 @@ import AdminPacientes from "./pages/admin/AdminPacientes";
 import AdminConsultas from "./pages/admin/AdminConsultas";
 import AdminFinanceiro from "./pages/admin/AdminFinanceiro";
 import AdminConfiguracoes from "./pages/admin/AdminConfiguracoes";
+import AdminIntegracoes from "./pages/admin/AdminIntegracoes";
 
 // Medico pages
 import { MedicoLayout } from "./components/medico/MedicoLayout";
@@ -95,6 +96,7 @@ const App = () => (
               <Route path="consultas" element={<AdminConsultas />} />
               <Route path="financeiro" element={<AdminFinanceiro />} />
               <Route path="configuracoes" element={<AdminConfiguracoes />} />
+              <Route path="integracoes" element={<AdminIntegracoes />} />
             </Route>
 
             {/* Catch-all */}

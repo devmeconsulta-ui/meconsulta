@@ -9,6 +9,7 @@ import {
   Settings,
   Menu,
   X,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -66,6 +67,12 @@ const menuItems: MenuItem[] = [
     url: "/admin/configuracoes", 
     icon: Settings,
     allowedRoles: ["atendente", "supervisor", "admin", "superadmin"]
+  },
+  { 
+    title: "Integrações", 
+    url: "/admin/integracoes", 
+    icon: Plug,
+    allowedRoles: ["admin", "superadmin"]
   },
 ];
 
