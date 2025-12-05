@@ -88,6 +88,10 @@ const Checkout = () => {
     motivoConsulta: "",
     sintomas: "",
     observacoes: "",
+    // Other person data
+    outraPessoaNome: "",
+    outraPessoaCpf: "",
+    outraPessoaParentesco: "",
   });
 
   const isLoggedIn = !!currentUser?.pacienteId;
@@ -212,6 +216,18 @@ const Checkout = () => {
       }
     }
 
+    // Validate other person fields if selected
+    if (formData.paraQuem === "outra") {
+      if (!formData.outraPessoaNome.trim()) {
+        toast.error("Por favor, informe o nome da pessoa");
+        return;
+      }
+      if (!formData.outraPessoaParentesco) {
+        toast.error("Por favor, selecione o parentesco");
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
@@ -295,10 +311,12 @@ const Checkout = () => {
       }
 
       // Determine patient name for the consultation
-      const dependenteId = formData.paraQuem !== "eu" ? formData.paraQuem : null;
+      const dependenteId = formData.paraQuem !== "eu" && formData.paraQuem !== "outra" ? formData.paraQuem : null;
       let nomePacienteConsulta = userName || formData.nome;
       
-      if (dependenteId) {
+      if (formData.paraQuem === "outra") {
+        nomePacienteConsulta = formData.outraPessoaNome;
+      } else if (dependenteId) {
         const dependente = dependentes.find(d => d.id === dependenteId);
         if (dependente) {
           nomePacienteConsulta = dependente.nome;
@@ -654,6 +672,12 @@ const Checkout = () => {
                             Para mim
                           </Label>
                         </div>
+                        <div className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer">
+                          <RadioGroupItem value="outra" id="para-outra" />
+                          <Label htmlFor="para-outra" className="cursor-pointer flex-1">
+                            Para outra pessoa
+                          </Label>
+                        </div>
                         {dependentes.map((dep) => (
                           <div key={dep.id} className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer">
                             <RadioGroupItem value={dep.id} id={`dep-${dep.id}`} />
@@ -663,6 +687,55 @@ const Checkout = () => {
                           </div>
                         ))}
                       </RadioGroup>
+
+                      {/* Other person fields */}
+                      {formData.paraQuem === "outra" && (
+                        <div className="mt-4 p-4 bg-muted/30 rounded-lg space-y-4">
+                          <div>
+                            <Label htmlFor="outraPessoaNome">Nome completo da pessoa *</Label>
+                            <Input
+                              id="outraPessoaNome"
+                              value={formData.outraPessoaNome}
+                              onChange={(e) => setFormData(prev => ({ ...prev, outraPessoaNome: e.target.value }))}
+                              placeholder="Nome completo"
+                              className="mt-1"
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="outraPessoaCpf">CPF</Label>
+                              <Input
+                                id="outraPessoaCpf"
+                                value={formData.outraPessoaCpf}
+                                onChange={(e) => setFormData(prev => ({ ...prev, outraPessoaCpf: formatCPF(e.target.value) }))}
+                                placeholder="000.000.000-00"
+                                maxLength={14}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="outraPessoaParentesco">Parentesco *</Label>
+                              <Select 
+                                value={formData.outraPessoaParentesco}
+                                onValueChange={(value) => setFormData(prev => ({ ...prev, outraPessoaParentesco: value }))}
+                              >
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="filho">Filho(a)</SelectItem>
+                                  <SelectItem value="conjuge">Cônjuge</SelectItem>
+                                  <SelectItem value="pai">Pai</SelectItem>
+                                  <SelectItem value="mae">Mãe</SelectItem>
+                                  <SelectItem value="irmao">Irmão(ã)</SelectItem>
+                                  <SelectItem value="avo">Avô/Avó</SelectItem>
+                                  <SelectItem value="outro">Outro</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Tipo de serviço */}
