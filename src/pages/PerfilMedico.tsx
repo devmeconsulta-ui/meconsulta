@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Star, MapPin, GraduationCap, Stethoscope, Calendar, Clock, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { Star, MapPin, GraduationCap, Stethoscope, Calendar, Clock, ChevronLeft, ChevronRight, User, Video, Building2, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -31,6 +31,7 @@ interface Local {
   endereco: string | null;
   cidade: string | null;
   estado: string | null;
+  tipo_atendimento: string;
 }
 
 interface AgendaSlot {
@@ -59,6 +60,7 @@ const PerfilMedico = () => {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AgendaSlot | null>(null);
+  const [selectedLocal, setSelectedLocal] = useState<string | null>(null);
   const [weekStart, setWeekStart] = useState(0);
   const [mediaAvaliacao, setMediaAvaliacao] = useState(0);
 
@@ -96,7 +98,7 @@ const PerfilMedico = () => {
         .eq("ativo", true),
       supabase
         .from("locais_atendimento")
-        .select("id, nome_local, endereco, cidade, estado")
+        .select("id, nome_local, endereco, cidade, estado, tipo_atendimento")
         .eq("medico_id", id)
         .eq("ativo", true),
       supabase
@@ -127,6 +129,17 @@ const PerfilMedico = () => {
 
     setLoading(false);
   }
+
+  // Filter slots based on selected local
+  const filteredSlots = selectedLocal 
+    ? agendaSlots.filter(slot => slot.local_id === selectedLocal)
+    : agendaSlots;
+
+  // Count slots per local
+  const slotsPerLocal = locais.reduce((acc, local) => {
+    acc[local.id] = agendaSlots.filter(slot => slot.local_id === local.id).length;
+    return acc;
+  }, {} as Record<string, number>);
 
   if (loading) {
     return (
@@ -163,7 +176,7 @@ const PerfilMedico = () => {
   };
 
   const getSlotsForDate = (dateStr: string) => {
-    return agendaSlots.filter(slot => {
+    return filteredSlots.filter(slot => {
       const slotDate = format(new Date(slot.data_hora), "yyyy-MM-dd");
       return slotDate === dateStr && slot.disponivel;
     });
@@ -174,10 +187,17 @@ const PerfilMedico = () => {
   };
 
   const hasSlotForDate = (dateStr: string) => {
-    return agendaSlots.some(slot => {
+    return filteredSlots.some(slot => {
       const slotDate = format(new Date(slot.data_hora), "yyyy-MM-dd");
       return slotDate === dateStr && slot.disponivel;
     });
+  };
+
+  const handleLocalSelect = (localId: string | null) => {
+    setSelectedLocal(localId);
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setSelectedSlot(null);
   };
 
   const handleContinue = () => {
@@ -188,6 +208,7 @@ const PerfilMedico = () => {
 
   const visibleDays = getVisibleDays();
   const localPrincipal = locais[0];
+  const selectedLocalData = selectedLocal ? locais.find(l => l.id === selectedLocal) : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -299,25 +320,77 @@ const PerfilMedico = () => {
                 </div>
               )}
 
-              {/* Locations */}
-              {locais.length > 1 && (
+              {/* Locations - Clickable */}
+              {locais.length > 0 && (
                 <div className="bg-card rounded-2xl p-6 shadow-md">
                   <div className="flex items-center gap-2 mb-4">
                     <MapPin className="w-5 h-5 text-primary" />
                     <h2 className="text-xl font-bold text-foreground">Locais de Atendimento</h2>
                   </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Clique em um local para ver os horários disponíveis
+                  </p>
                   <div className="space-y-3">
-                    {locais.map((local) => (
-                      <div key={local.id} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-                        <MapPin className="w-4 h-4 text-primary mt-0.5" />
-                        <div>
-                          <p className="font-medium text-foreground">{local.nome_local}</p>
-                          {local.endereco && <p className="text-sm text-muted-foreground">{local.endereco}</p>}
-                          {local.cidade && (
-                            <p className="text-sm text-muted-foreground">{local.cidade}/{local.estado}</p>
-                          )}
-                        </div>
+                    {/* Option to show all */}
+                    <button
+                      onClick={() => handleLocalSelect(null)}
+                      className={`w-full flex items-start gap-3 p-3 rounded-lg transition-all text-left ${
+                        selectedLocal === null
+                          ? "bg-primary/10 border-2 border-primary"
+                          : "bg-muted/50 hover:bg-muted border-2 border-transparent"
+                      }`}
+                    >
+                      <Building2 className={`w-5 h-5 mt-0.5 ${selectedLocal === null ? "text-primary" : "text-muted-foreground"}`} />
+                      <div className="flex-1">
+                        <p className={`font-medium ${selectedLocal === null ? "text-primary" : "text-foreground"}`}>
+                          Todos os locais
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {agendaSlots.length} horário(s) disponível(is)
+                        </p>
                       </div>
+                      {selectedLocal === null && (
+                        <Check className="w-5 h-5 text-primary" />
+                      )}
+                    </button>
+
+                    {locais.map((local) => (
+                      <button
+                        key={local.id}
+                        onClick={() => handleLocalSelect(local.id)}
+                        className={`w-full flex items-start gap-3 p-3 rounded-lg transition-all text-left ${
+                          selectedLocal === local.id
+                            ? "bg-primary/10 border-2 border-primary"
+                            : "bg-muted/50 hover:bg-muted border-2 border-transparent"
+                        }`}
+                      >
+                        {local.tipo_atendimento === "online" ? (
+                          <Video className={`w-5 h-5 mt-0.5 ${selectedLocal === local.id ? "text-primary" : "text-muted-foreground"}`} />
+                        ) : (
+                          <MapPin className={`w-5 h-5 mt-0.5 ${selectedLocal === local.id ? "text-primary" : "text-muted-foreground"}`} />
+                        )}
+                        <div className="flex-1">
+                          <p className={`font-medium ${selectedLocal === local.id ? "text-primary" : "text-foreground"}`}>
+                            {local.nome_local}
+                          </p>
+                          {local.tipo_atendimento === "online" ? (
+                            <p className="text-sm text-muted-foreground">Atendimento Online</p>
+                          ) : (
+                            <>
+                              {local.endereco && <p className="text-sm text-muted-foreground">{local.endereco}</p>}
+                              {local.cidade && (
+                                <p className="text-sm text-muted-foreground">{local.cidade}/{local.estado}</p>
+                              )}
+                            </>
+                          )}
+                          <Badge variant="outline" className="mt-2 text-xs">
+                            {slotsPerLocal[local.id] || 0} horário(s) disponível(is)
+                          </Badge>
+                        </div>
+                        {selectedLocal === local.id && (
+                          <Check className="w-5 h-5 text-primary" />
+                        )}
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -333,6 +406,20 @@ const PerfilMedico = () => {
                     R$ {medico.valor_consulta.toFixed(2).replace(".", ",")}
                   </p>
                 </div>
+
+                {/* Selected Local Info */}
+                {selectedLocalData && (
+                  <div className="mb-4 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                    <div className="flex items-center gap-2">
+                      {selectedLocalData.tipo_atendimento === "online" ? (
+                        <Video className="w-4 h-4 text-primary" />
+                      ) : (
+                        <MapPin className="w-4 h-4 text-primary" />
+                      )}
+                      <span className="font-medium text-foreground text-sm">{selectedLocalData.nome_local}</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Date Selection */}
                 <div className="mb-6">
@@ -412,6 +499,7 @@ const PerfilMedico = () => {
                       {getSlotsForDate(selectedDate).map((slot) => {
                         const time = format(new Date(slot.data_hora), "HH:mm");
                         const isSelected = selectedSlot?.id === slot.id;
+                        const local = getLocalForSlot(slot);
                         return (
                           <button
                             key={slot.id}
@@ -420,14 +508,18 @@ const PerfilMedico = () => {
                               setSelectedSlot(slot);
                             }}
                             className={`
-                              py-2 px-3 rounded-lg text-sm font-medium transition-all
+                              py-2 px-3 rounded-lg text-sm font-medium transition-all relative group
                               ${isSelected 
                                 ? "bg-primary text-primary-foreground" 
                                 : "bg-muted hover:bg-primary/20 text-foreground"
                               }
                             `}
+                            title={local?.nome_local}
                           >
                             {time}
+                            {!selectedLocal && local && (
+                              <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" title={local.nome_local} />
+                            )}
                           </button>
                         );
                       })}
@@ -454,17 +546,28 @@ const PerfilMedico = () => {
                       return (
                         <div className="text-sm text-muted-foreground">
                           <p className="font-medium text-foreground">{local.nome_local}</p>
-                          {local.endereco && <p>{local.endereco}</p>}
-                          {local.cidade && <p>{local.cidade}/{local.estado}</p>}
+                          {local.tipo_atendimento === "online" ? (
+                            <p className="flex items-center gap-1">
+                              <Video className="w-3 h-3" /> Atendimento Online
+                            </p>
+                          ) : (
+                            <>
+                              {local.endereco && <p>{local.endereco}</p>}
+                              {local.cidade && <p>{local.cidade}/{local.estado}</p>}
+                            </>
+                          )}
                         </div>
                       );
                     })()}
                   </div>
                 )}
 
-                {agendaSlots.length === 0 && (
+                {filteredSlots.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-4 mb-4">
-                    Este médico ainda não possui horários disponíveis
+                    {selectedLocal 
+                      ? "Nenhum horário disponível neste local"
+                      : "Este médico ainda não possui horários disponíveis"
+                    }
                   </p>
                 )}
 
