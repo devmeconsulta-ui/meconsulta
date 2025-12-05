@@ -52,10 +52,13 @@ interface Dependente {
 }
 
 const Checkout = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id: rawId } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { currentUser, setCurrentUser } = useAuth();
+  
+  // Extract only the UUID from the id parameter (in case query params are appended)
+  const id = rawId?.split('?')[0] || rawId;
   
   const selectedDate = searchParams.get("data") || "";
   const selectedTime = searchParams.get("horario") || "";
