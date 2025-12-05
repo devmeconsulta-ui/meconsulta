@@ -80,6 +80,17 @@ serve(async (req) => {
       );
     }
 
+    // Check minimum value for Asaas (R$ 5,00)
+    if (consulta.valor_consulta < 5) {
+      console.error(`Valor da consulta (R$ ${consulta.valor_consulta}) abaixo do mínimo permitido (R$ 5,00)`);
+      return new Response(
+        JSON.stringify({ 
+          error: `O valor mínimo para pagamento é R$ 5,00. O valor desta consulta é R$ ${Number(consulta.valor_consulta).toFixed(2)}.` 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // 3. Fetch patient data
     const { data: paciente, error: pacienteError } = await supabase
       .from('pacientes')
@@ -202,8 +213,8 @@ serve(async (req) => {
       console.log('Saved Asaas customer ID to paciente:', asaasCustomerId);
     }
 
-    // 6. Create PIX payment
-    console.log('Creating PIX payment...');
+    // 6. Create payment with UNDEFINED billing type (allows PIX, Card, Boleto)
+    console.log('Creating payment with multiple payment options...');
     
     // Due date: 3 days from now
     const dueDate = new Date();
@@ -212,7 +223,7 @@ serve(async (req) => {
 
     const paymentPayload = {
       customer: asaasCustomerId,
-      billingType: 'PIX',
+      billingType: 'UNDEFINED', // Allows customer to choose between PIX, Card, or Boleto
       value: consulta.valor_consulta,
       dueDate: dueDateStr,
       description: `Consulta médica - MeConsulta`,
@@ -250,26 +261,16 @@ serve(async (req) => {
 
     if (!paymentResponse.ok) {
       console.error('Failed to create payment:', paymentResult);
+      
+      // Check for specific error messages
+      const errorDesc = paymentResult.errors?.[0]?.description || 'Erro ao criar cobrança';
       return new Response(
-        JSON.stringify({ error: 'Erro ao criar cobrança no Asaas', details: paymentResult }),
+        JSON.stringify({ error: errorDesc, details: paymentResult }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 7. Get PIX QR Code
-    let pixData = null;
-    if (paymentResult.id) {
-      const pixResponse = await fetch(`${config.base_url}/payments/${paymentResult.id}/pixQrCode`, {
-        headers: { 'access_token': config.api_key },
-      });
-      
-      if (pixResponse.ok) {
-        pixData = await pixResponse.json();
-        console.log('PIX QR Code retrieved successfully');
-      }
-    }
-
-    // 8. Update consulta with payment info
+    // 7. Update consulta with payment info
     const { error: updateError } = await supabase
       .from('consultas')
       .update({
@@ -289,8 +290,6 @@ serve(async (req) => {
         success: true,
         paymentId: paymentResult.id,
         invoiceUrl: paymentResult.invoiceUrl,
-        pixQrCode: pixData?.encodedImage,
-        pixCopyPaste: pixData?.payload,
         dueDate: dueDateStr,
         value: consulta.valor_consulta,
       }),
