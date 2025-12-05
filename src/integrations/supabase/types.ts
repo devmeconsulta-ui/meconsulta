@@ -177,8 +177,75 @@ export type Database = {
           },
         ]
       }
+      config_asaas: {
+        Row: {
+          ambiente: string
+          api_key: string
+          ativo: boolean | null
+          base_url: string
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          webhook_url: string | null
+        }
+        Insert: {
+          ambiente: string
+          api_key: string
+          ativo?: boolean | null
+          base_url: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          webhook_url?: string | null
+        }
+        Update: {
+          ambiente?: string
+          api_key?: string
+          ativo?: boolean | null
+          base_url?: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          webhook_url?: string | null
+        }
+        Relationships: []
+      }
+      config_whatsapp: {
+        Row: {
+          api_base_url: string | null
+          api_token: string | null
+          ativo: boolean | null
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          webhook_medico_url: string | null
+          webhook_paciente_url: string | null
+        }
+        Insert: {
+          api_base_url?: string | null
+          api_token?: string | null
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          webhook_medico_url?: string | null
+          webhook_paciente_url?: string | null
+        }
+        Update: {
+          api_base_url?: string | null
+          api_token?: string | null
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          webhook_medico_url?: string | null
+          webhook_paciente_url?: string | null
+        }
+        Relationships: []
+      }
       consultas: {
         Row: {
+          asaas_invoice_url: string | null
           asaas_payment_id: string | null
           created_at: string | null
           data_hora: string
@@ -199,6 +266,7 @@ export type Database = {
           valor_plataforma: number
         }
         Insert: {
+          asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
           created_at?: string | null
           data_hora: string
@@ -219,6 +287,7 @@ export type Database = {
           valor_plataforma: number
         }
         Update: {
+          asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
           created_at?: string | null
           data_hora?: string
@@ -401,6 +470,7 @@ export type Database = {
           percentual_repasse: number
           pix_key: string | null
           pix_key_type: string | null
+          telefone_whatsapp: string | null
           tipo_conta: string | null
           titular_cpf_cnpj: string | null
           titular_nome: string | null
@@ -425,6 +495,7 @@ export type Database = {
           percentual_repasse?: number
           pix_key?: string | null
           pix_key_type?: string | null
+          telefone_whatsapp?: string | null
           tipo_conta?: string | null
           titular_cpf_cnpj?: string | null
           titular_nome?: string | null
@@ -449,6 +520,7 @@ export type Database = {
           percentual_repasse?: number
           pix_key?: string | null
           pix_key_type?: string | null
+          telefone_whatsapp?: string | null
           tipo_conta?: string | null
           titular_cpf_cnpj?: string | null
           titular_nome?: string | null
