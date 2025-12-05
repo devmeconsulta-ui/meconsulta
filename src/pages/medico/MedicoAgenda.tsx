@@ -457,7 +457,12 @@ export default function MedicoAgenda() {
         onOpenChange={setGerarSlotsModalOpen}
         locais={locais}
         medicoId={medicoData.id}
-        onSuccess={fetchData}
+        onSuccess={(firstDate) => {
+          if (firstDate) {
+            setSelectedDate(firstDate);
+          }
+          fetchData();
+        }}
       />
     </div>
   );
