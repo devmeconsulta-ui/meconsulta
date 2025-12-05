@@ -212,11 +212,11 @@ export default function ConsultaDetalhesModal({
         </DialogHeader>
 
         <Tabs defaultValue="paciente" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="paciente">Paciente</TabsTrigger>
-            <TabsTrigger value="historico">Histórico</TabsTrigger>
-            <TabsTrigger value="anamneses">Anamneses</TabsTrigger>
-            <TabsTrigger value="nova-anamnese">Nova Anamnese</TabsTrigger>
+          <TabsList className="w-full flex flex-wrap h-auto gap-1 p-1">
+            <TabsTrigger value="paciente" className="flex-1 min-w-[100px]">Paciente</TabsTrigger>
+            <TabsTrigger value="historico" className="flex-1 min-w-[100px]">Histórico</TabsTrigger>
+            <TabsTrigger value="anamneses" className="flex-1 min-w-[100px]">Anamneses</TabsTrigger>
+            <TabsTrigger value="nova-anamnese" className="flex-1 min-w-[120px]">Nova Anamnese</TabsTrigger>
           </TabsList>
 
           <ScrollArea className="h-[60vh] mt-4">
