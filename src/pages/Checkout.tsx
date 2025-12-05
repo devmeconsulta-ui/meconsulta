@@ -8,10 +8,26 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar, MapPin, ChevronLeft, CreditCard, User } from "lucide-react";
-import { getDoctorById, Doctor } from "@/data/mockDoctors";
+import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+
+interface Medico {
+  id: string;
+  nome: string;
+  especialidade: string | null;
+  foto_url: string | null;
+  valor_consulta: number;
+}
+
+interface Local {
+  id: string;
+  nome_local: string;
+  endereco: string | null;
+  cidade: string | null;
+  estado: string | null;
+}
 
 const Checkout = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,8 +36,11 @@ const Checkout = () => {
   
   const selectedDate = searchParams.get("data") || "";
   const selectedTime = searchParams.get("horario") || "";
+  const localId = searchParams.get("local") || "";
   
-  const [doctor, setDoctor] = useState<Doctor | null>(null);
+  const [medico, setMedico] = useState<Medico | null>(null);
+  const [local, setLocal] = useState<Local | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isFirstVisit, setIsFirstVisit] = useState<string>("sim");
   const [noInsurance, setNoInsurance] = useState(true);
   
@@ -34,12 +53,56 @@ const Checkout = () => {
 
   useEffect(() => {
     if (id) {
-      const foundDoctor = getDoctorById(id);
-      setDoctor(foundDoctor || null);
+      fetchData();
     }
-  }, [id]);
+  }, [id, localId]);
 
-  if (!doctor) {
+  async function fetchData() {
+    setLoading(true);
+    
+    // Fetch medico
+    const { data: medicoData, error: medicoError } = await supabase
+      .from("medicos")
+      .select("id, nome, especialidade, foto_url, valor_consulta")
+      .eq("id", id)
+      .eq("ativo", true)
+      .maybeSingle();
+
+    if (medicoError || !medicoData) {
+      console.error("Error fetching medico:", medicoError);
+      setLoading(false);
+      return;
+    }
+
+    setMedico(medicoData);
+
+    // Fetch local if provided
+    if (localId) {
+      const { data: localData } = await supabase
+        .from("locais_atendimento")
+        .select("id, nome_local, endereco, cidade, estado")
+        .eq("id", localId)
+        .maybeSingle();
+      
+      setLocal(localData);
+    }
+
+    setLoading(false);
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!medico) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
@@ -104,7 +167,7 @@ const Checkout = () => {
                     <Label className="text-base font-medium">Tipo de visita *</Label>
                     <div className="mt-2 p-4 bg-muted rounded-lg flex justify-between items-center">
                       <span className="text-foreground">
-                        Primeira consulta {doctor.specialty.toLowerCase()} • R$ {doctor.consultationPrice.toFixed(2).replace(".", ",")}
+                        Primeira consulta {medico.especialidade?.toLowerCase() || ""} • R$ {medico.valor_consulta.toFixed(2).replace(".", ",")}
                       </span>
                       <button type="button" className="text-primary font-medium hover:underline">
                         Altere
@@ -235,14 +298,20 @@ const Checkout = () => {
               <div className="bg-card rounded-2xl p-6 shadow-md sticky top-24">
                 {/* Doctor Info */}
                 <div className="flex gap-4 mb-6 pb-6 border-b border-border">
-                  <img 
-                    src={doctor.image} 
-                    alt={doctor.name}
-                    className="w-16 h-16 rounded-xl object-cover"
-                  />
+                  {medico.foto_url ? (
+                    <img 
+                      src={medico.foto_url} 
+                      alt={medico.nome}
+                      className="w-16 h-16 rounded-xl object-cover"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center">
+                      <User className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                  )}
                   <div>
-                    <h3 className="font-semibold text-foreground">{doctor.name}</h3>
-                    <p className="text-sm text-primary">{doctor.specialty}</p>
+                    <h3 className="font-semibold text-foreground">{medico.nome}</h3>
+                    <p className="text-sm text-primary">{medico.especialidade}</p>
                   </div>
                 </div>
 
@@ -257,19 +326,30 @@ const Checkout = () => {
                       <p className="text-sm text-muted-foreground">
                         {selectedTime} - Fuso horário: Brasília
                       </p>
-                      <button className="text-primary text-sm font-medium hover:underline">
+                      <button 
+                        type="button"
+                        onClick={() => navigate(-1)}
+                        className="text-primary text-sm font-medium hover:underline"
+                      >
                         Mudar a data
                       </button>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-3">
-                    <MapPin className="w-5 h-5 text-primary mt-0.5" />
-                    <div>
-                      <p className="font-medium text-foreground">{doctor.neighborhood}</p>
-                      <p className="text-sm text-muted-foreground">{doctor.address}</p>
+                  {local && (
+                    <div className="flex items-start gap-3">
+                      <MapPin className="w-5 h-5 text-primary mt-0.5" />
+                      <div>
+                        <p className="font-medium text-foreground">{local.nome_local}</p>
+                        {local.endereco && (
+                          <p className="text-sm text-muted-foreground">{local.endereco}</p>
+                        )}
+                        {local.cidade && (
+                          <p className="text-sm text-muted-foreground">{local.cidade}/{local.estado}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Total */}
@@ -277,7 +357,7 @@ const Checkout = () => {
                   <div className="flex justify-between items-center">
                     <span className="text-foreground font-medium">Total</span>
                     <span className="text-2xl font-bold text-foreground">
-                      R$ {doctor.consultationPrice.toFixed(2).replace(".", ",")}
+                      R$ {medico.valor_consulta.toFixed(2).replace(".", ",")}
                     </span>
                   </div>
                 </div>
