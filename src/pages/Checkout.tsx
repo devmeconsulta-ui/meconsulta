@@ -57,7 +57,7 @@ const Checkout = () => {
   const navigate = useNavigate();
   const { currentUser, setCurrentUser } = useAuth();
   
-  // Extract only the UUID from the id parameter (in case query params are appended)
+  // Extract only the UUID from the id parameter
   const id = rawId?.split('?')[0] || rawId;
   
   const selectedDate = searchParams.get("data") || "";
@@ -73,24 +73,24 @@ const Checkout = () => {
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   
-  // Registration form state
-  const [registerData, setRegisterData] = useState({
+  // Combined form state
+  const [formData, setFormData] = useState({
+    // Personal data (for new users)
     nome: "",
     cpf: "",
     email: "",
     telefone: "",
     senha: "",
     confirmarSenha: "",
-  });
-  const [isRegistering, setIsRegistering] = useState(false);
-  
-  const [formData, setFormData] = useState({
+    // Consultation data
     tipoServico: "",
     paraQuem: "eu",
     motivoConsulta: "",
     sintomas: "",
     observacoes: "",
   });
+
+  const isLoggedIn = !!currentUser?.pacienteId;
 
   useEffect(() => {
     if (id) {
@@ -99,7 +99,6 @@ const Checkout = () => {
   }, [id, localId]);
 
   useEffect(() => {
-    // Re-fetch dependents when user logs in
     if (currentUser?.pacienteId) {
       fetchDependentes();
     }
@@ -120,7 +119,6 @@ const Checkout = () => {
   async function fetchData() {
     setLoading(true);
     
-    // Fetch medico
     const { data: medicoData, error: medicoError } = await supabase
       .from("medicos")
       .select("id, nome, especialidade, foto_url, valor_consulta")
@@ -136,7 +134,6 @@ const Checkout = () => {
 
     setMedico(medicoData);
 
-    // Fetch local if provided
     if (localId) {
       const { data: localData } = await supabase
         .from("locais_atendimento")
@@ -147,7 +144,6 @@ const Checkout = () => {
       setLocal(localData);
     }
 
-    // Fetch services offered by the doctor
     const { data: servicosData } = await supabase
       .from("medico_servicos")
       .select("id, nome_servico")
@@ -156,7 +152,6 @@ const Checkout = () => {
     
     setServicos(servicosData || []);
 
-    // Fetch user's dependents if logged in
     if (currentUser?.pacienteId) {
       const { data: dependentesData } = await supabase
         .from("paciente_dependentes")
@@ -170,7 +165,6 @@ const Checkout = () => {
     setLoading(false);
   }
 
-  // Format CPF as user types
   const formatCPF = (value: string) => {
     const numbers = value.replace(/\D/g, "");
     if (numbers.length <= 3) return numbers;
@@ -179,144 +173,12 @@ const Checkout = () => {
     return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`;
   };
 
-  // Format phone as user types
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, "");
     if (numbers.length <= 2) return numbers;
     if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
     return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
   };
-
-  const handleRegister = async () => {
-    // Validate registration form
-    if (!registerData.nome.trim()) {
-      toast.error("Por favor, informe seu nome completo");
-      return;
-    }
-    if (!registerData.cpf || registerData.cpf.replace(/\D/g, "").length !== 11) {
-      toast.error("Por favor, informe um CPF válido");
-      return;
-    }
-    if (!registerData.email || !registerData.email.includes("@")) {
-      toast.error("Por favor, informe um email válido");
-      return;
-    }
-    if (!registerData.senha || registerData.senha.length < 6) {
-      toast.error("A senha deve ter pelo menos 6 caracteres");
-      return;
-    }
-    if (registerData.senha !== registerData.confirmarSenha) {
-      toast.error("As senhas não coincidem");
-      return;
-    }
-
-    setIsRegistering(true);
-
-    try {
-      // Check if email already exists
-      const { data: existingUser } = await supabase
-        .from("usuarios")
-        .select("id")
-        .eq("email", registerData.email.toLowerCase())
-        .maybeSingle();
-
-      if (existingUser) {
-        toast.error("Este email já está cadastrado. Por favor, faça login.");
-        setIsRegistering(false);
-        return;
-      }
-
-      // Check if CPF already exists
-      const cpfClean = registerData.cpf.replace(/\D/g, "");
-      const { data: existingCpf } = await supabase
-        .from("pacientes")
-        .select("id")
-        .eq("cpf", cpfClean)
-        .maybeSingle();
-
-      if (existingCpf) {
-        toast.error("Este CPF já está cadastrado. Por favor, faça login.");
-        setIsRegistering(false);
-        return;
-      }
-
-      // Create user in usuarios table
-      const { data: newUser, error: userError } = await supabase
-        .from("usuarios")
-        .insert({
-          nome: registerData.nome.trim(),
-          email: registerData.email.toLowerCase().trim(),
-          tipo: "paciente",
-          senha_hash: registerData.senha, // In production, this should be hashed
-          ativo: true,
-        })
-        .select("id, nome, email, tipo")
-        .single();
-
-      if (userError) throw userError;
-
-      // Create patient record
-      const { data: newPaciente, error: pacienteError } = await supabase
-        .from("pacientes")
-        .insert({
-          usuario_id: newUser.id,
-          nome: registerData.nome.trim(),
-          cpf: cpfClean,
-          telefone: registerData.telefone.replace(/\D/g, "") || null,
-        })
-        .select("id")
-        .single();
-
-      if (pacienteError) throw pacienteError;
-
-      // Auto-login the user
-      const loggedUser: CurrentUser = {
-        id: newUser.id,
-        nome: newUser.nome,
-        email: newUser.email,
-        tipo: "paciente",
-        pacienteId: newPaciente.id,
-      };
-
-      setCurrentUser(loggedUser);
-      toast.success("Conta criada com sucesso!");
-
-    } catch (error) {
-      console.error("Registration error:", error);
-      toast.error("Erro ao criar conta. Tente novamente.");
-    } finally {
-      setIsRegistering(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  if (!medico) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="container mx-auto px-4 py-20 text-center">
-          <h1 className="text-2xl font-bold text-foreground mb-4">Médico não encontrado</h1>
-          <Button onClick={() => navigate("/buscar-medicos")}>Voltar para busca</Button>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  const formattedDate = selectedDate 
-    ? format(parseISO(selectedDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
-    : "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -326,16 +188,115 @@ const Checkout = () => {
       return;
     }
 
-    if (!currentUser?.pacienteId) {
-      toast.error("Você precisa criar uma conta para agendar");
-      return;
+    // Validate personal data for new users
+    if (!isLoggedIn) {
+      if (!formData.nome.trim()) {
+        toast.error("Por favor, informe seu nome completo");
+        return;
+      }
+      if (!formData.cpf || formData.cpf.replace(/\D/g, "").length !== 11) {
+        toast.error("Por favor, informe um CPF válido");
+        return;
+      }
+      if (!formData.email || !formData.email.includes("@")) {
+        toast.error("Por favor, informe um email válido");
+        return;
+      }
+      if (!formData.senha || formData.senha.length < 6) {
+        toast.error("A senha deve ter pelo menos 6 caracteres");
+        return;
+      }
+      if (formData.senha !== formData.confirmarSenha) {
+        toast.error("As senhas não coincidem");
+        return;
+      }
     }
 
     setSubmitting(true);
 
     try {
+      let pacienteId = currentUser?.pacienteId;
+      let userId = currentUser?.id;
+      let userName = currentUser?.nome;
+
+      // Create user if not logged in
+      if (!isLoggedIn) {
+        // Check if email already exists
+        const { data: existingUser } = await supabase
+          .from("usuarios")
+          .select("id")
+          .eq("email", formData.email.toLowerCase())
+          .maybeSingle();
+
+        if (existingUser) {
+          toast.error("Este email já está cadastrado. Por favor, faça login.");
+          setSubmitting(false);
+          return;
+        }
+
+        // Check if CPF already exists
+        const cpfClean = formData.cpf.replace(/\D/g, "");
+        const { data: existingCpf } = await supabase
+          .from("pacientes")
+          .select("id")
+          .eq("cpf", cpfClean)
+          .maybeSingle();
+
+        if (existingCpf) {
+          toast.error("Este CPF já está cadastrado. Por favor, faça login.");
+          setSubmitting(false);
+          return;
+        }
+
+        // Create user
+        const { data: newUser, error: userError } = await supabase
+          .from("usuarios")
+          .insert({
+            nome: formData.nome.trim(),
+            email: formData.email.toLowerCase().trim(),
+            tipo: "paciente",
+            senha_hash: formData.senha,
+            ativo: true,
+          })
+          .select("id, nome, email, tipo")
+          .single();
+
+        if (userError) throw userError;
+
+        // Create patient record
+        const { data: newPaciente, error: pacienteError } = await supabase
+          .from("pacientes")
+          .insert({
+            usuario_id: newUser.id,
+            nome: formData.nome.trim(),
+            cpf: cpfClean,
+            telefone: formData.telefone.replace(/\D/g, "") || null,
+          })
+          .select("id")
+          .single();
+
+        if (pacienteError) throw pacienteError;
+
+        pacienteId = newPaciente.id;
+        userId = newUser.id;
+        userName = newUser.nome;
+
+        // Auto-login
+        const loggedUser: CurrentUser = {
+          id: newUser.id,
+          nome: newUser.nome,
+          email: newUser.email,
+          tipo: "paciente",
+          pacienteId: newPaciente.id,
+        };
+        setCurrentUser(loggedUser);
+        
+        toast.success("Conta criada com sucesso!");
+      }
+
+      // Determine patient name for the consultation
       const dependenteId = formData.paraQuem !== "eu" ? formData.paraQuem : null;
-      let nomePacienteConsulta = currentUser.nome;
+      let nomePacienteConsulta = userName || formData.nome;
       
       if (dependenteId) {
         const dependente = dependentes.find(d => d.id === dependenteId);
@@ -350,14 +311,14 @@ const Checkout = () => {
       const { data: consultaData, error } = await supabase
         .from("consultas")
         .insert({
-          medico_id: medico.id,
-          paciente_id: currentUser.pacienteId,
+          medico_id: medico!.id,
+          paciente_id: pacienteId,
           dependente_id: dependenteId,
           nome_paciente_consulta: nomePacienteConsulta,
           data_hora: dataHora,
-          valor_consulta: medico.valor_consulta,
-          valor_medico: medico.valor_consulta * 0.7,
-          valor_plataforma: medico.valor_consulta * 0.3,
+          valor_consulta: medico!.valor_consulta,
+          valor_medico: medico!.valor_consulta * 0.7,
+          valor_plataforma: medico!.valor_consulta * 0.3,
           motivo_consulta: formData.motivoConsulta,
           sintomas: formData.sintomas,
           tipo_servico: formData.tipoServico,
@@ -408,6 +369,35 @@ const Checkout = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!medico) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-20 text-center">
+          <h1 className="text-2xl font-bold text-foreground mb-4">Médico não encontrado</h1>
+          <Button onClick={() => navigate("/buscar-medicos")}>Voltar para busca</Button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  const formattedDate = selectedDate 
+    ? format(parseISO(selectedDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+    : "";
+
   // Payment success screen
   if (showPayment && paymentData) {
     return (
@@ -428,7 +418,6 @@ const Checkout = () => {
                 Pague via PIX para confirmar sua consulta
               </p>
 
-              {/* PIX QR Code */}
               {paymentData.pixQrCode && (
                 <div className="mb-6">
                   <div className="inline-block p-4 bg-white rounded-xl shadow-inner">
@@ -441,7 +430,6 @@ const Checkout = () => {
                 </div>
               )}
 
-              {/* PIX Copy & Paste */}
               {paymentData.pixCopyPaste && (
                 <div className="mb-6">
                   <p className="text-sm text-muted-foreground mb-2">Ou copie o código PIX:</p>
@@ -460,7 +448,6 @@ const Checkout = () => {
                 </div>
               )}
 
-              {/* Payment Info */}
               <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg mb-6">
                 <div className="flex justify-between items-center">
                   <span className="text-foreground">Valor a pagar:</span>
@@ -473,7 +460,6 @@ const Checkout = () => {
                 </p>
               </div>
 
-              {/* Actions */}
               <div className="flex flex-col gap-3">
                 {paymentData.invoiceUrl && (
                   <Button 
@@ -511,7 +497,6 @@ const Checkout = () => {
       
       <main className="py-8">
         <div className="container mx-auto px-4 max-w-5xl">
-          {/* Back Button */}
           <Button 
             variant="ghost" 
             onClick={() => navigate(-1)}
@@ -522,262 +507,258 @@ const Checkout = () => {
           </Button>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Form - Left Column */}
             <div className="lg:col-span-2">
-              {/* Registration Form - Show if not logged in */}
-              {!currentUser?.pacienteId && (
-                <div className="bg-card rounded-2xl p-6 shadow-md mb-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <User className="w-5 h-5 text-primary" />
-                    <h2 className="text-xl font-bold text-foreground">Criar sua conta</h2>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Personal Data Section - Only for non-logged users */}
+                {!isLoggedIn && (
+                  <div className="bg-card rounded-2xl p-6 shadow-md">
+                    <div className="flex items-center gap-2 mb-4">
+                      <User className="w-5 h-5 text-primary" />
+                      <h2 className="text-xl font-bold text-foreground">Seus Dados</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <Label htmlFor="nome">Nome completo *</Label>
+                        <Input
+                          id="nome"
+                          value={formData.nome}
+                          onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
+                          placeholder="Seu nome completo"
+                          className="mt-1"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="cpf">CPF *</Label>
+                        <Input
+                          id="cpf"
+                          value={formData.cpf}
+                          onChange={(e) => setFormData(prev => ({ ...prev, cpf: formatCPF(e.target.value) }))}
+                          placeholder="000.000.000-00"
+                          maxLength={14}
+                          className="mt-1"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="telefone">Telefone</Label>
+                        <div className="relative mt-1">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            id="telefone"
+                            value={formData.telefone}
+                            onChange={(e) => setFormData(prev => ({ ...prev, telefone: formatPhone(e.target.value) }))}
+                            placeholder="(00) 00000-0000"
+                            maxLength={15}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <Label htmlFor="email">Email *</Label>
+                        <div className="relative mt-1">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            id="email"
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                            placeholder="seu@email.com"
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="senha">Senha *</Label>
+                        <div className="relative mt-1">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            id="senha"
+                            type="password"
+                            value={formData.senha}
+                            onChange={(e) => setFormData(prev => ({ ...prev, senha: e.target.value }))}
+                            placeholder="Mínimo 6 caracteres"
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="confirmarSenha">Confirmar senha *</Label>
+                        <div className="relative mt-1">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            id="confirmarSenha"
+                            type="password"
+                            value={formData.confirmarSenha}
+                            onChange={(e) => setFormData(prev => ({ ...prev, confirmarSenha: e.target.value }))}
+                            placeholder="Repita a senha"
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-center text-sm text-muted-foreground mt-4">
+                      Já tem uma conta?{" "}
+                      <button 
+                        type="button"
+                        onClick={() => navigate("/entrar")}
+                        className="text-primary hover:underline font-medium"
+                      >
+                        Faça login
+                      </button>
+                    </p>
                   </div>
-                  <p className="text-muted-foreground mb-6">
-                    Preencha seus dados para continuar com o agendamento
-                  </p>
+                )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
-                      <Label htmlFor="nome">Nome completo *</Label>
-                      <Input
-                        id="nome"
-                        value={registerData.nome}
-                        onChange={(e) => setRegisterData(prev => ({ ...prev, nome: e.target.value }))}
-                        placeholder="Seu nome completo"
-                        className="mt-1"
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="cpf">CPF *</Label>
-                      <Input
-                        id="cpf"
-                        value={registerData.cpf}
-                        onChange={(e) => setRegisterData(prev => ({ ...prev, cpf: formatCPF(e.target.value) }))}
-                        placeholder="000.000.000-00"
-                        maxLength={14}
-                        className="mt-1"
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="telefone">Telefone</Label>
-                      <div className="relative mt-1">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="telefone"
-                          value={registerData.telefone}
-                          onChange={(e) => setRegisterData(prev => ({ ...prev, telefone: formatPhone(e.target.value) }))}
-                          placeholder="(00) 00000-0000"
-                          maxLength={15}
-                          className="pl-10"
-                        />
+                {/* Logged user info */}
+                {isLoggedIn && (
+                  <div className="bg-card rounded-2xl p-6 shadow-md">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="w-6 h-6 text-primary" />
                       </div>
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <Label htmlFor="email">Email *</Label>
-                      <div className="relative mt-1">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="email"
-                          type="email"
-                          value={registerData.email}
-                          onChange={(e) => setRegisterData(prev => ({ ...prev, email: e.target.value }))}
-                          placeholder="seu@email.com"
-                          className="pl-10"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="senha">Senha *</Label>
-                      <div className="relative mt-1">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="senha"
-                          type="password"
-                          value={registerData.senha}
-                          onChange={(e) => setRegisterData(prev => ({ ...prev, senha: e.target.value }))}
-                          placeholder="Mínimo 6 caracteres"
-                          className="pl-10"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="confirmarSenha">Confirmar senha *</Label>
-                      <div className="relative mt-1">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="confirmarSenha"
-                          type="password"
-                          value={registerData.confirmarSenha}
-                          onChange={(e) => setRegisterData(prev => ({ ...prev, confirmarSenha: e.target.value }))}
-                          placeholder="Repita a senha"
-                          className="pl-10"
-                        />
+                      <div>
+                        <p className="font-medium text-foreground">{currentUser?.nome}</p>
+                        <p className="text-sm text-muted-foreground">{currentUser?.email}</p>
                       </div>
                     </div>
                   </div>
+                )}
 
-                  <Button 
-                    onClick={handleRegister}
-                    disabled={isRegistering}
-                    className="w-full mt-6"
-                  >
-                    {isRegistering ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Criando conta...
-                      </>
-                    ) : "Criar conta e continuar"}
-                  </Button>
+                {/* Consultation Info Section */}
+                <div className="bg-card rounded-2xl p-6 shadow-md">
+                  <h2 className="text-xl font-bold text-foreground mb-6">
+                    Informações da Consulta
+                  </h2>
 
-                  <p className="text-center text-sm text-muted-foreground mt-4">
-                    Já tem uma conta?{" "}
-                    <button 
-                      onClick={() => navigate("/entrar")}
-                      className="text-primary hover:underline font-medium"
-                    >
-                      Faça login
-                    </button>
-                  </p>
-                </div>
-              )}
-
-              {/* Consultation Form - Show after registration/login */}
-              <div className={`bg-card rounded-2xl p-6 shadow-md ${!currentUser?.pacienteId ? 'opacity-50 pointer-events-none' : ''}`}>
-                <h1 className="text-2xl font-bold text-foreground mb-6">
-                  Informações da Consulta
-                </h1>
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* Para quem é a consulta */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Users className="w-5 h-5 text-primary" />
-                      <Label className="text-base font-medium">Para quem é esta consulta? *</Label>
-                    </div>
-                    <RadioGroup 
-                      value={formData.paraQuem} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, paraQuem: value }))}
-                      className="space-y-2"
-                    >
-                      <div className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer">
-                        <RadioGroupItem value="eu" id="para-mim" />
-                        <Label htmlFor="para-mim" className="cursor-pointer flex-1">
-                          Para mim
-                        </Label>
+                  <div className="space-y-6">
+                    {/* Para quem */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Users className="w-5 h-5 text-primary" />
+                        <Label className="text-base font-medium">Para quem é esta consulta? *</Label>
                       </div>
-                      {dependentes.map((dep) => (
-                        <div key={dep.id} className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer">
-                          <RadioGroupItem value={dep.id} id={`dep-${dep.id}`} />
-                          <Label htmlFor={`dep-${dep.id}`} className="cursor-pointer flex-1">
-                            {dep.nome} <span className="text-muted-foreground">({dep.parentesco})</span>
+                      <RadioGroup 
+                        value={formData.paraQuem} 
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, paraQuem: value }))}
+                        className="space-y-2"
+                      >
+                        <div className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer">
+                          <RadioGroupItem value="eu" id="para-mim" />
+                          <Label htmlFor="para-mim" className="cursor-pointer flex-1">
+                            Para mim
                           </Label>
                         </div>
-                      ))}
-                    </RadioGroup>
-                    {dependentes.length === 0 && currentUser?.pacienteId && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Você pode cadastrar dependentes no seu perfil para agendar consultas para eles.
-                      </p>
+                        {dependentes.map((dep) => (
+                          <div key={dep.id} className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer">
+                            <RadioGroupItem value={dep.id} id={`dep-${dep.id}`} />
+                            <Label htmlFor={`dep-${dep.id}`} className="cursor-pointer flex-1">
+                              {dep.nome} <span className="text-muted-foreground">({dep.parentesco})</span>
+                            </Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                    </div>
+
+                    {/* Tipo de serviço */}
+                    {servicos.length > 0 && (
+                      <div>
+                        <Label className="text-base font-medium">Tipo de serviço</Label>
+                        <Select 
+                          value={formData.tipoServico}
+                          onValueChange={(value) => setFormData(prev => ({ ...prev, tipoServico: value }))}
+                        >
+                          <SelectTrigger className="mt-2">
+                            <SelectValue placeholder="Selecione o tipo de serviço (opcional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {servicos.map((servico) => (
+                              <SelectItem key={servico.id} value={servico.nome_servico}>
+                                {servico.nome_servico}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     )}
-                  </div>
 
-                  {/* Tipo de serviço */}
-                  {servicos.length > 0 && (
+                    {/* Motivo */}
                     <div>
-                      <Label className="text-base font-medium">Tipo de serviço</Label>
-                      <Select 
-                        value={formData.tipoServico}
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, tipoServico: value }))}
-                      >
-                        <SelectTrigger className="mt-2">
-                          <SelectValue placeholder="Selecione o tipo de serviço (opcional)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {servicos.map((servico) => (
-                            <SelectItem key={servico.id} value={servico.nome_servico}>
-                              {servico.nome_servico}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2 mb-2">
+                        <FileText className="w-5 h-5 text-primary" />
+                        <Label className="text-base font-medium">Qual o motivo da consulta? *</Label>
+                      </div>
+                      <Textarea 
+                        value={formData.motivoConsulta}
+                        onChange={(e) => setFormData(prev => ({ ...prev, motivoConsulta: e.target.value }))}
+                        placeholder="Ex: Dor nas costas, check-up de rotina, acompanhamento..."
+                        className="min-h-[80px]"
+                      />
                     </div>
-                  )}
 
-                  {/* Motivo da consulta */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <FileText className="w-5 h-5 text-primary" />
-                      <Label className="text-base font-medium">Qual o motivo da consulta? *</Label>
+                    {/* Sintomas */}
+                    <div>
+                      <Label className="text-base font-medium">Descreva seus sintomas (opcional)</Label>
+                      <Textarea 
+                        value={formData.sintomas}
+                        onChange={(e) => setFormData(prev => ({ ...prev, sintomas: e.target.value }))}
+                        placeholder="Descreva brevemente os sintomas que está sentindo..."
+                        className="mt-2 min-h-[80px]"
+                      />
                     </div>
-                    <Textarea 
-                      value={formData.motivoConsulta}
-                      onChange={(e) => setFormData(prev => ({ ...prev, motivoConsulta: e.target.value }))}
-                      placeholder="Ex: Dor nas costas, check-up de rotina, acompanhamento..."
-                      className="min-h-[80px]"
-                    />
-                  </div>
 
-                  {/* Sintomas */}
-                  <div>
-                    <Label className="text-base font-medium">Descreva seus sintomas (opcional)</Label>
-                    <Textarea 
-                      value={formData.sintomas}
-                      onChange={(e) => setFormData(prev => ({ ...prev, sintomas: e.target.value }))}
-                      placeholder="Descreva brevemente os sintomas que está sentindo..."
-                      className="mt-2 min-h-[80px]"
-                    />
-                  </div>
-
-                  {/* Observações */}
-                  <div>
-                    <Label className="text-base font-medium">Observações adicionais (opcional)</Label>
-                    <Textarea 
-                      value={formData.observacoes}
-                      onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
-                      placeholder="Alguma informação adicional que o médico deva saber..."
-                      className="mt-2 min-h-[60px]"
-                    />
-                  </div>
-
-                  {/* Payment */}
-                  <div className="border-t border-border pt-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <CreditCard className="w-5 h-5 text-primary" />
-                      <h2 className="text-xl font-bold text-foreground">Pagamento</h2>
-                    </div>
-                    
-                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
-                      <p className="text-sm text-foreground">
-                        💳 Após confirmar, você receberá um QR Code PIX para pagamento.
-                      </p>
+                    {/* Observações */}
+                    <div>
+                      <Label className="text-base font-medium">Observações adicionais (opcional)</Label>
+                      <Textarea 
+                        value={formData.observacoes}
+                        onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
+                        placeholder="Alguma informação adicional que o médico deva saber..."
+                        className="mt-2 min-h-[60px]"
+                      />
                     </div>
                   </div>
+                </div>
 
-                  {/* Submit */}
+                {/* Payment Section */}
+                <div className="bg-card rounded-2xl p-6 shadow-md">
+                  <div className="flex items-center gap-2 mb-4">
+                    <CreditCard className="w-5 h-5 text-primary" />
+                    <h2 className="text-xl font-bold text-foreground">Pagamento</h2>
+                  </div>
+                  
+                  <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg mb-6">
+                    <p className="text-sm text-foreground">
+                      💳 Após confirmar, você receberá um QR Code PIX para pagamento instantâneo.
+                    </p>
+                  </div>
+
                   <Button 
                     type="submit" 
                     className="w-full h-12 text-base font-semibold"
-                    disabled={submitting || !currentUser?.pacienteId}
+                    disabled={submitting}
                   >
                     {submitting ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Gerando pagamento...
+                        {!isLoggedIn ? "Criando conta e gerando pagamento..." : "Gerando pagamento..."}
                       </>
-                    ) : "Confirmar e Pagar"}
+                    ) : (
+                      <>Confirmar e Pagar R$ {medico.valor_consulta.toFixed(2).replace(".", ",")}</>
+                    )}
                   </Button>
-                </form>
-              </div>
+                </div>
+              </form>
             </div>
 
-            {/* Summary - Right Column */}
+            {/* Summary */}
             <div className="lg:col-span-1">
               <div className="bg-card rounded-2xl p-6 shadow-md sticky top-24">
-                {/* Doctor Info */}
                 <div className="flex gap-4 mb-6 pb-6 border-b border-border">
                   {medico.foto_url ? (
                     <img 
@@ -796,17 +777,12 @@ const Checkout = () => {
                   </div>
                 </div>
 
-                {/* Appointment Details */}
                 <div className="space-y-4 mb-6">
                   <div className="flex items-start gap-3">
                     <Calendar className="w-5 h-5 text-primary mt-0.5" />
                     <div>
-                      <p className="font-medium text-foreground">
-                        {formattedDate}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedTime} - Fuso horário: Brasília
-                      </p>
+                      <p className="font-medium text-foreground">{formattedDate}</p>
+                      <p className="text-sm text-muted-foreground">{selectedTime}</p>
                       <button 
                         type="button"
                         onClick={() => navigate(-1)}
@@ -833,7 +809,6 @@ const Checkout = () => {
                   )}
                 </div>
 
-                {/* Total */}
                 <div className="pt-4 border-t border-border">
                   <div className="flex justify-between items-center">
                     <span className="text-foreground font-medium">Total</span>
