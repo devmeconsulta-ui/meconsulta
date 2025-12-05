@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, ChevronLeft, CreditCard, User, FileText, Users, Copy, ExternalLink, Loader2, Mail, Lock, Phone } from "lucide-react";
+import { Calendar, MapPin, ChevronLeft, CreditCard, User, FileText, Users, ExternalLink, Loader2, Mail, Lock, Phone, Clock, CheckCircle, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -18,10 +18,9 @@ import { useAuth, CurrentUser } from "@/contexts/AuthContext";
 interface PaymentData {
   paymentId: string;
   invoiceUrl: string;
-  pixQrCode?: string;
-  pixCopyPaste?: string;
   dueDate: string;
   value: number;
+  createdAt?: number; // timestamp when payment was created
 }
 
 interface Medico {
@@ -441,8 +440,11 @@ const Checkout = () => {
         return;
       }
 
-      // Show payment screen
-      setPaymentData(paymentResponse);
+      // Show payment screen with creation timestamp
+      setPaymentData({
+        ...paymentResponse,
+        createdAt: Date.now(),
+      });
       setShowPayment(true);
       toast.success("Cobrança gerada com sucesso!");
       
@@ -459,13 +461,6 @@ const Checkout = () => {
       }
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const copyPixCode = () => {
-    if (paymentData?.pixCopyPaste) {
-      navigator.clipboard.writeText(paymentData.pixCopyPaste);
-      toast.success("Código PIX copiado!");
     }
   };
 
@@ -498,90 +493,139 @@ const Checkout = () => {
     ? format(parseISO(selectedDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
     : "";
 
+  // Payment countdown timer (15 minutes)
+  const PAYMENT_TIMEOUT = 15 * 60 * 1000; // 15 minutes in milliseconds
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  
+  useEffect(() => {
+    if (showPayment && paymentData?.createdAt) {
+      const calculateTimeLeft = () => {
+        const elapsed = Date.now() - paymentData.createdAt!;
+        const remaining = Math.max(0, PAYMENT_TIMEOUT - elapsed);
+        return remaining;
+      };
+      
+      setTimeLeft(calculateTimeLeft());
+      
+      const timer = setInterval(() => {
+        const remaining = calculateTimeLeft();
+        setTimeLeft(remaining);
+        
+        if (remaining <= 0) {
+          clearInterval(timer);
+        }
+      }, 1000);
+      
+      return () => clearInterval(timer);
+    }
+  }, [showPayment, paymentData?.createdAt]);
+  
+  const formatTime = useCallback((ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, []);
+  
+  const isTimeExpired = timeLeft !== null && timeLeft <= 0;
+  const isTimeWarning = timeLeft !== null && timeLeft <= 3 * 60 * 1000; // Less than 3 minutes
+
   // Payment success screen
   if (showPayment && paymentData) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
         
-        <main className="py-8">
-          <div className="container mx-auto px-4 max-w-2xl">
-            <div className="bg-card rounded-2xl p-8 shadow-md text-center">
-              <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
-                <CreditCard className="w-8 h-8 text-green-600" />
+        <main className="py-4 sm:py-8">
+          <div className="container mx-auto px-4 max-w-lg">
+            <div className="bg-card rounded-2xl p-4 sm:p-8 shadow-md text-center">
+              {/* Icon */}
+              <div className={`w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 rounded-full flex items-center justify-center ${
+                isTimeExpired ? 'bg-destructive/10' : 'bg-green-100'
+              }`}>
+                {isTimeExpired ? (
+                  <AlertTriangle className="w-7 h-7 sm:w-8 sm:h-8 text-destructive" />
+                ) : (
+                  <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8 text-green-600" />
+                )}
               </div>
               
-              <h1 className="text-2xl font-bold text-foreground mb-2">
-                Consulta Agendada!
+              {/* Title */}
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">
+                {isTimeExpired ? 'Tempo Expirado!' : 'Consulta Agendada!'}
               </h1>
-              <p className="text-muted-foreground mb-6">
-                Pague via PIX ou cartão de crédito para confirmar sua consulta
+              <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">
+                {isTimeExpired 
+                  ? 'O tempo para pagamento expirou. Você ainda pode pagar acessando suas consultas.'
+                  : 'Pague via PIX ou cartão de crédito para confirmar sua consulta'
+                }
               </p>
 
-              {paymentData.pixQrCode && (
-                <div className="mb-6">
-                  <div className="inline-block p-4 bg-white rounded-xl shadow-inner">
-                    <img 
-                      src={`data:image/png;base64,${paymentData.pixQrCode}`}
-                      alt="QR Code PIX"
-                      className="w-48 h-48"
-                    />
+              {/* Countdown Timer */}
+              {timeLeft !== null && !isTimeExpired && (
+                <div className={`mb-4 sm:mb-6 p-4 sm:p-5 rounded-xl border-2 ${
+                  isTimeWarning 
+                    ? 'bg-destructive/5 border-destructive/30' 
+                    : 'bg-primary/5 border-primary/20'
+                }`}>
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Clock className={`w-5 h-5 ${isTimeWarning ? 'text-destructive' : 'text-primary'}`} />
+                    <span className={`text-sm font-medium ${isTimeWarning ? 'text-destructive' : 'text-primary'}`}>
+                      Tempo restante para pagar
+                    </span>
                   </div>
+                  <div className={`text-3xl sm:text-4xl font-bold tabular-nums ${
+                    isTimeWarning ? 'text-destructive' : 'text-foreground'
+                  }`}>
+                    {formatTime(timeLeft)}
+                  </div>
+                  {isTimeWarning && (
+                    <p className="text-xs text-destructive mt-2">
+                      Finalize o pagamento antes que o tempo expire!
+                    </p>
+                  )}
                 </div>
               )}
 
-              {paymentData.pixCopyPaste && (
-                <div className="mb-6">
-                  <p className="text-sm text-muted-foreground mb-2">Ou copie o código PIX:</p>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={paymentData.pixCopyPaste}
-                      readOnly
-                      className="flex-1 px-3 py-2 text-sm bg-muted rounded-lg border border-border truncate"
-                    />
-                    <Button onClick={copyPixCode} variant="outline" size="sm">
-                      <Copy className="w-4 h-4 mr-2" />
-                      Copiar
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg mb-6">
+              {/* Value */}
+              <div className="p-3 sm:p-4 bg-muted/50 border border-border rounded-lg mb-4 sm:mb-6">
                 <div className="flex justify-between items-center">
-                  <span className="text-foreground">Valor a pagar:</span>
-                  <span className="text-xl font-bold text-foreground">
+                  <span className="text-sm sm:text-base text-foreground">Valor a pagar:</span>
+                  <span className="text-lg sm:text-xl font-bold text-foreground">
                     R$ {paymentData.value.toFixed(2).replace(".", ",")}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Vencimento: {format(new Date(paymentData.dueDate + 'T12:00:00'), "dd/MM/yyyy")}
-                </p>
               </div>
 
+              {/* Action Buttons */}
               <div className="flex flex-col gap-3">
-                {paymentData.invoiceUrl && (
+                {paymentData.invoiceUrl && !isTimeExpired && (
                   <Button 
-                    variant="outline" 
+                    size="lg"
                     onClick={() => window.open(paymentData.invoiceUrl, '_blank')}
-                    className="w-full"
+                    className="w-full text-base"
                   >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Abrir página de pagamento
+                    <CreditCard className="w-5 h-5 mr-2" />
+                    Pagar Agora
                   </Button>
                 )}
                 <Button 
+                  variant={isTimeExpired ? "default" : "outline"}
                   onClick={() => navigate("/paciente/consultas")}
                   className="w-full"
                 >
-                  Ver minhas consultas
+                  {isTimeExpired ? 'Ver minhas consultas' : 'Acessar minhas consultas'}
                 </Button>
               </div>
 
-              <p className="text-xs text-muted-foreground mt-6">
-                Após o pagamento, sua consulta será confirmada automaticamente.
-              </p>
+              {/* Info */}
+              {!isTimeExpired && (
+                <p className="text-xs text-muted-foreground mt-4 sm:mt-6">
+                  Após o pagamento, sua consulta será confirmada automaticamente.
+                  <br />
+                  Você pode pagar via PIX, cartão de crédito ou boleto.
+                </p>
+              )}
             </div>
           </div>
         </main>
