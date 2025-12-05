@@ -21,7 +21,8 @@ import {
   Copy, 
   CheckCircle,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  Send
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -49,6 +50,8 @@ export default function AdminIntegracoes() {
   const [savingAsaas, setSavingAsaas] = useState(false);
   const [savingWhatsApp, setSavingWhatsApp] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [testingMedico, setTestingMedico] = useState(false);
+  const [testingPaciente, setTestingPaciente] = useState(false);
 
   const [configAsaas, setConfigAsaas] = useState<ConfigAsaas>({
     ambiente: "sandbox",
@@ -218,6 +221,100 @@ export default function AdminIntegracoes() {
     setCopied(true);
     toast.success("URL copiada!");
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleTestWebhook(tipo: 'medico' | 'paciente') {
+    const url = tipo === 'medico' ? configWhatsApp.webhook_medico_url : configWhatsApp.webhook_paciente_url;
+    
+    if (!url) {
+      toast.error(`Informe a URL do webhook para ${tipo === 'medico' ? 'médico' : 'paciente'}`);
+      return;
+    }
+
+    if (tipo === 'medico') {
+      setTestingMedico(true);
+    } else {
+      setTestingPaciente(true);
+    }
+
+    // Dados de exemplo para teste
+    const dadosTeste = tipo === 'medico' 
+      ? {
+          evento: "nova_consulta",
+          consulta_id: "teste-123-abc",
+          data_hora: new Date().toISOString(),
+          medico: {
+            nome: "Dr. João Silva",
+            especialidade: "Cardiologia",
+            telefone_whatsapp: "(11) 99999-8888"
+          },
+          paciente: {
+            nome: "Maria Santos",
+            telefone: "(11) 98888-7777"
+          },
+          local: {
+            nome: "Clínica Centro",
+            endereco: "Rua das Flores, 123 - Centro",
+            cidade: "São Paulo",
+            estado: "SP"
+          },
+          valor_consulta: 250.00,
+          tipo_servico: "Consulta de Rotina",
+          motivo_consulta: "Check-up cardíaco",
+          mensagem_sugerida: "Parabéns Dr. João Silva! Você tem uma nova consulta agendada via MeConsulta. Paciente: Maria Santos. Data: " + new Date().toLocaleDateString('pt-BR') + ". Local: Clínica Centro."
+        }
+      : {
+          evento: "consulta_confirmada",
+          consulta_id: "teste-123-abc",
+          data_hora: new Date().toISOString(),
+          paciente: {
+            nome: "Maria Santos",
+            telefone: "(11) 98888-7777"
+          },
+          medico: {
+            nome: "Dr. João Silva",
+            especialidade: "Cardiologia"
+          },
+          local: {
+            nome: "Clínica Centro",
+            endereco: "Rua das Flores, 123 - Centro",
+            cidade: "São Paulo",
+            estado: "SP"
+          },
+          valor_consulta: 250.00,
+          status_pagamento: "pago",
+          mensagem_sugerida: "Olá Maria Santos! Sua consulta foi confirmada com sucesso via MeConsulta. Médico: Dr. João Silva (Cardiologia). Data: " + new Date().toLocaleDateString('pt-BR') + ". Local: Clínica Centro, Rua das Flores, 123 - Centro."
+        };
+
+    try {
+      console.log(`Enviando teste para webhook ${tipo}:`, url);
+      console.log("Dados:", JSON.stringify(dadosTeste, null, 2));
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dadosTeste),
+      });
+
+      if (response.ok) {
+        toast.success(`Teste enviado com sucesso para webhook do ${tipo === 'medico' ? 'médico' : 'paciente'}!`);
+      } else {
+        const errorText = await response.text();
+        console.error("Erro na resposta:", response.status, errorText);
+        toast.error(`Erro ao enviar teste: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Erro ao testar webhook:", error);
+      toast.error(`Erro ao conectar com o webhook. Verifique a URL e se permite CORS.`);
+    } finally {
+      if (tipo === 'medico') {
+        setTestingMedico(false);
+      } else {
+        setTestingPaciente(false);
+      }
+    }
   }
 
   return (
@@ -396,11 +493,28 @@ export default function AdminIntegracoes() {
               <div className="space-y-4">
                 <div>
                   <Label>URL de webhook para médico</Label>
-                  <Input
-                    value={configWhatsApp.webhook_medico_url}
-                    onChange={(e) => setConfigWhatsApp({ ...configWhatsApp, webhook_medico_url: e.target.value })}
-                    placeholder="https://exemplo.suaapi.com/webhookcapture/capture/xxxxx"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={configWhatsApp.webhook_medico_url}
+                      onChange={(e) => setConfigWhatsApp({ ...configWhatsApp, webhook_medico_url: e.target.value })}
+                      placeholder="https://exemplo.suaapi.com/webhookcapture/capture/xxxxx"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTestWebhook('medico')}
+                      disabled={testingMedico || !configWhatsApp.webhook_medico_url}
+                      className="gap-1 whitespace-nowrap"
+                    >
+                      {testingMedico ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                      Testar
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Esta é a URL para onde o MeConsulta irá enviar os dados quando uma consulta for criada/alterada para o médico 
                     (por exemplo: "Parabéns, você tem uma nova consulta via MeConsulta...").
@@ -409,11 +523,28 @@ export default function AdminIntegracoes() {
 
                 <div>
                   <Label>URL de webhook para paciente</Label>
-                  <Input
-                    value={configWhatsApp.webhook_paciente_url}
-                    onChange={(e) => setConfigWhatsApp({ ...configWhatsApp, webhook_paciente_url: e.target.value })}
-                    placeholder="https://exemplo.suaapi.com/webhookcapture/capture/xxxxx"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={configWhatsApp.webhook_paciente_url}
+                      onChange={(e) => setConfigWhatsApp({ ...configWhatsApp, webhook_paciente_url: e.target.value })}
+                      placeholder="https://exemplo.suaapi.com/webhookcapture/capture/xxxxx"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTestWebhook('paciente')}
+                      disabled={testingPaciente || !configWhatsApp.webhook_paciente_url}
+                      className="gap-1 whitespace-nowrap"
+                    >
+                      {testingPaciente ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                      Testar
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Esta é a URL para onde o MeConsulta irá enviar os dados quando a consulta do paciente for confirmada e paga 
                     (mensagens como "Sua consulta foi agendada com sucesso...").
