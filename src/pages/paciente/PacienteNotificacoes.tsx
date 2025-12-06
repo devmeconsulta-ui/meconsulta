@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,42 +7,35 @@ import {
   Calendar, 
   CreditCard, 
   CheckCircle, 
-  AlertCircle,
   Clock,
   Trash2,
-  CheckCheck
+  CheckCheck,
+  ExternalLink
 } from "lucide-react";
-import { useState } from "react";
-import { format } from "date-fns";
+import { useState, useMemo } from "react";
+import { format, isAfter, addDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useOutletContext, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
-// Mock notifications - in production, these would come from Supabase
-const mockNotifications = [
-  {
-    id: "1",
-    type: "consulta",
-    title: "Consulta confirmada",
-    message: "Sua consulta com Dr. João Silva foi confirmada para amanhã às 14:00.",
-    read: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    type: "pagamento",
-    title: "Pagamento pendente",
-    message: "Você tem um pagamento pendente para a consulta do dia 15/12.",
-    read: false,
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: "3",
-    type: "lembrete",
-    title: "Lembrete de consulta",
-    message: "Sua consulta com Dra. Maria Santos é em 2 dias.",
-    read: true,
-    createdAt: new Date(Date.now() - 172800000).toISOString(),
-  },
-];
+type PacienteContext = {
+  pacienteData: {
+    id: string;
+    nome: string;
+  } | null;
+};
+
+interface Notification {
+  id: string;
+  type: "consulta" | "pagamento" | "lembrete";
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  consultaId?: string;
+  invoiceUrl?: string;
+}
 
 const notificationIcons = {
   consulta: <Calendar className="w-5 h-5 text-primary" />,
@@ -52,27 +45,126 @@ const notificationIcons = {
 };
 
 export default function PacienteNotificacoes() {
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const { pacienteData } = useOutletContext<PacienteContext>();
+  const navigate = useNavigate();
+  const [readNotifications, setReadNotifications] = useState<Set<string>>(new Set());
+  const [deletedNotifications, setDeletedNotifications] = useState<Set<string>>(new Set());
+
+  // Fetch real consultations data
+  const { data: consultas, isLoading } = useQuery({
+    queryKey: ["paciente-notificacoes", pacienteData?.id],
+    queryFn: async () => {
+      if (!pacienteData?.id) return [];
+      
+      const { data, error } = await supabase
+        .from("consultas")
+        .select(`
+          id,
+          data_hora,
+          status_consulta,
+          status_pagamento,
+          asaas_invoice_url,
+          created_at,
+          medicos:medico_id (nome, especialidade)
+        `)
+        .eq("paciente_id", pacienteData.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!pacienteData?.id,
+  });
+
+  // Generate notifications from real data
+  const notifications = useMemo(() => {
+    if (!consultas) return [];
+
+    const notifs: Notification[] = [];
+    const now = new Date();
+
+    consultas.forEach((consulta: any) => {
+      const consultaDate = parseISO(consulta.data_hora);
+      const medicoNome = consulta.medicos?.nome || "Médico";
+
+      // Pending payment notifications
+      if (consulta.status_pagamento === "pendente" && consulta.status_consulta === "aguardando_pagamento") {
+        notifs.push({
+          id: `pagamento-${consulta.id}`,
+          type: "pagamento",
+          title: "Pagamento pendente",
+          message: `Você tem um pagamento pendente para a consulta com ${medicoNome} em ${format(consultaDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}.`,
+          read: readNotifications.has(`pagamento-${consulta.id}`),
+          createdAt: consulta.created_at,
+          consultaId: consulta.id,
+          invoiceUrl: consulta.asaas_invoice_url,
+        });
+      }
+
+      // Confirmed consultation notifications
+      if (consulta.status_consulta === "confirmada" && consulta.status_pagamento === "pago") {
+        notifs.push({
+          id: `confirmada-${consulta.id}`,
+          type: "consulta",
+          title: "Consulta confirmada",
+          message: `Sua consulta com ${medicoNome} foi confirmada para ${format(consultaDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}.`,
+          read: readNotifications.has(`confirmada-${consulta.id}`),
+          createdAt: consulta.created_at,
+          consultaId: consulta.id,
+        });
+      }
+
+      // Upcoming consultation reminders (within next 3 days)
+      if (
+        (consulta.status_consulta === "confirmada" || consulta.status_pagamento === "pago") &&
+        isAfter(consultaDate, now) &&
+        isAfter(addDays(now, 3), consultaDate)
+      ) {
+        notifs.push({
+          id: `lembrete-${consulta.id}`,
+          type: "lembrete",
+          title: "Lembrete de consulta",
+          message: `Sua consulta com ${medicoNome} é em ${format(consultaDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}. Não se esqueça!`,
+          read: readNotifications.has(`lembrete-${consulta.id}`),
+          createdAt: new Date().toISOString(),
+          consultaId: consulta.id,
+        });
+      }
+    });
+
+    // Filter out deleted notifications and sort by date
+    return notifs
+      .filter(n => !deletedNotifications.has(n.id))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [consultas, readNotifications, deletedNotifications]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const markAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    );
+    setReadNotifications(prev => new Set([...prev, id]));
   };
 
   const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    const allIds = notifications.map(n => n.id);
+    setReadNotifications(new Set(allIds));
   };
 
   const deleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    setDeletedNotifications(prev => new Set([...prev, id]));
   };
 
   const clearAll = () => {
-    setNotifications([]);
+    const allIds = notifications.map(n => n.id);
+    setDeletedNotifications(new Set(allIds));
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -82,19 +174,23 @@ export default function PacienteNotificacoes() {
           <p className="text-muted-foreground mt-1">
             {unreadCount > 0
               ? `Você tem ${unreadCount} notificação(ões) não lida(s)`
-              : "Todas as notificações foram lidas"}
+              : notifications.length > 0 
+                ? "Todas as notificações foram lidas"
+                : "Você não tem notificações"}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={markAllAsRead}>
-            <CheckCheck className="w-4 h-4 mr-2" />
-            Marcar todas como lidas
-          </Button>
-          <Button variant="outline" size="sm" onClick={clearAll}>
-            <Trash2 className="w-4 h-4 mr-2" />
-            Limpar todas
-          </Button>
-        </div>
+        {notifications.length > 0 && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={markAllAsRead}>
+              <CheckCheck className="w-4 h-4 mr-2" />
+              Marcar todas como lidas
+            </Button>
+            <Button variant="outline" size="sm" onClick={clearAll}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Limpar todas
+            </Button>
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="todas" className="w-full">
@@ -143,7 +239,7 @@ function NotificationList({
   onMarkAsRead,
   onDelete,
 }: {
-  notifications: typeof mockNotifications;
+  notifications: Notification[];
   onMarkAsRead: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
@@ -173,8 +269,7 @@ function NotificationList({
           <CardContent className="p-4">
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                {notificationIcons[notification.type as keyof typeof notificationIcons] ||
-                  notificationIcons.sistema}
+                {notificationIcons[notification.type] || notificationIcons.sistema}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
@@ -195,7 +290,17 @@ function NotificationList({
                     </Badge>
                   )}
                 </div>
-                <div className="flex gap-2 mt-3">
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {notification.type === "pagamento" && notification.invoiceUrl && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => window.open(notification.invoiceUrl, '_blank')}
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Pagar agora
+                    </Button>
+                  )}
                   {!notification.read && (
                     <Button
                       variant="ghost"
