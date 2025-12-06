@@ -13,6 +13,7 @@ import {
   Stethoscope,
   Menu,
   X,
+  DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -24,6 +25,7 @@ const allMenuItems = [
   { icon: Stethoscope, label: "Consultas", path: "/medico/consultas", permKey: "consultas" },
   { icon: MapPin, label: "Locais de Atendimento", path: "/medico/locais", permKey: "locais" },
   { icon: Calendar, label: "Agenda", path: "/medico/agenda", permKey: "agenda" },
+  { icon: DollarSign, label: "Financeiro", path: "/medico/financeiro", permKey: "financeiro" },
   { icon: Users, label: "Usuários da Clínica", path: "/medico/usuarios-clinica", permKey: "usuarios-clinica" },
   { icon: User, label: "Minha Página Pública", path: "/medico/pagina-publica", permKey: "pagina-publica" },
   { icon: Wallet, label: "Dados Bancários", path: "/medico/dados-bancarios", permKey: "dados-bancarios" },

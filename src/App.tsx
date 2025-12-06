@@ -29,6 +29,7 @@ import MedicoDashboard from "./pages/medico/MedicoDashboard";
 import MedicoConsultas from "./pages/medico/MedicoConsultas";
 import MedicoLocais from "./pages/medico/MedicoLocais";
 import MedicoAgenda from "./pages/medico/MedicoAgenda";
+import MedicoFinanceiro from "./pages/medico/MedicoFinanceiro";
 import MedicoUsuariosClinica from "./pages/medico/MedicoUsuariosClinica";
 import MedicoPaginaPublica from "./pages/medico/MedicoPaginaPublica";
 import MedicoDadosBancarios from "./pages/medico/MedicoDadosBancarios";
@@ -84,6 +85,7 @@ const App = () => (
               <Route path="consultas" element={<MedicoConsultas />} />
               <Route path="locais" element={<MedicoLocais />} />
               <Route path="agenda" element={<MedicoAgenda />} />
+              <Route path="financeiro" element={<MedicoFinanceiro />} />
               <Route path="usuarios-clinica" element={<MedicoUsuariosClinica />} />
               <Route path="pagina-publica" element={<MedicoPaginaPublica />} />
               <Route path="dados-bancarios" element={<MedicoDadosBancarios />} />
