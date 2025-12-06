@@ -294,6 +294,7 @@ export default function PacienteMarcar() {
     setSelectedMedico(medico);
     setSelectedSlot(null);
     setSelectedLocal(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     
     const now = new Date().toISOString();
     
@@ -324,6 +325,7 @@ export default function PacienteMarcar() {
     if (!selectedSlot || !pacienteData?.id || !selectedMedico) return;
 
     setAgendando(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
       const valorConsulta = selectedMedico.valor_consulta || 160;
