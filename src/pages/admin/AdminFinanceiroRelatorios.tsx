@@ -1,12 +1,13 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval } from "date-fns";
+import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Select,
   SelectContent,
@@ -33,10 +34,15 @@ import {
   BarChart3,
   PieChart as PieChartIcon,
   Activity,
+  Filter,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+  X,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area
+  PieChart, Pie, Cell, Legend, CartesianGrid, AreaChart, Area
 } from "recharts";
 
 const CHART_COLORS = ["#0066CC", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#06B6D4"];
@@ -45,13 +51,20 @@ export default function AdminFinanceiroRelatorios() {
   const [periodo, setPeriodo] = useState("30");
   const [tipoRelatorio, setTipoRelatorio] = useState("geral");
   const [agrupamento, setAgrupamento] = useState("dia");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  
+  // Advanced filters
+  const [medicoFilter, setMedicoFilter] = useState("todos");
+  const [statusPagamentoFilter, setStatusPagamentoFilter] = useState("todos");
+  const [localFilter, setLocalFilter] = useState("todos");
+  const [origemFilter, setOrigemFilter] = useState("todos");
 
   const dateRange = useMemo(() => ({
     inicio: format(subDays(new Date(), parseInt(periodo)), "yyyy-MM-dd"),
     fim: format(new Date(), "yyyy-MM-dd"),
   }), [periodo]);
 
-  // Fetch all data
+  // Fetch all consultas data
   const { data: consultas, isLoading } = useQuery({
     queryKey: ["admin-relatorios", dateRange],
     queryFn: async () => {
@@ -60,7 +73,8 @@ export default function AdminFinanceiroRelatorios() {
         .select(`
           *,
           medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
-          paciente:pacientes!consultas_paciente_id_fkey(id, nome, cidade, estado)
+          paciente:pacientes!consultas_paciente_id_fkey(id, nome, cidade, estado),
+          agenda_slot:agenda_slots(local_id)
         `)
         .gte("data_hora", `${dateRange.inicio}T00:00:00`)
         .lte("data_hora", `${dateRange.fim}T23:59:59`)
@@ -71,15 +85,66 @@ export default function AdminFinanceiroRelatorios() {
     },
   });
 
-  // Only online consultations for revenue
+  // Fetch médicos for filter
+  const { data: medicos } = useQuery({
+    queryKey: ["admin-medicos-filter-relatorios"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("medicos")
+        .select("id, nome")
+        .eq("ativo", true)
+        .order("nome");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch locais for filter
+  const { data: locais } = useQuery({
+    queryKey: ["admin-locais-filter-relatorios"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("locais_atendimento")
+        .select("id, nome_local, medico_id")
+        .eq("ativo", true)
+        .order("nome_local");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Apply filters
+  const consultasFiltradas = useMemo(() => {
+    let filtered = consultas || [];
+    
+    if (medicoFilter !== "todos") {
+      filtered = filtered.filter((c: any) => c.medico?.id === medicoFilter);
+    }
+    
+    if (statusPagamentoFilter !== "todos") {
+      filtered = filtered.filter(c => c.status_pagamento === statusPagamentoFilter);
+    }
+    
+    if (localFilter !== "todos") {
+      filtered = filtered.filter((c: any) => c.agenda_slot?.local_id === localFilter);
+    }
+    
+    if (origemFilter !== "todos") {
+      filtered = filtered.filter(c => c.origem === origemFilter);
+    }
+    
+    return filtered;
+  }, [consultas, medicoFilter, statusPagamentoFilter, localFilter, origemFilter]);
+
+  // Only online consultations for revenue (after filters)
   const consultasOnline = useMemo(() => 
-    consultas?.filter(c => c.origem !== 'interna') || [], 
-    [consultas]
+    consultasFiltradas.filter(c => c.origem !== 'interna'), 
+    [consultasFiltradas]
   );
 
   // General metrics
   const metrics = useMemo(() => {
-    const all = consultas || [];
+    const all = consultasFiltradas;
     const online = consultasOnline;
     
     return {
@@ -95,7 +160,7 @@ export default function AdminFinanceiroRelatorios() {
       repassesMedicos: online.reduce((sum, c) => sum + Number(c.valor_medico), 0),
       ticketMedio: online.length > 0 ? online.reduce((sum, c) => sum + Number(c.valor_consulta), 0) / online.length : 0,
     };
-  }, [consultas, consultasOnline]);
+  }, [consultasFiltradas, consultasOnline]);
 
   // Data by period
   const dadosPorPeriodo = useMemo(() => {
@@ -176,11 +241,11 @@ export default function AdminFinanceiroRelatorios() {
 
   // Data by region
   const dadosPorRegiao = useMemo(() => {
-    if (!consultas?.length) return [];
+    if (!consultasFiltradas.length) return [];
     
     const grouped: Record<string, { consultas: number; pacientes: Set<string> }> = {};
     
-    consultas.forEach((c: any) => {
+    consultasFiltradas.forEach((c: any) => {
       const estado = c.paciente?.estado || 'Não informado';
       if (!grouped[estado]) {
         grouped[estado] = { consultas: 0, pacientes: new Set() };
@@ -195,7 +260,7 @@ export default function AdminFinanceiroRelatorios() {
       .map(([name, data]) => ({ name, consultas: data.consultas, pacientes: data.pacientes.size }))
       .sort((a, b) => b.consultas - a.consultas)
       .slice(0, 10);
-  }, [consultas]);
+  }, [consultasFiltradas]);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -218,6 +283,20 @@ export default function AdminFinanceiroRelatorios() {
     return null;
   };
 
+  const clearFilters = () => {
+    setMedicoFilter("todos");
+    setStatusPagamentoFilter("todos");
+    setLocalFilter("todos");
+    setOrigemFilter("todos");
+  };
+
+  const activeFiltersCount = [
+    medicoFilter !== "todos",
+    statusPagamentoFilter !== "todos",
+    localFilter !== "todos",
+    origemFilter !== "todos",
+  ].filter(Boolean).length;
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -232,7 +311,7 @@ export default function AdminFinanceiroRelatorios() {
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
+      {/* Basic Filters */}
       <div className="flex flex-wrap gap-4 items-center">
         <Select value={periodo} onValueChange={setPeriodo}>
           <SelectTrigger className="w-44">
@@ -279,6 +358,118 @@ export default function AdminFinanceiroRelatorios() {
           Exportar PDF
         </Button>
       </div>
+
+      {/* Advanced Filters - Collapsible */}
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <Card>
+          <CardHeader className="py-3">
+            <div className="flex items-center justify-between">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="gap-2 p-0 h-auto font-semibold">
+                  <Filter className="h-5 w-5" />
+                  Filtros Avançados
+                  {activeFiltersCount > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {activeFiltersCount} ativo{activeFiltersCount > 1 ? 's' : ''}
+                    </Badge>
+                  )}
+                  {filtersOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              {activeFiltersCount > 0 && (
+                <Button variant="outline" size="sm" onClick={clearFilters} className="gap-1">
+                  <X className="h-4 w-4" />
+                  Limpar
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Médico Filter */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Stethoscope className="h-4 w-4" />
+                    Médico
+                  </label>
+                  <Select value={medicoFilter} onValueChange={setMedicoFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os médicos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os médicos</SelectItem>
+                      {medicos?.map((medico) => (
+                        <SelectItem key={medico.id} value={medico.id}>
+                          {medico.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Status Pagamento Filter */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    Status Pagamento
+                  </label>
+                  <Select value={statusPagamentoFilter} onValueChange={setStatusPagamentoFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os status</SelectItem>
+                      <SelectItem value="pago">Pago</SelectItem>
+                      <SelectItem value="pendente">Pendente</SelectItem>
+                      <SelectItem value="cancelado">Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Local Filter */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    Local de Atendimento
+                  </label>
+                  <Select value={localFilter} onValueChange={setLocalFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os locais" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os locais</SelectItem>
+                      {locais?.map((local) => (
+                        <SelectItem key={local.id} value={local.id}>
+                          {local.nome_local}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Origem Filter */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Activity className="h-4 w-4" />
+                    Origem
+                  </label>
+                  <Select value={origemFilter} onValueChange={setOrigemFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas as origens" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas as origens</SelectItem>
+                      <SelectItem value="online">Online</SelectItem>
+                      <SelectItem value="interna">Interna</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
