@@ -180,15 +180,15 @@ export default function AdminPacientes() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Users className="h-7 w-7" />
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
+            <Users className="h-6 w-6 sm:h-7 sm:w-7" />
             Pacientes
           </h1>
-          <p className="text-muted-foreground">Gerencie os pacientes cadastrados na plataforma</p>
+          <p className="text-sm sm:text-base text-muted-foreground">Gerencie os pacientes cadastrados na plataforma</p>
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -258,55 +258,55 @@ export default function AdminPacientes() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total de Pacientes</p>
-                <p className="text-3xl font-bold text-foreground">{stats.total}</p>
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">Total de Pacientes</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">{stats.total}</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Users className="h-6 w-6 text-primary" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Users className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Novos Este Mês</p>
-                <p className="text-3xl font-bold text-green-600">{stats.novosEsteMes}</p>
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">Novos Este Mês</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-green-600">{stats.novosEsteMes}</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <UserPlus className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Com Telefone</p>
-                <p className="text-3xl font-bold text-blue-600">{stats.comTelefone}</p>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <Phone className="h-6 w-6 text-blue-600" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
+                <UserPlus className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Com CPF</p>
-                <p className="text-3xl font-bold text-purple-600">{stats.comCPF}</p>
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">Com Telefone</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-600">{stats.comTelefone}</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-purple-600" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                <Phone className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">Com CPF</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-purple-600">{stats.comCPF}</p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
+                <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -348,14 +348,14 @@ export default function AdminPacientes() {
 
       {/* Filters */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
+        <CardHeader className="px-4 sm:px-6 py-3 sm:py-4">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Filter className="h-4 w-4 sm:h-5 sm:w-5" />
             Filtros
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <CardContent className="px-4 sm:px-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
