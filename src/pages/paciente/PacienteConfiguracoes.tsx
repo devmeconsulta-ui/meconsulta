@@ -222,24 +222,24 @@ export default function PacienteConfiguracoes() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-muted/50 rounded-lg">
             <div>
               <p className="font-medium">Alterar senha</p>
               <p className="text-sm text-muted-foreground">
                 Recomendamos alterar sua senha periodicamente
               </p>
             </div>
-            <Button variant="outline">Alterar</Button>
+            <Button variant="outline" className="w-full sm:w-auto">Alterar</Button>
           </div>
           
-          <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-muted/50 rounded-lg">
             <div>
               <p className="font-medium">Baixar meus dados</p>
               <p className="text-sm text-muted-foreground">
                 Solicite uma cópia dos seus dados
               </p>
             </div>
-            <Button variant="outline">Solicitar</Button>
+            <Button variant="outline" className="w-full sm:w-auto">Solicitar</Button>
           </div>
         </CardContent>
       </Card>
@@ -256,27 +256,27 @@ export default function PacienteConfiguracoes() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-destructive/5 rounded-lg border border-destructive/20">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-destructive/5 rounded-lg border border-destructive/20">
             <div>
               <p className="font-medium">Sair da conta</p>
               <p className="text-sm text-muted-foreground">
                 Encerre sua sessão atual
               </p>
             </div>
-            <Button variant="outline" onClick={handleLogout}>
+            <Button variant="outline" onClick={handleLogout} className="w-full sm:w-auto">
               <LogOut className="w-4 h-4 mr-2" />
               Sair
             </Button>
           </div>
           
-          <div className="flex items-center justify-between p-4 bg-destructive/5 rounded-lg border border-destructive/20">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-destructive/5 rounded-lg border border-destructive/20">
             <div>
               <p className="font-medium text-destructive">Excluir conta</p>
               <p className="text-sm text-muted-foreground">
                 Exclua permanentemente sua conta e todos os dados
               </p>
             </div>
-            <Button variant="destructive">Excluir</Button>
+            <Button variant="destructive" className="w-full sm:w-auto">Excluir</Button>
           </div>
         </CardContent>
       </Card>
