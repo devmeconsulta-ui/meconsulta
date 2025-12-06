@@ -51,7 +51,7 @@ export function PacienteLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      <PacienteSidebar />
+      <PacienteSidebar pacienteId={pacienteData?.id} />
       <div className="lg:pl-64">
         <PacienteHeader pacienteData={pacienteData} notificacoesCount={notificacoesCount} />
         <main className="p-6 lg:p-8">

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Calendar, Filter, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, Search, Eye, Download } from "lucide-react";
+import { Calendar, Filter, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, Search, Eye, Download, ThumbsUp, HelpCircle, UserX } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,9 @@ const COLORS = {
 const statusConsultaLabels: Record<string, string> = {
   aguardando_pagamento: "Aguardando Pagamento",
   confirmada: "Confirmada",
+  atendida_medico: "Atendida (Médico)",
+  concluida: "Concluída",
+  nao_compareceu: "Não Compareceu",
   cancelada: "Cancelada",
 };
 
@@ -400,11 +403,11 @@ export default function AdminConsultas() {
                   <TableRow>
                     <TableHead>Paciente</TableHead>
                     <TableHead>Médico</TableHead>
-                    <TableHead>Especialidade</TableHead>
                     <TableHead>Data/Hora</TableHead>
                     <TableHead>Valor</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Pagamento</TableHead>
+                    <TableHead>Confirmações</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -413,7 +416,6 @@ export default function AdminConsultas() {
                     <TableRow key={consulta.id}>
                       <TableCell className="font-medium">{consulta.paciente?.nome || "—"}</TableCell>
                       <TableCell>{consulta.medico?.nome || "—"}</TableCell>
-                      <TableCell>{consulta.medico?.especialidade || "—"}</TableCell>
                       <TableCell>
                         {format(new Date(consulta.data_hora), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                       </TableCell>
@@ -441,6 +443,45 @@ export default function AdminConsultas() {
                             {statusPagamentoLabels[consulta.status_pagamento] || consulta.status_pagamento}
                           </Badge>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {/* Doctor confirmation */}
+                          {consulta.finalizado_medico ? (
+                            <Badge className="bg-green-500/10 text-green-600 gap-1" title="Médico finalizou">
+                              <CheckCircle className="w-3 h-3" />
+                              Médico
+                            </Badge>
+                          ) : consulta.status_consulta === "nao_compareceu" ? (
+                            <Badge className="bg-red-500/10 text-red-600 gap-1" title="Não compareceu">
+                              <UserX className="w-3 h-3" />
+                              Falta
+                            </Badge>
+                          ) : new Date(consulta.data_hora) < new Date() && consulta.status_pagamento === "pago" ? (
+                            <Badge className="bg-amber-500/10 text-amber-600 gap-1" title="Aguardando médico finalizar">
+                              <HelpCircle className="w-3 h-3" />
+                              Médico
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-muted text-muted-foreground gap-1">
+                              —
+                            </Badge>
+                          )}
+                          {/* Patient confirmation - only show for online consultations that doctor already finalized */}
+                          {consulta.origem === "online" && consulta.finalizado_medico && (
+                            consulta.finalizado_paciente ? (
+                              <Badge className="bg-emerald-500/10 text-emerald-600 gap-1" title="Paciente confirmou">
+                                <ThumbsUp className="w-3 h-3" />
+                                Paciente
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-500/10 text-amber-600 gap-1" title="Aguardando confirmação do paciente">
+                                <HelpCircle className="w-3 h-3" />
+                                Paciente
+                              </Badge>
+                            )
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" title="Ver detalhes">

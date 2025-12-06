@@ -15,7 +15,9 @@ import {
   Globe,
   Building2,
   CheckCircle2,
-  UserX
+  UserX,
+  ThumbsUp,
+  HelpCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -33,6 +35,7 @@ interface Consulta {
   nome_paciente_consulta: string | null;
   origem: string | null;
   finalizado_medico: boolean | null;
+  finalizado_paciente: boolean | null;
   elegivel_repasse: boolean | null;
   paciente: {
     id: string;
@@ -106,6 +109,7 @@ export default function MedicoConsultas() {
         nome_paciente_consulta,
         origem,
         finalizado_medico,
+        finalizado_paciente,
         elegivel_repasse,
         paciente:pacientes!consultas_paciente_id_fkey(id, nome, cpf, data_nascimento, cidade, estado, bairro),
         dependente:paciente_dependentes(id, nome, parentesco)
@@ -339,6 +343,21 @@ export default function MedicoConsultas() {
                           <CheckCircle2 className="w-3 h-3" />
                           Finalizada
                         </Badge>
+                      )}
+
+                      {/* Patient confirmation status */}
+                      {consulta.finalizado_medico && consulta.origem === "online" && (
+                        consulta.finalizado_paciente ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-600 gap-1" title="Paciente confirmou o atendimento">
+                            <ThumbsUp className="w-3 h-3" />
+                            Paciente confirmou
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-amber-500/10 text-amber-600 gap-1" title="Aguardando confirmação do paciente">
+                            <HelpCircle className="w-3 h-3" />
+                            Aguardando paciente
+                          </Badge>
+                        )
                       )}
                       
                       <Button 
