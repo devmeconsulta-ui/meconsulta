@@ -28,6 +28,7 @@ import {
   Sparkles,
   Target,
   Heart,
+  ChevronRight,
 } from "lucide-react";
 import {
   BarChart,
@@ -273,45 +274,47 @@ export default function PacienteMeConsultaPay() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Main Credit Card */}
         <div className="lg:col-span-2">
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 via-amber-100/80 to-yellow-200 p-6 text-foreground shadow-2xl border border-amber-200/50">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 via-amber-100/80 to-yellow-200 p-6 sm:p-8 text-foreground shadow-2xl border border-amber-200/50 min-h-[320px] sm:min-h-[380px]">
             {/* Background decorations */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-300/20 rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-300/30 rounded-full translate-y-1/2 -translate-x-1/2" />
 
-            <div className="relative z-10">
+            <div className="relative z-10 h-full flex flex-col">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-sm flex items-center justify-center p-2 shadow-sm">
                   <img src={logo} alt="MeConsulta" className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-primary">MeConsulta Pay</h1>
-                  <p className="text-muted-foreground text-sm">
+                  <h1 className="text-xl sm:text-2xl font-bold text-primary">MeConsulta Pay</h1>
+                  <p className="text-muted-foreground text-xs sm:text-sm">
                     Crédito rápido para realizar seus sonhos
                   </p>
                 </div>
               </div>
 
               {/* Virtual Card */}
-              <div className="bg-gradient-to-br from-white/90 to-amber-50/80 backdrop-blur-sm rounded-xl p-6 border border-amber-200/50 shadow-lg">
-                <div className="flex justify-between items-start mb-8">
+              <div className="bg-gradient-to-br from-white/90 to-amber-50/80 backdrop-blur-sm rounded-xl p-5 sm:p-6 border border-amber-200/50 shadow-lg flex-1 flex flex-col justify-between">
+                <div className="flex justify-between items-start mb-6 sm:mb-8">
                   <div className="w-12 h-8 bg-gradient-to-r from-yellow-400 to-amber-500 rounded shadow-sm" />
                   <div className="text-right">
-                    <img src={logo} alt="MeConsulta" className="w-16 h-8 object-contain ml-auto" />
+                    <img src={logo} alt="MeConsulta" className="w-14 sm:w-16 h-7 sm:h-8 object-contain ml-auto" />
                   </div>
                 </div>
 
-                <p className="font-mono text-xl tracking-wider mb-6 text-primary">
+                <p className="font-mono text-lg sm:text-xl tracking-wider mb-4 sm:mb-6 text-primary">
                   •••• •••• •••• {paciente?.cpf?.slice(-4) || "0000"}
                 </p>
 
-                <div className="flex justify-between items-end">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-0">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase">Titular</p>
-                    <p className="font-medium text-foreground">{paciente?.nome?.toUpperCase() || "NOME DO PACIENTE"}</p>
+                    <p className="text-xs text-muted-foreground uppercase mb-1">Titular</p>
+                    <p className="font-semibold text-foreground text-sm sm:text-base">
+                      {paciente?.nome?.toUpperCase() || "CARREGANDO..."}
+                    </p>
                   </div>
-                  <div className="text-right">
+                  <div className="sm:text-right">
                     <p className="text-xs text-muted-foreground">Limite pré-aprovado</p>
-                    <p className="text-2xl font-bold text-primary">R$ 8.000,00</p>
+                    <p className="text-xl sm:text-2xl font-bold text-primary">R$ 8.000,00</p>
                   </div>
                 </div>
               </div>
@@ -439,20 +442,28 @@ export default function PacienteMeConsultaPay() {
             </p>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {loanPurposeData.map((item, index) => (
-                <div 
+                <button 
                   key={index}
-                  className="flex items-center gap-3 p-4 rounded-xl bg-muted/50 border border-border/50 hover:bg-muted transition-colors"
+                  type="button"
+                  className="flex items-center gap-3 p-4 rounded-xl bg-muted/50 border border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer text-left w-full group"
+                  onClick={() => {
+                    toast({
+                      title: `${item.name}`,
+                      description: `Você pode usar seu crédito MeConsulta Pay para ${item.name.toLowerCase()}!`,
+                    });
+                  }}
                 >
-                  <span className="text-2xl">{item.icon}</span>
-                  <div>
-                    <p className="font-medium text-sm">{item.name}</p>
+                  <span className="text-2xl group-hover:scale-110 transition-transform">{item.icon}</span>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm group-hover:text-primary transition-colors">{item.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {item.value > 0 ? `${item.value}%` : "Disponível"}
+                      Clique para saber mais
                     </p>
                   </div>
-                </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                </button>
               ))}
             </div>
             <p className="text-xs text-muted-foreground mt-4 text-center">
