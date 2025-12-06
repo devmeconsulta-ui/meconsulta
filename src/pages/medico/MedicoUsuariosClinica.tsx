@@ -198,18 +198,24 @@ export default function MedicoUsuariosClinica() {
   async function handleDelete(id: string) {
     if (!confirm("Tem certeza que deseja excluir este usuário?")) return;
 
-    const { error } = await supabase
-      .from("usuarios_clinica")
-      .delete()
-      .eq("id", id);
+    try {
+      const { error } = await supabase
+        .from("usuarios_clinica")
+        .delete()
+        .eq("id", id);
 
-    if (error) {
-      toast.error("Erro ao excluir usuário");
-      return;
+      if (error) {
+        console.error("Erro ao excluir:", error);
+        toast.error(`Erro ao excluir usuário: ${error.message}`);
+        return;
+      }
+
+      toast.success("Usuário excluído");
+      fetchUsuarios();
+    } catch (err) {
+      console.error("Erro inesperado:", err);
+      toast.error("Erro inesperado ao excluir usuário");
     }
-
-    toast.success("Usuário excluído");
-    fetchUsuarios();
   }
 
   function getPapelLabel(papel: string) {
