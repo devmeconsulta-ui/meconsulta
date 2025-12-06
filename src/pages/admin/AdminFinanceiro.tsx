@@ -276,19 +276,8 @@ export default function AdminFinanceiro() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <DollarSign className="h-7 w-7 text-primary" />
-            Painel Financeiro
-          </h1>
-          <p className="text-muted-foreground">
-            Período: {format(parseISO(dateRange.inicio), "dd/MM/yyyy")} - {format(parseISO(dateRange.fim), "dd/MM/yyyy")} 
-            ({differenceInDays(parseISO(dateRange.fim), parseISO(dateRange.inicio))} dias)
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2">
           <Select value={periodo} onValueChange={handlePeriodoChange}>
             <SelectTrigger className="w-40">
               <Calendar className="h-4 w-4 mr-2" />
@@ -334,7 +323,6 @@ export default function AdminFinanceiro() {
             <Download className="h-4 w-4" />
             Exportar
           </Button>
-        </div>
       </div>
 
       {/* Main Stats Grid */}

@@ -6,7 +6,6 @@ import {
   UserCog,
   Calendar,
   DollarSign,
-  Wallet,
   Settings,
   Menu,
   X,
@@ -64,12 +63,6 @@ const menuItems: MenuItem[] = [
     allowedRoles: ["supervisor", "admin", "superadmin"]
   },
   { 
-    title: "Repasses", 
-    url: "/admin/repasses", 
-    icon: Wallet,
-    allowedRoles: ["supervisor", "admin", "superadmin"]
-  },
-  { 
     title: "Configurações", 
     url: "/admin/configuracoes", 
     icon: Settings,
@@ -93,6 +86,9 @@ export function AdminSidebar() {
   const isActive = (path: string) => {
     if (path === "/admin") {
       return location.pathname === "/admin";
+    }
+    if (path === "/admin/financeiro") {
+      return location.pathname.startsWith("/admin/financeiro");
     }
     return location.pathname.startsWith(path);
   };
