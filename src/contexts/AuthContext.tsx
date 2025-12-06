@@ -9,6 +9,7 @@ export interface CurrentUser {
   papel?: "atendente" | "supervisor" | "admin" | "superadmin";
   pacienteId?: string;
   medicoId?: string;
+  permissoes?: string[];
 }
 
 interface AuthContextType {

@@ -74,7 +74,7 @@ export default function Entrar() {
       // If not found in usuarios, try usuarios_clinica (clinic staff)
       const { data: clinicaData, error: clinicaError } = await supabase
         .from("usuarios_clinica")
-        .select("id, nome, email, papel, medico_id, ativo")
+        .select("id, nome, email, papel, medico_id, ativo, permissoes")
         .eq("email", email.trim())
         .eq("senha_hash", senha)
         .eq("ativo", true)
@@ -95,6 +95,7 @@ export default function Entrar() {
           tipo: "medico", // Access medico area
           papel: "atendente", // But with restricted permissions
           medicoId: clinicaData.medico_id, // Link to the doctor
+          permissoes: clinicaData.permissoes || [], // Custom permissions set by doctor
         });
 
         navigate("/medico");
