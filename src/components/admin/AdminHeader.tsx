@@ -182,42 +182,49 @@ export function AdminHeader() {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-72 sm:w-80">
-              <DropdownMenuLabel className="flex items-center justify-between">
-                <span>Notificações</span>
+            <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] max-w-[320px] sm:w-80 bg-popover border border-border shadow-lg z-50">
+              <DropdownMenuLabel className="flex items-center justify-between px-3 py-2">
+                <span className="text-sm font-semibold">Notificações</span>
                 {unreadCount > 0 && (
-                  <span className="text-xs text-muted-foreground">{unreadCount} novas</span>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{unreadCount} novas</span>
                 )}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <ScrollArea className="h-[280px] sm:h-[320px]">
+              <ScrollArea className="h-[240px] sm:h-[300px]">
                 {notifications.length > 0 ? (
                   notifications.map((notification) => (
                     <DropdownMenuItem 
                       key={notification.id} 
-                      className="flex flex-col items-start gap-1 p-3 cursor-pointer"
+                      className="flex flex-col items-start gap-1 px-3 py-2.5 cursor-pointer focus:bg-accent"
                       onClick={() => navigate("/admin/consultas")}
                     >
-                      <div className="flex items-center gap-2 w-full">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${
+                      <div className="flex items-start gap-2 w-full">
+                        <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${
                           notification.type === "success" ? "bg-green-500" :
                           notification.type === "warning" ? "bg-yellow-500" :
                           "bg-blue-500"
                         }`} />
-                        <span className="text-sm font-medium truncate flex-1">{notification.message}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs sm:text-sm font-medium text-foreground leading-tight break-words">
+                            {notification.message}
+                          </p>
+                          <span className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 block">
+                            {notification.time}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-xs text-muted-foreground ml-4">{notification.time}</span>
                     </DropdownMenuItem>
                   ))
                 ) : (
-                  <div className="p-4 text-center text-sm text-muted-foreground">
-                    Nenhuma notificação
+                  <div className="p-6 text-center">
+                    <Bell className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">Nenhuma notificação</p>
                   </div>
                 )}
               </ScrollArea>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
-                className="text-center justify-center text-primary text-sm"
+                className="justify-center text-primary text-xs sm:text-sm py-2.5 font-medium"
                 onClick={() => navigate("/admin/consultas")}
               >
                 Ver todas as consultas
