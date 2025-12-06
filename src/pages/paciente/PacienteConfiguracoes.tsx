@@ -11,10 +11,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { 
-  Settings, 
   Bell, 
   Moon, 
-  Globe, 
+  Sun,
+  Monitor,
   Shield,
   Trash2,
   LogOut
@@ -23,17 +23,18 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
 
 export default function PacienteConfiguracoes() {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   
   const [settings, setSettings] = useState({
     notificacoesEmail: true,
     notificacoesPush: true,
     lembreteConsulta: true,
     marketingEmail: false,
-    tema: "light",
     idioma: "pt-BR",
   });
 
@@ -147,20 +148,38 @@ export default function PacienteConfiguracoes() {
             <div>
               <Label className="text-base">Tema</Label>
               <p className="text-sm text-muted-foreground">
-                Escolha entre tema claro ou escuro
+                Escolha entre tema claro, escuro ou automático
               </p>
             </div>
             <Select 
-              value={settings.tema} 
-              onValueChange={(v) => setSettings(prev => ({ ...prev, tema: v }))}
+              value={theme} 
+              onValueChange={(value) => {
+                setTheme(value);
+                toast.success(`Tema alterado para ${value === 'light' ? 'claro' : value === 'dark' ? 'escuro' : 'sistema'}`);
+              }}
             >
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-36">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="light">Claro</SelectItem>
-                <SelectItem value="dark">Escuro</SelectItem>
-                <SelectItem value="system">Sistema</SelectItem>
+                <SelectItem value="light">
+                  <div className="flex items-center gap-2">
+                    <Sun className="w-4 h-4" />
+                    Claro
+                  </div>
+                </SelectItem>
+                <SelectItem value="dark">
+                  <div className="flex items-center gap-2">
+                    <Moon className="w-4 h-4" />
+                    Escuro
+                  </div>
+                </SelectItem>
+                <SelectItem value="system">
+                  <div className="flex items-center gap-2">
+                    <Monitor className="w-4 h-4" />
+                    Sistema
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
