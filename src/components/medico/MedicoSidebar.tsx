@@ -18,22 +18,35 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/medico" },
-  { icon: Stethoscope, label: "Consultas", path: "/medico/consultas" },
-  { icon: MapPin, label: "Locais de Atendimento", path: "/medico/locais" },
-  { icon: Calendar, label: "Agenda", path: "/medico/agenda" },
-  { icon: Users, label: "Usuários da Clínica", path: "/medico/usuarios-clinica" },
-  { icon: User, label: "Minha Página Pública", path: "/medico/pagina-publica" },
-  { icon: Wallet, label: "Dados Bancários", path: "/medico/dados-bancarios" },
-  { icon: Star, label: "Avaliações", path: "/medico/avaliacoes" },
-  { icon: Settings, label: "Configurações", path: "/medico/configuracoes" },
+// Define all menu items with role restrictions
+// atendenteAccess: true means atendente can see this item
+const allMenuItems = [
+  { icon: LayoutDashboard, label: "Dashboard", path: "/medico", atendenteAccess: true },
+  { icon: Stethoscope, label: "Consultas", path: "/medico/consultas", atendenteAccess: true },
+  { icon: MapPin, label: "Locais de Atendimento", path: "/medico/locais", atendenteAccess: true },
+  { icon: Calendar, label: "Agenda", path: "/medico/agenda", atendenteAccess: true },
+  { icon: Users, label: "Usuários da Clínica", path: "/medico/usuarios-clinica", atendenteAccess: false },
+  { icon: User, label: "Minha Página Pública", path: "/medico/pagina-publica", atendenteAccess: true },
+  { icon: Wallet, label: "Dados Bancários", path: "/medico/dados-bancarios", atendenteAccess: false },
+  { icon: Star, label: "Avaliações", path: "/medico/avaliacoes", atendenteAccess: false },
+  { icon: Settings, label: "Configurações", path: "/medico/configuracoes", atendenteAccess: false },
 ];
 
 export function MedicoSidebar() {
-  const { logout } = useAuth();
+  const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Check if user is atendente
+  const isAtendente = currentUser?.papel === 'atendente';
+
+  // Filter menu items based on role
+  const menuItems = allMenuItems.filter(item => {
+    if (isAtendente) {
+      return item.atendenteAccess;
+    }
+    return true; // médico sees everything
+  });
 
   const handleLogout = () => {
     logout();
