@@ -250,11 +250,17 @@ export type Database = {
           asaas_payment_id: string | null
           created_at: string | null
           data_hora: string
+          data_hora_finalizacao_medico: string | null
           dependente_id: string | null
+          elegivel_repasse: boolean | null
+          finalizado_medico: boolean | null
+          finalizado_medico_id: string | null
           id: string
+          incluida_em_repasse: boolean | null
           medico_id: string | null
           motivo_consulta: string | null
           nome_paciente_consulta: string | null
+          observacao_finalizacao_medico: string | null
           observacoes_paciente: string | null
           origem: string | null
           paciente_id: string | null
@@ -274,11 +280,17 @@ export type Database = {
           asaas_payment_id?: string | null
           created_at?: string | null
           data_hora: string
+          data_hora_finalizacao_medico?: string | null
           dependente_id?: string | null
+          elegivel_repasse?: boolean | null
+          finalizado_medico?: boolean | null
+          finalizado_medico_id?: string | null
           id?: string
+          incluida_em_repasse?: boolean | null
           medico_id?: string | null
           motivo_consulta?: string | null
           nome_paciente_consulta?: string | null
+          observacao_finalizacao_medico?: string | null
           observacoes_paciente?: string | null
           origem?: string | null
           paciente_id?: string | null
@@ -298,11 +310,17 @@ export type Database = {
           asaas_payment_id?: string | null
           created_at?: string | null
           data_hora?: string
+          data_hora_finalizacao_medico?: string | null
           dependente_id?: string | null
+          elegivel_repasse?: boolean | null
+          finalizado_medico?: boolean | null
+          finalizado_medico_id?: string | null
           id?: string
+          incluida_em_repasse?: boolean | null
           medico_id?: string | null
           motivo_consulta?: string | null
           nome_paciente_consulta?: string | null
+          observacao_finalizacao_medico?: string | null
           observacoes_paciente?: string | null
           origem?: string | null
           paciente_id?: string | null
@@ -332,6 +350,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "consultas_finalizado_medico_id_fkey"
+            columns: ["finalizado_medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "consultas_medico_id_fkey"
             columns: ["medico_id"]
             isOneToOne: false
@@ -350,6 +375,44 @@ export type Database = {
             columns: ["usuario_clinica_id"]
             isOneToOne: false
             referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consultas_eventos: {
+        Row: {
+          consulta_id: string
+          created_at: string | null
+          descricao: string | null
+          id: string
+          tipo_evento: string
+          usuario_id: string | null
+          usuario_tipo: string
+        }
+        Insert: {
+          consulta_id: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          tipo_evento: string
+          usuario_id?: string | null
+          usuario_tipo: string
+        }
+        Update: {
+          consulta_id?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          tipo_evento?: string
+          usuario_id?: string | null
+          usuario_tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultas_eventos_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
             referencedColumns: ["id"]
           },
         ]
@@ -731,8 +794,48 @@ export type Database = {
           },
         ]
       }
+      repasses_itens: {
+        Row: {
+          consulta_id: string
+          created_at: string | null
+          id: string
+          repasse_id: string
+          valor_medico: number
+        }
+        Insert: {
+          consulta_id: string
+          created_at?: string | null
+          id?: string
+          repasse_id: string
+          valor_medico: number
+        }
+        Update: {
+          consulta_id?: string
+          created_at?: string | null
+          id?: string
+          repasse_id?: string
+          valor_medico?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repasses_itens_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repasses_itens_repasse_id_fkey"
+            columns: ["repasse_id"]
+            isOneToOne: false
+            referencedRelation: "repasses_medico"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       repasses_medico: {
         Row: {
+          asaas_transfer_id: string | null
           created_at: string
           data_pagamento: string | null
           data_prevista_pagamento: string | null
@@ -745,6 +848,7 @@ export type Database = {
           valor_total: number
         }
         Insert: {
+          asaas_transfer_id?: string | null
           created_at?: string
           data_pagamento?: string | null
           data_prevista_pagamento?: string | null
@@ -757,6 +861,7 @@ export type Database = {
           valor_total?: number
         }
         Update: {
+          asaas_transfer_id?: string | null
           created_at?: string
           data_pagamento?: string | null
           data_prevista_pagamento?: string | null

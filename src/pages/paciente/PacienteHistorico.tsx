@@ -83,7 +83,7 @@ export default function PacienteHistorico() {
         data_hora,
         motivo_consulta,
         status_consulta,
-        medico:medicos(nome, especialidade)
+        medico:medicos!consultas_medico_id_fkey(nome, especialidade)
       `)
       .eq("paciente_id", currentUser.pacienteId)
       .eq("status_consulta", "realizada")
