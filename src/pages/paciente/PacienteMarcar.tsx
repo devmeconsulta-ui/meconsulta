@@ -557,11 +557,11 @@ export default function PacienteMarcar() {
                 {/* Payment Options */}
                 <div className="space-y-3">
                   <Button 
-                    className="w-full gap-2 h-12 text-base" 
+                    className="w-full gap-2 h-12 text-sm sm:text-base px-3 sm:px-4" 
                     onClick={() => window.open(paymentData.invoiceUrl, '_blank')}
                   >
-                    <ExternalLink className="w-5 h-5" />
-                    Pagar com PIX, Cartão ou Boleto
+                    <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                    <span className="truncate">Pagar com PIX, Cartão ou Boleto</span>
                   </Button>
                   <p className="text-xs text-center text-muted-foreground">
                     Você será redirecionado para a página de pagamento seguro
