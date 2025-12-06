@@ -693,16 +693,32 @@ export default function MedicoFinanceiro() {
 
         {/* ==================== VISÃO GERAL ==================== */}
         <TabsContent value="visao-geral" className="space-y-6">
-          {/* Metric Cards */}
+          {/* Metric Cards - Ordem do fluxo: Aguardando → A Receber → Recebido → Pendentes → Canceladas */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* A Receber */}
+            {/* 1. Aguardando Finalização */}
+            <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-purple-100 text-xs sm:text-sm font-medium">Aguardando Finalização</p>
+                    <p className="text-lg sm:text-2xl font-bold mt-1 truncate">{formatCurrency(metrics.aguardandoFinalizacao)}</p>
+                    <p className="text-purple-200 text-xs mt-2 hidden sm:block">{metrics.countAguardandoFinalizacao} pago(s), aguarda finalizar</p>
+                  </div>
+                  <div className="bg-white/20 rounded-full p-2 sm:p-3 flex-shrink-0">
+                    <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 2. A Receber */}
             <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
               <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="text-emerald-100 text-xs sm:text-sm font-medium">A Receber</p>
                     <p className="text-lg sm:text-2xl font-bold mt-1 truncate">{formatCurrency(metrics.aReceber)}</p>
-                    <p className="text-emerald-200 text-xs mt-2 hidden sm:block">{metrics.elegiveis} consultas elegíveis</p>
+                    <p className="text-emerald-200 text-xs mt-2 hidden sm:block">{metrics.elegiveis} elegíveis p/ repasse</p>
                   </div>
                   <div className="bg-white/20 rounded-full p-2 sm:p-3 flex-shrink-0">
                     <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -711,7 +727,7 @@ export default function MedicoFinanceiro() {
               </CardContent>
             </Card>
 
-            {/* Recebido */}
+            {/* 3. Recebido */}
             <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-blue-500 to-blue-600 text-white">
               <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
@@ -727,23 +743,7 @@ export default function MedicoFinanceiro() {
               </CardContent>
             </Card>
 
-            {/* Aguardando Finalização - NOVO CARD */}
-            <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-purple-100 text-xs sm:text-sm font-medium">Aguardando Finalização</p>
-                    <p className="text-lg sm:text-2xl font-bold mt-1 truncate">{formatCurrency(metrics.aguardandoFinalizacao)}</p>
-                    <p className="text-purple-200 text-xs mt-2 hidden sm:block">{metrics.countAguardandoFinalizacao} pago(s), aguarda você finalizar</p>
-                  </div>
-                  <div className="bg-white/20 rounded-full p-2 sm:p-3 flex-shrink-0">
-                    <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Pendentes Pagamento */}
+            {/* 4. Pendentes Pagamento */}
             <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-amber-500 to-amber-600 text-white">
               <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
@@ -759,7 +759,7 @@ export default function MedicoFinanceiro() {
               </CardContent>
             </Card>
 
-            {/* Canceladas */}
+            {/* 5. Canceladas */}
             <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-red-500 to-red-600 text-white">
               <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
