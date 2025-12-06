@@ -275,12 +275,12 @@ export default function AdminFinanceiro() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
           <Select value={periodo} onValueChange={handlePeriodoChange}>
-            <SelectTrigger className="w-40">
-              <Calendar className="h-4 w-4 mr-2" />
+            <SelectTrigger className="w-full xs:w-[140px] sm:w-40 text-xs sm:text-sm">
+              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 shrink-0" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -293,8 +293,8 @@ export default function AdminFinanceiro() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-36">
-              <Filter className="h-4 w-4 mr-2" />
+            <SelectTrigger className="w-[calc(50%-4px)] xs:w-[120px] sm:w-36 text-xs sm:text-sm">
+              <Filter className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 shrink-0" />
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -305,8 +305,8 @@ export default function AdminFinanceiro() {
             </SelectContent>
           </Select>
           <Select value={especialidadeFilter} onValueChange={setEspecialidadeFilter}>
-            <SelectTrigger className="w-44">
-              <Activity className="h-4 w-4 mr-2" />
+            <SelectTrigger className="w-[calc(50%-4px)] xs:w-[140px] sm:w-44 text-xs sm:text-sm">
+              <Activity className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 shrink-0" />
               <SelectValue placeholder="Especialidade" />
             </SelectTrigger>
             <SelectContent>
@@ -316,102 +316,104 @@ export default function AdminFinanceiro() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" className="gap-2">
-            <Download className="h-4 w-4" />
-            Exportar
-          </Button>
+          <div className="flex gap-2 w-full xs:w-auto">
+            <Button variant="outline" size="icon" onClick={() => refetch()} className="h-9 w-9 sm:h-10 sm:w-10">
+              <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />
+            </Button>
+            <Button variant="outline" className="gap-1 sm:gap-2 text-xs sm:text-sm flex-1 xs:flex-none">
+              <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Exportar</span>
+            </Button>
+          </div>
       </div>
 
       {/* Main Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 sm:gap-4">
         <Card className="col-span-2 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-primary/20">
-          <CardContent className="p-5">
+          <CardContent className="p-3 sm:p-5">
             <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Receita Total</p>
-                <p className="text-3xl font-bold text-foreground mt-1">{formatCurrency(metrics.receitaTotal)}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <Badge variant="secondary" className="bg-primary/20 text-primary">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Receita Total</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground mt-1 truncate">{formatCurrency(metrics.receitaTotal)}</p>
+                <div className="flex items-center gap-2 mt-1 sm:mt-2">
+                  <Badge variant="secondary" className="bg-primary/20 text-primary text-[10px] sm:text-xs">
                     {metrics.consultasTotal} consultas
                   </Badge>
                 </div>
               </div>
-              <div className="w-14 h-14 rounded-xl bg-primary/20 flex items-center justify-center">
-                <DollarSign className="h-7 w-7 text-primary" />
+              <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
+                <DollarSign className="h-5 w-5 sm:h-7 sm:w-7 text-primary" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-green-500/10 via-green-500/5 to-transparent border-green-500/20">
-          <CardContent className="p-5">
+          <CardContent className="p-3 sm:p-5">
             <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Pago</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.receitaPaga)}</p>
-                <p className="text-xs text-green-600 flex items-center mt-1">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Pago</p>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-600 truncate">{formatCurrency(metrics.receitaPaga)}</p>
+                <p className="text-[10px] sm:text-xs text-green-600 flex items-center mt-1">
+                  <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1 shrink-0" />
                   {metrics.consultasPagas} pagas
                 </p>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-green-600" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0">
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-yellow-500/10 via-yellow-500/5 to-transparent border-yellow-500/20">
-          <CardContent className="p-5">
+          <CardContent className="p-3 sm:p-5">
             <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Pendente</p>
-                <p className="text-2xl font-bold text-yellow-600">{formatCurrency(metrics.receitaPendente)}</p>
-                <p className="text-xs text-yellow-600 flex items-center mt-1">
-                  <Clock className="h-3 w-3 mr-1" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Pendente</p>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-yellow-600 truncate">{formatCurrency(metrics.receitaPendente)}</p>
+                <p className="text-[10px] sm:text-xs text-yellow-600 flex items-center mt-1">
+                  <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1 shrink-0" />
                   {metrics.consultasPendentes} aguardando
                 </p>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-                <AlertCircle className="h-5 w-5 text-yellow-600" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center shrink-0">
+                <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent border-purple-500/20">
-          <CardContent className="p-5">
+          <CardContent className="p-3 sm:p-5">
             <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Lucro</p>
-                <p className="text-2xl font-bold text-purple-600">{formatCurrency(metrics.lucroPlataforma)}</p>
-                <p className="text-xs text-purple-600 flex items-center mt-1">
-                  <Percent className="h-3 w-3 mr-1" />
-                  Taxa da plataforma
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Lucro</p>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-600 truncate">{formatCurrency(metrics.lucroPlataforma)}</p>
+                <p className="text-[10px] sm:text-xs text-purple-600 flex items-center mt-1">
+                  <Percent className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1 shrink-0" />
+                  Taxa plataforma
                 </p>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <PieChartIcon className="h-5 w-5 text-purple-600" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0">
+                <PieChartIcon className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-cyan-500/10 via-cyan-500/5 to-transparent border-cyan-500/20">
-          <CardContent className="p-5">
+          <CardContent className="p-3 sm:p-5">
             <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Ticket Médio</p>
-                <p className="text-2xl font-bold text-cyan-600">{formatCurrency(metrics.ticketMedio)}</p>
-                <p className="text-xs text-muted-foreground mt-1">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Ticket Médio</p>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-cyan-600 truncate">{formatCurrency(metrics.ticketMedio)}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                   por consulta
                 </p>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                <CreditCard className="h-5 w-5 text-cyan-600" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center shrink-0">
+                <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-cyan-600" />
               </div>
             </div>
           </CardContent>
@@ -645,72 +647,112 @@ export default function AdminFinanceiro() {
 
       {/* Repasses Table */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-primary" />
-                Repasses Pendentes para Médicos
+        <CardHeader className="p-3 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="min-w-0">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
+                <span className="truncate">Repasses Pendentes</span>
               </CardTitle>
-              <CardDescription>Consultas pagas aguardando transferência para médicos</CardDescription>
+              <CardDescription className="text-xs sm:text-sm">Consultas pagas aguardando transferência</CardDescription>
             </div>
-            <Badge variant="outline" className="text-yellow-600 border-yellow-300">
+            <Badge variant="outline" className="text-yellow-600 border-yellow-300 w-fit text-xs sm:text-sm whitespace-nowrap shrink-0">
               {consultas?.filter((c) => c.status_pagamento === "pago" && c.status_repasse === "pendente" && c.origem !== 'interna').length || 0} pendentes
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0 sm:p-6 sm:pt-0">
           {isLoading ? (
-            <div className="space-y-4">
+            <div className="space-y-4 p-3 sm:p-0">
               {[...Array(5)].map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
           ) : consultas && consultas.filter((c) => c.status_pagamento === "pago" && c.status_repasse === "pendente" && c.origem !== 'interna').length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Médico</TableHead>
-                    <TableHead>Especialidade</TableHead>
-                    <TableHead>Paciente</TableHead>
-                    <TableHead>Data Consulta</TableHead>
-                    <TableHead className="text-right">Valor Consulta</TableHead>
-                    <TableHead className="text-right">Valor Repasse</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {consultas
-                    .filter((c) => c.status_pagamento === "pago" && c.status_repasse === "pendente" && c.origem !== 'interna')
-                    .slice(0, 10)
-                    .map((consulta: any) => (
-                      <TableRow key={consulta.id}>
-                        <TableCell className="font-medium">{consulta.medico?.nome || "—"}</TableCell>
-                        <TableCell className="text-muted-foreground">{consulta.medico?.especialidade || "—"}</TableCell>
-                        <TableCell>{consulta.nome_paciente_consulta || consulta.paciente?.nome || "—"}</TableCell>
-                        <TableCell>
-                          {format(new Date(consulta.data_hora), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                        </TableCell>
-                        <TableCell className="text-right">{formatCurrency(consulta.valor_consulta)}</TableCell>
-                        <TableCell className="text-right font-semibold text-primary">
-                          {formatCurrency(consulta.valor_medico)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                            Pendente
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </div>
+            <>
+              {/* Mobile Cards View */}
+              <div className="sm:hidden divide-y divide-border">
+                {consultas
+                  .filter((c) => c.status_pagamento === "pago" && c.status_repasse === "pendente" && c.origem !== 'interna')
+                  .slice(0, 10)
+                  .map((consulta: any) => (
+                    <div key={consulta.id} className="p-3 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{consulta.medico?.nome || "—"}</p>
+                          <p className="text-xs text-muted-foreground">{consulta.medico?.especialidade || "—"}</p>
+                        </div>
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 text-[10px] shrink-0">
+                          Pendente
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Paciente:</span>
+                        <span className="truncate ml-2">{consulta.nome_paciente_consulta || consulta.paciente?.nome || "—"}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Data:</span>
+                        <span>{format(new Date(consulta.data_hora), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-1 border-t border-border">
+                        <div>
+                          <span className="text-muted-foreground">Consulta: </span>
+                          <span>{formatCurrency(consulta.valor_consulta)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Repasse: </span>
+                          <span className="font-semibold text-primary">{formatCurrency(consulta.valor_medico)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+              {/* Desktop Table View */}
+              <div className="hidden sm:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[120px]">Médico</TableHead>
+                      <TableHead className="min-w-[100px]">Especialidade</TableHead>
+                      <TableHead className="min-w-[120px]">Paciente</TableHead>
+                      <TableHead className="min-w-[130px]">Data Consulta</TableHead>
+                      <TableHead className="text-right min-w-[100px]">Valor Consulta</TableHead>
+                      <TableHead className="text-right min-w-[100px]">Valor Repasse</TableHead>
+                      <TableHead className="min-w-[80px]">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {consultas
+                      .filter((c) => c.status_pagamento === "pago" && c.status_repasse === "pendente" && c.origem !== 'interna')
+                      .slice(0, 10)
+                      .map((consulta: any) => (
+                        <TableRow key={consulta.id}>
+                          <TableCell className="font-medium">{consulta.medico?.nome || "—"}</TableCell>
+                          <TableCell className="text-muted-foreground">{consulta.medico?.especialidade || "—"}</TableCell>
+                          <TableCell>{consulta.nome_paciente_consulta || consulta.paciente?.nome || "—"}</TableCell>
+                          <TableCell>
+                            {format(new Date(consulta.data_hora), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </TableCell>
+                          <TableCell className="text-right">{formatCurrency(consulta.valor_consulta)}</TableCell>
+                          <TableCell className="text-right font-semibold text-primary">
+                            {formatCurrency(consulta.valor_medico)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                              Pendente
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <CheckCircle2 className="h-12 w-12 mb-4 text-green-500" />
-              <p className="font-medium">Nenhum repasse pendente</p>
-              <p className="text-sm">Todos os repasses estão em dia!</p>
+            <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-muted-foreground">
+              <CheckCircle2 className="h-10 w-10 sm:h-12 sm:w-12 mb-3 sm:mb-4 text-green-500" />
+              <p className="font-medium text-sm sm:text-base">Nenhum repasse pendente</p>
+              <p className="text-xs sm:text-sm">Todos os repasses estão em dia!</p>
             </div>
           )}
         </CardContent>
