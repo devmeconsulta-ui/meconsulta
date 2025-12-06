@@ -133,6 +133,7 @@ export type Database = {
         Row: {
           aprovada_admin: boolean | null
           comentario: string | null
+          consulta_id: string | null
           created_at: string | null
           id: string
           medico_id: string
@@ -143,6 +144,7 @@ export type Database = {
         Insert: {
           aprovada_admin?: boolean | null
           comentario?: string | null
+          consulta_id?: string | null
           created_at?: string | null
           id?: string
           medico_id: string
@@ -153,6 +155,7 @@ export type Database = {
         Update: {
           aprovada_admin?: boolean | null
           comentario?: string | null
+          consulta_id?: string | null
           created_at?: string | null
           id?: string
           medico_id?: string
@@ -161,6 +164,13 @@ export type Database = {
           resposta_medico?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "avaliacoes_medico_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "avaliacoes_medico_medico_id_fkey"
             columns: ["medico_id"]
@@ -251,16 +261,19 @@ export type Database = {
           created_at: string | null
           data_hora: string
           data_hora_finalizacao_medico: string | null
+          data_hora_finalizacao_paciente: string | null
           dependente_id: string | null
           elegivel_repasse: boolean | null
           finalizado_medico: boolean | null
           finalizado_medico_id: string | null
+          finalizado_paciente: boolean | null
           id: string
           incluida_em_repasse: boolean | null
           medico_id: string | null
           motivo_consulta: string | null
           nome_paciente_consulta: string | null
           observacao_finalizacao_medico: string | null
+          observacao_finalizacao_paciente: string | null
           observacoes_paciente: string | null
           origem: string | null
           paciente_id: string | null
@@ -281,16 +294,19 @@ export type Database = {
           created_at?: string | null
           data_hora: string
           data_hora_finalizacao_medico?: string | null
+          data_hora_finalizacao_paciente?: string | null
           dependente_id?: string | null
           elegivel_repasse?: boolean | null
           finalizado_medico?: boolean | null
           finalizado_medico_id?: string | null
+          finalizado_paciente?: boolean | null
           id?: string
           incluida_em_repasse?: boolean | null
           medico_id?: string | null
           motivo_consulta?: string | null
           nome_paciente_consulta?: string | null
           observacao_finalizacao_medico?: string | null
+          observacao_finalizacao_paciente?: string | null
           observacoes_paciente?: string | null
           origem?: string | null
           paciente_id?: string | null
@@ -311,16 +327,19 @@ export type Database = {
           created_at?: string | null
           data_hora?: string
           data_hora_finalizacao_medico?: string | null
+          data_hora_finalizacao_paciente?: string | null
           dependente_id?: string | null
           elegivel_repasse?: boolean | null
           finalizado_medico?: boolean | null
           finalizado_medico_id?: string | null
+          finalizado_paciente?: boolean | null
           id?: string
           incluida_em_repasse?: boolean | null
           medico_id?: string | null
           motivo_consulta?: string | null
           nome_paciente_consulta?: string | null
           observacao_finalizacao_medico?: string | null
+          observacao_finalizacao_paciente?: string | null
           observacoes_paciente?: string | null
           origem?: string | null
           paciente_id?: string | null

@@ -81,6 +81,7 @@ interface Consulta {
   nome_paciente_consulta: string | null;
   local?: { id: string; nome_local: string } | null;
   finalizado_medico?: boolean | null;
+  finalizado_paciente?: boolean | null;
   elegivel_repasse?: boolean | null;
   incluida_em_repasse?: boolean | null;
 }
@@ -186,6 +187,7 @@ export default function MedicoFinanceiro() {
             nome_paciente_consulta,
             agenda_slot_id,
             finalizado_medico,
+            finalizado_paciente,
             elegivel_repasse,
             incluida_em_repasse,
             paciente:pacientes!consultas_paciente_id_fkey(nome),
@@ -277,7 +279,9 @@ export default function MedicoFinanceiro() {
     const consultasPagas = filteredConsultas.filter(c => c.status_pagamento === "pago").length;
     
     // Novas métricas de finalização
-    const finalizadas = filteredConsultas.filter(c => c.finalizado_medico === true).length;
+    const finalizadasMedico = filteredConsultas.filter(c => c.finalizado_medico === true).length;
+    const finalizadasPaciente = filteredConsultas.filter(c => c.finalizado_paciente === true).length;
+    const concluidas = filteredConsultas.filter(c => c.status_consulta === "concluida").length;
     const naoCompareceram = filteredConsultas.filter(c => c.status_consulta === "nao_compareceu").length;
     const elegiveis = filteredConsultas.filter(c => c.elegivel_repasse === true && !c.incluida_em_repasse).length;
     const emRepasse = filteredConsultas.filter(c => c.incluida_em_repasse === true).length;
@@ -289,7 +293,9 @@ export default function MedicoFinanceiro() {
       canceladas, 
       totalConsultas, 
       consultasPagas,
-      finalizadas,
+      finalizadasMedico,
+      finalizadasPaciente,
+      concluidas,
       naoCompareceram,
       elegiveis,
       emRepasse
@@ -743,8 +749,8 @@ export default function MedicoFinanceiro() {
                     <Target className="w-5 h-5 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{metrics.finalizadas}</p>
-                    <p className="text-xs text-muted-foreground">Finalizadas</p>
+                    <p className="text-2xl font-bold">{metrics.finalizadasMedico}</p>
+                    <p className="text-xs text-muted-foreground">Finalizadas (médico)</p>
                   </div>
                 </div>
               </CardContent>

@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -38,7 +39,8 @@ import {
   AlertCircle,
   XCircle,
   RefreshCw,
-  Loader2
+  Loader2,
+  ThumbsUp
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -48,24 +50,33 @@ interface PacienteContext {
   pacienteData: any;
 }
 
-const statusIcons = {
+const statusIcons: Record<string, React.ReactNode> = {
   aguardando_pagamento: <Clock className="w-4 h-4" />,
   confirmada: <CheckCircle className="w-4 h-4" />,
+  atendida_medico: <CheckCircle className="w-4 h-4" />,
+  concluida: <CheckCircle className="w-4 h-4" />,
   realizada: <CheckCircle className="w-4 h-4" />,
+  nao_compareceu: <XCircle className="w-4 h-4" />,
   cancelada: <XCircle className="w-4 h-4" />,
 };
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   aguardando_pagamento: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
   confirmada: "bg-green-500/10 text-green-600 border-green-500/20",
+  atendida_medico: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  concluida: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
   realizada: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  nao_compareceu: "bg-orange-500/10 text-orange-600 border-orange-500/20",
   cancelada: "bg-red-500/10 text-red-600 border-red-500/20",
 };
 
-const statusLabels = {
+const statusLabels: Record<string, string> = {
   aguardando_pagamento: "Aguardando Pagamento",
   confirmada: "Confirmada",
+  atendida_medico: "Atendida pelo Médico",
+  concluida: "Concluída",
   realizada: "Realizada",
+  nao_compareceu: "Não Compareceu",
   cancelada: "Cancelada",
 };
 
@@ -79,7 +90,8 @@ export default function PacienteConsultas() {
   const [avaliarModal, setAvaliarModal] = useState<any>(null);
   const [cancelarModal, setCancelarModal] = useState<any>(null);
   const [detalhesModal, setDetalhesModal] = useState<any>(null);
-const [nota, setNota] = useState(5);
+  const [confirmarAtendimentoModal, setConfirmarAtendimentoModal] = useState<any>(null);
+  const [nota, setNota] = useState(5);
   const [comentario, setComentario] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [processandoPagamento, setProcessandoPagamento] = useState<string | null>(null);
@@ -121,9 +133,13 @@ const [nota, setNota] = useState(5);
         .eq("paciente_id", pacienteData.id)
     ]);
 
+    // Map avaliacoes by consulta_id (preferred) or medico_id
     const avsMap: Record<string, any> = {};
     avsResult.data?.forEach((av) => {
-      avsMap[av.medico_id] = av;
+      if (av.consulta_id) {
+        avsMap[`consulta_${av.consulta_id}`] = av;
+      }
+      avsMap[`medico_${av.medico_id}`] = av;
     });
 
     setProximas(proxResult.data || []);
@@ -132,30 +148,93 @@ const [nota, setNota] = useState(5);
     setLoading(false);
   }
 
+  async function handleConfirmarAtendimento() {
+    if (!confirmarAtendimentoModal || !pacienteData?.id) return;
+
+    setEnviando(true);
+    try {
+      // Update consulta with patient confirmation
+      const { error: updateError } = await supabase
+        .from("consultas")
+        .update({
+          finalizado_paciente: true,
+          data_hora_finalizacao_paciente: new Date().toISOString(),
+          status_consulta: "concluida",
+          elegivel_repasse: true,
+        })
+        .eq("id", confirmarAtendimentoModal.id);
+
+      if (updateError) throw updateError;
+
+      // Create event log
+      await supabase.from("consultas_eventos").insert({
+        consulta_id: confirmarAtendimentoModal.id,
+        tipo_evento: "finalizada_paciente",
+        descricao: "Paciente confirmou que foi atendido",
+        usuario_tipo: "paciente",
+        usuario_id: pacienteData.id,
+      });
+
+      toast.success("Atendimento confirmado com sucesso!");
+      
+      // Close confirmation modal and open evaluation modal
+      const consultaToEvaluate = confirmarAtendimentoModal;
+      setConfirmarAtendimentoModal(null);
+      setAvaliarModal(consultaToEvaluate);
+      
+      fetchConsultas();
+    } catch (error) {
+      console.error("Error confirming attendance:", error);
+      toast.error("Erro ao confirmar atendimento");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   async function handleEnviarAvaliacao() {
     if (!avaliarModal || !pacienteData?.id) return;
 
     setEnviando(true);
-    const { error } = await supabase.from("avaliacoes_medico").insert({
-      medico_id: avaliarModal.medicos.id,
-      paciente_id: pacienteData.id,
-      nota,
-      comentario: comentario.trim() || null,
-    });
+    try {
+      const { error } = await supabase.from("avaliacoes_medico").insert({
+        medico_id: avaliarModal.medicos.id,
+        paciente_id: pacienteData.id,
+        consulta_id: avaliarModal.id,
+        nota,
+        comentario: comentario.trim() || null,
+      });
 
-    if (error) {
-      toast.error("Erro ao enviar avaliação");
-    } else {
-      toast.success("Avaliação enviada com sucesso!");
+      if (error) throw error;
+
+      // Create event log
+      await supabase.from("consultas_eventos").insert({
+        consulta_id: avaliarModal.id,
+        tipo_evento: "avaliacao_paciente",
+        descricao: `Paciente avaliou com nota ${nota}`,
+        usuario_tipo: "paciente",
+        usuario_id: pacienteData.id,
+      });
+
+      toast.success("Obrigado pela sua avaliação! Ela ajuda outros pacientes e o médico.");
       setAvaliacoes((prev) => ({
         ...prev,
-        [avaliarModal.medicos.id]: { nota, comentario },
+        [`consulta_${avaliarModal.id}`]: { nota, comentario },
+        [`medico_${avaliarModal.medicos.id}`]: { nota, comentario },
       }));
       setAvaliarModal(null);
       setNota(5);
       setComentario("");
+    } catch (error) {
+      console.error("Error sending evaluation:", error);
+      toast.error("Erro ao enviar avaliação");
     }
     setEnviando(false);
+  }
+
+  function handlePularAvaliacao() {
+    setAvaliarModal(null);
+    setNota(5);
+    setComentario("");
   }
 
   async function handleCancelarConsulta() {
@@ -164,7 +243,6 @@ const [nota, setNota] = useState(5);
     setEnviando(true);
     
     try {
-      // Usar edge function para cancelar no sistema e no Asaas
       const { data, error } = await supabase.functions.invoke('cancel-asaas-payment', {
         body: { consulta_id: cancelarModal.id }
       });
@@ -192,13 +270,11 @@ const [nota, setNota] = useState(5);
   }
 
   async function handleFinalizarPagamento(consulta: any) {
-    // Se já tem URL do Asaas, abrir direto
     if (consulta.asaas_invoice_url) {
       window.open(consulta.asaas_invoice_url, '_blank');
       return;
     }
 
-    // Se não tem, criar o pagamento
     setProcessandoPagamento(consulta.id);
     
     try {
@@ -218,11 +294,10 @@ const [nota, setNota] = useState(5);
         return;
       }
 
-      // Abrir URL de pagamento
       if (data.invoiceUrl) {
         window.open(data.invoiceUrl, '_blank');
         toast.success('Pagamento gerado! Complete o pagamento na nova aba.');
-        fetchConsultas(); // Atualizar lista para mostrar nova URL
+        fetchConsultas();
       }
     } catch (err) {
       console.error('Erro ao processar pagamento:', err);
@@ -232,9 +307,28 @@ const [nota, setNota] = useState(5);
     }
   }
 
+  // Check if consultation is eligible for patient confirmation
+  const canConfirmAttendance = (consulta: any) => {
+    const now = new Date();
+    const consultaDate = new Date(consulta.data_hora);
+    const isPast = consultaDate <= now;
+    const isPaid = consulta.status_pagamento === "pago";
+    const notConfirmedByPatient = !consulta.finalizado_paciente;
+    const validStatus = ["confirmada", "atendida_medico"].includes(consulta.status_consulta);
+    
+    return isPast && isPaid && notConfirmedByPatient && validStatus;
+  };
+
+  // Check if evaluation exists for this specific consultation
+  const hasEvaluationForConsulta = (consulta: any) => {
+    return !!avaliacoes[`consulta_${consulta.id}`];
+  };
+
   const renderConsultaCard = (consulta: any, isHistorico: boolean) => {
-    const avaliacao = avaliacoes[consulta.medicos?.id];
-    const status = consulta.status_consulta as keyof typeof statusLabels;
+    const avaliacao = avaliacoes[`consulta_${consulta.id}`] || avaliacoes[`medico_${consulta.medicos?.id}`];
+    const status = consulta.status_consulta as string;
+    const showConfirmButton = canConfirmAttendance(consulta);
+    const canEvaluate = isHistorico && !hasEvaluationForConsulta(consulta) && consulta.finalizado_paciente;
 
     return (
       <Card key={consulta.id} className="card-shadow overflow-hidden">
@@ -272,13 +366,20 @@ const [nota, setNota] = useState(5);
                     className={statusColors[status] || ""}
                   >
                     {statusIcons[status]}
-                    <span className="ml-1">{statusLabels[status]}</span>
+                    <span className="ml-1">{statusLabels[status] || status}</span>
                   </Badge>
                   
                   {consulta.status_pagamento === "pendente" && status !== "cancelada" && (
                     <Badge variant="destructive" className="gap-1">
                       <CreditCard className="w-3 h-3" />
                       Pagamento pendente
+                    </Badge>
+                  )}
+
+                  {consulta.finalizado_paciente && (
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 gap-1">
+                      <ThumbsUp className="w-3 h-3" />
+                      Confirmado
                     </Badge>
                   )}
                 </div>
@@ -309,6 +410,18 @@ const [nota, setNota] = useState(5);
                 >
                   Ver detalhes
                 </Button>
+                
+                {/* Patient confirmation button */}
+                {showConfirmButton && (
+                  <Button 
+                    size="sm"
+                    className="gap-1 bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => setConfirmarAtendimentoModal(consulta)}
+                  >
+                    <ThumbsUp className="w-4 h-4" />
+                    Confirmar atendimento
+                  </Button>
+                )}
                 
                 {!isHistorico && consulta.status_pagamento === "pendente" && (
                   <Button 
@@ -353,7 +466,8 @@ const [nota, setNota] = useState(5);
                   </>
                 )}
 
-                {isHistorico && !avaliacao && status === "realizada" && (
+                {/* Evaluate button for concluded consultations */}
+                {canEvaluate && (
                   <Button
                     size="sm"
                     variant="secondary"
@@ -471,13 +585,55 @@ const [nota, setNota] = useState(5);
         </TabsContent>
       </Tabs>
 
+      {/* Modal de Confirmação de Atendimento */}
+      <AlertDialog open={!!confirmarAtendimentoModal} onOpenChange={() => setConfirmarAtendimentoModal(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <ThumbsUp className="w-5 h-5 text-emerald-600" />
+              Confirmar Atendimento
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Você confirma que foi atendido(a) pelo(a){" "}
+                <span className="font-semibold">Dr(a). {confirmarAtendimentoModal?.medicos?.nome}</span>{" "}
+                na data{" "}
+                <span className="font-semibold">
+                  {confirmarAtendimentoModal && format(new Date(confirmarAtendimentoModal.data_hora), "dd/MM/yyyy 'às' HH:mm")}
+                </span>?
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Após confirmar, você poderá avaliar o atendimento do médico.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={enviando}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmarAtendimento}
+              disabled={enviando}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {enviando ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Confirmando...
+                </>
+              ) : (
+                "Sim, fui atendido(a)"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Modal de Avaliação */}
-      <Dialog open={!!avaliarModal} onOpenChange={() => setAvaliarModal(null)}>
+      <Dialog open={!!avaliarModal} onOpenChange={() => handlePularAvaliacao()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Avaliar Dr(a). {avaliarModal?.medicos?.nome}</DialogTitle>
+            <DialogTitle>Avalie o atendimento</DialogTitle>
             <DialogDescription>
-              Compartilhe sua experiência com o médico
+              Dr(a). {avaliarModal?.medicos?.nome}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
@@ -519,14 +675,24 @@ const [nota, setNota] = useState(5);
                 rows={4}
               />
             </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={handlePularAvaliacao}
+              disabled={enviando}
+              className="w-full sm:w-auto"
+            >
+              Pular agora
+            </Button>
             <Button
               onClick={handleEnviarAvaliacao}
               disabled={enviando}
-              className="w-full"
+              className="w-full sm:w-auto"
             >
               {enviando ? "Enviando..." : "Enviar avaliação"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -603,15 +769,56 @@ const [nota, setNota] = useState(5);
                 </div>
                 <div className="p-3 bg-muted/30 rounded-lg">
                   <p className="text-xs text-muted-foreground">Status</p>
-                  <Badge variant="outline" className={statusColors[detalhesModal.status_consulta as keyof typeof statusColors]}>
-                    {statusLabels[detalhesModal.status_consulta as keyof typeof statusLabels]}
+                  <Badge variant="outline" className={statusColors[detalhesModal.status_consulta as string]}>
+                    {statusLabels[detalhesModal.status_consulta as string] || detalhesModal.status_consulta}
                   </Badge>
+                </div>
+              </div>
+
+              {/* Timeline do status */}
+              <div className="p-4 bg-muted/20 rounded-lg">
+                <p className="text-sm font-medium mb-3">Status da consulta</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Consulta agendada</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {detalhesModal.status_pagamento === "pago" ? (
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-yellow-500" />
+                    )}
+                    <span>Pagamento {detalhesModal.status_pagamento === "pago" ? "confirmado" : "pendente"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {detalhesModal.finalizado_medico ? (
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                    )}
+                    <span>Atendimento {detalhesModal.finalizado_medico ? "realizado" : "aguardando"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {detalhesModal.finalizado_paciente ? (
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                    )}
+                    <span>Confirmação do paciente {detalhesModal.finalizado_paciente ? "realizada" : "pendente"}</span>
+                  </div>
                 </div>
               </div>
 
               {detalhesModal.status_pagamento === "pendente" && 
                detalhesModal.status_consulta !== "cancelada" && (
-                <Button className="w-full">
+                <Button 
+                  className="w-full"
+                  onClick={() => {
+                    handleFinalizarPagamento(detalhesModal);
+                    setDetalhesModal(null);
+                  }}
+                >
                   Finalizar pagamento
                 </Button>
               )}
