@@ -71,6 +71,10 @@ const Checkout = () => {
   const [submitting, setSubmitting] = useState(false);
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [showPayment, setShowPayment] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  
+  // Payment countdown timer (15 minutes)
+  const PAYMENT_TIMEOUT = 15 * 60 * 1000;
   
   // Combined form state
   const [formData, setFormData] = useState({
@@ -106,6 +110,40 @@ const Checkout = () => {
       fetchDependentes();
     }
   }, [currentUser?.pacienteId]);
+
+  // Payment countdown timer effect
+  useEffect(() => {
+    if (showPayment && paymentData?.createdAt) {
+      const calculateTimeLeft = () => {
+        const elapsed = Date.now() - paymentData.createdAt!;
+        const remaining = Math.max(0, PAYMENT_TIMEOUT - elapsed);
+        return remaining;
+      };
+      
+      setTimeLeft(calculateTimeLeft());
+      
+      const timer = setInterval(() => {
+        const remaining = calculateTimeLeft();
+        setTimeLeft(remaining);
+        
+        if (remaining <= 0) {
+          clearInterval(timer);
+        }
+      }, 1000);
+      
+      return () => clearInterval(timer);
+    }
+  }, [showPayment, paymentData?.createdAt, PAYMENT_TIMEOUT]);
+
+  const formatTime = useCallback((ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, []);
+  
+  const isTimeExpired = timeLeft !== null && timeLeft <= 0;
+  const isTimeWarning = timeLeft !== null && timeLeft <= 3 * 60 * 1000;
 
   async function fetchDependentes() {
     if (!currentUser?.pacienteId) return;
@@ -493,42 +531,6 @@ const Checkout = () => {
     ? format(parseISO(selectedDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
     : "";
 
-  // Payment countdown timer (15 minutes)
-  const PAYMENT_TIMEOUT = 15 * 60 * 1000; // 15 minutes in milliseconds
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  
-  useEffect(() => {
-    if (showPayment && paymentData?.createdAt) {
-      const calculateTimeLeft = () => {
-        const elapsed = Date.now() - paymentData.createdAt!;
-        const remaining = Math.max(0, PAYMENT_TIMEOUT - elapsed);
-        return remaining;
-      };
-      
-      setTimeLeft(calculateTimeLeft());
-      
-      const timer = setInterval(() => {
-        const remaining = calculateTimeLeft();
-        setTimeLeft(remaining);
-        
-        if (remaining <= 0) {
-          clearInterval(timer);
-        }
-      }, 1000);
-      
-      return () => clearInterval(timer);
-    }
-  }, [showPayment, paymentData?.createdAt]);
-  
-  const formatTime = useCallback((ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  }, []);
-  
-  const isTimeExpired = timeLeft !== null && timeLeft <= 0;
-  const isTimeWarning = timeLeft !== null && timeLeft <= 3 * 60 * 1000; // Less than 3 minutes
 
   // Payment success screen
   if (showPayment && paymentData) {
