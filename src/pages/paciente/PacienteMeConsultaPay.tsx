@@ -283,26 +283,26 @@ export default function PacienteMeConsultaPay() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Main Credit Card */}
         <div className="lg:col-span-2">
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 via-amber-100/80 to-yellow-200 p-6 sm:p-8 text-foreground shadow-2xl border border-amber-200/50 min-h-[320px] sm:min-h-[380px]">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 via-amber-100/80 to-yellow-200 dark:from-amber-900/30 dark:via-amber-800/20 dark:to-yellow-900/30 p-6 sm:p-8 text-foreground shadow-2xl border border-amber-200/50 dark:border-amber-700/30 min-h-[320px] sm:min-h-[380px]">
             {/* Background decorations */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-300/20 rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-300/30 rounded-full translate-y-1/2 -translate-x-1/2" />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-300/20 dark:bg-yellow-500/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-300/30 dark:bg-amber-600/15 rounded-full translate-y-1/2 -translate-x-1/2" />
 
             <div className="relative z-10 h-full flex flex-col">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-sm flex items-center justify-center p-2 shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-white/80 dark:bg-white/90 backdrop-blur-sm flex items-center justify-center p-2 shadow-sm">
                   <img src={logo} alt="MeConsulta" className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-primary">MeConsulta Pay</h1>
-                  <p className="text-muted-foreground text-xs sm:text-sm">
+                  <h1 className="text-xl sm:text-2xl font-bold text-[hsl(214,100%,35%)] dark:text-primary">MeConsulta Pay</h1>
+                  <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm">
                     Crédito rápido para realizar seus sonhos
                   </p>
                 </div>
               </div>
 
               {/* Virtual Card */}
-              <div className="bg-gradient-to-br from-white/90 to-amber-50/80 backdrop-blur-sm rounded-xl p-5 sm:p-6 border border-amber-200/50 shadow-lg flex-1 flex flex-col justify-between">
+              <div className="bg-gradient-to-br from-white/90 to-amber-50/80 dark:from-slate-800/90 dark:to-slate-700/80 backdrop-blur-sm rounded-xl p-5 sm:p-6 border border-amber-200/50 dark:border-slate-600/50 shadow-lg flex-1 flex flex-col justify-between">
                 <div className="flex justify-between items-start mb-6 sm:mb-8">
                   <div className="w-12 h-8 bg-gradient-to-r from-yellow-400 to-amber-500 rounded shadow-sm" />
                   <div className="text-right">
@@ -310,25 +310,25 @@ export default function PacienteMeConsultaPay() {
                   </div>
                 </div>
 
-                <p className="font-mono text-lg sm:text-xl tracking-wider mb-4 sm:mb-6 text-primary">
+                <p className="font-mono text-lg sm:text-xl tracking-wider mb-4 sm:mb-6 text-[hsl(214,100%,35%)] dark:text-primary">
                   •••• •••• •••• {paciente?.cpf?.replace(/\D/g, "").slice(-4) || "----"}
                 </p>
 
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-0">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase mb-1">Titular</p>
-                    <p className="font-semibold text-foreground text-sm sm:text-base">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase mb-1">Titular</p>
+                    <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm sm:text-base">
                       {formData.nome_completo?.toUpperCase() || paciente?.nome?.toUpperCase() || "NOME NÃO INFORMADO"}
                     </p>
                   </div>
                   <div className="sm:text-right">
-                    <p className="text-xs text-muted-foreground">Limite pré-aprovado</p>
-                    <p className="text-xl sm:text-2xl font-bold text-primary">R$ 8.000,00</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Limite pré-aprovado</p>
+                    <p className="text-xl sm:text-2xl font-bold text-[hsl(214,100%,35%)] dark:text-primary">R$ 8.000,00</p>
                   </div>
                 </div>
               </div>
 
-              <p className="text-xs text-muted-foreground mt-4 text-center">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-4 text-center">
                 * Limite sujeito à análise de crédito. Condições especiais para clientes MeConsulta.
               </p>
             </div>
@@ -633,9 +633,9 @@ export default function PacienteMeConsultaPay() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-lg border border-primary/10">
-              <AlertCircle className="w-5 h-5 text-primary flex-shrink-0" />
-              <p className="text-sm text-muted-foreground">
+            <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700/30">
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <p className="text-sm text-amber-800 dark:text-amber-200">
                 Seus dados são tratados com total sigilo e segurança. A análise não afeta seu score de crédito.
               </p>
             </div>
@@ -643,7 +643,7 @@ export default function PacienteMeConsultaPay() {
             <Button
               type="submit"
               size="lg"
-              className="w-full bg-gradient-to-r from-primary to-[hsl(214,100%,28%)] hover:from-primary/90 hover:to-[hsl(214,100%,25%)]"
+              className="w-full bg-gradient-to-r from-[hsl(214,100%,35%)] to-[hsl(214,100%,28%)] hover:from-[hsl(214,100%,40%)] hover:to-[hsl(214,100%,32%)] dark:from-primary dark:to-amber-500 dark:hover:from-primary/90 dark:hover:to-amber-400 text-white dark:text-slate-900"
               disabled={createMutation.isPending}
             >
               {createMutation.isPending ? (

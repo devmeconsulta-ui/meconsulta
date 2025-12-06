@@ -172,23 +172,24 @@ export default function PacienteDashboard() {
 
       {/* Alert for pending payments */}
       {stats.pagamentosPendentes > 0 && (
-        <Card className="border-destructive/50 bg-destructive/5">
+        <Card className="border-red-400/50 dark:border-red-400/30 bg-red-50 dark:bg-red-950/30">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-destructive/10 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-5 h-5 text-destructive" />
+              <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-destructive">
+                <p className="font-medium text-red-700 dark:text-red-300">
                   Você tem {stats.pagamentosPendentes} pagamento(s) pendente(s)
                 </p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-red-600/80 dark:text-red-400/80">
                   Finalize seus pagamentos para confirmar as consultas
                 </p>
               </div>
               <Button
                 variant="destructive"
                 size="sm"
+                className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500"
                 onClick={() => navigate("/paciente/consultas")}
               >
                 Ver consultas
