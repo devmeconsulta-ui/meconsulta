@@ -462,6 +462,7 @@ const Checkout = () => {
           status_consulta: "aguardando_pagamento",
           status_pagamento: "pendente",
           status_repasse: "pendente",
+          local_id: localId || null,
         })
         .select('id')
         .single();
