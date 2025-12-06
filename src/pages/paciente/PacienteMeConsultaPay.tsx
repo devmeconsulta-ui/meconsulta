@@ -99,6 +99,15 @@ export default function PacienteMeConsultaPay() {
   });
 
   const [currentPhrase, setCurrentPhrase] = useState(0);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+
+  const toggleCategory = (categoryName: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(categoryName) 
+        ? prev.filter(c => c !== categoryName)
+        : [...prev, categoryName]
+    );
+  };
 
   // Rotate motivational phrases
   useEffect(() => {
@@ -302,14 +311,14 @@ export default function PacienteMeConsultaPay() {
                 </div>
 
                 <p className="font-mono text-lg sm:text-xl tracking-wider mb-4 sm:mb-6 text-primary">
-                  •••• •••• •••• {paciente?.cpf?.slice(-4) || "0000"}
+                  •••• •••• •••• {paciente?.cpf?.replace(/\D/g, "").slice(-4) || "----"}
                 </p>
 
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-0">
                   <div>
                     <p className="text-xs text-muted-foreground uppercase mb-1">Titular</p>
                     <p className="font-semibold text-foreground text-sm sm:text-base">
-                      {paciente?.nome?.toUpperCase() || "CARREGANDO..."}
+                      {formData.nome_completo?.toUpperCase() || paciente?.nome?.toUpperCase() || "NOME NÃO INFORMADO"}
                     </p>
                   </div>
                   <div className="sm:text-right">
@@ -443,29 +452,59 @@ export default function PacienteMeConsultaPay() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {loanPurposeData.map((item, index) => (
-                <button 
-                  key={index}
-                  type="button"
-                  className="flex items-center gap-3 p-4 rounded-xl bg-muted/50 border border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer text-left w-full group"
-                  onClick={() => {
-                    toast({
-                      title: `${item.name}`,
-                      description: `Você pode usar seu crédito MeConsulta Pay para ${item.name.toLowerCase()}!`,
-                    });
-                  }}
-                >
-                  <span className="text-2xl group-hover:scale-110 transition-transform">{item.icon}</span>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm group-hover:text-primary transition-colors">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Clique para saber mais
-                    </p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                </button>
-              ))}
+              {loanPurposeData.map((item, index) => {
+                const isSelected = selectedCategories.includes(item.name);
+                return (
+                  <button 
+                    key={index}
+                    type="button"
+                    className={`flex items-center gap-3 p-4 rounded-xl border transition-all duration-200 cursor-pointer text-left w-full group ${
+                      isSelected 
+                        ? "bg-primary/15 border-primary/40 shadow-md" 
+                        : "bg-muted/50 border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:shadow-md"
+                    }`}
+                    onClick={() => toggleCategory(item.name)}
+                  >
+                    <span className={`text-2xl transition-transform ${isSelected ? "scale-110" : "group-hover:scale-110"}`}>{item.icon}</span>
+                    <div className="flex-1">
+                      <p className={`font-medium text-sm transition-colors ${isSelected ? "text-primary" : "group-hover:text-primary"}`}>{item.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {isSelected ? "Selecionado" : "Clique para selecionar"}
+                      </p>
+                    </div>
+                    {isSelected ? (
+                      <CheckCircle className="w-5 h-5 text-primary" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
+            
+            {/* Selected Categories Tags */}
+            {selectedCategories.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-border/50">
+                <p className="text-xs text-muted-foreground mb-2">Finalidades selecionadas:</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedCategories.map((category) => {
+                    const item = loanPurposeData.find(d => d.name === category);
+                    return (
+                      <Badge 
+                        key={category}
+                        variant="secondary"
+                        className="bg-primary/10 text-primary border-primary/20 px-3 py-1 text-sm cursor-pointer hover:bg-primary/20 transition-colors"
+                        onClick={() => toggleCategory(category)}
+                      >
+                        {item?.icon} {category}
+                        <XCircle className="w-3 h-3 ml-1.5 opacity-70" />
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            
             <p className="text-xs text-muted-foreground mt-4 text-center">
               Use seu crédito para o que precisar!
             </p>
