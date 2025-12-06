@@ -66,6 +66,7 @@ const PerfilMedico = () => {
 
   useEffect(() => {
     if (id) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       fetchMedicoData();
     }
   }, [id]);
