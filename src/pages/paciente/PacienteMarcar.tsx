@@ -403,6 +403,7 @@ export default function PacienteMarcar() {
       });
       setConfirmDialog(false);
       setShowPayment(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       toast.success("Cobrança gerada com sucesso!");
 
     } catch (error: any) {
