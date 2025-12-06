@@ -544,6 +544,7 @@ export type Database = {
           nome_mae: string
           paciente_id: string
           status: string
+          valor_pretendido: number | null
         }
         Insert: {
           cpf: string
@@ -554,6 +555,7 @@ export type Database = {
           nome_mae: string
           paciente_id: string
           status?: string
+          valor_pretendido?: number | null
         }
         Update: {
           cpf?: string
@@ -564,6 +566,7 @@ export type Database = {
           nome_mae?: string
           paciente_id?: string
           status?: string
+          valor_pretendido?: number | null
         }
         Relationships: [
           {
