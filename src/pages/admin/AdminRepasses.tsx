@@ -66,6 +66,7 @@ interface ConsultaRepasse {
   origem: string;
   elegivel_repasse: boolean;
   finalizado_medico: boolean;
+  finalizado_paciente: boolean;
   incluida_em_repasse: boolean;
   medico: { id: string; nome: string; especialidade: string } | null;
   paciente: { nome: string } | null;
@@ -121,6 +122,7 @@ export default function AdminRepasses() {
           origem,
           elegivel_repasse,
           finalizado_medico,
+          finalizado_paciente,
           incluida_em_repasse,
           nome_paciente_consulta,
           medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
@@ -630,8 +632,10 @@ export default function AdminRepasses() {
                     <TableHead>Médico</TableHead>
                     <TableHead>Data/Hora</TableHead>
                     <TableHead>Valor Médico</TableHead>
+                    <TableHead>Pagamento</TableHead>
+                    <TableHead>Médico</TableHead>
+                    <TableHead>Paciente</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Finalizado</TableHead>
                     <TableHead>Elegível</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -683,6 +687,31 @@ export default function AdminRepasses() {
                         ) : (
                           <Clock className="w-5 h-5 text-muted-foreground" />
                         )}
+                      </TableCell>
+                      <TableCell>
+                        {consulta.finalizado_paciente ? (
+                          <CheckCircle className="w-5 h-5 text-green-500" />
+                        ) : (
+                          <Clock className="w-5 h-5 text-muted-foreground" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            consulta.status_consulta === "concluida"
+                              ? "bg-emerald-500/10 text-emerald-600"
+                              : consulta.status_consulta === "atendida_medico"
+                              ? "bg-blue-500/10 text-blue-600"
+                              : consulta.status_consulta === "confirmada"
+                              ? "bg-green-500/10 text-green-600"
+                              : "bg-muted"
+                          }
+                        >
+                          {consulta.status_consulta === "concluida" ? "Concluída" : 
+                           consulta.status_consulta === "atendida_medico" ? "Atendida (méd)" :
+                           consulta.status_consulta === "confirmada" ? "Confirmada" :
+                           consulta.status_consulta}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         {consulta.elegivel_repasse ? (
