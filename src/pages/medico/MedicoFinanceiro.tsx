@@ -136,27 +136,28 @@ export default function MedicoFinanceiro() {
   // Active tab
   const [activeTab, setActiveTab] = useState("visao-geral");
 
-  // Calculate date range based on filter
+  // Calculate date range based on filter (includes future dates for appointments)
   const dateRange = useMemo(() => {
     const now = new Date();
+    const futureEnd = subMonths(now, -3); // Include 3 months in the future for appointments
     switch (periodFilter) {
       case "7d":
-        return { start: subDays(now, 7), end: now };
+        return { start: subDays(now, 7), end: futureEnd };
       case "30d":
-        return { start: subDays(now, 30), end: now };
+        return { start: subDays(now, 30), end: futureEnd };
       case "3months":
-        return { start: startOfMonth(subMonths(now, 2)), end: endOfMonth(now) };
+        return { start: startOfMonth(subMonths(now, 2)), end: futureEnd };
       case "6months":
-        return { start: startOfMonth(subMonths(now, 5)), end: endOfMonth(now) };
+        return { start: startOfMonth(subMonths(now, 5)), end: futureEnd };
       case "12months":
-        return { start: startOfMonth(subMonths(now, 11)), end: endOfMonth(now) };
+        return { start: startOfMonth(subMonths(now, 11)), end: futureEnd };
       case "custom":
         return {
           start: customDateRange.from || startOfMonth(now),
-          end: customDateRange.to || now,
+          end: customDateRange.to || futureEnd,
         };
       default:
-        return { start: subDays(now, 30), end: now };
+        return { start: subDays(now, 30), end: futureEnd };
     }
   }, [periodFilter, customDateRange]);
 
