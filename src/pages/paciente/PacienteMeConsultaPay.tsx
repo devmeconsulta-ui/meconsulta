@@ -78,7 +78,7 @@ const motivationalPhrases = [
 ];
 
 type PacienteContext = {
-  paciente: {
+  pacienteData: {
     id: string;
     nome: string;
     cpf: string | null;
@@ -87,7 +87,7 @@ type PacienteContext = {
 };
 
 export default function PacienteMeConsultaPay() {
-  const { paciente } = useOutletContext<PacienteContext>();
+  const { pacienteData: paciente } = useOutletContext<PacienteContext>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
