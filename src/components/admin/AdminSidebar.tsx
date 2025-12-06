@@ -6,6 +6,7 @@ import {
   UserCog,
   Calendar,
   DollarSign,
+  Wallet,
   Settings,
   Menu,
   X,

@@ -13,21 +13,27 @@ import {
   Loader2,
   FileText,
   Globe,
-  Building2
+  Building2,
+  CheckCircle2,
+  UserX
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import ConsultaDetalhesModal from "@/components/medico/ConsultaDetalhesModal";
+import FinalizarConsultaModal from "@/components/medico/FinalizarConsultaModal";
 
 interface Consulta {
   id: string;
   data_hora: string;
   status_consulta: string;
+  status_pagamento: string;
   motivo_consulta: string | null;
   nome_paciente_consulta: string | null;
   origem: string | null;
+  finalizado_medico: boolean | null;
+  elegivel_repasse: boolean | null;
   paciente: {
     id: string;
     nome: string;
@@ -42,12 +48,18 @@ interface Consulta {
     nome: string;
     parentesco: string;
   } | null;
+  local?: {
+    nome_local: string;
+  } | null;
 }
 
 const statusLabels: Record<string, string> = {
   aguardando_pagamento: "Aguardando Pagamento",
   confirmada: "Confirmada",
   realizada: "Realizada",
+  atendida_medico: "Atendida",
+  nao_compareceu: "Não Compareceu",
+  concluida: "Concluída",
   cancelada: "Cancelada",
 };
 
@@ -55,6 +67,9 @@ const statusColors: Record<string, string> = {
   aguardando_pagamento: "bg-yellow-500/10 text-yellow-600",
   confirmada: "bg-blue-500/10 text-blue-600",
   realizada: "bg-green-500/10 text-green-600",
+  atendida_medico: "bg-green-500/10 text-green-600",
+  nao_compareceu: "bg-red-500/10 text-red-600",
+  concluida: "bg-emerald-500/10 text-emerald-600",
   cancelada: "bg-red-500/10 text-red-600",
 };
 
@@ -66,6 +81,8 @@ export default function MedicoConsultas() {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [selectedConsulta, setSelectedConsulta] = useState<Consulta | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [finalizarModalOpen, setFinalizarModalOpen] = useState(false);
+  const [consultaToFinalize, setConsultaToFinalize] = useState<Consulta | null>(null);
 
   useEffect(() => {
     if (currentUser?.medicoId) {
@@ -84,10 +101,13 @@ export default function MedicoConsultas() {
         id,
         data_hora,
         status_consulta,
+        status_pagamento,
         motivo_consulta,
         nome_paciente_consulta,
         origem,
-        paciente:pacientes(id, nome, cpf, data_nascimento, cidade, estado, bairro),
+        finalizado_medico,
+        elegivel_repasse,
+        paciente:pacientes!consultas_paciente_id_fkey(id, nome, cpf, data_nascimento, cidade, estado, bairro),
         dependente:paciente_dependentes(id, nome, parentesco)
       `)
       .eq("medico_id", currentUser.medicoId)
@@ -273,7 +293,7 @@ export default function MedicoConsultas() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                       {/* Origin badge */}
                       {consulta.origem === "online" ? (
                         <Badge className="bg-blue-500/10 text-blue-600 gap-1">
@@ -293,6 +313,34 @@ export default function MedicoConsultas() {
                       <Badge className={statusColors[consulta.status_consulta] || "bg-muted"}>
                         {statusLabels[consulta.status_consulta] || consulta.status_consulta}
                       </Badge>
+                      
+                      {/* Finalizar button - only show for paid confirmed consultations that haven't been finalized */}
+                      {consulta.status_pagamento === "pago" &&
+                        consulta.status_consulta === "confirmada" &&
+                        !consulta.finalizado_medico &&
+                        new Date(consulta.data_hora) <= new Date() && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="gap-1 bg-green-600 hover:bg-green-700"
+                            onClick={() => {
+                              setConsultaToFinalize(consulta);
+                              setFinalizarModalOpen(true);
+                            }}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            Finalizar
+                          </Button>
+                        )}
+                      
+                      {/* Show finalized status */}
+                      {consulta.finalizado_medico && (
+                        <Badge className="bg-green-500/10 text-green-600 gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Finalizada
+                        </Badge>
+                      )}
+                      
                       <Button 
                         variant="outline" 
                         size="sm" 
@@ -318,6 +366,17 @@ export default function MedicoConsultas() {
           onOpenChange={setModalOpen}
           consulta={selectedConsulta}
           onUpdate={fetchConsultas}
+        />
+      )}
+
+      {/* Finalizar Modal */}
+      {consultaToFinalize && currentUser?.medicoId && (
+        <FinalizarConsultaModal
+          open={finalizarModalOpen}
+          onOpenChange={setFinalizarModalOpen}
+          consulta={consultaToFinalize}
+          medicoId={currentUser.medicoId}
+          onSuccess={fetchConsultas}
         />
       )}
     </div>
