@@ -799,6 +799,7 @@ export type Database = {
           medico_id: string
           nome: string
           papel: string
+          permissoes: string[] | null
           senha_hash: string | null
           telefone: string | null
         }
@@ -810,6 +811,7 @@ export type Database = {
           medico_id: string
           nome: string
           papel?: string
+          permissoes?: string[] | null
           senha_hash?: string | null
           telefone?: string | null
         }
@@ -821,6 +823,7 @@ export type Database = {
           medico_id?: string
           nome?: string
           papel?: string
+          permissoes?: string[] | null
           senha_hash?: string | null
           telefone?: string | null
         }

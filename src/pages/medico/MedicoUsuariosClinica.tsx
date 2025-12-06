@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -21,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Plus, Phone, Mail, Briefcase, Trash2, Pencil, Eye, EyeOff, Key } from "lucide-react";
+import { Users, Plus, Phone, Mail, Briefcase, Trash2, Pencil, Eye, EyeOff, Key, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
@@ -38,12 +39,21 @@ interface UsuarioClinica {
   ativo: boolean;
   created_at: string;
   senha_hash: string | null;
+  permissoes: string[] | null;
 }
 
 const papelOptions = [
   { value: "secretaria", label: "Secretária" },
   { value: "recepcao", label: "Recepção" },
   { value: "assistente", label: "Assistente" },
+];
+
+const permissaoOptions = [
+  { value: "dashboard", label: "Dashboard" },
+  { value: "consultas", label: "Consultas" },
+  { value: "locais", label: "Locais de Atendimento" },
+  { value: "agenda", label: "Agenda" },
+  { value: "pagina-publica", label: "Minha Página Pública" },
 ];
 
 export default function MedicoUsuariosClinica() {
@@ -60,6 +70,7 @@ export default function MedicoUsuariosClinica() {
     papel: "secretaria",
     ativo: true,
     senha: "",
+    permissoes: ["dashboard", "consultas", "locais", "agenda", "pagina-publica"] as string[],
   });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -90,6 +101,7 @@ export default function MedicoUsuariosClinica() {
       papel: "secretaria",
       ativo: true,
       senha: "",
+      permissoes: ["dashboard", "consultas", "locais", "agenda", "pagina-publica"],
     });
     setEditingUser(null);
     setShowPassword(false);
@@ -103,9 +115,19 @@ export default function MedicoUsuariosClinica() {
       telefone: usuario.telefone || "",
       papel: usuario.papel,
       ativo: usuario.ativo,
-      senha: "", // Don't pre-fill password for security
+      senha: "",
+      permissoes: usuario.permissoes || ["dashboard", "consultas", "locais", "agenda", "pagina-publica"],
     });
     setDialogOpen(true);
+  }
+
+  function togglePermissao(permissao: string) {
+    setFormData(prev => ({
+      ...prev,
+      permissoes: prev.permissoes.includes(permissao)
+        ? prev.permissoes.filter(p => p !== permissao)
+        : [...prev.permissoes, permissao]
+    }));
   }
 
   async function handleSubmit() {
@@ -132,9 +154,9 @@ export default function MedicoUsuariosClinica() {
         telefone: formData.telefone || null,
         papel: formData.papel,
         ativo: formData.ativo,
+        permissoes: formData.permissoes,
       };
 
-      // Only update password if a new one was provided
       if (formData.senha.trim()) {
         updateData.senha_hash = formData.senha;
       }
@@ -158,6 +180,7 @@ export default function MedicoUsuariosClinica() {
         papel: formData.papel,
         ativo: formData.ativo,
         senha_hash: formData.senha,
+        permissoes: formData.permissoes,
       });
 
       if (error) {
@@ -303,6 +326,37 @@ export default function MedicoUsuariosClinica() {
                   O usuário usará esta senha para acessar o sistema
                 </p>
               </div>
+
+              <Separator />
+
+              <div>
+                <Label className="flex items-center gap-2 mb-3">
+                  <Shield className="w-4 h-4" />
+                  Permissões de Acesso
+                </Label>
+                <div className="space-y-2">
+                  {permissaoOptions.map((option) => (
+                    <div key={option.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={option.value}
+                        checked={formData.permissoes.includes(option.value)}
+                        onCheckedChange={() => togglePermissao(option.value)}
+                      />
+                      <label
+                        htmlFor={option.value}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {option.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Selecione quais áreas o usuário poderá acessar
+                </p>
+              </div>
+
+              <Separator />
 
               <div className="flex items-center justify-between">
                 <Label>Ativo</Label>

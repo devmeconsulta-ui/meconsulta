@@ -18,18 +18,17 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-// Define all menu items with role restrictions
-// atendenteAccess: true means atendente can see this item
+// Define all menu items with permission keys
 const allMenuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/medico", atendenteAccess: true },
-  { icon: Stethoscope, label: "Consultas", path: "/medico/consultas", atendenteAccess: true },
-  { icon: MapPin, label: "Locais de Atendimento", path: "/medico/locais", atendenteAccess: true },
-  { icon: Calendar, label: "Agenda", path: "/medico/agenda", atendenteAccess: true },
-  { icon: Users, label: "Usuários da Clínica", path: "/medico/usuarios-clinica", atendenteAccess: false },
-  { icon: User, label: "Minha Página Pública", path: "/medico/pagina-publica", atendenteAccess: true },
-  { icon: Wallet, label: "Dados Bancários", path: "/medico/dados-bancarios", atendenteAccess: false },
-  { icon: Star, label: "Avaliações", path: "/medico/avaliacoes", atendenteAccess: false },
-  { icon: Settings, label: "Configurações", path: "/medico/configuracoes", atendenteAccess: false },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/medico", permKey: "dashboard" },
+  { icon: Stethoscope, label: "Consultas", path: "/medico/consultas", permKey: "consultas" },
+  { icon: MapPin, label: "Locais de Atendimento", path: "/medico/locais", permKey: "locais" },
+  { icon: Calendar, label: "Agenda", path: "/medico/agenda", permKey: "agenda" },
+  { icon: Users, label: "Usuários da Clínica", path: "/medico/usuarios-clinica", permKey: "usuarios-clinica" },
+  { icon: User, label: "Minha Página Pública", path: "/medico/pagina-publica", permKey: "pagina-publica" },
+  { icon: Wallet, label: "Dados Bancários", path: "/medico/dados-bancarios", permKey: "dados-bancarios" },
+  { icon: Star, label: "Avaliações", path: "/medico/avaliacoes", permKey: "avaliacoes" },
+  { icon: Settings, label: "Configurações", path: "/medico/configuracoes", permKey: "configuracoes" },
 ];
 
 export function MedicoSidebar() {
@@ -37,15 +36,20 @@ export function MedicoSidebar() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Check if user is atendente
+  // Check if user is atendente (clinic staff)
   const isAtendente = currentUser?.papel === 'atendente';
+  
+  // Get permissions from currentUser (set during login for atendentes)
+  const userPermissions = currentUser?.permissoes as string[] | undefined;
 
-  // Filter menu items based on role
+  // Filter menu items based on role and permissions
   const menuItems = allMenuItems.filter(item => {
-    if (isAtendente) {
-      return item.atendenteAccess;
+    if (!isAtendente) {
+      return true; // médico sees everything
     }
-    return true; // médico sees everything
+    // Atendente: check if they have permission for this item
+    if (!userPermissions) return false;
+    return userPermissions.includes(item.permKey);
   });
 
   const handleLogout = () => {
