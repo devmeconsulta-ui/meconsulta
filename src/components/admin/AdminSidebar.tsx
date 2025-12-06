@@ -61,13 +61,19 @@ const menuItems: MenuItem[] = [
     title: "Financeiro", 
     url: "/admin/financeiro", 
     icon: DollarSign,
-    allowedRoles: ["atendente", "supervisor", "admin", "superadmin"]
+    allowedRoles: ["supervisor", "admin", "superadmin"]
+  },
+  { 
+    title: "Repasses", 
+    url: "/admin/repasses", 
+    icon: Wallet,
+    allowedRoles: ["supervisor", "admin", "superadmin"]
   },
   { 
     title: "Configurações", 
     url: "/admin/configuracoes", 
     icon: Settings,
-    allowedRoles: ["atendente", "supervisor", "admin", "superadmin"]
+    allowedRoles: ["admin", "superadmin"]
   },
   { 
     title: "Integrações", 

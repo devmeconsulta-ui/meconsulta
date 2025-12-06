@@ -80,6 +80,9 @@ interface Consulta {
   dependente: { nome: string } | null;
   nome_paciente_consulta: string | null;
   local?: { id: string; nome_local: string } | null;
+  finalizado_medico?: boolean | null;
+  elegivel_repasse?: boolean | null;
+  incluida_em_repasse?: boolean | null;
 }
 
 interface Repasse {
@@ -168,7 +171,7 @@ export default function MedicoFinanceiro() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Fetch consultas with local info
+        // Fetch consultas with local info and finalization fields
         const { data: consultasData, error: consultasError } = await supabase
           .from("consultas")
           .select(`
@@ -182,7 +185,10 @@ export default function MedicoFinanceiro() {
             origem,
             nome_paciente_consulta,
             agenda_slot_id,
-            paciente:pacientes(nome),
+            finalizado_medico,
+            elegivel_repasse,
+            incluida_em_repasse,
+            paciente:pacientes!consultas_paciente_id_fkey(nome),
             dependente:paciente_dependentes(nome)
           `)
           .eq("medico_id", medicoData.id)
@@ -236,20 +242,24 @@ export default function MedicoFinanceiro() {
     });
   }, [consultas, originFilter, paymentFilter, consultaStatusFilter, pacienteSearch]);
 
-  // Calculate metrics
+  // Calculate metrics - updated to reflect finalization and repasses
   const metrics = useMemo(() => {
+    // A Receber: consultas pagas, elegíveis para repasse, ainda não incluídas em repasse pago
     const aReceber = filteredConsultas
       .filter(
         (c) =>
           c.status_pagamento === "pago" &&
-          c.status_consulta === "confirmada"
+          c.elegivel_repasse === true &&
+          !c.incluida_em_repasse
       )
       .reduce((sum, c) => sum + (c.valor_medico || 0), 0);
 
+    // Recebido: soma de repasses pagos
     const recebido = repasses
       .filter((r) => r.status === "pago")
       .reduce((sum, r) => sum + (r.valor_total || 0), 0);
 
+    // Pendentes: consultas com pagamento pendente (não canceladas)
     const pendentes = filteredConsultas
       .filter(
         (c) =>
@@ -258,14 +268,32 @@ export default function MedicoFinanceiro() {
       )
       .reduce((sum, c) => sum + (c.valor_medico || 0), 0);
 
+    // Canceladas
     const canceladas = filteredConsultas
       .filter((c) => c.status_consulta === "cancelada")
       .reduce((sum, c) => sum + (c.valor_medico || 0), 0);
 
     const totalConsultas = filteredConsultas.length;
     const consultasPagas = filteredConsultas.filter(c => c.status_pagamento === "pago").length;
+    
+    // Novas métricas de finalização
+    const finalizadas = filteredConsultas.filter(c => c.finalizado_medico === true).length;
+    const naoCompareceram = filteredConsultas.filter(c => c.status_consulta === "nao_compareceu").length;
+    const elegiveis = filteredConsultas.filter(c => c.elegivel_repasse === true && !c.incluida_em_repasse).length;
+    const emRepasse = filteredConsultas.filter(c => c.incluida_em_repasse === true).length;
 
-    return { aReceber, recebido, pendentes, canceladas, totalConsultas, consultasPagas };
+    return { 
+      aReceber, 
+      recebido, 
+      pendentes, 
+      canceladas, 
+      totalConsultas, 
+      consultasPagas,
+      finalizadas,
+      naoCompareceram,
+      elegiveis,
+      emRepasse
+    };
   }, [filteredConsultas, repasses]);
 
   // Origin metrics
@@ -648,7 +676,7 @@ export default function MedicoFinanceiro() {
                   <div className="min-w-0 flex-1">
                     <p className="text-emerald-100 text-xs sm:text-sm font-medium">A Receber</p>
                     <p className="text-lg sm:text-2xl font-bold mt-1 truncate">{formatCurrency(metrics.aReceber)}</p>
-                    <p className="text-emerald-200 text-xs mt-2 hidden sm:block">{metrics.consultasPagas} consultas pagas</p>
+                    <p className="text-emerald-200 text-xs mt-2 hidden sm:block">{metrics.elegiveis} consultas elegíveis</p>
                   </div>
                   <div className="bg-white/20 rounded-full p-2 sm:p-3 flex-shrink-0">
                     <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -664,7 +692,7 @@ export default function MedicoFinanceiro() {
                   <div className="min-w-0 flex-1">
                     <p className="text-blue-100 text-xs sm:text-sm font-medium">Recebido</p>
                     <p className="text-lg sm:text-2xl font-bold mt-1 truncate">{formatCurrency(metrics.recebido)}</p>
-                    <p className="text-blue-200 text-xs mt-2 hidden sm:block">Total repassado</p>
+                    <p className="text-blue-200 text-xs mt-2 hidden sm:block">{repasses.filter(r => r.status === "pago").length} repasse(s)</p>
                   </div>
                   <div className="bg-white/20 rounded-full p-2 sm:p-3 flex-shrink-0">
                     <Wallet className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -696,10 +724,66 @@ export default function MedicoFinanceiro() {
                   <div className="min-w-0 flex-1">
                     <p className="text-red-100 text-xs sm:text-sm font-medium">Canceladas</p>
                     <p className="text-lg sm:text-2xl font-bold mt-1 truncate">{formatCurrency(metrics.canceladas)}</p>
-                    <p className="text-red-200 text-xs mt-2 hidden sm:block">Valor não realizado</p>
+                    <p className="text-red-200 text-xs mt-2 hidden sm:block">{metrics.naoCompareceram} não compareceram</p>
                   </div>
                   <div className="bg-white/20 rounded-full p-2 sm:p-3 flex-shrink-0">
                     <XCircle className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* Finalization Stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center">
+                    <Target className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{metrics.finalizadas}</p>
+                    <p className="text-xs text-muted-foreground">Finalizadas</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <Banknote className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{metrics.elegiveis}</p>
+                    <p className="text-xs text-muted-foreground">Elegíveis Repasse</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center">
+                    <ArrowRightLeft className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{metrics.emRepasse}</p>
+                    <p className="text-xs text-muted-foreground">Em Repasse</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-red-500/10 rounded-xl flex items-center justify-center">
+                    <XCircle className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{metrics.naoCompareceram}</p>
+                    <p className="text-xs text-muted-foreground">Não Compareceram</p>
                   </div>
                 </div>
               </CardContent>
