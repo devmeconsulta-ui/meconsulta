@@ -96,6 +96,7 @@ export default function PacienteMeConsultaPay() {
     cpf: "",
     data_nascimento: "",
     nome_mae: "",
+    valor_pretendido: "",
   });
 
   const [currentPhrase, setCurrentPhrase] = useState(0);
@@ -157,8 +158,9 @@ export default function PacienteMeConsultaPay() {
         cpf: data.cpf,
         data_nascimento: data.data_nascimento,
         nome_mae: data.nome_mae,
+        valor_pretendido: data.valor_pretendido ? parseFloat(data.valor_pretendido.replace(/\D/g, "")) / 100 : null,
         status: "pendente",
-      });
+      } as any);
 
       if (error) throw error;
     },
@@ -174,6 +176,7 @@ export default function PacienteMeConsultaPay() {
         cpf: paciente?.cpf || "",
         data_nascimento: paciente?.data_nascimento || "",
         nome_mae: "",
+        valor_pretendido: "",
       });
     },
     onError: (error) => {
@@ -631,8 +634,33 @@ export default function PacienteMeConsultaPay() {
                   required
                 />
               </div>
-            </div>
 
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="valor_pretendido">
+                  <DollarSign className="w-4 h-4 inline mr-2" />
+                  Valor Pretendido (R$)
+                </Label>
+                <Input
+                  id="valor_pretendido"
+                  type="text"
+                  inputMode="numeric"
+                  value={formData.valor_pretendido}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "");
+                    const formatted = value ? (parseInt(value) / 100).toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }) : "";
+                    setFormData((prev) => ({ ...prev, valor_pretendido: formatted }));
+                  }}
+                  placeholder="0,00"
+                  className="text-lg font-semibold"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Informe o valor que você deseja solicitar (máximo R$ 8.000,00)
+                </p>
+              </div>
+            </div>
             <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700/30">
               <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
               <p className="text-sm text-amber-800 dark:text-amber-200">
