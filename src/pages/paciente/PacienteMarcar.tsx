@@ -31,7 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Star, Heart, MapPin, Calendar, Clock, User, ChevronRight, UserPlus, Users, RefreshCw, Plus, Trash2, Video, Building2, Check } from "lucide-react";
+import { Search, Star, Heart, MapPin, Calendar, Clock, User, ChevronRight, UserPlus, Users, RefreshCw, Plus, Trash2, Video, Building2, Check, ExternalLink, CreditCard, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -109,6 +109,18 @@ export default function PacienteMarcar() {
   const [consultaOriginal, setConsultaOriginal] = useState<any>(null);
   const [isRemarcacao, setIsRemarcacao] = useState(false);
 
+  // Payment state
+  const [showPayment, setShowPayment] = useState(false);
+  const [paymentData, setPaymentData] = useState<{
+    paymentId: string;
+    invoiceUrl: string;
+    dueDate: string;
+    value: number;
+    createdAt: number;
+  } | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const PAYMENT_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+
   useEffect(() => {
     if (pacienteData) {
       setEstado(pacienteData.estado || "");
@@ -124,6 +136,25 @@ export default function PacienteMarcar() {
       fetchConsultaOriginal(consultaIdRemarcar, medicoIdRemarcar);
     }
   }, [pacienteData, consultaIdRemarcar, medicoIdRemarcar]);
+
+  // Payment countdown timer
+  useEffect(() => {
+    if (!paymentData?.createdAt) return;
+    
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - paymentData.createdAt;
+      const remaining = PAYMENT_TIMEOUT - elapsed;
+      
+      if (remaining <= 0) {
+        setTimeLeft(0);
+        clearInterval(interval);
+      } else {
+        setTimeLeft(remaining);
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [paymentData?.createdAt]);
 
   async function fetchConsultaOriginal(consultaId: string, medicoId: string) {
     const { data: consulta } = await supabase
@@ -294,68 +325,96 @@ export default function PacienteMarcar() {
 
     setAgendando(true);
 
-    const valorConsulta = selectedMedico.valor_consulta || 160;
-    const percentualRepasse = selectedMedico.percentual_repasse || 70;
-    const valorMedico = valorConsulta * (percentualRepasse / 100);
-    const valorPlataforma = valorConsulta - valorMedico;
+    try {
+      const valorConsulta = selectedMedico.valor_consulta || 160;
+      const percentualRepasse = selectedMedico.percentual_repasse || 70;
+      const valorMedico = valorConsulta * (percentualRepasse / 100);
+      const valorPlataforma = valorConsulta - valorMedico;
 
-    // Determinar para quem é a consulta
-    const dependenteSelecionado = paraQuem !== "eu" 
-      ? dependentes.find(d => d.id === paraQuem) 
-      : null;
-    
-    const nomePacienteConsulta = dependenteSelecionado 
-      ? dependenteSelecionado.nome 
-      : pacienteData.nome;
-
-    // Se for remarcação, cancelar consulta original
-    if (isRemarcacao && consultaOriginal) {
-      await supabase
-        .from("consultas")
-        .update({ status_consulta: "cancelada" })
-        .eq("id", consultaOriginal.id);
+      // Determinar para quem é a consulta
+      const dependenteSelecionado = paraQuem !== "eu" 
+        ? dependentes.find(d => d.id === paraQuem) 
+        : null;
       
-      // Liberar slot antigo se existir
-      // (em um sistema real, precisaria rastrear qual slot foi usado)
-    }
+      const nomePacienteConsulta = dependenteSelecionado 
+        ? dependenteSelecionado.nome 
+        : pacienteData.nome;
 
-    // Criar consulta
-    const { error: consultaError } = await supabase
-      .from("consultas")
-      .insert({
-        medico_id: selectedMedico.id,
-        paciente_id: pacienteData.id,
-        dependente_id: dependenteSelecionado?.id || null,
-        nome_paciente_consulta: nomePacienteConsulta,
-        data_hora: selectedSlot.data_hora,
-        status_consulta: "aguardando_pagamento",
-        status_pagamento: "pendente",
-        status_repasse: "pendente",
-        valor_consulta: valorConsulta,
-        valor_medico: valorMedico,
-        valor_plataforma: valorPlataforma,
+      // Se for remarcação, cancelar consulta original
+      if (isRemarcacao && consultaOriginal) {
+        await supabase
+          .from("consultas")
+          .update({ status_consulta: "cancelada" })
+          .eq("id", consultaOriginal.id);
+      }
+
+      // Criar consulta
+      const { data: consultaData, error: consultaError } = await supabase
+        .from("consultas")
+        .insert({
+          medico_id: selectedMedico.id,
+          paciente_id: pacienteData.id,
+          dependente_id: dependenteSelecionado?.id || null,
+          nome_paciente_consulta: nomePacienteConsulta,
+          data_hora: selectedSlot.data_hora,
+          agenda_slot_id: selectedSlot.id,
+          status_consulta: "aguardando_pagamento",
+          status_pagamento: "pendente",
+          status_repasse: "pendente",
+          valor_consulta: valorConsulta,
+          valor_medico: valorMedico,
+          valor_plataforma: valorPlataforma,
+          origem: "online",
+        })
+        .select("id")
+        .single();
+
+      if (consultaError) {
+        throw consultaError;
+      }
+
+      // Marcar slot como indisponível
+      await supabase
+        .from("agenda_slots")
+        .update({ disponivel: false })
+        .eq("id", selectedSlot.id);
+
+      // Create Asaas payment
+      toast.info("Gerando cobrança...");
+      
+      const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke(
+        'create-asaas-payment',
+        {
+          body: { consulta_id: consultaData.id }
+        }
+      );
+
+      if (paymentError || !paymentResponse?.success) {
+        console.error("Payment error:", paymentError || paymentResponse);
+        toast.warning("Consulta criada, mas houve erro ao gerar pagamento. Você pode pagar depois.");
+        navigate("/paciente/consultas");
+        return;
+      }
+
+      // Show payment screen
+      setPaymentData({
+        ...paymentResponse,
+        createdAt: Date.now(),
       });
+      setConfirmDialog(false);
+      setShowPayment(true);
+      toast.success("Cobrança gerada com sucesso!");
 
-    if (consultaError) {
-      toast.error("Erro ao agendar consulta");
+    } catch (error: any) {
+      console.error("Error creating consultation:", error);
+      if (error?.message?.includes("duplicate") || error?.code === "23505") {
+        toast.error("Este horário já está reservado. Por favor, escolha outro.");
+      } else {
+        toast.error("Erro ao agendar consulta. Tente novamente.");
+      }
+    } finally {
       setAgendando(false);
-      return;
     }
-
-    // Marcar slot como indisponível
-    await supabase
-      .from("agenda_slots")
-      .update({ disponivel: false })
-      .eq("id", selectedSlot.id);
-
-    toast.success(isRemarcacao ? "Consulta remarcada com sucesso!" : "Consulta agendada com sucesso!");
-    setConfirmDialog(false);
-    setSelectedMedico(null);
-    setSelectedSlot(null);
-    setAgendando(false);
-    setIsRemarcacao(false);
-    setConsultaOriginal(null);
-    navigate("/paciente/consultas");
   }
 
   async function handleAddDependente() {
@@ -428,6 +487,106 @@ export default function PacienteMarcar() {
 
   const dependenteSelecionado = paraQuem !== "eu" ? dependentes.find(d => d.id === paraQuem) : null;
   const selectedLocalData = selectedLocal ? locais.find(l => l.id === selectedLocal) : null;
+
+  // Format time left for display
+  const formatTimeLeft = (ms: number) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const isTimeExpired = timeLeft !== null && timeLeft <= 0;
+  const isTimeLow = timeLeft !== null && timeLeft <= 3 * 60 * 1000 && timeLeft > 0;
+
+  // Payment Screen
+  if (showPayment && paymentData) {
+    return (
+      <div className="space-y-6">
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader className="text-center">
+            {isTimeExpired ? (
+              <>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <AlertTriangle className="w-8 h-8 text-destructive" />
+                </div>
+                <CardTitle className="text-xl text-destructive">Tempo Expirado</CardTitle>
+                <p className="text-muted-foreground mt-2">
+                  O tempo para pagamento expirou. Sua consulta será cancelada automaticamente.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                  <CreditCard className="w-8 h-8 text-primary" />
+                </div>
+                <CardTitle className="text-xl">Finalize o Pagamento</CardTitle>
+                <p className="text-muted-foreground mt-2">
+                  Complete o pagamento para confirmar sua consulta
+                </p>
+              </>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {!isTimeExpired && (
+              <>
+                {/* Timer */}
+                <div className={`p-4 rounded-lg text-center ${isTimeLow ? 'bg-destructive/10 border border-destructive/20' : 'bg-muted/50'}`}>
+                  <p className={`text-sm ${isTimeLow ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    Tempo restante para pagamento:
+                  </p>
+                  <p className={`text-3xl font-bold ${isTimeLow ? 'text-destructive' : 'text-primary'}`}>
+                    {timeLeft !== null ? formatTimeLeft(timeLeft) : '15:00'}
+                  </p>
+                </div>
+
+                {/* Consultation Summary */}
+                <div className="p-4 bg-muted/30 rounded-lg space-y-2">
+                  <p><strong>Médico:</strong> Dr(a). {selectedMedico?.nome}</p>
+                  <p><strong>Especialidade:</strong> {selectedMedico?.especialidade}</p>
+                  {selectedSlot && (
+                    <p><strong>Data/Hora:</strong> {format(new Date(selectedSlot.data_hora), "dd/MM/yyyy 'às' HH:mm")}</p>
+                  )}
+                  <p className="text-lg font-bold text-primary">
+                    <strong>Valor:</strong> R$ {paymentData.value?.toFixed(2) || (selectedMedico?.valor_consulta || 160).toFixed(2)}
+                  </p>
+                </div>
+
+                {/* Payment Options */}
+                <div className="space-y-3">
+                  <Button 
+                    className="w-full gap-2 h-12 text-base" 
+                    onClick={() => window.open(paymentData.invoiceUrl, '_blank')}
+                  >
+                    <ExternalLink className="w-5 h-5" />
+                    Pagar com PIX, Cartão ou Boleto
+                  </Button>
+                  <p className="text-xs text-center text-muted-foreground">
+                    Você será redirecionado para a página de pagamento seguro
+                  </p>
+                </div>
+              </>
+            )}
+
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={() => {
+                setShowPayment(false);
+                setPaymentData(null);
+                setSelectedMedico(null);
+                setSelectedSlot(null);
+                setIsRemarcacao(false);
+                setConsultaOriginal(null);
+                navigate("/paciente/consultas");
+              }}
+            >
+              {isTimeExpired ? 'Voltar para Consultas' : 'Pagar Depois'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
