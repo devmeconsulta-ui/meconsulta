@@ -129,15 +129,17 @@ export function AgendaInternaModal({
         localSelecionado: localId || (locais.length > 0 ? locais[0].id : ""),
         valor: valorConsulta,
       }));
-      if (isManualBooking) {
+      // Always use the slotDataHora passed from parent (which contains the clicked date)
+      if (slotDataHora) {
+        const dateFromSlot = new Date(slotDataHora);
+        setSelectedDate(dateFromSlot);
+        setSelectedTime(format(dateFromSlot, "HH:mm"));
+      } else {
         setSelectedDate(new Date());
         setSelectedTime("08:00");
-      } else if (slotDataHora) {
-        setSelectedDate(new Date(slotDataHora));
-        setSelectedTime(format(new Date(slotDataHora), "HH:mm"));
       }
     }
-  }, [open, localId, valorConsulta, locais, isManualBooking, slotDataHora]);
+  }, [open, localId, valorConsulta, locais, slotDataHora]);
 
   useEffect(() => {
     if (selectedPaciente) {
