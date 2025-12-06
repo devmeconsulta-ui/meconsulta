@@ -65,8 +65,8 @@ export default function AdminConsultas() {
         .from("consultas")
         .select(`
           *,
-          medico:medicos(nome, especialidade),
-          paciente:pacientes(nome, cpf, telefone)
+          medico:medicos!consultas_medico_id_fkey(nome, especialidade),
+          paciente:pacientes!consultas_paciente_id_fkey(nome, cpf, telefone)
         `)
         .order("data_hora", { ascending: false });
 

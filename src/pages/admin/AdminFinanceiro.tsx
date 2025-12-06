@@ -64,8 +64,8 @@ export default function AdminFinanceiro() {
         .from("consultas")
         .select(`
           *,
-          medico:medicos(nome, especialidade, percentual_repasse),
-          paciente:pacientes(nome)
+          medico:medicos!consultas_medico_id_fkey(nome, especialidade, percentual_repasse),
+          paciente:pacientes!consultas_paciente_id_fkey(nome)
         `)
         .gte("data_hora", `${dateRange.inicio}T00:00:00`)
         .lte("data_hora", `${dateRange.fim}T23:59:59`)
