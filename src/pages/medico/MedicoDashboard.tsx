@@ -75,8 +75,7 @@ export default function MedicoDashboard() {
         .from("consultas")
         .select(`
           *,
-          pacientes(nome),
-          locais_atendimento:medico_id(id, nome_local)
+          paciente:pacientes!consultas_paciente_id_fkey(nome)
         `)
         .eq("medico_id", medicoData.id)
         .gte("data_hora", hoje.toISOString())
@@ -187,7 +186,7 @@ export default function MedicoDashboard() {
                       <User className="w-6 h-6 text-primary" />
                     </div>
                     <div>
-                      <p className="font-medium">{consulta.pacientes?.nome || "Paciente"}</p>
+                      <p className="font-medium">{consulta.nome_paciente_consulta || consulta.paciente?.nome || "Paciente"}</p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="w-4 h-4" />
                         {format(new Date(consulta.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
@@ -196,7 +195,7 @@ export default function MedicoDashboard() {
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <MapPin className="w-4 h-4" />
-                    <span>{consulta.locais_atendimento?.[0]?.nome_local || "Online"}</span>
+                    <span>{consulta.origem === 'interna' ? 'Presencial' : 'Online'}</span>
                   </div>
                 </div>
               ))}

@@ -96,8 +96,8 @@ export function useLatestConsultas(limit = 10) {
         .from("consultas")
         .select(`
           *,
-          medico:medicos(id, nome),
-          paciente:pacientes(id, nome)
+          medico:medicos!consultas_medico_id_fkey(id, nome),
+          paciente:pacientes!consultas_paciente_id_fkey(id, nome)
         `)
         .order("created_at", { ascending: false })
         .limit(limit);
@@ -258,8 +258,8 @@ export function useConsultas(filters?: {
         .from("consultas")
         .select(`
           *,
-          medico:medicos(id, nome),
-          paciente:pacientes(id, nome)
+          medico:medicos!consultas_medico_id_fkey(id, nome),
+          paciente:pacientes!consultas_paciente_id_fkey(id, nome)
         `)
         .order("data_hora", { ascending: false });
 
