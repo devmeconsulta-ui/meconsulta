@@ -325,6 +325,7 @@ export function AgendaInternaModal({
         valor_medico: valorMedico,
         valor_plataforma: valorPlataforma,
         agenda_slot_id: finalSlotId,
+        local_id: formData.localSelecionado,
         usuario_clinica_id: formData.usuarioClinicaId || null,
         nome_paciente_consulta: formData.nome,
         tipo_servico: formData.procedimento,

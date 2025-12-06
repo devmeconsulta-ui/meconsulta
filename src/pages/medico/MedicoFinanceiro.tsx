@@ -80,7 +80,7 @@ interface Consulta {
   paciente: { nome: string } | null;
   dependente: { nome: string } | null;
   nome_paciente_consulta: string | null;
-  agenda_slot: { local_id: string } | null;
+  local_id: string | null;
   finalizado_medico?: boolean | null;
   finalizado_paciente?: boolean | null;
   elegivel_repasse?: boolean | null;
@@ -173,7 +173,7 @@ export default function MedicoFinanceiro() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Fetch consultas with local info via agenda_slot and finalization fields
+        // Fetch consultas with local_id directly and finalization fields
         const { data: consultasData, error: consultasError } = await supabase
           .from("consultas")
           .select(`
@@ -186,11 +186,11 @@ export default function MedicoFinanceiro() {
             status_pagamento,
             origem,
             nome_paciente_consulta,
+            local_id,
             finalizado_medico,
             finalizado_paciente,
             elegivel_repasse,
             incluida_em_repasse,
-            agenda_slot:agenda_slots!consultas_agenda_slot_id_fkey(local_id),
             paciente:pacientes!consultas_paciente_id_fkey(nome),
             dependente:paciente_dependentes(nome)
           `)
@@ -237,7 +237,7 @@ export default function MedicoFinanceiro() {
       const matchOrigin = originFilter === "all" || c.origem === originFilter;
       const matchPayment = paymentFilter === "all" || c.status_pagamento === paymentFilter;
       const matchStatus = consultaStatusFilter === "all" || c.status_consulta === consultaStatusFilter;
-      const matchLocal = localFilter === "all" || c.agenda_slot?.local_id === localFilter;
+      const matchLocal = localFilter === "all" || c.local_id === localFilter;
       const matchPaciente = !pacienteSearch || 
         (c.nome_paciente_consulta?.toLowerCase().includes(pacienteSearch.toLowerCase()) ||
          c.paciente?.nome?.toLowerCase().includes(pacienteSearch.toLowerCase()) ||

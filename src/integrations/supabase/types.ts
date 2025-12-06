@@ -269,6 +269,7 @@ export type Database = {
           finalizado_paciente: boolean | null
           id: string
           incluida_em_repasse: boolean | null
+          local_id: string | null
           medico_id: string | null
           motivo_consulta: string | null
           nome_paciente_consulta: string | null
@@ -302,6 +303,7 @@ export type Database = {
           finalizado_paciente?: boolean | null
           id?: string
           incluida_em_repasse?: boolean | null
+          local_id?: string | null
           medico_id?: string | null
           motivo_consulta?: string | null
           nome_paciente_consulta?: string | null
@@ -335,6 +337,7 @@ export type Database = {
           finalizado_paciente?: boolean | null
           id?: string
           incluida_em_repasse?: boolean | null
+          local_id?: string | null
           medico_id?: string | null
           motivo_consulta?: string | null
           nome_paciente_consulta?: string | null
@@ -373,6 +376,13 @@ export type Database = {
             columns: ["finalizado_medico_id"]
             isOneToOne: false
             referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultas_local_id_fkey"
+            columns: ["local_id"]
+            isOneToOne: false
+            referencedRelation: "locais_atendimento"
             referencedColumns: ["id"]
           },
           {
