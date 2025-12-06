@@ -244,8 +244,8 @@ export function AdminHeader() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>Perfil</DropdownMenuItem>
-              <DropdownMenuItem>Configurações</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/admin/configuracoes")}>Perfil</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/admin/configuracoes")}>Configurações</DropdownMenuItem>
               <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Sair
