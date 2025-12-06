@@ -203,6 +203,7 @@ const PerfilMedico = () => {
 
   const handleContinue = () => {
     if (selectedDate && selectedTime && selectedSlot) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       const localParam = selectedSlot.local_id ? `&local=${selectedSlot.local_id}` : "";
       navigate(`/checkout/${medico.id}?data=${selectedDate}&horario=${selectedTime}${localParam}`);
     }
