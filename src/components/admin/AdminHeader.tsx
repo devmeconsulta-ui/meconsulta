@@ -62,7 +62,7 @@ export function AdminHeader() {
   return (
     <header className="sticky top-0 z-30 bg-background border-b border-border">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-primary via-primary/90 to-primary/80 px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+      <div className="relative overflow-hidden bg-gradient-to-r from-primary via-primary/90 to-primary/80 px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
         {/* Glassmorphism overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
         
@@ -70,43 +70,43 @@ export function AdminHeader() {
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/5 rounded-full blur-2xl" />
         <div className="absolute -left-10 -bottom-10 w-32 h-32 bg-secondary/20 rounded-full blur-2xl" />
 
-        <div className="relative z-10 flex flex-col gap-3 ml-10 lg:ml-0">
-          {/* Welcome Text */}
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-white/20 backdrop-blur-sm items-center justify-center">
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          {/* Welcome Text - left side with padding for mobile menu */}
+          <div className="flex items-center gap-3 pl-12 lg:pl-0">
+            <div className="hidden sm:flex w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-white/20 backdrop-blur-sm items-center justify-center shrink-0">
               <Stethoscope className="w-5 h-5 lg:w-6 lg:h-6 text-primary-foreground" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-primary-foreground/80 text-[10px] sm:text-xs font-medium">
                 Bem-vindo de volta,
               </p>
-              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-primary-foreground">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-primary-foreground truncate">
                 {currentUser?.nome || "Administrador"}
               </h1>
             </div>
           </div>
 
-          {/* Date, Time & Weather */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+          {/* Date, Time & Weather - right side */}
+          <div className="flex items-center gap-3 sm:gap-4 pl-12 lg:pl-0">
             {/* Date & Time */}
             <div className="text-primary-foreground/90">
-              <p className="text-[10px] sm:text-xs capitalize">{formattedDate}</p>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold font-roboto tracking-tight">
+              <p className="text-[10px] sm:text-xs capitalize hidden sm:block">{formattedDate}</p>
+              <p className="text-[10px] sm:text-xs capitalize sm:hidden">
+                {format(currentTime, "dd/MM/yyyy", { locale: ptBR })}
+              </p>
+              <p className="text-base sm:text-xl lg:text-2xl font-bold font-roboto tracking-tight">
                 {formattedTime}
               </p>
             </div>
 
             {/* Weather Card */}
-            <div className="flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/10 backdrop-blur-sm">
+            <div className="flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/10 backdrop-blur-sm shrink-0">
               <WeatherIcon className="w-4 h-4 sm:w-5 sm:h-5 text-secondary" />
               <div>
-                <p className="text-[8px] sm:text-[10px] text-primary-foreground/70">{weather.location}</p>
+                <p className="text-[8px] sm:text-[10px] text-primary-foreground/70 truncate max-w-[60px] sm:max-w-none">{weather.location}</p>
                 <div className="flex items-center gap-1">
                   <span className="text-xs sm:text-sm font-bold text-primary-foreground">
                     {weather.temperature}°C
-                  </span>
-                  <span className="hidden sm:inline text-[10px] sm:text-xs text-primary-foreground/80">
-                    {weather.condition}
                   </span>
                 </div>
               </div>

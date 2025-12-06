@@ -100,14 +100,14 @@ export function AdminSidebar() {
 
   return (
     <>
-      {/* Mobile toggle button */}
+      {/* Mobile toggle button - larger and more visible */}
       <Button
-        variant="ghost"
+        variant="secondary"
         size="icon"
-        className="fixed top-4 left-4 z-50 lg:hidden"
+        className="fixed top-5 left-3 z-50 lg:hidden h-10 w-10 shadow-md bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/30"
         onClick={() => setIsOpen(!isOpen)}
       >
-        {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        {isOpen ? <X className="h-6 w-6 text-white" /> : <Menu className="h-6 w-6 text-white" />}
       </Button>
 
       {/* Overlay for mobile */}
