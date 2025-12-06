@@ -46,21 +46,22 @@ import {
 } from "recharts";
 import logo from "@/assets/logo.avif";
 
-// Mock data for credit request simulation
+// Empty data - will be populated with real data later
 const creditRequestData = [
-  { mes: "Jan", solicitacoes: 2, aprovados: 1 },
-  { mes: "Fev", solicitacoes: 3, aprovados: 2 },
-  { mes: "Mar", solicitacoes: 4, aprovados: 3 },
-  { mes: "Abr", solicitacoes: 2, aprovados: 2 },
-  { mes: "Mai", solicitacoes: 5, aprovados: 4 },
-  { mes: "Jun", solicitacoes: 3, aprovados: 3 },
+  { mes: "Jan", solicitacoes: 0, aprovados: 0 },
+  { mes: "Fev", solicitacoes: 0, aprovados: 0 },
+  { mes: "Mar", solicitacoes: 0, aprovados: 0 },
+  { mes: "Abr", solicitacoes: 0, aprovados: 0 },
+  { mes: "Mai", solicitacoes: 0, aprovados: 0 },
+  { mes: "Jun", solicitacoes: 0, aprovados: 0 },
 ];
 
+// Categories for credit usage - will be populated with real data later
 const loanPurposeData = [
-  { name: "Saúde", value: 45, color: "hsl(214, 100%, 35%)" },
-  { name: "Emergência", value: 30, color: "hsl(45, 100%, 51%)" },
-  { name: "Procedimentos", value: 15, color: "hsl(142, 70%, 45%)" },
-  { name: "Outros", value: 10, color: "hsl(var(--muted-foreground))" },
+  { name: "Saúde", value: 0, icon: "🏥" },
+  { name: "Educação", value: 0, icon: "📚" },
+  { name: "Emergência", value: 0, icon: "🚨" },
+  { name: "Outros", value: 0, icon: "📋" },
 ];
 
 // Motivational phrases for people in debt
@@ -272,51 +273,51 @@ export default function PacienteMeConsultaPay() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Main Credit Card */}
         <div className="lg:col-span-2">
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-[hsl(214,100%,28%)] p-6 text-primary-foreground shadow-2xl">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 via-amber-100/80 to-yellow-200 p-6 text-foreground shadow-2xl border border-amber-200/50">
             {/* Background decorations */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/20 rounded-full translate-y-1/2 -translate-x-1/2" />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-300/20 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-300/30 rounded-full translate-y-1/2 -translate-x-1/2" />
 
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center p-2">
+                <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-sm flex items-center justify-center p-2 shadow-sm">
                   <img src={logo} alt="MeConsulta" className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold">MeConsulta Pay</h1>
-                  <p className="text-primary-foreground/80 text-sm">
-                    Crédito rápido para cuidar da sua saúde
+                  <h1 className="text-2xl font-bold text-primary">MeConsulta Pay</h1>
+                  <p className="text-muted-foreground text-sm">
+                    Crédito rápido para realizar seus sonhos
                   </p>
                 </div>
               </div>
 
               {/* Virtual Card */}
-              <div className="bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+              <div className="bg-gradient-to-br from-white/90 to-amber-50/80 backdrop-blur-sm rounded-xl p-6 border border-amber-200/50 shadow-lg">
                 <div className="flex justify-between items-start mb-8">
-                  <div className="w-12 h-8 bg-gradient-to-r from-secondary to-secondary/80 rounded" />
+                  <div className="w-12 h-8 bg-gradient-to-r from-yellow-400 to-amber-500 rounded shadow-sm" />
                   <div className="text-right">
-                    <img src={logo} alt="MeConsulta" className="w-16 h-8 object-contain ml-auto opacity-80" />
+                    <img src={logo} alt="MeConsulta" className="w-16 h-8 object-contain ml-auto" />
                   </div>
                 </div>
 
-                <p className="font-mono text-xl tracking-wider mb-6">
+                <p className="font-mono text-xl tracking-wider mb-6 text-primary">
                   •••• •••• •••• {paciente?.cpf?.slice(-4) || "0000"}
                 </p>
 
                 <div className="flex justify-between items-end">
                   <div>
-                    <p className="text-xs text-primary-foreground/60 uppercase">Titular</p>
-                    <p className="font-medium">{paciente?.nome?.toUpperCase() || "NOME DO PACIENTE"}</p>
+                    <p className="text-xs text-muted-foreground uppercase">Titular</p>
+                    <p className="font-medium text-foreground">{paciente?.nome?.toUpperCase() || "NOME DO PACIENTE"}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-primary-foreground/60">Limite pré-aprovado</p>
-                    <p className="text-2xl font-bold text-secondary">R$ 8.000</p>
+                    <p className="text-xs text-muted-foreground">Limite pré-aprovado</p>
+                    <p className="text-2xl font-bold text-primary">R$ 8.000,00</p>
                   </div>
                 </div>
               </div>
 
-              <p className="text-xs text-primary-foreground/60 mt-4 text-center">
-                * Limite sujeito à análise de crédito. Condições especiais para pacientes MeConsulta.
+              <p className="text-xs text-muted-foreground mt-4 text-center">
+                * Limite sujeito à análise de crédito. Condições especiais para clientes MeConsulta.
               </p>
             </div>
           </div>
@@ -359,7 +360,7 @@ export default function PacienteMeConsultaPay() {
                   <Target className="w-5 h-5 text-secondary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">R$ 8k</p>
+                  <p className="text-xl sm:text-2xl font-bold">R$ 8.000,00</p>
                   <p className="text-xs text-muted-foreground">Limite disponível</p>
                 </div>
               </div>
@@ -426,55 +427,37 @@ export default function PacienteMeConsultaPay() {
           </CardContent>
         </Card>
 
-        {/* Loan Purpose Chart */}
+        {/* Loan Purpose - Categories Grid */}
         <Card>
           <CardHeader className="pb-4">
             <div className="flex items-center gap-2">
-              <PieChart className="w-5 h-5 text-primary" />
+              <Wallet className="w-5 h-5 text-primary" />
               <CardTitle className="text-lg">Finalidade do Crédito</CardTitle>
             </div>
             <p className="text-sm text-muted-foreground">
-              Para que nossos pacientes usam o MeConsulta Pay
+              Para que você pode usar o MeConsulta Pay
             </p>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <RePieChart>
-                <Pie
-                  data={loanPurposeData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={4}
-                  dataKey="value"
+            <div className="grid grid-cols-2 gap-3">
+              {loanPurposeData.map((item, index) => (
+                <div 
+                  key={index}
+                  className="flex items-center gap-3 p-4 rounded-xl bg-muted/50 border border-border/50 hover:bg-muted transition-colors"
                 >
-                  {loanPurposeData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Legend
-                  verticalAlign="middle"
-                  align="right"
-                  layout="vertical"
-                  iconType="circle"
-                  iconSize={10}
-                  formatter={(value) => (
-                    <span style={{ color: "hsl(var(--foreground))", fontSize: 12 }}>
-                      {value}
-                    </span>
-                  )}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                  formatter={(value: number) => [`${value}%`, "Percentual"]}
-                />
-              </RePieChart>
-            </ResponsiveContainer>
+                  <span className="text-2xl">{item.icon}</span>
+                  <div>
+                    <p className="font-medium text-sm">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.value > 0 ? `${item.value}%` : "Disponível"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-4 text-center">
+              Use seu crédito para o que precisar!
+            </p>
           </CardContent>
         </Card>
       </div>
