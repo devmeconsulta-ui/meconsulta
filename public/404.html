@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="0;url=/">
+  <title>Redirecionando...</title>
+  <script>
+    // Save the current path to sessionStorage before redirecting
+    sessionStorage.setItem('redirectPath', window.location.pathname + window.location.search);
+    window.location.replace('/');
+  </script>
+</head>
+<body>
+  <p>Redirecionando...</p>
+</body>
+</html>
