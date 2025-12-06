@@ -587,6 +587,26 @@ export default function AdminRepasses() {
         </Card>
       )}
 
+      {/* Info about patient confirmation */}
+      <Card className="border-blue-500/30 bg-blue-500/5">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 bg-blue-500/10 rounded-full flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-4 h-4 text-blue-600" />
+            </div>
+            <div className="text-sm">
+              <p className="font-medium text-blue-700">Sobre confirmação do paciente</p>
+              <p className="text-muted-foreground">
+                O repasse ao médico <strong>não depende</strong> da confirmação do paciente. 
+                Consultas são elegíveis para repasse assim que o médico finaliza o atendimento 
+                e o pagamento está confirmado. A confirmação do paciente é informativa para 
+                métricas de satisfação.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Consultas Table */}
       <Card>
         <CardHeader>
@@ -595,7 +615,7 @@ export default function AdminRepasses() {
             Consultas Online Realizadas
           </CardTitle>
           <CardDescription>
-            Consultas elegíveis para repasse (pagas, finalizadas, origem online)
+            Consultas elegíveis para repasse (pagas, finalizadas pelo médico, origem online)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -678,9 +698,15 @@ export default function AdminRepasses() {
                       </TableCell>
                       <TableCell>
                         {consulta.finalizado_paciente ? (
-                          <CheckCircle className="w-5 h-5 text-green-500" />
+                          <Badge className="bg-emerald-500/10 text-emerald-600 gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Confirmou
+                          </Badge>
                         ) : (
-                          <Clock className="w-5 h-5 text-muted-foreground" />
+                          <Badge className="bg-amber-500/10 text-amber-600 gap-1">
+                            <Clock className="w-3 h-3" />
+                            Aguardando
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell>

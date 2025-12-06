@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
@@ -14,27 +14,60 @@ import {
   Bell,
   FileText,
   CreditCard,
+  ThumbsUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Início", path: "/paciente" },
-  { icon: Calendar, label: "Minhas Consultas", path: "/paciente/consultas" },
-  { icon: Plus, label: "Marcar Consulta", path: "/paciente/marcar", highlight: true },
-  { icon: Heart, label: "Favoritos", path: "/paciente/favoritos" },
-  { icon: FileText, label: "Histórico Médico", path: "/paciente/historico" },
-  { icon: Bell, label: "Notificações", path: "/paciente/notificacoes" },
-  { icon: CreditCard, label: "MeConsulta Pay", path: "/paciente/meconsulta-pay", highlight: true },
-  { icon: User, label: "Meu Perfil", path: "/paciente/perfil" },
-  { icon: Settings, label: "Configurações", path: "/paciente/configuracoes" },
-];
+interface PacienteSidebarProps {
+  pacienteId?: string;
+}
 
-export function PacienteSidebar() {
+export function PacienteSidebar({ pacienteId }: PacienteSidebarProps) {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingConfirmations, setPendingConfirmations] = useState(0);
+
+  useEffect(() => {
+    if (pacienteId) {
+      fetchPendingConfirmations();
+    }
+  }, [pacienteId]);
+
+  async function fetchPendingConfirmations() {
+    if (!pacienteId) return;
+
+    const now = new Date().toISOString();
+
+    const { count, error } = await supabase
+      .from("consultas")
+      .select("*", { count: "exact", head: true })
+      .eq("paciente_id", pacienteId)
+      .eq("status_pagamento", "pago")
+      .in("status_consulta", ["confirmada", "atendida_medico"])
+      .or("finalizado_paciente.eq.false,finalizado_paciente.is.null")
+      .lt("data_hora", now);
+
+    if (!error) {
+      setPendingConfirmations(count || 0);
+    }
+  }
+
+  const menuItems = [
+    { icon: LayoutDashboard, label: "Início", path: "/paciente" },
+    { icon: Calendar, label: "Minhas Consultas", path: "/paciente/consultas", badge: pendingConfirmations },
+    { icon: Plus, label: "Marcar Consulta", path: "/paciente/marcar", highlight: true },
+    { icon: Heart, label: "Favoritos", path: "/paciente/favoritos" },
+    { icon: FileText, label: "Histórico Médico", path: "/paciente/historico" },
+    { icon: Bell, label: "Notificações", path: "/paciente/notificacoes" },
+    { icon: CreditCard, label: "MeConsulta Pay", path: "/paciente/meconsulta-pay", highlight: true },
+    { icon: User, label: "Meu Perfil", path: "/paciente/perfil" },
+    { icon: Settings, label: "Configurações", path: "/paciente/configuracoes" },
+  ];
 
   const handleLogout = () => {
     logout();
@@ -76,7 +109,15 @@ export function PacienteSidebar() {
           >
             <item.icon className="w-5 h-5" />
             {item.label}
-            {item.highlight && (
+            {item.badge && item.badge > 0 && (
+              <Badge 
+                variant="destructive" 
+                className="ml-auto text-xs h-5 min-w-5 flex items-center justify-center"
+              >
+                {item.badge}
+              </Badge>
+            )}
+            {item.highlight && !item.badge && (
               <span className="ml-auto text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full">
                 Novo
               </span>

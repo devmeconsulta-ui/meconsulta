@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, isToday, isTomorrow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { PendingConfirmationsAlert } from "@/components/paciente/PendingConfirmationsAlert";
 
 interface PacienteContext {
   pacienteData: any;
@@ -165,6 +166,9 @@ export default function PacienteDashboard() {
           Marcar nova consulta
         </Button>
       </div>
+
+      {/* Alert for pending confirmations */}
+      <PendingConfirmationsAlert pacienteId={pacienteData?.id} />
 
       {/* Alert for pending payments */}
       {stats.pagamentosPendentes > 0 && (

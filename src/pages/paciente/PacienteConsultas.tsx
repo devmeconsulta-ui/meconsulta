@@ -154,13 +154,13 @@ export default function PacienteConsultas() {
     setEnviando(true);
     try {
       // Update consulta with patient confirmation
+      // Note: elegivel_repasse is already set by the doctor, patient confirmation is informational only
       const { error: updateError } = await supabase
         .from("consultas")
         .update({
           finalizado_paciente: true,
           data_hora_finalizacao_paciente: new Date().toISOString(),
           status_consulta: "concluida",
-          elegivel_repasse: true,
         })
         .eq("id", confirmarAtendimentoModal.id);
 
