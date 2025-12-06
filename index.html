@@ -28,5 +28,15 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Handle redirect from 404.html
+      (function() {
+        var redirectPath = sessionStorage.getItem('redirectPath');
+        if (redirectPath && redirectPath !== '/' && window.location.pathname === '/') {
+          sessionStorage.removeItem('redirectPath');
+          window.history.replaceState(null, '', redirectPath);
+        }
+      })();
+    </script>
   </body>
 </html>
