@@ -13,11 +13,6 @@ export function MedicoLayout() {
 
   // Check if user is atendente (clinic staff)
   const isAtendente = currentUser?.papel === 'atendente';
-  
-  // Debug log
-  console.log("MedicoLayout - currentUser:", currentUser);
-  console.log("MedicoLayout - isAtendente:", isAtendente);
-  console.log("MedicoLayout - papel:", currentUser?.papel);
 
   useEffect(() => {
     if (!isLoading && (!currentUser || currentUser.tipo !== "medico")) {
