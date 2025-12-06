@@ -386,18 +386,6 @@ export default function AdminRepasses() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Wallet className="h-7 w-7" />
-            Fila de Repasses
-          </h1>
-          <p className="text-muted-foreground">
-            Gerencie consultas realizadas online e gere repasses para os médicos
-          </p>
-        </div>
-      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

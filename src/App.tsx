@@ -19,8 +19,7 @@ import AdminUsuarios from "./pages/admin/AdminUsuarios";
 import AdminMedicos from "./pages/admin/AdminMedicos";
 import AdminPacientes from "./pages/admin/AdminPacientes";
 import AdminConsultas from "./pages/admin/AdminConsultas";
-import AdminFinanceiro from "./pages/admin/AdminFinanceiro";
-import AdminRepasses from "./pages/admin/AdminRepasses";
+import AdminFinanceiroPage from "./pages/admin/AdminFinanceiroPage";
 import AdminConfiguracoes from "./pages/admin/AdminConfiguracoes";
 import AdminIntegracoes from "./pages/admin/AdminIntegracoes";
 
@@ -101,8 +100,7 @@ const App = () => (
               <Route path="medicos" element={<AdminMedicos />} />
               <Route path="pacientes" element={<AdminPacientes />} />
               <Route path="consultas" element={<AdminConsultas />} />
-              <Route path="financeiro" element={<AdminFinanceiro />} />
-              <Route path="repasses" element={<AdminRepasses />} />
+              <Route path="financeiro" element={<AdminFinanceiroPage />} />
               <Route path="configuracoes" element={<AdminConfiguracoes />} />
               <Route path="integracoes" element={<AdminIntegracoes />} />
             </Route>
