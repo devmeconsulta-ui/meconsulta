@@ -731,6 +731,53 @@ export type Database = {
           },
         ]
       }
+      repasses_medico: {
+        Row: {
+          created_at: string
+          data_pagamento: string | null
+          data_prevista_pagamento: string | null
+          id: string
+          medico_id: string
+          observacoes: string | null
+          periodo_fim: string
+          periodo_inicio: string
+          status: string
+          valor_total: number
+        }
+        Insert: {
+          created_at?: string
+          data_pagamento?: string | null
+          data_prevista_pagamento?: string | null
+          id?: string
+          medico_id: string
+          observacoes?: string | null
+          periodo_fim: string
+          periodo_inicio: string
+          status?: string
+          valor_total?: number
+        }
+        Update: {
+          created_at?: string
+          data_pagamento?: string | null
+          data_prevista_pagamento?: string | null
+          id?: string
+          medico_id?: string
+          observacoes?: string | null
+          periodo_fim?: string
+          periodo_inicio?: string
+          status?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repasses_medico_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
