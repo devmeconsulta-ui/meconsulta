@@ -61,23 +61,28 @@ export default function AdminFinanceiroRelatorios() {
 
   const dateRange = useMemo(() => ({
     inicio: format(subDays(new Date(), parseInt(periodo)), "yyyy-MM-dd"),
-    fim: format(new Date(), "yyyy-MM-dd"),
+    fim: format(subDays(new Date(), -90), "yyyy-MM-dd"), // Include future consultations
   }), [periodo]);
 
   // Fetch all consultas data
   const { data: consultas, isLoading } = useQuery({
-    queryKey: ["admin-relatorios", dateRange],
+    queryKey: ["admin-relatorios", dateRange, periodo],
     queryFn: async () => {
+      // Calculate the actual end date based on period for filtering
+      const endDate = format(new Date(), "yyyy-MM-dd");
+      const futureEndDate = format(subDays(new Date(), -90), "yyyy-MM-dd");
+      
       const { data, error } = await supabase
         .from("consultas")
         .select(`
           *,
           medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
           paciente:pacientes!consultas_paciente_id_fkey(id, nome, cidade, estado),
-          agenda_slot:agenda_slots(local_id)
+          agenda_slot:agenda_slots(local_id),
+          local:locais_atendimento!consultas_local_id_fkey(id, nome_local)
         `)
         .gte("data_hora", `${dateRange.inicio}T00:00:00`)
-        .lte("data_hora", `${dateRange.fim}T23:59:59`)
+        .lte("data_hora", `${futureEndDate}T23:59:59`)
         .order("data_hora", { ascending: false });
 
       if (error) throw error;
@@ -126,7 +131,9 @@ export default function AdminFinanceiroRelatorios() {
     }
     
     if (localFilter !== "todos") {
-      filtered = filtered.filter((c: any) => c.agenda_slot?.local_id === localFilter);
+      filtered = filtered.filter((c: any) => 
+        c.local_id === localFilter || c.agenda_slot?.local_id === localFilter
+      );
     }
     
     if (origemFilter !== "todos") {
