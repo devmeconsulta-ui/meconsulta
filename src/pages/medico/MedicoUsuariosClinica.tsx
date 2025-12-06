@@ -21,8 +21,9 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Plus, Phone, Mail, Briefcase, Trash2, Pencil } from "lucide-react";
+import { Users, Plus, Phone, Mail, Briefcase, Trash2, Pencil, Eye, EyeOff, Key } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 interface MedicoContext {
   medicoData: any;
@@ -36,6 +37,7 @@ interface UsuarioClinica {
   papel: string;
   ativo: boolean;
   created_at: string;
+  senha_hash: string | null;
 }
 
 const papelOptions = [
@@ -57,7 +59,9 @@ export default function MedicoUsuariosClinica() {
     telefone: "",
     papel: "secretaria",
     ativo: true,
+    senha: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     fetchUsuarios();
@@ -85,8 +89,10 @@ export default function MedicoUsuariosClinica() {
       telefone: "",
       papel: "secretaria",
       ativo: true,
+      senha: "",
     });
     setEditingUser(null);
+    setShowPassword(false);
   }
 
   function openEditDialog(usuario: UsuarioClinica) {
@@ -97,6 +103,7 @@ export default function MedicoUsuariosClinica() {
       telefone: usuario.telefone || "",
       papel: usuario.papel,
       ativo: usuario.ativo,
+      senha: "", // Don't pre-fill password for security
     });
     setDialogOpen(true);
   }
@@ -107,16 +114,34 @@ export default function MedicoUsuariosClinica() {
       return;
     }
 
+    if (!formData.email?.trim()) {
+      toast.error("E-mail é obrigatório para login");
+      return;
+    }
+
+    // For new users, password is required
+    if (!editingUser && !formData.senha.trim()) {
+      toast.error("Senha é obrigatória para novos usuários");
+      return;
+    }
+
     if (editingUser) {
+      const updateData: any = {
+        nome: formData.nome,
+        email: formData.email || null,
+        telefone: formData.telefone || null,
+        papel: formData.papel,
+        ativo: formData.ativo,
+      };
+
+      // Only update password if a new one was provided
+      if (formData.senha.trim()) {
+        updateData.senha_hash = formData.senha;
+      }
+
       const { error } = await supabase
         .from("usuarios_clinica")
-        .update({
-          nome: formData.nome,
-          email: formData.email || null,
-          telefone: formData.telefone || null,
-          papel: formData.papel,
-          ativo: formData.ativo,
-        })
+        .update(updateData)
         .eq("id", editingUser.id);
 
       if (error) {
@@ -132,13 +157,14 @@ export default function MedicoUsuariosClinica() {
         telefone: formData.telefone || null,
         papel: formData.papel,
         ativo: formData.ativo,
+        senha_hash: formData.senha,
       });
 
       if (error) {
         toast.error("Erro ao adicionar usuário");
         return;
       }
-      toast.success("Usuário adicionado!");
+      toast.success("Usuário adicionado com acesso ao sistema!");
     }
 
     setDialogOpen(false);
@@ -210,13 +236,16 @@ export default function MedicoUsuariosClinica() {
               </div>
 
               <div>
-                <Label>E-mail</Label>
+                <Label>E-mail *</Label>
                 <Input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="email@exemplo.com"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Será usado para login no sistema
+                </p>
               </div>
 
               <div>
@@ -245,6 +274,34 @@ export default function MedicoUsuariosClinica() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <Separator />
+
+              <div>
+                <Label className="flex items-center gap-2">
+                  <Key className="w-4 h-4" />
+                  {editingUser ? "Nova Senha (deixe em branco para manter)" : "Senha *"}
+                </Label>
+                <div className="relative mt-1">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={formData.senha}
+                    onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
+                    placeholder={editingUser ? "••••••••" : "Criar senha"}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  O usuário usará esta senha para acessar o sistema
+                </p>
               </div>
 
               <div className="flex items-center justify-between">

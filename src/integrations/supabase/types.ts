@@ -799,6 +799,7 @@ export type Database = {
           medico_id: string
           nome: string
           papel: string
+          senha_hash: string | null
           telefone: string | null
         }
         Insert: {
@@ -809,6 +810,7 @@ export type Database = {
           medico_id: string
           nome: string
           papel?: string
+          senha_hash?: string | null
           telefone?: string | null
         }
         Update: {
@@ -819,6 +821,7 @@ export type Database = {
           medico_id?: string
           nome?: string
           papel?: string
+          senha_hash?: string | null
           telefone?: string | null
         }
         Relationships: [

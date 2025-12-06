@@ -29,7 +29,8 @@ export default function Entrar() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase
+      // First, try to login as regular user (usuarios table)
+      const { data: usuarioData, error: usuarioError } = await supabase
         .from("usuarios")
         .select("id, nome, email, tipo, papel")
         .eq("email", email.trim())
@@ -37,40 +38,71 @@ export default function Entrar() {
         .eq("ativo", true)
         .maybeSingle();
 
-      if (error) {
-        console.error("Erro ao consultar usuário:", error);
+      if (usuarioError) {
+        console.error("Erro ao consultar usuário:", usuarioError);
         setErro("Erro ao conectar com o servidor. Tente novamente.");
         return;
       }
 
-      if (!data) {
-        setErro("E-mail ou senha inválidos, ou usuário inativo.");
+      if (usuarioData) {
+        // Regular user login successful
+        setCurrentUser({
+          id: usuarioData.id,
+          nome: usuarioData.nome,
+          email: usuarioData.email,
+          tipo: usuarioData.tipo as "admin" | "medico" | "paciente",
+          papel: usuarioData.papel as "atendente" | "supervisor" | "admin" | "superadmin",
+        });
+
+        // Redirect based on user type
+        switch (usuarioData.tipo) {
+          case "admin":
+            navigate("/admin");
+            break;
+          case "medico":
+            navigate("/medico");
+            break;
+          case "paciente":
+            navigate("/paciente");
+            break;
+          default:
+            navigate("/");
+        }
         return;
       }
 
-      // Save user to context
-      setCurrentUser({
-        id: data.id,
-        nome: data.nome,
-        email: data.email,
-        tipo: data.tipo as "admin" | "medico" | "paciente",
-        papel: data.papel as "atendente" | "supervisor" | "admin" | "superadmin",
-      });
+      // If not found in usuarios, try usuarios_clinica (clinic staff)
+      const { data: clinicaData, error: clinicaError } = await supabase
+        .from("usuarios_clinica")
+        .select("id, nome, email, papel, medico_id, ativo")
+        .eq("email", email.trim())
+        .eq("senha_hash", senha)
+        .eq("ativo", true)
+        .maybeSingle();
 
-      // Redirect based on user type
-      switch (data.tipo) {
-        case "admin":
-          navigate("/admin");
-          break;
-        case "medico":
-          navigate("/medico");
-          break;
-        case "paciente":
-          navigate("/paciente");
-          break;
-        default:
-          navigate("/");
+      if (clinicaError) {
+        console.error("Erro ao consultar usuário da clínica:", clinicaError);
+        setErro("Erro ao conectar com o servidor. Tente novamente.");
+        return;
       }
+
+      if (clinicaData) {
+        // Clinic user login successful - set as medico type with atendente role
+        setCurrentUser({
+          id: clinicaData.id,
+          nome: clinicaData.nome,
+          email: clinicaData.email || "",
+          tipo: "medico", // Access medico area
+          papel: "atendente", // But with restricted permissions
+          medicoId: clinicaData.medico_id, // Link to the doctor
+        });
+
+        navigate("/medico");
+        return;
+      }
+
+      // No user found in either table
+      setErro("E-mail ou senha inválidos, ou usuário inativo.");
     } catch (err) {
       console.error("Erro inesperado:", err);
       setErro("Erro inesperado. Tente novamente.");
