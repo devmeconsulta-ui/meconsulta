@@ -1,9 +1,9 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Bell, Cloud, Sun, CloudRain } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Cloud, Sun, CloudRain } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect } from "react";
+import { MedicoNotificacoesDropdown } from "./MedicoNotificacoesDropdown";
 
 interface MedicoHeaderProps {
   medicoData: any;
@@ -39,6 +39,8 @@ export function MedicoHeader({ medicoData, isAtendente }: MedicoHeaderProps) {
     ? `Olá, ${userName.split(" ")[0]}!` 
     : `Olá, Dr(a). ${(medicoData?.nome || userName).split(" ")[0]}!`;
 
+  const medicoId = medicoData?.id;
+
   return (
     <header className="sticky top-0 z-30 bg-card/95 backdrop-blur-sm border-b border-border px-6 py-4">
       <div className="flex items-center justify-between">
@@ -60,12 +62,7 @@ export function MedicoHeader({ medicoData, isAtendente }: MedicoHeaderProps) {
           </div>
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="w-5 h-5" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive rounded-full text-[10px] text-destructive-foreground flex items-center justify-center">
-              3
-            </span>
-          </Button>
+          {medicoId && <MedicoNotificacoesDropdown medicoId={medicoId} />}
         </div>
       </div>
     </header>
