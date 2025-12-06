@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Settings, Save, Building2, CreditCard, Bell, Shield, Palette, Globe } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings, Save, Building2, CreditCard, Bell, Shield, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,31 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function AdminConfiguracoes() {
+  const { currentUser } = useAuth();
   const [saving, setSaving] = useState(false);
+  
+  // Profile settings
+  const [profileSettings, setProfileSettings] = useState({
+    nome: "",
+    email: "",
+    senhaAtual: "",
+    novaSenha: "",
+    confirmarSenha: "",
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      setProfileSettings(prev => ({
+        ...prev,
+        nome: currentUser.nome || "",
+        email: currentUser.email || "",
+      }));
+    }
+  }, [currentUser]);
   
   // General settings
   const [generalSettings, setGeneralSettings] = useState({
@@ -57,13 +79,62 @@ export default function AdminConfiguracoes() {
     logAcessos: true,
   });
 
-  const handleSave = (section: string) => {
+  const handleSave = async (section: string) => {
     setSaving(true);
-    // Simulate API call
-    setTimeout(() => {
-      setSaving(false);
+    
+    if (section === "perfil" && currentUser) {
+      try {
+        // Validate password change
+        if (profileSettings.novaSenha) {
+          if (profileSettings.novaSenha !== profileSettings.confirmarSenha) {
+            toast.error("As senhas não coincidem");
+            setSaving(false);
+            return;
+          }
+          if (profileSettings.novaSenha.length < 6) {
+            toast.error("A nova senha deve ter pelo menos 6 caracteres");
+            setSaving(false);
+            return;
+          }
+        }
+        
+        // Update user name
+        const updateData: { nome: string; senha_hash?: string } = {
+          nome: profileSettings.nome,
+        };
+        
+        // If changing password
+        if (profileSettings.novaSenha) {
+          updateData.senha_hash = profileSettings.novaSenha;
+        }
+        
+        const { error } = await supabase
+          .from("usuarios")
+          .update(updateData)
+          .eq("id", currentUser.id);
+          
+        if (error) throw error;
+        
+        // Clear password fields
+        setProfileSettings(prev => ({
+          ...prev,
+          senhaAtual: "",
+          novaSenha: "",
+          confirmarSenha: "",
+        }));
+        
+        toast.success("Perfil atualizado com sucesso!");
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        toast.error("Erro ao atualizar perfil");
+      }
+    } else {
+      // Simulate API call for other sections
+      await new Promise(resolve => setTimeout(resolve, 1000));
       toast.success(`Configurações de ${section} salvas com sucesso!`);
-    }, 1000);
+    }
+    
+    setSaving(false);
   };
 
   return (
@@ -77,8 +148,15 @@ export default function AdminConfiguracoes() {
         <p className="text-muted-foreground">Configure as preferências e parâmetros do sistema</p>
       </div>
 
-      <Tabs defaultValue="geral" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 h-auto gap-2 bg-transparent p-0">
+      <Tabs defaultValue="perfil" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto gap-2 bg-transparent p-0">
+          <TabsTrigger
+            value="perfil"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2 border"
+          >
+            <User className="h-4 w-4" />
+            Perfil
+          </TabsTrigger>
           <TabsTrigger
             value="geral"
             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2 border"
@@ -108,6 +186,112 @@ export default function AdminConfiguracoes() {
             Segurança
           </TabsTrigger>
         </TabsList>
+
+        {/* Profile Settings */}
+        <TabsContent value="perfil">
+          <Card>
+            <CardHeader>
+              <CardTitle>Meu Perfil</CardTitle>
+              <CardDescription>
+                Gerencie suas informações pessoais e credenciais de acesso
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center">
+                  <User className="h-10 w-10 text-primary-foreground" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">{profileSettings.nome || "Administrador"}</h3>
+                  <p className="text-sm text-muted-foreground">{profileSettings.email}</p>
+                  <span className="inline-block mt-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full font-medium">
+                    {currentUser?.papel || "Admin"}
+                  </span>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="perfilNome">Nome Completo</Label>
+                  <Input
+                    id="perfilNome"
+                    value={profileSettings.nome}
+                    onChange={(e) =>
+                      setProfileSettings({ ...profileSettings, nome: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="perfilEmail">Email</Label>
+                  <Input
+                    id="perfilEmail"
+                    type="email"
+                    value={profileSettings.email}
+                    disabled
+                    className="bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    O email não pode ser alterado
+                  </p>
+                </div>
+              </div>
+
+              <Separator />
+
+              <h4 className="font-medium">Alterar Senha</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="senhaAtual">Senha Atual</Label>
+                  <Input
+                    id="senhaAtual"
+                    type="password"
+                    value={profileSettings.senhaAtual}
+                    onChange={(e) =>
+                      setProfileSettings({ ...profileSettings, senhaAtual: e.target.value })
+                    }
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="novaSenha">Nova Senha</Label>
+                  <Input
+                    id="novaSenha"
+                    type="password"
+                    value={profileSettings.novaSenha}
+                    onChange={(e) =>
+                      setProfileSettings({ ...profileSettings, novaSenha: e.target.value })
+                    }
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmarSenha">Confirmar Nova Senha</Label>
+                  <Input
+                    id="confirmarSenha"
+                    type="password"
+                    value={profileSettings.confirmarSenha}
+                    onChange={(e) =>
+                      setProfileSettings({ ...profileSettings, confirmarSenha: e.target.value })
+                    }
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Deixe os campos em branco se não deseja alterar a senha
+              </p>
+
+              <div className="flex justify-end">
+                <Button onClick={() => handleSave("perfil")} disabled={saving} className="gap-2">
+                  <Save className="h-4 w-4" />
+                  {saving ? "Salvando..." : "Salvar Alterações"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* General Settings */}
         <TabsContent value="geral">
