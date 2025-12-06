@@ -504,50 +504,56 @@ export default function AdminFinanceiro() {
       </div>
 
       {/* Charts Row 2 - Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Receita por Especialidade */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2">
-              <PieChartIcon className="h-5 w-5 text-primary" />
+          <CardHeader className="pb-2 p-3 sm:p-6 sm:pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+              <PieChartIcon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               Receita por Especialidade
             </CardTitle>
-            <CardDescription>Top 6 especialidades por faturamento</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Top especialidades por faturamento</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
             {receitaPorEspecialidade.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={receitaPorEspecialidade}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={90}
-                    paddingAngle={3}
-                    dataKey="receita"
-                  >
-                    {receitaPorEspecialidade.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={Object.values(CHART_COLORS)[index % Object.values(CHART_COLORS).length]} 
+              <div className="space-y-4">
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={receitaPorEspecialidade}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={70}
+                      paddingAngle={3}
+                      dataKey="receita"
+                    >
+                      {receitaPorEspecialidade.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={Object.values(CHART_COLORS)[index % Object.values(CHART_COLORS).length]} 
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Custom Legend Below Chart */}
+                <div className="grid grid-cols-2 gap-2">
+                  {receitaPorEspecialidade.map((entry, index) => (
+                    <div key={index} className="flex items-center gap-2 text-xs">
+                      <div 
+                        className="w-3 h-3 rounded-full shrink-0" 
+                        style={{ backgroundColor: Object.values(CHART_COLORS)[index % Object.values(CHART_COLORS).length] }}
                       />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                  <Legend 
-                    layout="vertical" 
-                    align="right" 
-                    verticalAlign="middle"
-                    formatter={(value, entry: any) => (
-                      <span className="text-xs text-foreground">{value}</span>
-                    )}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+                      <span className="truncate text-foreground">{entry.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
-              <div className="flex items-center justify-center h-[280px] text-muted-foreground">
-                <p>Sem dados disponíveis</p>
+              <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+                <p className="text-sm">Sem dados disponíveis</p>
               </div>
             )}
           </CardContent>
