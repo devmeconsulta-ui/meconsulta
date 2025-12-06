@@ -7,10 +7,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Mock weather data - can be replaced with real API integration
 const mockWeather = {
@@ -32,6 +37,53 @@ export function AdminHeader() {
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather] = useState(mockWeather);
+
+  // Fetch recent consultations for notifications
+  const { data: recentConsultas } = useQuery({
+    queryKey: ["admin-notifications"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consultas")
+        .select(`
+          id, data_hora, status_consulta, status_pagamento, origem,
+          medico:medicos!consultas_medico_id_fkey(nome),
+          paciente:pacientes!consultas_paciente_id_fkey(nome)
+        `)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 30000,
+  });
+
+  // Generate notifications from data
+  const notifications = recentConsultas?.map((consulta: any) => {
+    let type = "info";
+    let message = "";
+    
+    if (consulta.status_pagamento === "pago") {
+      type = "success";
+      message = `Pagamento confirmado - ${consulta.paciente?.nome || "Paciente"}`;
+    } else if (consulta.status_consulta === "confirmada") {
+      type = "info";
+      message = `Nova consulta confirmada - Dr(a) ${consulta.medico?.nome || "Médico"}`;
+    } else if (consulta.status_consulta === "aguardando_pagamento") {
+      type = "warning";
+      message = `Aguardando pagamento - ${consulta.paciente?.nome || "Paciente"}`;
+    } else {
+      message = `Consulta ${consulta.status_consulta} - ${consulta.paciente?.nome || "Paciente"}`;
+    }
+
+    return {
+      id: consulta.id,
+      type,
+      message,
+      time: format(new Date(consulta.data_hora), "dd/MM HH:mm", { locale: ptBR }),
+    };
+  }) || [];
+
+  const unreadCount = notifications.length;
 
   // Update time every second
   useEffect(() => {
@@ -118,12 +170,60 @@ export function AdminHeader() {
       {/* Actions Bar */}
       <div className="h-12 sm:h-14 flex items-center justify-end px-4 sm:px-6 lg:px-8 bg-card">
         <div className="flex items-center gap-2 sm:gap-4">
-          <Button variant="ghost" size="icon" className="relative h-8 w-8 sm:h-10 sm:w-10">
-            <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
-            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-destructive text-destructive-foreground text-[10px] rounded-full flex items-center justify-center">
-              3
-            </span>
-          </Button>
+          {/* Notifications Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative h-9 w-9 sm:h-10 sm:w-10 touch-manipulation">
+                <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-destructive text-destructive-foreground text-[10px] sm:text-xs rounded-full flex items-center justify-center font-medium">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72 sm:w-80">
+              <DropdownMenuLabel className="flex items-center justify-between">
+                <span>Notificações</span>
+                {unreadCount > 0 && (
+                  <span className="text-xs text-muted-foreground">{unreadCount} novas</span>
+                )}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <ScrollArea className="h-[280px] sm:h-[320px]">
+                {notifications.length > 0 ? (
+                  notifications.map((notification) => (
+                    <DropdownMenuItem 
+                      key={notification.id} 
+                      className="flex flex-col items-start gap-1 p-3 cursor-pointer"
+                      onClick={() => navigate("/admin/consultas")}
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${
+                          notification.type === "success" ? "bg-green-500" :
+                          notification.type === "warning" ? "bg-yellow-500" :
+                          "bg-blue-500"
+                        }`} />
+                        <span className="text-sm font-medium truncate flex-1">{notification.message}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground ml-4">{notification.time}</span>
+                    </DropdownMenuItem>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    Nenhuma notificação
+                  </div>
+                )}
+              </ScrollArea>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                className="text-center justify-center text-primary text-sm"
+                onClick={() => navigate("/admin/consultas")}
+              >
+                Ver todas as consultas
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
