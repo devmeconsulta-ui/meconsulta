@@ -167,11 +167,11 @@ export default function PacienteNotificacoes() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold">Notificações</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Notificações</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             {unreadCount > 0
               ? `Você tem ${unreadCount} notificação(ões) não lida(s)`
               : notifications.length > 0 
@@ -181,32 +181,34 @@ export default function PacienteNotificacoes() {
         </div>
         {notifications.length > 0 && (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={markAllAsRead}>
-              <CheckCheck className="w-4 h-4 mr-2" />
-              Marcar todas como lidas
+            <Button variant="outline" size="sm" onClick={markAllAsRead} className="flex-1 sm:flex-none text-xs sm:text-sm">
+              <CheckCheck className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Marcar todas como lidas</span>
+              <span className="sm:hidden">Marcar lidas</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={clearAll}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              Limpar todas
+            <Button variant="outline" size="sm" onClick={clearAll} className="flex-1 sm:flex-none text-xs sm:text-sm">
+              <Trash2 className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Limpar todas</span>
+              <span className="sm:hidden">Limpar</span>
             </Button>
           </div>
         )}
       </div>
 
       <Tabs defaultValue="todas" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
-          <TabsTrigger value="todas">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="todas" className="text-xs sm:text-sm">
             Todas ({notifications.length})
           </TabsTrigger>
-          <TabsTrigger value="nao-lidas">
+          <TabsTrigger value="nao-lidas" className="text-xs sm:text-sm">
             Não lidas ({unreadCount})
           </TabsTrigger>
-          <TabsTrigger value="lidas">
+          <TabsTrigger value="lidas" className="text-xs sm:text-sm">
             Lidas ({notifications.length - unreadCount})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="todas" className="mt-6">
+        <TabsContent value="todas" className="mt-4 sm:mt-6">
           <NotificationList
             notifications={notifications}
             onMarkAsRead={markAsRead}
@@ -290,35 +292,38 @@ function NotificationList({
                     </Badge>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2 mt-3">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-3">
                   {notification.type === "pagamento" && notification.invoiceUrl && (
                     <Button
                       variant="default"
                       size="sm"
+                      className="text-xs sm:text-sm h-8"
                       onClick={() => window.open(notification.invoiceUrl, '_blank')}
                     >
-                      <ExternalLink className="w-4 h-4 mr-1" />
-                      Pagar agora
+                      <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
+                      Pagar
                     </Button>
                   )}
                   {!notification.read && (
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="text-xs sm:text-sm h-8"
                       onClick={() => onMarkAsRead(notification.id)}
                     >
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Marcar como lida
+                      <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Marcar como lida</span>
+                      <span className="sm:hidden ml-1">Lida</span>
                     </Button>
                   )}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 text-xs sm:text-sm h-8"
                     onClick={() => onDelete(notification.id)}
                   >
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    Excluir
+                    <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Excluir</span>
                   </Button>
                 </div>
               </div>
