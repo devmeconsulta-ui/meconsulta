@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -10,6 +11,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { 
   Bell, 
   Moon, 
@@ -17,17 +29,20 @@ import {
   Monitor,
   Shield,
   Trash2,
-  LogOut
+  LogOut,
+  Copy,
+  AlertTriangle
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function PacienteConfiguracoes() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { currentUser, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   
   const [settings, setSettings] = useState({
@@ -37,6 +52,12 @@ export default function PacienteConfiguracoes() {
     marketingEmail: false,
     idioma: "pt-BR",
   });
+
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const confirmationText = "excluir conta";
 
   const handleToggle = (key: keyof typeof settings) => {
     setSettings(prev => ({
@@ -49,6 +70,56 @@ export default function PacienteConfiguracoes() {
   const handleLogout = () => {
     logout();
     navigate("/entrar");
+  };
+
+  const handleCopyConfirmation = () => {
+    navigator.clipboard.writeText(confirmationText);
+    toast.success("Texto copiado!");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation.toLowerCase() !== confirmationText) {
+      toast.error("Digite o texto de confirmação corretamente");
+      return;
+    }
+
+    if (!currentUser?.id) {
+      toast.error("Usuário não encontrado");
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      // Delete paciente record first (if exists)
+      if (currentUser.pacienteId) {
+        // Delete related records
+        await supabase.from("paciente_favoritos").delete().eq("paciente_id", currentUser.pacienteId);
+        await supabase.from("paciente_dependentes").delete().eq("paciente_id", currentUser.pacienteId);
+        await supabase.from("historico_medico_paciente").delete().eq("paciente_id", currentUser.pacienteId);
+        await supabase.from("meconsulta_pay_solicitacoes").delete().eq("paciente_id", currentUser.pacienteId);
+        await supabase.from("avaliacoes_medico").delete().eq("paciente_id", currentUser.pacienteId);
+        
+        // Delete paciente
+        await supabase.from("pacientes").delete().eq("id", currentUser.pacienteId);
+      }
+
+      // Delete user record
+      const { error } = await supabase.from("usuarios").delete().eq("id", currentUser.id);
+
+      if (error) throw error;
+
+      toast.success("Conta excluída com sucesso");
+      logout();
+      navigate("/");
+    } catch (error) {
+      console.error("Erro ao excluir conta:", error);
+      toast.error("Erro ao excluir conta. Tente novamente.");
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setDeleteConfirmation("");
+    }
   };
 
   return (
@@ -271,12 +342,85 @@ export default function PacienteConfiguracoes() {
           
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-destructive/5 rounded-lg border border-destructive/20">
             <div>
-              <p className="font-medium text-destructive">Excluir conta</p>
+              <p className="font-medium text-red-400 dark:text-red-300">Excluir conta</p>
               <p className="text-sm text-muted-foreground">
                 Exclua permanentemente sua conta e todos os dados
               </p>
             </div>
-            <Button variant="destructive" className="w-full sm:w-auto">Excluir</Button>
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="w-full sm:w-auto">Excluir</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                    <AlertTriangle className="w-5 h-5" />
+                    Excluir conta permanentemente
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-4 pt-2">
+                    <div className="bg-destructive/10 dark:bg-destructive/20 border border-destructive/30 rounded-lg p-4 space-y-2">
+                      <p className="font-medium text-destructive dark:text-red-300">
+                        Ao excluir sua conta, você perderá:
+                      </p>
+                      <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+                        <li>Todos os seus dados pessoais</li>
+                        <li>Histórico de consultas</li>
+                        <li>Dependentes cadastrados</li>
+                        <li>Histórico médico</li>
+                        <li>Avaliações realizadas</li>
+                        <li>Solicitações de crédito</li>
+                      </ul>
+                      <p className="text-sm font-medium text-destructive dark:text-red-300 pt-2">
+                        Esta ação é irreversível!
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <p className="text-sm">
+                        Para confirmar, digite <span className="font-bold text-foreground">"{confirmationText}"</span> abaixo:
+                      </p>
+                      
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono">
+                          {confirmationText}
+                        </code>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={handleCopyConfirmation}
+                          className="shrink-0"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      <Input
+                        placeholder="Digite aqui para confirmar..."
+                        value={deleteConfirmation}
+                        onChange={(e) => setDeleteConfirmation(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="gap-2 sm:gap-0">
+                  <AlertDialogCancel 
+                    onClick={() => setDeleteConfirmation("")}
+                    disabled={isDeleting}
+                  >
+                    Cancelar
+                  </AlertDialogCancel>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDeleteAccount}
+                    disabled={deleteConfirmation.toLowerCase() !== confirmationText || isDeleting}
+                  >
+                    {isDeleting ? "Excluindo..." : "Excluir conta"}
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </CardContent>
       </Card>
