@@ -60,6 +60,7 @@ import {
   Search,
   X,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 interface MedicoContext {
@@ -286,6 +287,23 @@ export default function MedicoFinanceiro() {
     const elegiveis = filteredConsultas.filter(c => c.elegivel_repasse === true && !c.incluida_em_repasse).length;
     const emRepasse = filteredConsultas.filter(c => c.incluida_em_repasse === true).length;
 
+    // Aguardando Finalização: consultas pagas, mas médico ainda não finalizou
+    const aguardandoFinalizacao = filteredConsultas
+      .filter(
+        (c) =>
+          c.status_pagamento === "pago" &&
+          c.finalizado_medico !== true &&
+          c.status_consulta !== "cancelada"
+      )
+      .reduce((sum, c) => sum + (c.valor_medico || 0), 0);
+    
+    const countAguardandoFinalizacao = filteredConsultas.filter(
+      (c) =>
+        c.status_pagamento === "pago" &&
+        c.finalizado_medico !== true &&
+        c.status_consulta !== "cancelada"
+    ).length;
+
     return { 
       aReceber, 
       recebido, 
@@ -298,7 +316,9 @@ export default function MedicoFinanceiro() {
       concluidas,
       naoCompareceram,
       elegiveis,
-      emRepasse
+      emRepasse,
+      aguardandoFinalizacao,
+      countAguardandoFinalizacao
     };
   }, [filteredConsultas, repasses]);
 
@@ -674,7 +694,7 @@ export default function MedicoFinanceiro() {
         {/* ==================== VISÃO GERAL ==================== */}
         <TabsContent value="visao-geral" className="space-y-6">
           {/* Metric Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             {/* A Receber */}
             <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
               <CardContent className="p-4 sm:p-6">
@@ -707,7 +727,23 @@ export default function MedicoFinanceiro() {
               </CardContent>
             </Card>
 
-            {/* Pendentes */}
+            {/* Aguardando Finalização - NOVO CARD */}
+            <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-purple-100 text-xs sm:text-sm font-medium">Aguardando Finalização</p>
+                    <p className="text-lg sm:text-2xl font-bold mt-1 truncate">{formatCurrency(metrics.aguardandoFinalizacao)}</p>
+                    <p className="text-purple-200 text-xs mt-2 hidden sm:block">{metrics.countAguardandoFinalizacao} pago(s), aguarda você finalizar</p>
+                  </div>
+                  <div className="bg-white/20 rounded-full p-2 sm:p-3 flex-shrink-0">
+                    <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Pendentes Pagamento */}
             <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-amber-500 to-amber-600 text-white">
               <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
@@ -717,7 +753,7 @@ export default function MedicoFinanceiro() {
                     <p className="text-amber-200 text-xs mt-2 hidden sm:block">Aguardando pagamento</p>
                   </div>
                   <div className="bg-white/20 rounded-full p-2 sm:p-3 flex-shrink-0">
-                    <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
+                    <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                 </div>
               </CardContent>
