@@ -111,6 +111,13 @@ const Checkout = () => {
     }
   }, [currentUser?.pacienteId]);
 
+  // Scroll to top when payment screen shows
+  useEffect(() => {
+    if (showPayment) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [showPayment]);
+
   // Payment countdown timer effect
   useEffect(() => {
     if (showPayment && paymentData?.createdAt) {
@@ -535,12 +542,12 @@ const Checkout = () => {
   // Payment success screen
   if (showPayment && paymentData) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Header />
         
-        <main className="py-4 sm:py-8">
-          <div className="container mx-auto px-4 max-w-lg">
-            <div className="bg-card rounded-2xl p-4 sm:p-8 shadow-md text-center">
+        <main className="flex-1 py-8 sm:py-12 flex items-start justify-center">
+          <div className="container mx-auto px-4 max-w-md w-full">
+            <div className="bg-card rounded-2xl p-6 sm:p-8 shadow-md text-center">
               {/* Icon */}
               <div className={`w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 rounded-full flex items-center justify-center ${
                 isTimeExpired ? 'bg-destructive/10' : 'bg-green-100'
