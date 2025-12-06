@@ -7,9 +7,10 @@ import { useState, useEffect } from "react";
 
 interface MedicoHeaderProps {
   medicoData: any;
+  isAtendente?: boolean;
 }
 
-export function MedicoHeader({ medicoData }: MedicoHeaderProps) {
+export function MedicoHeader({ medicoData, isAtendente }: MedicoHeaderProps) {
   const { currentUser } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather] = useState({ temp: 26, condition: "sunny" });
@@ -32,14 +33,18 @@ export function MedicoHeader({ medicoData }: MedicoHeaderProps) {
     }
   };
 
-  const doctorName = medicoData?.nome || currentUser?.nome || "Médico";
+  // Use appropriate greeting based on user type
+  const userName = currentUser?.nome || "Usuário";
+  const greeting = isAtendente 
+    ? `Olá, ${userName.split(" ")[0]}!` 
+    : `Olá, Dr(a). ${(medicoData?.nome || userName).split(" ")[0]}!`;
 
   return (
     <header className="sticky top-0 z-30 bg-card/95 backdrop-blur-sm border-b border-border px-6 py-4">
       <div className="flex items-center justify-between">
         <div className="ml-12 lg:ml-0">
           <h1 className="text-xl lg:text-2xl font-bold text-foreground">
-            Olá, Dr(a). {doctorName.split(" ")[0]}! 👋
+            {greeting} 👋
           </h1>
           <p className="text-sm text-muted-foreground">
             {format(currentTime, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })} •{" "}
