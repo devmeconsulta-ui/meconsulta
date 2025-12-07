@@ -248,51 +248,54 @@ export default function MedicoUsuariosClinica() {
               Adicionar Usuário
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-xl font-semibold">
                 {editingUser ? "Editar Usuário" : "Adicionar Usuário"}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div>
-                <Label>Nome *</Label>
+            <div className="space-y-5 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="nome">Nome *</Label>
                 <Input
+                  id="nome"
                   value={formData.nome}
                   onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                   placeholder="Nome do usuário"
                 />
               </div>
 
-              <div>
-                <Label>E-mail *</Label>
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail *</Label>
                 <Input
+                  id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="email@exemplo.com"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground">
                   Será usado para login no sistema
                 </p>
               </div>
 
-              <div>
-                <Label>Telefone</Label>
+              <div className="space-y-2">
+                <Label htmlFor="telefone">Telefone</Label>
                 <Input
+                  id="telefone"
                   value={formData.telefone}
                   onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
                   placeholder="(00) 00000-0000"
                 />
               </div>
 
-              <div>
-                <Label>Papel</Label>
+              <div className="space-y-2">
+                <Label htmlFor="papel">Papel</Label>
                 <Select
                   value={formData.papel}
                   onValueChange={(value) => setFormData({ ...formData, papel: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="papel">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -307,12 +310,12 @@ export default function MedicoUsuariosClinica() {
 
               <Separator />
 
-              <div>
+              <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <Key className="w-4 h-4" />
                   {editingUser ? "Nova Senha (deixe em branco para manter)" : "Senha *"}
                 </Label>
-                <div className="relative mt-1">
+                <div className="relative">
                   <Input
                     type={showPassword ? "text" : "password"}
                     value={formData.senha}
@@ -328,51 +331,52 @@ export default function MedicoUsuariosClinica() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground">
                   O usuário usará esta senha para acessar o sistema
                 </p>
               </div>
 
               <Separator />
 
-              <div>
-                <Label className="flex items-center gap-2 mb-3">
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
                   <Shield className="w-4 h-4" />
                   Permissões de Acesso
                 </Label>
-                <div className="space-y-2">
+                <div className="space-y-3 pl-1">
                   {permissaoOptions.map((option) => (
-                    <div key={option.value} className="flex items-center space-x-2">
+                    <div key={option.value} className="flex items-center space-x-3">
                       <Checkbox
-                        id={option.value}
+                        id={`perm-${option.value}`}
                         checked={formData.permissoes.includes(option.value)}
                         onCheckedChange={() => togglePermissao(option.value)}
                       />
                       <label
-                        htmlFor={option.value}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        htmlFor={`perm-${option.value}`}
+                        className="text-sm font-medium leading-none cursor-pointer"
                       >
                         {option.label}
                       </label>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
+                <p className="text-xs text-muted-foreground">
                   Selecione quais áreas o usuário poderá acessar
                 </p>
               </div>
 
               <Separator />
 
-              <div className="flex items-center justify-between">
-                <Label>Ativo</Label>
+              <div className="flex items-center justify-between py-2">
+                <Label htmlFor="ativo" className="cursor-pointer">Ativo</Label>
                 <Switch
+                  id="ativo"
                   checked={formData.ativo}
                   onCheckedChange={(checked) => setFormData({ ...formData, ativo: checked })}
                 />
               </div>
 
-              <Button onClick={handleSubmit} className="w-full">
+              <Button onClick={handleSubmit} className="w-full mt-2">
                 {editingUser ? "Salvar Alterações" : "Adicionar"}
               </Button>
             </div>
