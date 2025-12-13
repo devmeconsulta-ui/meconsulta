@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock } from "lucide-react";
+import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock, Sun, Cloud, CloudRain, MapPin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, parseISO } from "date-fns";
@@ -29,10 +29,49 @@ type PeriodFilter = "7d" | "30d" | "60d" | "90d";
 
 const COLORS = ["#3b82f6", "#22c55e", "#eab308", "#ef4444"];
 
+// Greetings based on time
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Bom dia";
+  if (hour < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
+// Weather icon based on condition
+function getWeatherIcon(condition: string) {
+  if (condition.includes("chuva") || condition.includes("rain")) {
+    return <CloudRain className="w-6 h-6 text-blue-400" />;
+  }
+  if (condition.includes("nublado") || condition.includes("cloud")) {
+    return <Cloud className="w-6 h-6 text-gray-400" />;
+  }
+  return <Sun className="w-6 h-6 text-yellow-500" />;
+}
+
 export default function ClinicaDashboard() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
   const [medicoFilter, setMedicoFilter] = useState("todos");
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [weather, setWeather] = useState({ temp: 28, condition: "Ensolarado" });
+
+  // Update time every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Simulate weather (in production, integrate with a weather API)
+  useEffect(() => {
+    const conditions = [
+      { temp: 28, condition: "Ensolarado" },
+      { temp: 25, condition: "Parcialmente nublado" },
+      { temp: 22, condition: "Nublado" },
+    ];
+    setWeather(conditions[Math.floor(Math.random() * conditions.length)]);
+  }, []);
 
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -74,7 +113,6 @@ export default function ClinicaDashboard() {
     queryFn: async () => {
       if (!clinicaData?.id) return null;
 
-      // Get linked doctors
       const { data: vinculos } = await supabase
         .from("clinicas_medicos")
         .select("medico_id")
@@ -87,11 +125,8 @@ export default function ClinicaDashboard() {
       }
 
       const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
-
-      // Count doctors
       const medicosCount = medicoFilter === "todos" ? medicoIds.length : 1;
 
-      // Get consultations with filters
       let query = supabase
         .from("consultas")
         .select("id, data_hora, valor_consulta, status_pagamento, status_consulta, origem, paciente_id, medico_id")
@@ -102,7 +137,6 @@ export default function ClinicaDashboard() {
       const { data: consultasData } = await query;
       const consultas = consultasData || [];
 
-      // Calculate metrics
       const faturamento = consultas
         .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
         .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
@@ -113,14 +147,12 @@ export default function ClinicaDashboard() {
 
       const uniquePacientes = new Set(consultas.filter((c) => c.paciente_id).map((c) => c.paciente_id));
 
-      // Consultas por dia
       const consultasPorDia: { [key: string]: number } = {};
       consultas.forEach((c) => {
         const date = format(parseISO(c.data_hora), "dd/MM");
         consultasPorDia[date] = (consultasPorDia[date] || 0) + 1;
       });
 
-      // Consultas por status
       const confirmadas = consultas.filter((c) => c.status_consulta === "confirmada").length;
       const aguardando = consultas.filter((c) => c.status_consulta === "aguardando_pagamento").length;
       const concluidas = consultas.filter((c) => c.status_consulta === "concluida").length;
@@ -163,43 +195,82 @@ export default function ClinicaDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            Bem-vindo, {clinicaData?.nome_fantasia || "Clínica"}!
-          </h1>
-          <p className="text-muted-foreground">
-            Gerencie sua clínica e acompanhe as métricas.
-          </p>
-        </div>
+      {/* Welcome Header */}
+      <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-primary/20">
+        <CardContent className="py-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+                {getGreeting()}, {clinicaData?.nome_fantasia || "Clínica"}! 👋
+              </h1>
+              <p className="text-muted-foreground">
+                Bem-vindo ao painel da sua clínica. Acompanhe as métricas e gerencie sua equipe.
+              </p>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              {/* Date & Time */}
+              <div className="flex items-center gap-2 bg-card px-4 py-2 rounded-xl border shadow-sm">
+                <Clock className="w-4 h-4 text-primary" />
+                <div>
+                  <p className="font-semibold">{format(currentTime, "HH:mm")}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(currentTime, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                  </p>
+                </div>
+              </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Select value={medicoFilter} onValueChange={setMedicoFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Médico" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos médicos</SelectItem>
-              {medicos?.map((m: any) => (
-                <SelectItem key={m.id} value={m.id}>
-                  Dr(a). {m.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              {/* Weather */}
+              <div className="flex items-center gap-2 bg-card px-4 py-2 rounded-xl border shadow-sm">
+                {getWeatherIcon(weather.condition)}
+                <div>
+                  <p className="font-semibold">{weather.temp}°C</p>
+                  <p className="text-xs text-muted-foreground">{weather.condition}</p>
+                </div>
+              </div>
 
-          <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7d">7 dias</SelectItem>
-              <SelectItem value="30d">30 dias</SelectItem>
-              <SelectItem value="60d">60 dias</SelectItem>
-              <SelectItem value="90d">90 dias</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+              {/* Location */}
+              {clinicaData?.cidade && (
+                <div className="flex items-center gap-2 bg-card px-4 py-2 rounded-xl border shadow-sm">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  <div>
+                    <p className="font-semibold">{clinicaData.cidade}</p>
+                    <p className="text-xs text-muted-foreground">{clinicaData.estado}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={medicoFilter} onValueChange={setMedicoFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Médico" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos médicos</SelectItem>
+            {medicos?.map((m: any) => (
+              <SelectItem key={m.id} value={m.id}>
+                Dr(a). {m.nome}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7d">7 dias</SelectItem>
+            <SelectItem value="30d">30 dias</SelectItem>
+            <SelectItem value="60d">60 dias</SelectItem>
+            <SelectItem value="90d">90 dias</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Stats Cards */}
@@ -248,7 +319,7 @@ export default function ClinicaDashboard() {
             <DollarSign className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-lg sm:text-xl font-bold text-green-500 truncate">
+            <div className="text-base sm:text-xl font-bold text-green-500 truncate">
               {formatCurrency(stats?.faturamento || 0)}
             </div>
           </CardContent>
@@ -262,7 +333,7 @@ export default function ClinicaDashboard() {
             <Clock className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-lg sm:text-xl font-bold text-yellow-500 truncate">
+            <div className="text-base sm:text-xl font-bold text-yellow-500 truncate">
               {formatCurrency(stats?.pendente || 0)}
             </div>
           </CardContent>
@@ -315,8 +386,8 @@ export default function ClinicaDashboard() {
                 Nenhum dado disponível
               </div>
             ) : (
-              <div className="flex items-center gap-4">
-                <ResponsiveContainer width="50%" height={200}>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <ResponsiveContainer width="100%" height={200} className="sm:w-1/2">
                   <PieChart>
                     <Pie
                       data={stats?.consultasPorStatus}
@@ -334,7 +405,7 @@ export default function ClinicaDashboard() {
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="flex-1 space-y-2">
+                <div className="flex-1 space-y-2 w-full sm:w-auto">
                   {stats?.consultasPorStatus?.map((item, index) => (
                     <div key={item.name} className="flex items-center gap-2">
                       <div
@@ -358,30 +429,30 @@ export default function ClinicaDashboard() {
           <CardTitle>Informações da Clínica</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Nome Fantasia</p>
-              <p className="font-medium">{clinicaData?.nome_fantasia || "-"}</p>
+              <p className="font-medium truncate">{clinicaData?.nome_fantasia || "-"}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Razão Social</p>
-              <p className="font-medium">{clinicaData?.razao_social || "-"}</p>
+              <p className="font-medium truncate">{clinicaData?.razao_social || "-"}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">CNPJ</p>
-              <p className="font-medium">{clinicaData?.cnpj || "-"}</p>
+              <p className="font-medium truncate">{clinicaData?.cnpj || "-"}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Email</p>
-              <p className="font-medium">{clinicaData?.email_contato || "-"}</p>
+              <p className="font-medium truncate">{clinicaData?.email_contato || "-"}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Telefone</p>
-              <p className="font-medium">{clinicaData?.telefone || "-"}</p>
+              <p className="font-medium truncate">{clinicaData?.telefone || "-"}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Localização</p>
-              <p className="font-medium">
+              <p className="font-medium truncate">
                 {clinicaData?.cidade && clinicaData?.estado 
                   ? `${clinicaData.cidade} - ${clinicaData.estado}` 
                   : "-"}
