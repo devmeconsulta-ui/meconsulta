@@ -1,61 +1,129 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   LayoutDashboard, 
   Users, 
   Stethoscope,
   Calendar,
   Settings,
-  Building2
+  Building2,
+  MapPin,
+  DollarSign,
+  Star,
+  Wallet,
+  User,
+  LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/clinica" },
   { icon: Stethoscope, label: "Médicos", path: "/clinica/medicos" },
   { icon: Calendar, label: "Consultas", path: "/clinica/consultas" },
   { icon: Users, label: "Pacientes", path: "/clinica/pacientes" },
+  { icon: MapPin, label: "Locais de Atendimento", path: "/clinica/locais" },
+  { icon: Calendar, label: "Agenda", path: "/clinica/agenda" },
+  { icon: DollarSign, label: "Financeiro", path: "/clinica/financeiro" },
+  { icon: Wallet, label: "Dados Bancários", path: "/clinica/dados-bancarios" },
+  { icon: Star, label: "Avaliações", path: "/clinica/avaliacoes" },
   { icon: Settings, label: "Configurações", path: "/clinica/configuracoes" },
 ];
 
 export function ClinicaSidebar() {
-  const location = useLocation();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  return (
-    <aside className="w-64 bg-card border-r border-border flex flex-col">
+  const handleLogout = () => {
+    logout();
+    navigate("/entrar");
+  };
+
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full">
+      {/* Logo */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Building2 className="h-5 w-5 text-primary" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
+            <Building2 className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="font-bold text-lg text-foreground">MeConsulta</h1>
+            <h1 className="text-lg font-bold text-foreground">MeConsulta</h1>
             <p className="text-xs text-muted-foreground">Área da Clínica</p>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
-        {menuItems.map((item) => {
-          const isActive = location.pathname === item.path || 
-            (item.path !== "/clinica" && location.pathname.startsWith(item.path));
-          
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
+      {/* Navigation */}
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {menuItems.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            end={item.path === "/clinica"}
+            onClick={() => setMobileOpen(false)}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-primary text-primary-foreground shadow-lg"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <item.icon className="h-5 w-5" />
-              <span className="font-medium">{item.label}</span>
-            </NavLink>
-          );
-        })}
+              )
+            }
+          >
+            <item.icon className="w-5 h-5" />
+            {item.label}
+          </NavLink>
+        ))}
       </nav>
-    </aside>
+
+      {/* Logout */}
+      <div className="p-4 border-t border-border">
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+          onClick={handleLogout}
+        >
+          <LogOut className="w-5 h-5" />
+          Sair
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Mobile menu button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="lg:hidden fixed top-4 left-4 z-50"
+        onClick={() => setMobileOpen(!mobileOpen)}
+      >
+        {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+      </Button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transition-transform duration-300",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}
+      >
+        <SidebarContent />
+      </aside>
+    </>
   );
 }
