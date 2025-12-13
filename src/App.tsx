@@ -55,6 +55,11 @@ import ClinicaDashboard from "./pages/clinica/ClinicaDashboard";
 import ClinicaMedicos from "./pages/clinica/ClinicaMedicos";
 import ClinicaConsultas from "./pages/clinica/ClinicaConsultas";
 import ClinicaPacientes from "./pages/clinica/ClinicaPacientes";
+import ClinicaLocais from "./pages/clinica/ClinicaLocais";
+import ClinicaAgenda from "./pages/clinica/ClinicaAgenda";
+import ClinicaFinanceiro from "./pages/clinica/ClinicaFinanceiro";
+import ClinicaDadosBancarios from "./pages/clinica/ClinicaDadosBancarios";
+import ClinicaAvaliacoes from "./pages/clinica/ClinicaAvaliacoes";
 import ClinicaConfiguracoes from "./pages/clinica/ClinicaConfiguracoes";
 
 const queryClient = new QueryClient();
@@ -109,6 +114,11 @@ const App = () => (
               <Route path="medicos" element={<ClinicaMedicos />} />
               <Route path="consultas" element={<ClinicaConsultas />} />
               <Route path="pacientes" element={<ClinicaPacientes />} />
+              <Route path="locais" element={<ClinicaLocais />} />
+              <Route path="agenda" element={<ClinicaAgenda />} />
+              <Route path="financeiro" element={<ClinicaFinanceiro />} />
+              <Route path="dados-bancarios" element={<ClinicaDadosBancarios />} />
+              <Route path="avaliacoes" element={<ClinicaAvaliacoes />} />
               <Route path="configuracoes" element={<ClinicaConfiguracoes />} />
             </Route>
 
