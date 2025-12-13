@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -22,19 +23,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   BarChart,
   Bar,
   XAxis,
   YAxis,
   ResponsiveContainer,
   Tooltip,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import {
-  Wallet,
-  TrendingUp,
   Clock,
   XCircle,
   DollarSign,
+  TrendingUp,
+  Filter,
+  ChevronDown,
+  Search,
 } from "lucide-react";
 
 interface ClinicaContext {
@@ -50,58 +61,94 @@ interface Consulta {
   status_consulta: string;
   status_pagamento: string;
   origem: string;
+  medico_id: string;
+  local_id: string | null;
   paciente: { nome: string } | null;
-  medico: { nome: string } | null;
+  medico: { nome: string; especialidade: string } | null;
+  local: { nome_local: string } | null;
   nome_paciente_consulta: string | null;
 }
 
-type PeriodFilter = "7d" | "30d" | "90d" | "365d";
+type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d";
+
+const COLORS = ["#22c55e", "#eab308", "#ef4444", "#3b82f6"];
 
 export default function ClinicaFinanceiro() {
   const { clinicaData } = useOutletContext<ClinicaContext>();
   const [consultas, setConsultas] = useState<Consulta[]>([]);
+  const [medicos, setMedicos] = useState<Array<{ id: string; nome: string }>>([]);
+  const [locais, setLocais] = useState<Array<{ id: string; nome_local: string }>>([]);
   const [loading, setLoading] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  
+  // Filtros
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
+  const [medicoFilter, setMedicoFilter] = useState("todos");
+  const [statusFilter, setStatusFilter] = useState("todos");
+  const [origemFilter, setOrigemFilter] = useState("todos");
+  const [localFilter, setLocalFilter] = useState("todos");
+  const [searchPaciente, setSearchPaciente] = useState("");
 
   const dateRange = useMemo(() => {
     const now = new Date();
+    const future = new Date();
+    future.setDate(future.getDate() + 90); // 3 months ahead
+    
     switch (periodFilter) {
       case "7d":
-        return { start: subDays(now, 7), end: now };
+        return { start: subDays(now, 7), end: future };
       case "30d":
-        return { start: subDays(now, 30), end: now };
+        return { start: subDays(now, 30), end: future };
+      case "60d":
+        return { start: subDays(now, 60), end: future };
       case "90d":
-        return { start: subDays(now, 90), end: now };
+        return { start: subDays(now, 90), end: future };
+      case "180d":
+        return { start: subDays(now, 180), end: future };
       case "365d":
-        return { start: subDays(now, 365), end: now };
+        return { start: subDays(now, 365), end: future };
       default:
-        return { start: subDays(now, 30), end: now };
+        return { start: subDays(now, 30), end: future };
     }
   }, [periodFilter]);
 
   useEffect(() => {
-    if (!clinicaData?.id) return;
-    fetchConsultas();
+    if (clinicaData?.id) {
+      fetchData();
+    }
   }, [clinicaData?.id, dateRange]);
 
-  async function fetchConsultas() {
+  async function fetchData() {
     setLoading(true);
 
     // Busca médicos vinculados
     const { data: vinculosData } = await supabase
       .from("clinicas_medicos")
-      .select("medico_id")
+      .select("medico_id, medicos(id, nome)")
       .eq("clinica_id", clinicaData.id)
       .eq("ativo", true);
 
-    if (!vinculosData || vinculosData.length === 0) {
+    const medicosVinculados = vinculosData?.map((v: any) => v.medicos).filter(Boolean) || [];
+    setMedicos(medicosVinculados);
+
+    if (medicosVinculados.length === 0) {
       setConsultas([]);
       setLoading(false);
       return;
     }
 
-    const medicoIds = vinculosData.map((v) => v.medico_id);
+    const medicoIds = medicosVinculados.map((m: any) => m.id);
 
+    // Busca locais dos médicos
+    const { data: locaisData } = await supabase
+      .from("locais_atendimento")
+      .select("id, nome_local")
+      .in("medico_id", medicoIds)
+      .eq("ativo", true);
+
+    setLocais(locaisData || []);
+
+    // Busca consultas
     const { data, error } = await supabase
       .from("consultas")
       .select(`
@@ -113,9 +160,12 @@ export default function ClinicaFinanceiro() {
         status_consulta,
         status_pagamento,
         origem,
+        medico_id,
+        local_id,
         nome_paciente_consulta,
         paciente:pacientes!consultas_paciente_id_fkey(nome),
-        medico:medicos!consultas_medico_id_fkey(nome)
+        medico:medicos!consultas_medico_id_fkey(nome, especialidade),
+        local:locais_atendimento!consultas_local_id_fkey(nome_local)
       `)
       .in("medico_id", medicoIds)
       .gte("data_hora", dateRange.start.toISOString())
@@ -128,29 +178,48 @@ export default function ClinicaFinanceiro() {
     setLoading(false);
   }
 
+  const filteredConsultas = useMemo(() => {
+    return consultas.filter((c) => {
+      const matchMedico = medicoFilter === "todos" || c.medico_id === medicoFilter;
+      const matchStatus = statusFilter === "todos" || 
+        (statusFilter === "pago" && c.status_pagamento === "pago") ||
+        (statusFilter === "pendente" && c.status_pagamento === "pendente" && c.status_consulta !== "cancelada") ||
+        (statusFilter === "cancelado" && c.status_consulta === "cancelada");
+      const matchOrigem = origemFilter === "todos" || c.origem === origemFilter;
+      const matchLocal = localFilter === "todos" || c.local_id === localFilter;
+      const matchSearch = !searchPaciente.trim() || 
+        (c.nome_paciente_consulta || c.paciente?.nome || "").toLowerCase().includes(searchPaciente.toLowerCase());
+
+      return matchMedico && matchStatus && matchOrigem && matchLocal && matchSearch;
+    });
+  }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter, searchPaciente]);
+
   const metrics = useMemo(() => {
-    const pago = consultas
-      .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
+    // Only online appointments count for revenue
+    const onlineConsultas = filteredConsultas.filter((c) => c.origem === "online");
+    
+    const pago = onlineConsultas
+      .filter((c) => c.status_pagamento === "pago")
       .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
 
-    const pendente = consultas
+    const pendente = onlineConsultas
       .filter((c) => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada")
       .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
 
-    const cancelado = consultas
+    const cancelado = filteredConsultas
       .filter((c) => c.status_consulta === "cancelada")
       .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
 
-    const total = consultas.length;
-    const pagos = consultas.filter((c) => c.status_pagamento === "pago").length;
+    const total = filteredConsultas.length;
+    const pagos = filteredConsultas.filter((c) => c.status_pagamento === "pago").length;
 
     return { pago, pendente, cancelado, total, pagos };
-  }, [consultas]);
+  }, [filteredConsultas]);
 
   const chartData = useMemo(() => {
     const data: { [key: string]: number } = {};
-    consultas
-      .filter((c) => c.status_pagamento === "pago")
+    filteredConsultas
+      .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
       .forEach((c) => {
         const date = format(parseISO(c.data_hora), "dd/MM");
         data[date] = (data[date] || 0) + c.valor_consulta;
@@ -159,7 +228,22 @@ export default function ClinicaFinanceiro() {
     return Object.entries(data)
       .map(([date, value]) => ({ date, value }))
       .slice(-15);
-  }, [consultas]);
+  }, [filteredConsultas]);
+
+  const medicoChartData = useMemo(() => {
+    const data: { [key: string]: number } = {};
+    filteredConsultas
+      .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
+      .forEach((c) => {
+        const medicoNome = c.medico?.nome || "Desconhecido";
+        data[medicoNome] = (data[medicoNome] || 0) + c.valor_consulta;
+      });
+
+    return Object.entries(data)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [filteredConsultas]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -195,11 +279,107 @@ export default function ClinicaFinanceiro() {
           <SelectContent>
             <SelectItem value="7d">Últimos 7 dias</SelectItem>
             <SelectItem value="30d">Últimos 30 dias</SelectItem>
+            <SelectItem value="60d">Últimos 60 dias</SelectItem>
             <SelectItem value="90d">Últimos 90 dias</SelectItem>
+            <SelectItem value="180d">Últimos 180 dias</SelectItem>
             <SelectItem value="365d">Último ano</SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {/* Filters */}
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" className="gap-2 w-full sm:w-auto">
+            <Filter className="w-4 h-4" />
+            Filtros Avançados
+            <ChevronDown className={`w-4 h-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Médico</label>
+                  <Select value={medicoFilter} onValueChange={setMedicoFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      {medicos.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          Dr(a). {m.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Status Pagamento</label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="pago">Pago</SelectItem>
+                      <SelectItem value="pendente">Pendente</SelectItem>
+                      <SelectItem value="cancelado">Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Origem</label>
+                  <Select value={origemFilter} onValueChange={setOrigemFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas</SelectItem>
+                      <SelectItem value="online">Online</SelectItem>
+                      <SelectItem value="interna">Interna</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Local</label>
+                  <Select value={localFilter} onValueChange={setLocalFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      {locais.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.nome_local}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Paciente</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar..."
+                      value={searchPaciente}
+                      onChange={(e) => setSearchPaciente(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -260,39 +440,87 @@ export default function ClinicaFinanceiro() {
         </Card>
       </div>
 
-      {/* Chart */}
-      <Card className="card-shadow">
-        <CardHeader>
-          <CardTitle>Faturamento Diário</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {chartData.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhum dado disponível para o período
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <XAxis dataKey="date" />
-                <YAxis tickFormatter={(v) => `R$ ${v}`} />
-                <Tooltip
-                  formatter={(value: number) => formatCurrency(value)}
-                  labelFormatter={(label) => `Data: ${label}`}
-                />
-                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="card-shadow">
+          <CardHeader>
+            <CardTitle>Faturamento Diário</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {chartData.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum dado disponível para o período
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={chartData}>
+                  <XAxis dataKey="date" fontSize={12} />
+                  <YAxis tickFormatter={(v) => `R$${v}`} fontSize={12} />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                    labelFormatter={(label) => `Data: ${label}`}
+                  />
+                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="card-shadow">
+          <CardHeader>
+            <CardTitle>Faturamento por Médico</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {medicoChartData.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum dado disponível
+              </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <ResponsiveContainer width="50%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={medicoChartData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={80}
+                    >
+                      {medicoChartData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex-1 space-y-2">
+                  {medicoChartData.map((item, index) => (
+                    <div key={item.name} className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                      />
+                      <span className="text-sm truncate flex-1">{item.name}</span>
+                      <span className="text-sm font-medium">{formatCurrency(item.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Table */}
       <Card className="card-shadow">
         <CardHeader>
-          <CardTitle>Consultas do Período</CardTitle>
+          <CardTitle>Consultas do Período ({filteredConsultas.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          {consultas.length === 0 ? (
+          {filteredConsultas.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               Nenhuma consulta no período selecionado
             </div>
@@ -304,18 +532,26 @@ export default function ClinicaFinanceiro() {
                     <TableHead>Data</TableHead>
                     <TableHead>Médico</TableHead>
                     <TableHead>Paciente</TableHead>
+                    <TableHead>Origem</TableHead>
+                    <TableHead>Local</TableHead>
                     <TableHead>Valor</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {consultas.slice(0, 20).map((consulta) => (
+                  {filteredConsultas.slice(0, 30).map((consulta) => (
                     <TableRow key={consulta.id}>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {format(parseISO(consulta.data_hora), "dd/MM/yyyy HH:mm")}
                       </TableCell>
                       <TableCell>Dr(a). {consulta.medico?.nome || "N/A"}</TableCell>
                       <TableCell>{getPatientName(consulta)}</TableCell>
+                      <TableCell>
+                        <Badge variant={consulta.origem === "online" ? "default" : "secondary"}>
+                          {consulta.origem === "online" ? "Online" : "Interna"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{consulta.local?.nome_local || "-"}</TableCell>
                       <TableCell>{formatCurrency(consulta.valor_consulta)}</TableCell>
                       <TableCell>
                         <Badge
