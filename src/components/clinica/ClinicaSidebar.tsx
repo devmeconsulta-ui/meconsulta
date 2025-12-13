@@ -30,6 +30,7 @@ const menuItems = [
   { icon: DollarSign, label: "Financeiro", path: "/clinica/financeiro" },
   { icon: Wallet, label: "Dados Bancários", path: "/clinica/dados-bancarios" },
   { icon: Star, label: "Avaliações", path: "/clinica/avaliacoes" },
+  { icon: User, label: "Usuários da Clínica", path: "/clinica/usuarios" },
   { icon: Settings, label: "Configurações", path: "/clinica/configuracoes" },
 ];
 

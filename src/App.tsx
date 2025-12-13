@@ -60,6 +60,7 @@ import ClinicaAgenda from "./pages/clinica/ClinicaAgenda";
 import ClinicaFinanceiro from "./pages/clinica/ClinicaFinanceiro";
 import ClinicaDadosBancarios from "./pages/clinica/ClinicaDadosBancarios";
 import ClinicaAvaliacoes from "./pages/clinica/ClinicaAvaliacoes";
+import ClinicaUsuarios from "./pages/clinica/ClinicaUsuarios";
 import ClinicaConfiguracoes from "./pages/clinica/ClinicaConfiguracoes";
 
 const queryClient = new QueryClient();
@@ -119,6 +120,7 @@ const App = () => (
               <Route path="financeiro" element={<ClinicaFinanceiro />} />
               <Route path="dados-bancarios" element={<ClinicaDadosBancarios />} />
               <Route path="avaliacoes" element={<ClinicaAvaliacoes />} />
+              <Route path="usuarios" element={<ClinicaUsuarios />} />
               <Route path="configuracoes" element={<ClinicaConfiguracoes />} />
             </Route>
 
