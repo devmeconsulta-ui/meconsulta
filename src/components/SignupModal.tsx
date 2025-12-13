@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { User, Stethoscope, ArrowLeft } from "lucide-react";
+import { User, Stethoscope, ArrowLeft, Building2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -19,7 +19,7 @@ interface SignupModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type Step = "choose" | "paciente" | "medico";
+type Step = "choose" | "paciente" | "medico" | "clinica";
 
 export function SignupModal({ open, onOpenChange }: SignupModalProps) {
   const navigate = useNavigate();
@@ -41,6 +41,17 @@ export function SignupModal({ open, onOpenChange }: SignupModalProps) {
     telefone: "",
     crm: "",
     especialidade: "",
+    senha: "",
+  });
+
+  const [clinicaData, setClinicaData] = useState({
+    nomeFantasia: "",
+    razaoSocial: "",
+    cnpj: "",
+    email: "",
+    telefone: "",
+    cidade: "",
+    estado: "",
     senha: "",
   });
 
@@ -171,10 +182,78 @@ export function SignupModal({ open, onOpenChange }: SignupModalProps) {
     }
   }
 
+  async function handleClinicaSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      // Check if email already exists
+      const { data: existingUser } = await supabase
+        .from("usuarios")
+        .select("id")
+        .eq("email", clinicaData.email)
+        .maybeSingle();
+
+      if (existingUser) {
+        toast.error("Este e-mail já está cadastrado");
+        setLoading(false);
+        return;
+      }
+
+      // Create usuario
+      const { data: usuario, error: userError } = await supabase
+        .from("usuarios")
+        .insert({
+          nome: clinicaData.nomeFantasia,
+          email: clinicaData.email,
+          tipo: "clinica",
+          papel: "clinica",
+          senha_hash: clinicaData.senha,
+        })
+        .select()
+        .single();
+
+      if (userError) throw userError;
+
+      // Create clinica
+      const { error: clinicaError } = await supabase.from("clinicas").insert({
+        nome_fantasia: clinicaData.nomeFantasia,
+        razao_social: clinicaData.razaoSocial,
+        cnpj: clinicaData.cnpj,
+        email_contato: clinicaData.email,
+        telefone: clinicaData.telefone,
+        cidade: clinicaData.cidade,
+        estado: clinicaData.estado,
+        usuario_id: usuario.id,
+      });
+
+      if (clinicaError) throw clinicaError;
+
+      toast.success("Cadastro realizado com sucesso!");
+
+      // Auto login
+      setCurrentUser({
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        tipo: "clinica",
+      });
+
+      onOpenChange(false);
+      navigate("/clinica");
+    } catch (error: any) {
+      console.error(error);
+      toast.error("Erro ao realizar cadastro");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleClose() {
     setStep("choose");
     setPacienteData({ nome: "", email: "", telefone: "", cpf: "", senha: "" });
     setMedicoData({ nome: "", email: "", telefone: "", crm: "", especialidade: "", senha: "" });
+    setClinicaData({ nomeFantasia: "", razaoSocial: "", cnpj: "", email: "", telefone: "", cidade: "", estado: "", senha: "" });
     onOpenChange(false);
   }
 
@@ -186,34 +265,48 @@ export function SignupModal({ open, onOpenChange }: SignupModalProps) {
             {step === "choose" && "Como deseja se cadastrar?"}
             {step === "paciente" && "Cadastro de Paciente"}
             {step === "medico" && "Cadastro de Médico"}
+            {step === "clinica" && "Cadastro de Clínica"}
           </DialogTitle>
         </DialogHeader>
 
         {step === "choose" && (
-          <div className="grid grid-cols-2 gap-4 py-4">
+          <div className="grid grid-cols-3 gap-3 py-4">
             <button
               onClick={() => setStep("paciente")}
-              className="flex flex-col items-center gap-4 p-6 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all"
+              className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all"
             >
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="w-8 h-8 text-primary" />
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="w-7 h-7 text-primary" />
               </div>
               <div className="text-center">
-                <p className="font-semibold">Sou Paciente</p>
-                <p className="text-sm text-muted-foreground">Quero agendar consultas</p>
+                <p className="font-semibold text-sm">Sou Paciente</p>
+                <p className="text-xs text-muted-foreground">Quero agendar consultas</p>
               </div>
             </button>
 
             <button
               onClick={() => setStep("medico")}
-              className="flex flex-col items-center gap-4 p-6 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all"
+              className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all"
             >
-              <div className="w-16 h-16 rounded-full bg-secondary/10 flex items-center justify-center">
-                <Stethoscope className="w-8 h-8 text-secondary" />
+              <div className="w-14 h-14 rounded-full bg-secondary/10 flex items-center justify-center">
+                <Stethoscope className="w-7 h-7 text-secondary" />
               </div>
               <div className="text-center">
-                <p className="font-semibold">Sou Médico</p>
-                <p className="text-sm text-muted-foreground">Quero atender pacientes</p>
+                <p className="font-semibold text-sm">Sou Médico</p>
+                <p className="text-xs text-muted-foreground">Quero atender pacientes</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setStep("clinica")}
+              className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all"
+            >
+              <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
+                <Building2 className="w-7 h-7 text-green-600" />
+              </div>
+              <div className="text-center">
+                <p className="font-semibold text-sm">Sou Clínica</p>
+                <p className="text-xs text-muted-foreground">Quero gerenciar médicos</p>
               </div>
             </button>
           </div>
@@ -271,6 +364,94 @@ export function SignupModal({ open, onOpenChange }: SignupModalProps) {
                 type="password"
                 value={pacienteData.senha}
                 onChange={(e) => setPacienteData({ ...pacienteData, senha: e.target.value })}
+                required
+                minLength={6}
+              />
+            </div>
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Cadastrando..." : "Cadastrar"}
+            </Button>
+          </form>
+        )}
+
+        {step === "clinica" && (
+          <form onSubmit={handleClinicaSubmit} className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="gap-2 mb-2"
+              onClick={() => setStep("choose")}
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Voltar
+            </Button>
+
+            <div>
+              <Label>Nome Fantasia *</Label>
+              <Input
+                value={clinicaData.nomeFantasia}
+                onChange={(e) => setClinicaData({ ...clinicaData, nomeFantasia: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label>Razão Social</Label>
+              <Input
+                value={clinicaData.razaoSocial}
+                onChange={(e) => setClinicaData({ ...clinicaData, razaoSocial: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>CNPJ</Label>
+              <Input
+                value={clinicaData.cnpj}
+                onChange={(e) => setClinicaData({ ...clinicaData, cnpj: e.target.value })}
+                placeholder="00.000.000/0000-00"
+              />
+            </div>
+            <div>
+              <Label>E-mail *</Label>
+              <Input
+                type="email"
+                value={clinicaData.email}
+                onChange={(e) => setClinicaData({ ...clinicaData, email: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label>Telefone</Label>
+              <Input
+                value={clinicaData.telefone}
+                onChange={(e) => setClinicaData({ ...clinicaData, telefone: e.target.value })}
+                placeholder="(00) 00000-0000"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Cidade</Label>
+                <Input
+                  value={clinicaData.cidade}
+                  onChange={(e) => setClinicaData({ ...clinicaData, cidade: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Estado</Label>
+                <Input
+                  value={clinicaData.estado}
+                  onChange={(e) => setClinicaData({ ...clinicaData, estado: e.target.value })}
+                  placeholder="UF"
+                  maxLength={2}
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Senha *</Label>
+              <Input
+                type="password"
+                value={clinicaData.senha}
+                onChange={(e) => setClinicaData({ ...clinicaData, senha: e.target.value })}
                 required
                 minLength={6}
               />
