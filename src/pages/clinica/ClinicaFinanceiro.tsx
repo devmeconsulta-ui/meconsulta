@@ -202,16 +202,16 @@ export default function ClinicaFinanceiro() {
       </div>
 
       {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="card-shadow">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-green-500/10">
-                <DollarSign className="w-6 h-6 text-green-500" />
+            <div className="flex items-center gap-3">
+              <div className="p-2 sm:p-3 rounded-xl bg-green-500/10 shrink-0">
+                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Faturamento</p>
-                <p className="text-2xl font-bold text-green-500">{formatCurrency(metrics.pago)}</p>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground">Faturamento</p>
+                <p className="text-lg sm:text-2xl font-bold text-green-500 truncate">{formatCurrency(metrics.pago)}</p>
               </div>
             </div>
           </CardContent>
@@ -219,27 +219,13 @@ export default function ClinicaFinanceiro() {
 
         <Card className="card-shadow">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-yellow-500/10">
-                <Clock className="w-6 h-6 text-yellow-500" />
+            <div className="flex items-center gap-3">
+              <div className="p-2 sm:p-3 rounded-xl bg-yellow-500/10 shrink-0">
+                <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Pendente</p>
-                <p className="text-2xl font-bold text-yellow-500">{formatCurrency(metrics.pendente)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="card-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-red-500/10">
-                <XCircle className="w-6 h-6 text-red-500" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Cancelado</p>
-                <p className="text-2xl font-bold text-red-500">{formatCurrency(metrics.cancelado)}</p>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground">Pendente</p>
+                <p className="text-lg sm:text-2xl font-bold text-yellow-500 truncate">{formatCurrency(metrics.pendente)}</p>
               </div>
             </div>
           </CardContent>
@@ -247,13 +233,27 @@ export default function ClinicaFinanceiro() {
 
         <Card className="card-shadow">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-primary/10">
-                <TrendingUp className="w-6 h-6 text-primary" />
+            <div className="flex items-center gap-3">
+              <div className="p-2 sm:p-3 rounded-xl bg-red-500/10 shrink-0">
+                <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Consultas Pagas</p>
-                <p className="text-2xl font-bold">{metrics.pagos} / {metrics.total}</p>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground">Cancelado</p>
+                <p className="text-lg sm:text-2xl font-bold text-red-500 truncate">{formatCurrency(metrics.cancelado)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="card-shadow">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 sm:p-3 rounded-xl bg-primary/10 shrink-0">
+                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground">Consultas Pagas</p>
+                <p className="text-lg sm:text-2xl font-bold truncate">{metrics.pagos} / {metrics.total}</p>
               </div>
             </div>
           </CardContent>
