@@ -5,10 +5,11 @@ export interface CurrentUser {
   id: string;
   nome: string;
   email: string;
-  tipo: "admin" | "medico" | "paciente";
+  tipo: "admin" | "medico" | "paciente" | "clinica";
   papel?: "atendente" | "supervisor" | "admin" | "superadmin";
   pacienteId?: string;
   medicoId?: string;
+  clinicaId?: string;
   permissoes?: string[];
 }
 
@@ -68,6 +69,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrentUser(updatedUser);
         localStorage.setItem("meconsulta_user", JSON.stringify(updatedUser));
       }
+    } else if (user.tipo === "clinica") {
+      const { data } = await supabase
+        .from("clinicas")
+        .select("id")
+        .eq("usuario_id", user.id)
+        .maybeSingle();
+      
+      if (data) {
+        const updatedUser = { ...user, clinicaId: data.id };
+        setCurrentUser(updatedUser);
+        localStorage.setItem("meconsulta_user", JSON.stringify(updatedUser));
+      }
     }
   }
 
@@ -95,6 +108,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (data) {
           updatedUser.medicoId = data.id;
+        }
+      } else if (user.tipo === "clinica") {
+        const { data } = await supabase
+          .from("clinicas")
+          .select("id")
+          .eq("usuario_id", user.id)
+          .maybeSingle();
+        
+        if (data) {
+          updatedUser.clinicaId = data.id;
         }
       }
       
