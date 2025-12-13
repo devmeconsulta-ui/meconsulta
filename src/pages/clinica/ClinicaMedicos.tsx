@@ -484,12 +484,48 @@ export default function ClinicaMedicos() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>URL da Foto</Label>
-                  <Input
-                    value={formData.foto_url}
-                    onChange={(e) => setFormData(prev => ({ ...prev, foto_url: e.target.value }))}
-                    placeholder="https://exemplo.com/foto.jpg"
-                  />
+                  <Label>Foto do Médico</Label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden border">
+                      {formData.foto_url ? (
+                        <img src={formData.foto_url} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <Stethoscope className="h-6 w-6 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          if (file.size > 2 * 1024 * 1024) {
+                            toast.error("Arquivo muito grande. Máximo 2MB.");
+                            return;
+                          }
+                          const fileExt = file.name.split('.').pop();
+                          const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+                          const { data, error } = await supabase.storage
+                            .from('fotos-medicos')
+                            .upload(fileName, file);
+                          if (error) {
+                            toast.error("Erro ao fazer upload da foto");
+                            return;
+                          }
+                          const { data: urlData } = supabase.storage.from('fotos-medicos').getPublicUrl(fileName);
+                          setFormData(prev => ({ ...prev, foto_url: urlData.publicUrl }));
+                          toast.success("Foto enviada!");
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground">ou cole a URL da imagem:</p>
+                      <Input
+                        value={formData.foto_url}
+                        onChange={(e) => setFormData(prev => ({ ...prev, foto_url: e.target.value }))}
+                        placeholder="https://exemplo.com/foto.jpg"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -837,20 +873,48 @@ export default function ClinicaMedicos() {
             </div>
 
             <div className="space-y-2">
-              <Label>URL da Foto</Label>
-              <Input
-                value={editFormData.foto_url}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, foto_url: e.target.value }))}
-              />
-              {editFormData.foto_url && (
-                <div className="mt-2">
-                  <img 
-                    src={editFormData.foto_url} 
-                    alt="Preview" 
-                    className="w-20 h-20 rounded-full object-cover border"
+              <Label>Foto do Médico</Label>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden border">
+                  {editFormData.foto_url ? (
+                    <img src={editFormData.foto_url} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <Stethoscope className="h-8 w-8 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 2 * 1024 * 1024) {
+                        toast.error("Arquivo muito grande. Máximo 2MB.");
+                        return;
+                      }
+                      const fileExt = file.name.split('.').pop();
+                      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+                      const { data, error } = await supabase.storage
+                        .from('fotos-medicos')
+                        .upload(fileName, file);
+                      if (error) {
+                        toast.error("Erro ao fazer upload da foto");
+                        return;
+                      }
+                      const { data: urlData } = supabase.storage.from('fotos-medicos').getPublicUrl(fileName);
+                      setEditFormData(prev => ({ ...prev, foto_url: urlData.publicUrl }));
+                      toast.success("Foto enviada!");
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">ou cole a URL da imagem:</p>
+                  <Input
+                    value={editFormData.foto_url}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, foto_url: e.target.value }))}
+                    placeholder="https://exemplo.com/foto.jpg"
                   />
                 </div>
-              )}
+              </div>
             </div>
 
             <div className="space-y-2">
