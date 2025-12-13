@@ -49,6 +49,14 @@ import PacienteNotificacoes from "./pages/paciente/PacienteNotificacoes";
 import PacienteConfiguracoes from "./pages/paciente/PacienteConfiguracoes";
 import PacienteMeConsultaPay from "./pages/paciente/PacienteMeConsultaPay";
 
+// Clinica pages
+import { ClinicaLayout } from "./components/clinica/ClinicaLayout";
+import ClinicaDashboard from "./pages/clinica/ClinicaDashboard";
+import ClinicaMedicos from "./pages/clinica/ClinicaMedicos";
+import ClinicaConsultas from "./pages/clinica/ClinicaConsultas";
+import ClinicaPacientes from "./pages/clinica/ClinicaPacientes";
+import ClinicaConfiguracoes from "./pages/clinica/ClinicaConfiguracoes";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -93,6 +101,15 @@ const App = () => (
               <Route path="dados-bancarios" element={<MedicoDadosBancarios />} />
               <Route path="avaliacoes" element={<MedicoAvaliacoes />} />
               <Route path="configuracoes" element={<MedicoConfiguracoes />} />
+            </Route>
+
+            {/* Clinica routes */}
+            <Route path="/clinica" element={<ClinicaLayout />}>
+              <Route index element={<ClinicaDashboard />} />
+              <Route path="medicos" element={<ClinicaMedicos />} />
+              <Route path="consultas" element={<ClinicaConsultas />} />
+              <Route path="pacientes" element={<ClinicaPacientes />} />
+              <Route path="configuracoes" element={<ClinicaConfiguracoes />} />
             </Route>
 
             {/* Admin routes */}
