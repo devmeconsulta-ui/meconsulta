@@ -36,9 +36,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Plus, Search, Stethoscope, ExternalLink, Trash2, UserPlus, 
-  Edit, Globe, Calendar, FileText, Upload, X, Eye, Home
+  Edit, Globe, Calendar, FileText, Upload, X, Eye, Home, Settings
 } from "lucide-react";
 import { toast } from "sonner";
+import { GerenciarMedicoModal } from "@/components/clinica/GerenciarMedicoModal";
 
 const especialidades = [
   "Cardiologia", "Dermatologia", "Endocrinologia", "Gastroenterologia",
@@ -56,9 +57,11 @@ export default function ClinicaMedicos() {
   const [searchNew, setSearchNew] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [cadastroDialogOpen, setCadastroDialogOpen] = useState(false);
+  const [gerenciarDialogOpen, setGerenciarDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedMedicoToDelete, setSelectedMedicoToDelete] = useState<string | null>(null);
+  const [selectedMedicoToGerenciar, setSelectedMedicoToGerenciar] = useState<any>(null);
   const [selectedMedicoToEdit, setSelectedMedicoToEdit] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("vinculados");
 
@@ -776,13 +779,16 @@ export default function ClinicaMedicos() {
                       {/* Ações */}
                       <div className="flex items-center gap-1 pt-2">
                         <Button
-                          variant="outline"
+                          variant="default"
                           size="sm"
                           className="flex-1 gap-1"
-                          onClick={() => openEditDialog(item.medico)}
+                          onClick={() => {
+                            setSelectedMedicoToGerenciar(item.medico);
+                            setGerenciarDialogOpen(true);
+                          }}
                         >
-                          <Edit className="h-4 w-4" />
-                          Editar Página
+                          <Settings className="h-4 w-4" />
+                          Gerenciar
                         </Button>
                         <Button
                           variant="ghost"
@@ -1001,6 +1007,16 @@ export default function ClinicaMedicos() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal Gerenciar Médico */}
+      <GerenciarMedicoModal
+        open={gerenciarDialogOpen}
+        onOpenChange={setGerenciarDialogOpen}
+        medico={selectedMedicoToGerenciar}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["clinica-medicos"] });
+        }}
+      />
     </div>
   );
 }
