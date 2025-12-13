@@ -8,12 +8,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import logo from "@/assets/logo.avif";
+import { SignupModal } from "@/components/SignupModal";
 
 export default function Entrar() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [signupOpen, setSignupOpen] = useState(false);
   const navigate = useNavigate();
   const { setCurrentUser } = useAuth();
 
@@ -50,7 +52,7 @@ export default function Entrar() {
           id: usuarioData.id,
           nome: usuarioData.nome,
           email: usuarioData.email,
-          tipo: usuarioData.tipo as "admin" | "medico" | "paciente",
+          tipo: usuarioData.tipo as "admin" | "medico" | "paciente" | "clinica",
           papel: usuarioData.papel as "atendente" | "supervisor" | "admin" | "superadmin",
         });
 
@@ -64,6 +66,9 @@ export default function Entrar() {
             break;
           case "paciente":
             navigate("/paciente");
+            break;
+          case "clinica":
+            navigate("/clinica");
             break;
           default:
             navigate("/");
@@ -203,15 +208,20 @@ export default function Entrar() {
               <p className="text-sm text-muted-foreground mb-2">
                 Ainda não tem uma conta?
               </p>
-              <Link to="/cadastrar">
-                <Button variant="outline" className="w-full">
-                  Cadastrar
-                </Button>
-              </Link>
+              <Button 
+                type="button"
+                variant="outline" 
+                className="w-full"
+                onClick={() => setSignupOpen(true)}
+              >
+                Cadastrar
+              </Button>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      <SignupModal open={signupOpen} onOpenChange={setSignupOpen} />
     </div>
   );
 }
