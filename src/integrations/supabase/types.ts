@@ -1097,6 +1097,7 @@ export type Database = {
           email: string | null
           id: string
           medico_id: string
+          medicos_ids: string[] | null
           nome: string
           papel: string
           permissoes: string[] | null
@@ -1111,6 +1112,7 @@ export type Database = {
           email?: string | null
           id?: string
           medico_id: string
+          medicos_ids?: string[] | null
           nome: string
           papel?: string
           permissoes?: string[] | null
@@ -1125,6 +1127,7 @@ export type Database = {
           email?: string | null
           id?: string
           medico_id?: string
+          medicos_ids?: string[] | null
           nome?: string
           papel?: string
           permissoes?: string[] | null
