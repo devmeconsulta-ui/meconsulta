@@ -217,13 +217,32 @@ export default function ClinicaUsuarios() {
       return;
     }
 
+    // Check for email uniqueness
+    const { data: existingUser, error: checkError } = await supabase
+      .from("usuarios_clinica")
+      .select("id, email")
+      .eq("email", formData.email.trim())
+      .maybeSingle();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      // PGRST116 = no rows returned, which is fine
+      toast.error("Erro ao verificar e-mail");
+      return;
+    }
+
+    // If we found a user with this email and it's not the current editing user
+    if (existingUser && (!editingUser || existingUser.id !== editingUser.id)) {
+      toast.error("Este e-mail já está em uso por outro usuário");
+      return;
+    }
+
     // Use first medico as default if todos_medicos is true
     const medicoIdToUse = formData.todosMedicos ? medicos[0]?.id : formData.medicoId;
 
     if (editingUser) {
       const updateData: any = {
         nome: formData.nome,
-        email: formData.email || null,
+        email: formData.email?.trim() || null,
         telefone: formData.telefone || null,
         papel: formData.papel,
         ativo: formData.ativo,
@@ -253,7 +272,7 @@ export default function ClinicaUsuarios() {
         clinica_id: clinicaData.id,
         todos_medicos: formData.todosMedicos,
         nome: formData.nome,
-        email: formData.email || null,
+        email: formData.email?.trim() || null,
         telefone: formData.telefone || null,
         papel: formData.papel,
         ativo: formData.ativo,
