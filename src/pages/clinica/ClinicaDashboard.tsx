@@ -36,6 +36,7 @@ import {
 } from "recharts";
 
 type PeriodFilter = "7d" | "30d" | "60d" | "90d";
+type StatusFilter = "todos" | "confirmada" | "aguardando_pagamento" | "concluida";
 
 const COLORS = ["#3b82f6", "#22c55e", "#eab308", "#ef4444"];
 
@@ -83,6 +84,7 @@ export default function ClinicaDashboard() {
   const navigate = useNavigate();
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
   const [medicoFilter, setMedicoFilter] = useState("todos");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState({ temp: 28, condition: "Ensolarado" });
 
@@ -235,7 +237,7 @@ export default function ClinicaDashboard() {
 
   // Fetch upcoming consultations for the list (only future, not cancelled)
   const { data: upcomingConsultas } = useQuery({
-    queryKey: ["clinica-upcoming-consultas", clinicaData?.id, medicoFilter],
+    queryKey: ["clinica-upcoming-consultas", clinicaData?.id, medicoFilter, statusFilter],
     queryFn: async () => {
       if (!clinicaData?.id) return [];
 
@@ -250,7 +252,7 @@ export default function ClinicaDashboard() {
 
       const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("consultas")
         .select(`
           id,
@@ -271,7 +273,14 @@ export default function ClinicaDashboard() {
         .gte("data_hora", new Date().toISOString())
         .neq("status_consulta", "cancelada")
         .order("data_hora", { ascending: true })
-        .limit(20);
+        .limit(10);
+
+      // Apply status filter
+      if (statusFilter !== "todos") {
+        query = query.eq("status_consulta", statusFilter);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data || [];
@@ -681,18 +690,31 @@ export default function ClinicaDashboard() {
 
       {/* Upcoming Consultations List */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Próximas Consultas</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => navigate("/clinica/consultas")}>
-            Ver todas
-            <ArrowRight className="h-4 w-4 ml-2" />
-          </Button>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <CardTitle>Próximas Consultas ({upcomingConsultas?.length || 0})</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os status</SelectItem>
+                <SelectItem value="confirmada">Confirmadas</SelectItem>
+                <SelectItem value="aguardando_pagamento">Pendentes</SelectItem>
+                <SelectItem value="concluida">Concluídas</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={() => navigate("/clinica/consultas")}>
+              Ver todas
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {upcomingConsultas?.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Calendar className="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <p>Nenhuma consulta agendada.</p>
+              <p>Nenhuma consulta {statusFilter !== "todos" ? `${statusLabels[statusFilter]?.toLowerCase() || statusFilter}` : "agendada"}.</p>
             </div>
           ) : (
             <div className="rounded-md border overflow-x-auto">
