@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Users, Phone, MapPin } from "lucide-react";
+import { Search, Users, Phone, MapPin, Eye } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -15,12 +15,17 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { PacienteDetalhesModal } from "@/components/clinica/PacienteDetalhesModal";
 
 export default function ClinicaPacientes() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
   const [search, setSearch] = useState("");
+  const [selectedPaciente, setSelectedPaciente] = useState<any>(null);
+  const [selectedConsultaCount, setSelectedConsultaCount] = useState(0);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  const { data: pacientes, isLoading } = useQuery({
+  const { data: pacientes, isLoading, refetch } = useQuery({
     queryKey: ["clinica-pacientes", clinicaData?.id],
     queryFn: async () => {
       if (!clinicaData?.id) return [];
@@ -46,7 +51,9 @@ export default function ClinicaPacientes() {
             telefone,
             cpf,
             cidade,
-            estado
+            estado,
+            bairro,
+            data_nascimento
           )
         `)
         .in("medico_id", medicoIds)
@@ -79,6 +86,12 @@ export default function ClinicaPacientes() {
 
   const getInitials = (name: string) => {
     return name?.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase() || "??";
+  };
+
+  const handleOpenDetails = (item: any) => {
+    setSelectedPaciente(item.paciente);
+    setSelectedConsultaCount(item.consultaCount);
+    setModalOpen(true);
   };
 
   return (
@@ -123,12 +136,13 @@ export default function ClinicaPacientes() {
                     <TableHead>Telefone</TableHead>
                     <TableHead>Localização</TableHead>
                     <TableHead className="text-center">Consultas</TableHead>
+                    <TableHead className="w-[100px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredPacientes?.map((item: any) => (
-                    <TableRow key={item.paciente.id}>
-                      <TableCell>
+                    <TableRow key={item.paciente.id} className="cursor-pointer hover:bg-muted/50">
+                      <TableCell onClick={() => handleOpenDetails(item)}>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9">
                             <AvatarFallback className="bg-primary/10 text-primary text-sm">
@@ -145,7 +159,7 @@ export default function ClinicaPacientes() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={() => handleOpenDetails(item)}>
                         {item.paciente.telefone ? (
                           <div className="flex items-center gap-2 text-sm">
                             <Phone className="h-3.5 w-3.5 text-muted-foreground" />
@@ -155,7 +169,7 @@ export default function ClinicaPacientes() {
                           <span className="text-muted-foreground text-sm">—</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={() => handleOpenDetails(item)}>
                         {item.paciente.cidade && item.paciente.estado ? (
                           <div className="flex items-center gap-2 text-sm">
                             <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
@@ -165,10 +179,20 @@ export default function ClinicaPacientes() {
                           <span className="text-muted-foreground text-sm">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center" onClick={() => handleOpenDetails(item)}>
                         <Badge variant="secondary">
                           {item.consultaCount}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenDetails(item)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -178,6 +202,14 @@ export default function ClinicaPacientes() {
           )}
         </CardContent>
       </Card>
+
+      <PacienteDetalhesModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        paciente={selectedPaciente}
+        consultaCount={selectedConsultaCount}
+        onUpdate={() => refetch()}
+      />
     </div>
   );
 }
