@@ -1,9 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +48,10 @@ import {
   XCircle,
   RefreshCw,
   Loader2,
-  ThumbsUp
+  ThumbsUp,
+  Search,
+  Filter,
+  AlertTriangle
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -49,6 +60,9 @@ import { toast } from "sonner";
 interface PacienteContext {
   pacienteData: any;
 }
+
+type StatusFilter = "todos" | "aguardando_pagamento" | "confirmada" | "atendida_medico" | "concluida" | "cancelada";
+type PaymentFilter = "todos" | "pago" | "pendente" | "cancelado";
 
 const statusIcons: Record<string, React.ReactNode> = {
   aguardando_pagamento: <Clock className="w-4 h-4" />,
@@ -80,11 +94,16 @@ const statusLabels: Record<string, string> = {
   cancelada: "Cancelada",
 };
 
+const paymentStatusLabels: Record<string, string> = {
+  pago: "Pago",
+  pendente: "Pendente",
+  cancelado: "Cancelado",
+};
+
 export default function PacienteConsultas() {
   const { pacienteData } = useOutletContext<PacienteContext>();
   const navigate = useNavigate();
-  const [proximas, setProximas] = useState<any[]>([]);
-  const [historico, setHistorico] = useState<any[]>([]);
+  const [consultas, setConsultas] = useState<any[]>([]);
   const [avaliacoes, setAvaliacoes] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [avaliarModal, setAvaliarModal] = useState<any>(null);
@@ -95,10 +114,40 @@ export default function PacienteConsultas() {
   const [comentario, setComentario] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [processandoPagamento, setProcessandoPagamento] = useState<string | null>(null);
+  
+  // Filters
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("todos");
+  const [notifiedPending, setNotifiedPending] = useState(false);
 
   useEffect(() => {
     fetchConsultas();
   }, [pacienteData?.id]);
+
+  // Show toast notification for pending payments
+  useEffect(() => {
+    if (!notifiedPending && consultas.length > 0) {
+      const pendingPayments = consultas.filter(
+        c => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada"
+      );
+      
+      if (pendingPayments.length > 0) {
+        toast.warning(
+          `Você tem ${pendingPayments.length} consulta${pendingPayments.length > 1 ? 's' : ''} com pagamento pendente!`,
+          {
+            description: "Clique em 'Pagar Agora' para finalizar o pagamento.",
+            duration: 8000,
+            action: {
+              label: "Ver pendentes",
+              onClick: () => setPaymentFilter("pendente"),
+            },
+          }
+        );
+        setNotifiedPending(true);
+      }
+    }
+  }, [consultas, notifiedPending]);
 
   async function fetchConsultas() {
     if (!pacienteData?.id) {
@@ -107,10 +156,9 @@ export default function PacienteConsultas() {
     }
 
     setLoading(true);
-    const now = new Date().toISOString();
 
     try {
-      const [proxResult, histResult, avsResult] = await Promise.all([
+      const [consultasResult, avsResult] = await Promise.all([
         supabase
           .from("consultas")
           .select(`
@@ -118,18 +166,6 @@ export default function PacienteConsultas() {
             medicos (id, nome, especialidade, foto_url, crm)
           `)
           .eq("paciente_id", pacienteData.id)
-          .gte("data_hora", now)
-          .neq("status_consulta", "cancelada")
-          .order("data_hora", { ascending: true }),
-
-        supabase
-          .from("consultas")
-          .select(`
-            *,
-            medicos (id, nome, especialidade, foto_url, crm)
-          `)
-          .eq("paciente_id", pacienteData.id)
-          .or(`data_hora.lt.${now},status_consulta.eq.cancelada`)
           .order("data_hora", { ascending: false }),
 
         supabase
@@ -147,8 +183,7 @@ export default function PacienteConsultas() {
         avsMap[`medico_${av.medico_id}`] = av;
       });
 
-      setProximas(proxResult.data || []);
-      setHistorico(histResult.data || []);
+      setConsultas(consultasResult.data || []);
       setAvaliacoes(avsMap);
     } catch (error) {
       console.error("Error fetching consultas:", error);
@@ -157,13 +192,42 @@ export default function PacienteConsultas() {
     }
   }
 
+  // Filtered consultas based on search and filters
+  const filteredConsultas = useMemo(() => {
+    return consultas.filter(c => {
+      // Search filter
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = !searchTerm || 
+        c.medicos?.nome?.toLowerCase().includes(searchLower) ||
+        c.medicos?.especialidade?.toLowerCase().includes(searchLower) ||
+        c.nome_paciente_consulta?.toLowerCase().includes(searchLower);
+
+      // Status filter
+      const matchesStatus = statusFilter === "todos" || c.status_consulta === statusFilter;
+
+      // Payment filter
+      const matchesPayment = paymentFilter === "todos" || c.status_pagamento === paymentFilter;
+
+      return matchesSearch && matchesStatus && matchesPayment;
+    });
+  }, [consultas, searchTerm, statusFilter, paymentFilter]);
+
+  // Count stats
+  const stats = useMemo(() => {
+    return {
+      total: consultas.length,
+      pendentes: consultas.filter(c => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada").length,
+      confirmadas: consultas.filter(c => c.status_consulta === "confirmada").length,
+      canceladas: consultas.filter(c => c.status_consulta === "cancelada").length,
+      concluidas: consultas.filter(c => c.status_consulta === "concluida" || c.status_consulta === "atendida_medico").length,
+    };
+  }, [consultas]);
+
   async function handleConfirmarAtendimento() {
     if (!confirmarAtendimentoModal || !pacienteData?.id) return;
 
     setEnviando(true);
     try {
-      // Update consulta with patient confirmation
-      // Note: elegivel_repasse is already set by the doctor, patient confirmation is informational only
       const { error: updateError } = await supabase
         .from("consultas")
         .update({
@@ -175,7 +239,6 @@ export default function PacienteConsultas() {
 
       if (updateError) throw updateError;
 
-      // Create event log
       await supabase.from("consultas_eventos").insert({
         consulta_id: confirmarAtendimentoModal.id,
         tipo_evento: "finalizada_paciente",
@@ -186,7 +249,6 @@ export default function PacienteConsultas() {
 
       toast.success("Atendimento confirmado com sucesso!");
       
-      // Close confirmation modal and open evaluation modal
       const consultaToEvaluate = confirmarAtendimentoModal;
       setConfirmarAtendimentoModal(null);
       setAvaliarModal(consultaToEvaluate);
@@ -215,7 +277,6 @@ export default function PacienteConsultas() {
 
       if (error) throw error;
 
-      // Create event log
       await supabase.from("consultas_eventos").insert({
         consulta_id: avaliarModal.id,
         tipo_evento: "avaliacao_paciente",
@@ -224,7 +285,7 @@ export default function PacienteConsultas() {
         usuario_id: pacienteData.id,
       });
 
-      toast.success("Obrigado pela sua avaliação! Ela ajuda outros pacientes e o médico.");
+      toast.success("Obrigado pela sua avaliação!");
       setAvaliacoes((prev) => ({
         ...prev,
         [`consulta_${avaliarModal.id}`]: { nota, comentario },
@@ -316,7 +377,6 @@ export default function PacienteConsultas() {
     }
   }
 
-  // Check if consultation is eligible for patient confirmation
   const canConfirmAttendance = (consulta: any) => {
     const now = new Date();
     const consultaDate = new Date(consulta.data_hora);
@@ -328,19 +388,24 @@ export default function PacienteConsultas() {
     return isPast && isPaid && notConfirmedByPatient && validStatus;
   };
 
-  // Check if evaluation exists for this specific consultation
   const hasEvaluationForConsulta = (consulta: any) => {
     return !!avaliacoes[`consulta_${consulta.id}`];
   };
 
-  const renderConsultaCard = (consulta: any, isHistorico: boolean) => {
+  const isPastConsulta = (consulta: any) => {
+    return new Date(consulta.data_hora) <= new Date();
+  };
+
+  const renderConsultaCard = (consulta: any) => {
     const avaliacao = avaliacoes[`consulta_${consulta.id}`] || avaliacoes[`medico_${consulta.medicos?.id}`];
     const status = consulta.status_consulta as string;
+    const isPast = isPastConsulta(consulta);
     const showConfirmButton = canConfirmAttendance(consulta);
-    const canEvaluate = isHistorico && !hasEvaluationForConsulta(consulta) && consulta.finalizado_paciente;
+    const canEvaluate = isPast && !hasEvaluationForConsulta(consulta) && consulta.finalizado_paciente;
+    const isPendingPayment = consulta.status_pagamento === "pendente" && status !== "cancelada";
 
     return (
-      <Card key={consulta.id} className="card-shadow overflow-hidden">
+      <Card key={consulta.id} className={`card-shadow overflow-hidden ${isPendingPayment ? 'ring-2 ring-yellow-500/50' : ''}`}>
         <CardContent className="p-0">
           <div className="flex flex-col lg:flex-row">
             {/* Doctor Info */}
@@ -378,10 +443,17 @@ export default function PacienteConsultas() {
                     <span className="ml-1">{statusLabels[status] || status}</span>
                   </Badge>
                   
-                  {consulta.status_pagamento === "pendente" && status !== "cancelada" && (
-                    <Badge variant="destructive" className="gap-1">
-                      <CreditCard className="w-3 h-3" />
+                  {isPendingPayment && (
+                    <Badge variant="destructive" className="gap-1 animate-pulse">
+                      <AlertTriangle className="w-3 h-3" />
                       Pagamento pendente
+                    </Badge>
+                  )}
+
+                  {consulta.status_pagamento === "pago" && (
+                    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      Pago
                     </Badge>
                   )}
 
@@ -396,7 +468,7 @@ export default function PacienteConsultas() {
             </div>
 
             {/* Date/Time & Actions */}
-            <div className="border-t lg:border-t-0 lg:border-l border-border p-4 lg:p-6 bg-muted/30 flex flex-col justify-between gap-4 lg:w-64">
+            <div className="border-t lg:border-t-0 lg:border-l border-border p-4 lg:p-6 bg-muted/30 flex flex-col justify-between gap-4 lg:w-72">
               <div>
                 <div className="flex items-center gap-2 text-primary font-semibold">
                   <Calendar className="w-4 h-4" />
@@ -412,6 +484,28 @@ export default function PacienteConsultas() {
               </div>
 
               <div className="flex flex-col gap-2">
+                {/* Highlighted Payment Button for pending */}
+                {isPendingPayment && (
+                  <Button 
+                    size="sm"
+                    disabled={processandoPagamento === consulta.id}
+                    onClick={() => handleFinalizarPagamento(consulta)}
+                    className="gap-1 bg-yellow-500 hover:bg-yellow-600 text-yellow-950 font-semibold animate-pulse"
+                  >
+                    {processandoPagamento === consulta.id ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Processando...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-4 h-4" />
+                        Pagar Agora
+                      </>
+                    )}
+                  </Button>
+                )}
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -432,28 +526,7 @@ export default function PacienteConsultas() {
                   </Button>
                 )}
                 
-                {!isHistorico && consulta.status_pagamento === "pendente" && (
-                  <Button 
-                    size="sm"
-                    disabled={processandoPagamento === consulta.id}
-                    onClick={() => handleFinalizarPagamento(consulta)}
-                    className="gap-1"
-                  >
-                    {processandoPagamento === consulta.id ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Processando...
-                      </>
-                    ) : (
-                      <>
-                        <CreditCard className="w-4 h-4" />
-                        Finalizar pagamento
-                      </>
-                    )}
-                  </Button>
-                )}
-                
-                {!isHistorico && status !== "cancelada" && (
+                {!isPast && status !== "cancelada" && (
                   <>
                     <Button
                       variant="secondary"
@@ -492,7 +565,7 @@ export default function PacienteConsultas() {
           </div>
 
           {/* Avaliação existente */}
-          {isHistorico && avaliacao && (
+          {avaliacao && (
             <div className="border-t border-border p-4 bg-muted/20">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-medium">Sua avaliação:</span>
@@ -546,53 +619,120 @@ export default function PacienteConsultas() {
         </p>
       </div>
 
-      <Tabs defaultValue="proximas" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid">
-          <TabsTrigger value="proximas" className="gap-2">
-            <Clock className="w-4 h-4" />
-            Próximas ({proximas.length})
-          </TabsTrigger>
-          <TabsTrigger value="historico" className="gap-2">
-            <Calendar className="w-4 h-4" />
-            Histórico ({historico.length})
-          </TabsTrigger>
-        </TabsList>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => { setStatusFilter("todos"); setPaymentFilter("todos"); }}>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold">{stats.total}</p>
+            <p className="text-xs text-muted-foreground">Total</p>
+          </CardContent>
+        </Card>
+        <Card className={`cursor-pointer hover:bg-muted/50 transition-colors ${stats.pendentes > 0 ? 'ring-2 ring-yellow-500/50' : ''}`} onClick={() => { setStatusFilter("todos"); setPaymentFilter("pendente"); }}>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-yellow-600">{stats.pendentes}</p>
+            <p className="text-xs text-muted-foreground">Pag. Pendente</p>
+          </CardContent>
+        </Card>
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => { setStatusFilter("confirmada"); setPaymentFilter("todos"); }}>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-green-600">{stats.confirmadas}</p>
+            <p className="text-xs text-muted-foreground">Confirmadas</p>
+          </CardContent>
+        </Card>
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => { setStatusFilter("concluida"); setPaymentFilter("todos"); }}>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-emerald-600">{stats.concluidas}</p>
+            <p className="text-xs text-muted-foreground">Concluídas</p>
+          </CardContent>
+        </Card>
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => { setStatusFilter("cancelada"); setPaymentFilter("todos"); }}>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-red-600">{stats.canceladas}</p>
+            <p className="text-xs text-muted-foreground">Canceladas</p>
+          </CardContent>
+        </Card>
+      </div>
 
-        <TabsContent value="proximas" className="space-y-4 mt-6">
-          {proximas.length === 0 ? (
-            <Card className="card-shadow">
-              <CardContent className="py-12 text-center">
-                <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-lg font-medium">Nenhuma consulta agendada</p>
-                <p className="text-muted-foreground mb-4">
-                  Agende uma consulta com um de nossos especialistas
-                </p>
-                <Button onClick={() => window.location.href = "/paciente/marcar"}>
+      {/* Filters */}
+      <Card className="card-shadow">
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Buscar por médico ou especialidade..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue placeholder="Status da consulta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os status</SelectItem>
+                <SelectItem value="aguardando_pagamento">Aguardando Pagamento</SelectItem>
+                <SelectItem value="confirmada">Confirmada</SelectItem>
+                <SelectItem value="atendida_medico">Atendida</SelectItem>
+                <SelectItem value="concluida">Concluída</SelectItem>
+                <SelectItem value="cancelada">Cancelada</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={paymentFilter} onValueChange={(v) => setPaymentFilter(v as PaymentFilter)}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Status pagamento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos pagamentos</SelectItem>
+                <SelectItem value="pago">Pago</SelectItem>
+                <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="cancelado">Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Consultas List */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {filteredConsultas.length} consulta{filteredConsultas.length !== 1 ? 's' : ''} encontrada{filteredConsultas.length !== 1 ? 's' : ''}
+          </p>
+          {(statusFilter !== "todos" || paymentFilter !== "todos" || searchTerm) && (
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => { setStatusFilter("todos"); setPaymentFilter("todos"); setSearchTerm(""); }}
+            >
+              Limpar filtros
+            </Button>
+          )}
+        </div>
+
+        {filteredConsultas.length === 0 ? (
+          <Card className="card-shadow">
+            <CardContent className="py-12 text-center">
+              <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-lg font-medium">Nenhuma consulta encontrada</p>
+              <p className="text-muted-foreground mb-4">
+                {searchTerm || statusFilter !== "todos" || paymentFilter !== "todos" 
+                  ? "Tente ajustar os filtros de busca"
+                  : "Agende uma consulta com um de nossos especialistas"
+                }
+              </p>
+              {!searchTerm && statusFilter === "todos" && paymentFilter === "todos" && (
+                <Button onClick={() => navigate("/paciente/marcar")}>
                   Marcar consulta
                 </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            proximas.map((c) => renderConsultaCard(c, false))
-          )}
-        </TabsContent>
-
-        <TabsContent value="historico" className="space-y-4 mt-6">
-          {historico.length === 0 ? (
-            <Card className="card-shadow">
-              <CardContent className="py-12 text-center">
-                <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-lg font-medium">Nenhuma consulta no histórico</p>
-                <p className="text-muted-foreground">
-                  Suas consultas passadas aparecerão aqui
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            historico.map((c) => renderConsultaCard(c, true))
-          )}
-        </TabsContent>
-      </Tabs>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          filteredConsultas.map((c) => renderConsultaCard(c))
+        )}
+      </div>
 
       {/* Modal de Confirmação de Atendimento */}
       <AlertDialog open={!!confirmarAtendimentoModal} onOpenChange={() => setConfirmarAtendimentoModal(null)}>
@@ -822,13 +962,14 @@ export default function PacienteConsultas() {
               {detalhesModal.status_pagamento === "pendente" && 
                detalhesModal.status_consulta !== "cancelada" && (
                 <Button 
-                  className="w-full"
+                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-yellow-950 font-semibold"
                   onClick={() => {
                     handleFinalizarPagamento(detalhesModal);
                     setDetalhesModal(null);
                   }}
                 >
-                  Finalizar pagamento
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Pagar Agora
                 </Button>
               )}
             </div>
