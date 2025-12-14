@@ -98,54 +98,63 @@ export default function PacienteConsultas() {
 
   useEffect(() => {
     fetchConsultas();
-  }, [pacienteData]);
+  }, [pacienteData?.id]);
 
   async function fetchConsultas() {
-    if (!pacienteData?.id) return;
+    if (!pacienteData?.id) {
+      setLoading(false);
+      return;
+    }
 
+    setLoading(true);
     const now = new Date().toISOString();
 
-    const [proxResult, histResult, avsResult] = await Promise.all([
-      supabase
-        .from("consultas")
-        .select(`
-          *,
-          medicos (id, nome, especialidade, foto_url, crm)
-        `)
-        .eq("paciente_id", pacienteData.id)
-        .gte("data_hora", now)
-        .neq("status_consulta", "cancelada")
-        .order("data_hora", { ascending: true }),
+    try {
+      const [proxResult, histResult, avsResult] = await Promise.all([
+        supabase
+          .from("consultas")
+          .select(`
+            *,
+            medicos (id, nome, especialidade, foto_url, crm)
+          `)
+          .eq("paciente_id", pacienteData.id)
+          .gte("data_hora", now)
+          .neq("status_consulta", "cancelada")
+          .order("data_hora", { ascending: true }),
 
-      supabase
-        .from("consultas")
-        .select(`
-          *,
-          medicos (id, nome, especialidade, foto_url, crm)
-        `)
-        .eq("paciente_id", pacienteData.id)
-        .or(`data_hora.lt.${now},status_consulta.eq.cancelada`)
-        .order("data_hora", { ascending: false }),
+        supabase
+          .from("consultas")
+          .select(`
+            *,
+            medicos (id, nome, especialidade, foto_url, crm)
+          `)
+          .eq("paciente_id", pacienteData.id)
+          .or(`data_hora.lt.${now},status_consulta.eq.cancelada`)
+          .order("data_hora", { ascending: false }),
 
-      supabase
-        .from("avaliacoes_medico")
-        .select("*")
-        .eq("paciente_id", pacienteData.id)
-    ]);
+        supabase
+          .from("avaliacoes_medico")
+          .select("*")
+          .eq("paciente_id", pacienteData.id)
+      ]);
 
-    // Map avaliacoes by consulta_id (preferred) or medico_id
-    const avsMap: Record<string, any> = {};
-    avsResult.data?.forEach((av) => {
-      if (av.consulta_id) {
-        avsMap[`consulta_${av.consulta_id}`] = av;
-      }
-      avsMap[`medico_${av.medico_id}`] = av;
-    });
+      // Map avaliacoes by consulta_id (preferred) or medico_id
+      const avsMap: Record<string, any> = {};
+      avsResult.data?.forEach((av) => {
+        if (av.consulta_id) {
+          avsMap[`consulta_${av.consulta_id}`] = av;
+        }
+        avsMap[`medico_${av.medico_id}`] = av;
+      });
 
-    setProximas(proxResult.data || []);
-    setHistorico(histResult.data || []);
-    setAvaliacoes(avsMap);
-    setLoading(false);
+      setProximas(proxResult.data || []);
+      setHistorico(histResult.data || []);
+      setAvaliacoes(avsMap);
+    } catch (error) {
+      console.error("Error fetching consultas:", error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleConfirmarAtendimento() {
