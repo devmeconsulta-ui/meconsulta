@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock, Sun, Cloud, CloudRain, MapPin, ArrowRight, CheckCircle, XCircle, AlertCircle, CalendarDays } from "lucide-react";
+import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock, Sun, Cloud, CloudRain, MapPin, ArrowRight, CheckCircle, XCircle, AlertCircle, CalendarDays, Phone } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, parseISO, isToday, isTomorrow, startOfDay, endOfDay } from "date-fns";
@@ -233,9 +233,9 @@ export default function ClinicaDashboard() {
     enabled: !!clinicaData?.id,
   });
 
-  // Fetch recent/upcoming consultations for the list
-  const { data: recentConsultas } = useQuery({
-    queryKey: ["clinica-recent-consultas", clinicaData?.id, medicoFilter],
+  // Fetch upcoming consultations for the list (only future, not cancelled)
+  const { data: upcomingConsultas } = useQuery({
+    queryKey: ["clinica-upcoming-consultas", clinicaData?.id, medicoFilter],
     queryFn: async () => {
       if (!clinicaData?.id) return [];
 
@@ -258,15 +258,67 @@ export default function ClinicaDashboard() {
           status_consulta,
           status_pagamento,
           valor_consulta,
+          valor_medico,
           origem,
+          motivo_consulta,
+          sintomas,
           nome_paciente_consulta,
-          paciente:pacientes(nome),
-          medico:medicos(nome, especialidade)
+          paciente:pacientes(id, nome, telefone, cpf),
+          medico:medicos(id, nome, especialidade),
+          local:locais_atendimento(nome_local, cidade)
         `)
         .in("medico_id", filterMedicoIds)
-        .gte("data_hora", subDays(new Date(), 7).toISOString())
+        .gte("data_hora", new Date().toISOString())
+        .neq("status_consulta", "cancelada")
         .order("data_hora", { ascending: true })
-        .limit(15);
+        .limit(20);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!clinicaData?.id,
+  });
+
+  // Fetch today's consultations
+  const { data: todayConsultas } = useQuery({
+    queryKey: ["clinica-today-consultas", clinicaData?.id, medicoFilter],
+    queryFn: async () => {
+      if (!clinicaData?.id) return [];
+
+      const { data: vinculos } = await supabase
+        .from("clinicas_medicos")
+        .select("medico_id")
+        .eq("clinica_id", clinicaData.id)
+        .eq("ativo", true);
+
+      const medicoIds = vinculos?.map((v) => v.medico_id) || [];
+      if (medicoIds.length === 0) return [];
+
+      const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
+
+      const todayStart = startOfDay(new Date()).toISOString();
+      const todayEnd = endOfDay(new Date()).toISOString();
+
+      const { data, error } = await supabase
+        .from("consultas")
+        .select(`
+          id,
+          data_hora,
+          status_consulta,
+          status_pagamento,
+          valor_consulta,
+          origem,
+          motivo_consulta,
+          nome_paciente_consulta,
+          paciente:pacientes(id, nome, telefone),
+          medico:medicos(id, nome, especialidade),
+          local:locais_atendimento(nome_local)
+        `)
+        .in("medico_id", filterMedicoIds)
+        .gte("data_hora", todayStart)
+        .lte("data_hora", todayEnd)
+        .neq("status_consulta", "cancelada")
+        .order("data_hora", { ascending: true });
 
       if (error) throw error;
       return data || [];
@@ -549,44 +601,39 @@ export default function ClinicaDashboard() {
         </Card>
       </div>
 
-      {/* Recent Consultations List */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Consultas Recentes e Próximas</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => navigate("/clinica/consultas")}>
-            Ver todas
-            <ArrowRight className="h-4 w-4 ml-2" />
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {recentConsultas?.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Calendar className="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <p>Nenhuma consulta encontrada.</p>
+      {/* Today's Consultations */}
+      {todayConsultas && todayConsultas.length > 0 && (
+        <Card className="border-blue-200 dark:border-blue-800">
+          <CardHeader className="flex flex-row items-center justify-between bg-blue-50/50 dark:bg-blue-950/20">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-blue-600" />
+              <CardTitle className="text-blue-900 dark:text-blue-100">Consultas de Hoje ({todayConsultas.length})</CardTitle>
             </div>
-          ) : (
+          </CardHeader>
+          <CardContent className="pt-4">
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data/Hora</TableHead>
+                    <TableHead>Horário</TableHead>
                     <TableHead>Paciente</TableHead>
+                    <TableHead>Contato</TableHead>
                     <TableHead>Médico</TableHead>
-                    <TableHead>Origem</TableHead>
+                    <TableHead>Local</TableHead>
+                    <TableHead>Motivo</TableHead>
                     <TableHead>Valor</TableHead>
-                    <TableHead>Pagamento</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentConsultas?.map((consulta: any) => (
+                  {todayConsultas.map((consulta: any) => (
                     <TableRow key={consulta.id}>
                       <TableCell>
-                        <div>
-                          <p className="font-medium">{getConsultaDateLabel(consulta.data_hora)}</p>
-                          <p className="text-xs text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-blue-500" />
+                          <span className="font-semibold text-blue-600">
                             {format(parseISO(consulta.data_hora), "HH:mm")}
-                          </p>
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -595,9 +642,138 @@ export default function ClinicaDashboard() {
                         </p>
                       </TableCell>
                       <TableCell>
+                        {consulta.paciente?.telefone ? (
+                          <span className="text-sm">{consulta.paciente.telefone}</span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <div>
-                          <p className="text-sm">Dr(a). {consulta.medico?.nome}</p>
+                          <p className="text-sm font-medium">Dr(a). {consulta.medico?.nome}</p>
                           <p className="text-xs text-muted-foreground">{consulta.medico?.especialidade}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">{consulta.local?.nome_local || "—"}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground truncate max-w-[150px] block">
+                          {consulta.motivo_consulta || "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatCurrency(consulta.valor_consulta || 0)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={statusColors[consulta.status_consulta] || "bg-gray-100 text-gray-800"}>
+                          {statusLabels[consulta.status_consulta] || consulta.status_consulta}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Upcoming Consultations List */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Próximas Consultas</CardTitle>
+          <Button variant="outline" size="sm" onClick={() => navigate("/clinica/consultas")}>
+            Ver todas
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {upcomingConsultas?.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Calendar className="h-10 w-10 mx-auto mb-2 opacity-50" />
+              <p>Nenhuma consulta agendada.</p>
+            </div>
+          ) : (
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data/Hora</TableHead>
+                    <TableHead>Paciente</TableHead>
+                    <TableHead>Contato</TableHead>
+                    <TableHead>Médico</TableHead>
+                    <TableHead>Local</TableHead>
+                    <TableHead>Motivo/Sintomas</TableHead>
+                    <TableHead>Origem</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Pagamento</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {upcomingConsultas?.map((consulta: any) => (
+                    <TableRow key={consulta.id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{getConsultaDateLabel(consulta.data_hora)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(parseISO(consulta.data_hora), "HH:mm")}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(parseISO(consulta.data_hora), "EEEE", { locale: ptBR })}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">
+                            {consulta.nome_paciente_consulta || consulta.paciente?.nome || "—"}
+                          </p>
+                          {consulta.paciente?.cpf && (
+                            <p className="text-xs text-muted-foreground">CPF: {consulta.paciente.cpf}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {consulta.paciente?.telefone ? (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Phone className="h-3 w-3 text-muted-foreground" />
+                            {consulta.paciente.telefone}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="text-sm font-medium">Dr(a). {consulta.medico?.nome}</p>
+                          <p className="text-xs text-muted-foreground">{consulta.medico?.especialidade}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="text-sm">{consulta.local?.nome_local || "—"}</p>
+                          {consulta.local?.cidade && (
+                            <p className="text-xs text-muted-foreground">{consulta.local.cidade}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-[180px]">
+                          {consulta.motivo_consulta && (
+                            <p className="text-sm truncate" title={consulta.motivo_consulta}>
+                              {consulta.motivo_consulta}
+                            </p>
+                          )}
+                          {consulta.sintomas && (
+                            <p className="text-xs text-muted-foreground truncate" title={consulta.sintomas}>
+                              {consulta.sintomas}
+                            </p>
+                          )}
+                          {!consulta.motivo_consulta && !consulta.sintomas && (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
