@@ -53,6 +53,7 @@ interface UsuarioClinica {
   medico_id: string;
   clinica_id: string | null;
   todos_medicos: boolean | null;
+  medicos_ids: string[] | null;
   medico?: { nome: string } | null;
 }
 
@@ -91,6 +92,7 @@ export default function ClinicaUsuarios() {
     senha: "",
     medicoId: "",
     todosMedicos: false,
+    medicosIds: [] as string[],
     permissoes: ["dashboard", "consultas", "locais", "agenda", "pacientes"] as string[],
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -177,6 +179,7 @@ export default function ClinicaUsuarios() {
       senha: "",
       medicoId: medicos[0]?.id || "",
       todosMedicos: false,
+      medicosIds: [],
       permissoes: ["dashboard", "consultas", "locais", "agenda", "pacientes"],
     });
     setEditingUser(null);
@@ -194,6 +197,7 @@ export default function ClinicaUsuarios() {
       senha: "",
       medicoId: usuario.medico_id,
       todosMedicos: usuario.todos_medicos || false,
+      medicosIds: usuario.medicos_ids || [],
       permissoes: usuario.permissoes || ["dashboard", "consultas", "locais", "agenda", "pacientes"],
     });
     setDialogOpen(true);
@@ -208,6 +212,15 @@ export default function ClinicaUsuarios() {
     }));
   }
 
+  function toggleMedicoSelection(medicoId: string) {
+    setFormData((prev) => ({
+      ...prev,
+      medicosIds: prev.medicosIds.includes(medicoId)
+        ? prev.medicosIds.filter((id) => id !== medicoId)
+        : [...prev.medicosIds, medicoId],
+    }));
+  }
+
   async function handleSubmit() {
     if (!formData.nome.trim()) {
       toast.error("Nome é obrigatório");
@@ -219,8 +232,8 @@ export default function ClinicaUsuarios() {
       return;
     }
 
-    if (!formData.todosMedicos && !formData.medicoId) {
-      toast.error("Selecione um médico vinculado ou marque 'Todos os médicos'");
+    if (!formData.todosMedicos && formData.medicosIds.length === 0) {
+      toast.error("Selecione pelo menos um médico ou marque 'Todos os médicos'");
       return;
     }
 
@@ -248,8 +261,12 @@ export default function ClinicaUsuarios() {
       return;
     }
 
-    // Use first medico as default if todos_medicos is true
-    const medicoIdToUse = formData.todosMedicos ? medicos[0]?.id : formData.medicoId;
+    // Use first medico as default if todos_medicos is true, otherwise use first selected
+    const medicoIdToUse = formData.todosMedicos 
+      ? medicos[0]?.id 
+      : formData.medicosIds[0] || medicos[0]?.id;
+    
+    const medicosIdsToSave = formData.todosMedicos ? null : formData.medicosIds;
 
     if (editingUser) {
       const updateData: any = {
@@ -262,6 +279,7 @@ export default function ClinicaUsuarios() {
         medico_id: medicoIdToUse,
         clinica_id: clinicaData.id,
         todos_medicos: formData.todosMedicos,
+        medicos_ids: medicosIdsToSave,
       };
 
       if (formData.senha.trim()) {
@@ -283,6 +301,7 @@ export default function ClinicaUsuarios() {
         medico_id: medicoIdToUse,
         clinica_id: clinicaData.id,
         todos_medicos: formData.todosMedicos,
+        medicos_ids: medicosIdsToSave,
         nome: formData.nome,
         email: formData.email?.trim() || null,
         telefone: formData.telefone || null,
@@ -412,7 +431,11 @@ export default function ClinicaUsuarios() {
                   <Checkbox
                     id="todosMedicos"
                     checked={formData.todosMedicos}
-                    onCheckedChange={(checked) => setFormData({ ...formData, todosMedicos: !!checked, medicoId: checked ? "" : formData.medicoId })}
+                    onCheckedChange={(checked) => setFormData({ 
+                      ...formData, 
+                      todosMedicos: !!checked, 
+                      medicosIds: checked ? [] : formData.medicosIds 
+                    })}
                   />
                   <label
                     htmlFor="todosMedicos"
@@ -424,22 +447,27 @@ export default function ClinicaUsuarios() {
                 
                 {!formData.todosMedicos && (
                   <div className="space-y-2">
-                    <Label htmlFor="medico">Médico Vinculado *</Label>
-                    <Select
-                      value={formData.medicoId}
-                      onValueChange={(value) => setFormData({ ...formData, medicoId: value })}
-                    >
-                      <SelectTrigger id="medico">
-                        <SelectValue placeholder="Selecione o médico" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {medicos.map((medico) => (
-                          <SelectItem key={medico.id} value={medico.id}>
+                    <Label>Médicos com Acesso *</Label>
+                    <div className="border rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
+                      {medicos.map((medico) => (
+                        <div key={medico.id} className="flex items-center space-x-3">
+                          <Checkbox
+                            id={`medico-${medico.id}`}
+                            checked={formData.medicosIds.includes(medico.id)}
+                            onCheckedChange={() => toggleMedicoSelection(medico.id)}
+                          />
+                          <label
+                            htmlFor={`medico-${medico.id}`}
+                            className="text-sm font-medium leading-none cursor-pointer"
+                          >
                             Dr(a). {medico.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Selecione os médicos que este usuário poderá acessar
+                    </p>
                   </div>
                 )}
               </div>
@@ -587,6 +615,11 @@ export default function ClinicaUsuarios() {
                           <Badge variant={usuario.ativo ? "default" : "secondary"}>
                             {getPapelLabel(usuario.papel)}
                           </Badge>
+                          {usuario.todos_medicos && (
+                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+                              Todos os Médicos
+                            </Badge>
+                          )}
                           {!usuario.ativo && (
                             <Badge variant="outline" className="text-muted-foreground">
                               Inativo
@@ -594,11 +627,21 @@ export default function ClinicaUsuarios() {
                           )}
                         </div>
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
-                          {usuario.medico && (
+                          {!usuario.todos_medicos && usuario.medicos_ids && usuario.medicos_ids.length > 0 ? (
+                            <span className="text-primary font-medium">
+                              {usuario.medicos_ids.length} médico(s): {
+                                usuario.medicos_ids
+                                  .map(id => medicos.find(m => m.id === id)?.nome)
+                                  .filter(Boolean)
+                                  .map(nome => `Dr(a). ${nome}`)
+                                  .join(", ")
+                              }
+                            </span>
+                          ) : !usuario.todos_medicos && usuario.medico ? (
                             <span className="text-primary font-medium">
                               Dr(a). {usuario.medico.nome}
                             </span>
-                          )}
+                          ) : null}
                           {usuario.telefone && (
                             <span className="flex items-center gap-1">
                               <Phone className="w-3 h-3" />
