@@ -41,6 +41,8 @@ interface UsuarioClinica {
   senha_hash: string | null;
   permissoes: string[] | null;
   medico_id: string;
+  clinica_id: string | null;
+  todos_medicos: boolean | null;
   medico?: { nome: string } | null;
 }
 
@@ -76,6 +78,7 @@ export default function ClinicaUsuarios() {
     ativo: true,
     senha: "",
     medicoId: "",
+    todosMedicos: false,
     permissoes: ["dashboard", "consultas", "locais", "agenda", "pacientes"] as string[],
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -151,6 +154,7 @@ export default function ClinicaUsuarios() {
       ativo: true,
       senha: "",
       medicoId: medicos[0]?.id || "",
+      todosMedicos: false,
       permissoes: ["dashboard", "consultas", "locais", "agenda", "pacientes"],
     });
     setEditingUser(null);
@@ -167,6 +171,7 @@ export default function ClinicaUsuarios() {
       ativo: usuario.ativo,
       senha: "",
       medicoId: usuario.medico_id,
+      todosMedicos: usuario.todos_medicos || false,
       permissoes: usuario.permissoes || ["dashboard", "consultas", "locais", "agenda", "pacientes"],
     });
     setDialogOpen(true);
@@ -192,8 +197,8 @@ export default function ClinicaUsuarios() {
       return;
     }
 
-    if (!formData.medicoId) {
-      toast.error("Selecione um médico vinculado");
+    if (!formData.todosMedicos && !formData.medicoId) {
+      toast.error("Selecione um médico vinculado ou marque 'Todos os médicos'");
       return;
     }
 
@@ -201,6 +206,9 @@ export default function ClinicaUsuarios() {
       toast.error("Senha é obrigatória para novos usuários");
       return;
     }
+
+    // Use first medico as default if todos_medicos is true
+    const medicoIdToUse = formData.todosMedicos ? medicos[0]?.id : formData.medicoId;
 
     if (editingUser) {
       const updateData: any = {
@@ -210,7 +218,9 @@ export default function ClinicaUsuarios() {
         papel: formData.papel,
         ativo: formData.ativo,
         permissoes: formData.permissoes,
-        medico_id: formData.medicoId,
+        medico_id: medicoIdToUse,
+        clinica_id: clinicaData.id,
+        todos_medicos: formData.todosMedicos,
       };
 
       if (formData.senha.trim()) {
@@ -229,7 +239,9 @@ export default function ClinicaUsuarios() {
       toast.success("Usuário atualizado!");
     } else {
       const { error } = await supabase.from("usuarios_clinica").insert({
-        medico_id: formData.medicoId,
+        medico_id: medicoIdToUse,
+        clinica_id: clinicaData.id,
+        todos_medicos: formData.todosMedicos,
         nome: formData.nome,
         email: formData.email || null,
         telefone: formData.telefone || null,
@@ -346,23 +358,41 @@ export default function ClinicaUsuarios() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="medico">Médico Vinculado *</Label>
-                <Select
-                  value={formData.medicoId}
-                  onValueChange={(value) => setFormData({ ...formData, medicoId: value })}
-                >
-                  <SelectTrigger id="medico">
-                    <SelectValue placeholder="Selecione o médico" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {medicos.map((medico) => (
-                      <SelectItem key={medico.id} value={medico.id}>
-                        Dr(a). {medico.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <Checkbox
+                    id="todosMedicos"
+                    checked={formData.todosMedicos}
+                    onCheckedChange={(checked) => setFormData({ ...formData, todosMedicos: !!checked, medicoId: checked ? "" : formData.medicoId })}
+                  />
+                  <label
+                    htmlFor="todosMedicos"
+                    className="text-sm font-medium leading-none cursor-pointer"
+                  >
+                    Acesso a todos os médicos da clínica
+                  </label>
+                </div>
+                
+                {!formData.todosMedicos && (
+                  <div className="space-y-2">
+                    <Label htmlFor="medico">Médico Vinculado *</Label>
+                    <Select
+                      value={formData.medicoId}
+                      onValueChange={(value) => setFormData({ ...formData, medicoId: value })}
+                    >
+                      <SelectTrigger id="medico">
+                        <SelectValue placeholder="Selecione o médico" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {medicos.map((medico) => (
+                          <SelectItem key={medico.id} value={medico.id}>
+                            Dr(a). {medico.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
