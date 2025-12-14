@@ -11,6 +11,7 @@ export interface CurrentUser {
   medicoId?: string;
   clinicaId?: string;
   permissoes?: string[];
+  todosMedicos?: boolean;
 }
 
 interface AuthContextType {

@@ -120,26 +120,36 @@ export default function ClinicaUsuarios() {
   }
 
   async function fetchUsuarios() {
-    if (medicos.length === 0) {
+    // Fetch users linked to this clinic (via clinica_id) or linked to any of the clinic's doctors
+    const medicoIds = medicos.map((m) => m.id);
+
+    // Build query - fetch by clinica_id OR by medico_id in clinic's doctors
+    let query = supabase
+      .from("usuarios_clinica")
+      .select("*")
+      .order("created_at", { ascending: false });
+    
+    if (clinicaData?.id) {
+      // Prefer clinica_id filter, but also get legacy users by medico_id
+      query = query.or(`clinica_id.eq.${clinicaData.id}${medicoIds.length > 0 ? `,medico_id.in.(${medicoIds.join(',')})` : ''}`);
+    } else if (medicoIds.length > 0) {
+      query = query.in("medico_id", medicoIds);
+    } else {
       setUsuarios([]);
       setLoading(false);
       return;
     }
 
-    const medicoIds = medicos.map((m) => m.id);
-
-    const { data, error } = await supabase
-      .from("usuarios_clinica")
-      .select("*")
-      .in("medico_id", medicoIds)
-      .order("created_at", { ascending: false });
+    const { data, error } = await query;
 
     if (!error) {
       // Map medico names to usuarios
       const usuariosWithMedico = (data || []).map((u) => ({
         ...u,
+        clinica_id: u.clinica_id || null,
+        todos_medicos: u.todos_medicos || false,
         medico: medicos.find((m) => m.id === u.medico_id),
-      }));
+      })) as UsuarioClinica[];
       setUsuarios(usuariosWithMedico);
     }
     setLoading(false);
