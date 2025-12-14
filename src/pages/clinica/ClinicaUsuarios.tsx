@@ -20,6 +20,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Users, Plus, Phone, Mail, Trash2, Pencil, Eye, EyeOff, Key, Shield } from "lucide-react";
@@ -69,6 +79,8 @@ export default function ClinicaUsuarios() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UsuarioClinica | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     nome: "",
@@ -292,14 +304,19 @@ export default function ClinicaUsuarios() {
     fetchUsuarios();
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Tem certeza que deseja excluir este usuário?")) return;
+  function openDeleteDialog(id: string) {
+    setUserToDelete(id);
+    setDeleteDialogOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!userToDelete) return;
 
     try {
       const { error } = await supabase
         .from("usuarios_clinica")
         .delete()
-        .eq("id", id);
+        .eq("id", userToDelete);
 
       if (error) {
         toast.error(`Erro ao excluir usuário: ${error.message}`);
@@ -310,6 +327,9 @@ export default function ClinicaUsuarios() {
       fetchUsuarios();
     } catch (err) {
       toast.error("Erro inesperado ao excluir usuário");
+    } finally {
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
     }
   }
 
@@ -607,7 +627,7 @@ export default function ClinicaUsuarios() {
                         variant="ghost"
                         size="icon"
                         className="text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(usuario.id)}
+                        onClick={() => openDeleteDialog(usuario.id)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -619,6 +639,29 @@ export default function ClinicaUsuarios() {
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir usuário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setUserToDelete(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
