@@ -501,14 +501,18 @@ export default function ClinicaAgenda() {
               className={`card-shadow ${dayIsToday ? "ring-2 ring-primary shadow-lg" : ""}`}
             >
               <CardContent className="p-3">
-                <div className={`text-center mb-3 pb-2 border-b ${dayIsToday ? "border-primary" : "border-border"}`}>
+                <button
+                  type="button"
+                  onClick={() => handleDayClick(day)}
+                  className={`w-full text-center mb-3 pb-2 border-b transition-colors rounded-t hover:bg-muted/50 ${dayIsToday ? "border-primary" : "border-border"}`}
+                >
                   <p className={`text-xs uppercase font-medium ${dayIsToday ? "text-primary" : "text-muted-foreground"}`}>
                     {format(day, "EEE", { locale: ptBR })}
                   </p>
                   <p className={`text-lg font-bold ${dayIsToday ? "text-primary" : "text-foreground"}`}>
                     {format(day, "dd")}
                   </p>
-                </div>
+                </button>
 
                 <div className="space-y-2 max-h-80 overflow-y-auto">
                   {daySlots.length === 0 ? (
