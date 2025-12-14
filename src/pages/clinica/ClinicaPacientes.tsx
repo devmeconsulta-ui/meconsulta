@@ -15,7 +15,17 @@ export default function ClinicaPacientes() {
     queryFn: async () => {
       if (!clinicaData?.id) return [];
 
-      // Get unique patients from consultations
+      // First, get doctors linked to this clinic
+      const { data: vinculos } = await supabase
+        .from("clinicas_medicos")
+        .select("medico_id")
+        .eq("clinica_id", clinicaData.id)
+        .eq("ativo", true);
+
+      const medicoIds = vinculos?.map((v) => v.medico_id) || [];
+      if (medicoIds.length === 0) return [];
+
+      // Get unique patients from consultations of these doctors
       const { data: consultas, error } = await supabase
         .from("consultas")
         .select(`
@@ -28,7 +38,7 @@ export default function ClinicaPacientes() {
             estado
           )
         `)
-        .eq("clinica_id", clinicaData.id)
+        .in("medico_id", medicoIds)
         .not("paciente_id", "is", null);
 
       if (error) throw error;
