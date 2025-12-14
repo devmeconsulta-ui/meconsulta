@@ -13,26 +13,54 @@ export function ClinicaLayout() {
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && (!currentUser || currentUser.tipo !== "clinica")) {
+    // Allow clinica owners AND clinic employees (usuarios_clinica with clinica_id)
+    if (!isLoading && !currentUser) {
+      navigate("/entrar");
+      return;
+    }
+
+    // If user is not clinica type and doesn't have clinicaId, redirect
+    if (!isLoading && currentUser && currentUser.tipo !== "clinica" && !currentUser.clinicaId) {
       navigate("/entrar");
     }
   }, [currentUser, isLoading, navigate]);
 
   useEffect(() => {
     async function fetchClinicaData() {
-      if (!currentUser?.id) return;
+      if (!currentUser) return;
 
-      const { data } = await supabase
-        .from("clinicas")
-        .select("*")
-        .eq("usuario_id", currentUser.id)
-        .maybeSingle();
+      let clinicaId: string | null = null;
 
-      setClinicaData(data);
+      // If user is a clinic employee (has clinicaId in context), use that
+      if (currentUser.clinicaId) {
+        clinicaId = currentUser.clinicaId;
+      } else if (currentUser.tipo === "clinica") {
+        // If user is the clinic owner, fetch clinic by usuario_id
+        const { data } = await supabase
+          .from("clinicas")
+          .select("id")
+          .eq("usuario_id", currentUser.id)
+          .maybeSingle();
+        
+        if (data) {
+          clinicaId = data.id;
+        }
+      }
+
+      if (clinicaId) {
+        const { data } = await supabase
+          .from("clinicas")
+          .select("*")
+          .eq("id", clinicaId)
+          .maybeSingle();
+
+        setClinicaData(data);
+      }
+      
       setDataLoading(false);
     }
 
-    if (currentUser?.tipo === "clinica") {
+    if (currentUser) {
       fetchClinicaData();
     }
   }, [currentUser]);
@@ -56,7 +84,7 @@ export function ClinicaLayout() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <Outlet context={{ clinicaData }} />
+            <Outlet context={{ clinicaData, currentUser }} />
           )}
         </main>
       </div>

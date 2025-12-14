@@ -15,19 +15,27 @@ import {
   LogOut,
   Menu,
   X,
+  LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/clinica" },
+interface MenuItem {
+  icon: LucideIcon;
+  label: string;
+  path: string;
+  permission?: string; // If set, requires this permission
+}
+
+const menuItems: MenuItem[] = [
+  { icon: LayoutDashboard, label: "Dashboard", path: "/clinica", permission: "dashboard" },
   { icon: Stethoscope, label: "Médicos", path: "/clinica/medicos" },
-  { icon: Calendar, label: "Consultas", path: "/clinica/consultas" },
-  { icon: Users, label: "Pacientes", path: "/clinica/pacientes" },
-  { icon: MapPin, label: "Locais de Atendimento", path: "/clinica/locais" },
-  { icon: Calendar, label: "Agenda", path: "/clinica/agenda" },
-  { icon: DollarSign, label: "Financeiro", path: "/clinica/financeiro" },
+  { icon: Calendar, label: "Consultas", path: "/clinica/consultas", permission: "consultas" },
+  { icon: Users, label: "Pacientes", path: "/clinica/pacientes", permission: "pacientes" },
+  { icon: MapPin, label: "Locais de Atendimento", path: "/clinica/locais", permission: "locais" },
+  { icon: Calendar, label: "Agenda", path: "/clinica/agenda", permission: "agenda" },
+  { icon: DollarSign, label: "Financeiro", path: "/clinica/financeiro", permission: "financeiro" },
   { icon: Wallet, label: "Dados Bancários", path: "/clinica/dados-bancarios" },
   { icon: Star, label: "Avaliações", path: "/clinica/avaliacoes" },
   { icon: User, label: "Usuários da Clínica", path: "/clinica/usuarios" },
@@ -35,7 +43,7 @@ const menuItems = [
 ];
 
 export function ClinicaSidebar() {
-  const { logout } = useAuth();
+  const { logout, currentUser } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -43,6 +51,25 @@ export function ClinicaSidebar() {
     logout();
     navigate("/entrar");
   };
+
+  // Check if user is a clinic employee (has permissoes) vs clinic owner
+  const isEmployee = currentUser?.permissoes && currentUser.permissoes.length > 0;
+  const userPermissions = currentUser?.permissoes || [];
+
+  // Filter menu items based on permissions
+  const visibleMenuItems = menuItems.filter((item) => {
+    // If user is owner (no permissoes), show all
+    if (!isEmployee) return true;
+    
+    // If item has no permission requirement, check if user is owner or has specific access
+    if (!item.permission) {
+      // Only owners can see: Médicos, Dados Bancários, Avaliações, Usuários, Configurações
+      return false;
+    }
+    
+    // Check if user has required permission
+    return userPermissions.includes(item.permission);
+  });
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -54,14 +81,16 @@ export function ClinicaSidebar() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-foreground">MeConsulta</h1>
-            <p className="text-xs text-muted-foreground">Área da Clínica</p>
+            <p className="text-xs text-muted-foreground">
+              {isEmployee ? "Funcionário" : "Área da Clínica"}
+            </p>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => (
+        {visibleMenuItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
@@ -81,6 +110,14 @@ export function ClinicaSidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* User info */}
+      {currentUser && (
+        <div className="px-4 py-2 border-t border-border">
+          <p className="text-sm font-medium text-foreground truncate">{currentUser.nome}</p>
+          <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
+        </div>
+      )}
 
       {/* Logout */}
       <div className="p-4 border-t border-border">
