@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Users, Phone, MapPin, Eye } from "lucide-react";
+import { Search, Users, Phone, MapPin, Eye, Download } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { PacienteDetalhesModal } from "@/components/clinica/PacienteDetalhesModal";
+import { toast } from "sonner";
 
 export default function ClinicaPacientes() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
@@ -94,13 +95,53 @@ export default function ClinicaPacientes() {
     setModalOpen(true);
   };
 
+  const handleExportCSV = () => {
+    if (!filteredPacientes || filteredPacientes.length === 0) {
+      toast.error("Nenhum paciente para exportar");
+      return;
+    }
+
+    const headers = ["Nome", "CPF", "Telefone", "Cidade", "Estado", "Consultas"];
+    const rows = filteredPacientes.map((item: any) => [
+      item.paciente.nome || "",
+      item.paciente.cpf || "",
+      item.paciente.telefone || "",
+      item.paciente.cidade || "",
+      item.paciente.estado || "",
+      item.consultaCount.toString(),
+    ]);
+
+    const csvContent = [
+      headers.join(";"),
+      ...rows.map((row: string[]) => row.join(";")),
+    ].join("\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `pacientes_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success("Lista de pacientes exportada com sucesso!");
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Pacientes</h1>
-        <p className="text-muted-foreground">
-          Pacientes que já realizaram consultas na clínica.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Pacientes</h1>
+          <p className="text-muted-foreground">
+            Pacientes que já realizaram consultas na clínica.
+          </p>
+        </div>
+        <Button variant="outline" onClick={handleExportCSV} disabled={!filteredPacientes?.length}>
+          <Download className="h-4 w-4 mr-2" />
+          Exportar CSV
+        </Button>
       </div>
 
       <Card>
