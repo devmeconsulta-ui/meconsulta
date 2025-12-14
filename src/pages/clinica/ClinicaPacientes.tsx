@@ -4,7 +4,17 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Users } from "lucide-react";
+import { Search, Users, Phone, MapPin } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function ClinicaPacientes() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
@@ -25,10 +35,11 @@ export default function ClinicaPacientes() {
       const medicoIds = vinculos?.map((v) => v.medico_id) || [];
       if (medicoIds.length === 0) return [];
 
-      // Get unique patients from consultations of these doctors
+      // Get patients with consultation count
       const { data: consultas, error } = await supabase
         .from("consultas")
         .select(`
+          paciente_id,
           paciente:pacientes(
             id,
             nome,
@@ -43,23 +54,32 @@ export default function ClinicaPacientes() {
 
       if (error) throw error;
 
-      // Get unique patients
-      const uniquePacientes = new Map();
+      // Get unique patients with consultation count
+      const pacienteMap = new Map<string, { paciente: any; consultaCount: number }>();
       consultas?.forEach((c: any) => {
-        if (c.paciente && !uniquePacientes.has(c.paciente.id)) {
-          uniquePacientes.set(c.paciente.id, c.paciente);
+        if (c.paciente) {
+          const existing = pacienteMap.get(c.paciente.id);
+          if (existing) {
+            existing.consultaCount++;
+          } else {
+            pacienteMap.set(c.paciente.id, { paciente: c.paciente, consultaCount: 1 });
+          }
         }
       });
 
-      return Array.from(uniquePacientes.values());
+      return Array.from(pacienteMap.values());
     },
     enabled: !!clinicaData?.id,
   });
 
-  const filteredPacientes = pacientes?.filter((p: any) =>
-    p.nome?.toLowerCase().includes(search.toLowerCase()) ||
-    p.cpf?.includes(search)
+  const filteredPacientes = pacientes?.filter((item: any) =>
+    item.paciente.nome?.toLowerCase().includes(search.toLowerCase()) ||
+    item.paciente.cpf?.includes(search)
   );
+
+  const getInitials = (name: string) => {
+    return name?.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase() || "??";
+  };
 
   return (
     <div className="space-y-6">
@@ -72,7 +92,7 @@ export default function ClinicaPacientes() {
 
       <Card>
         <CardHeader>
-          <div className="relative">
+          <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por nome ou CPF..."
@@ -88,36 +108,72 @@ export default function ClinicaPacientes() {
               Carregando...
             </div>
           ) : filteredPacientes?.length === 0 ? (
-            <div className="text-center py-8">
+            <div className="text-center py-12">
               <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground">
                 Nenhum paciente encontrado.
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredPacientes?.map((paciente: any) => (
-                <Card key={paciente.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Users className="h-5 w-5 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold">{paciente.nome}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {paciente.telefone || "Sem telefone"}
-                        </p>
-                        {paciente.cidade && paciente.estado && (
-                          <p className="text-xs text-muted-foreground">
-                            {paciente.cidade} - {paciente.estado}
-                          </p>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Paciente</TableHead>
+                    <TableHead>Telefone</TableHead>
+                    <TableHead>Localização</TableHead>
+                    <TableHead className="text-center">Consultas</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredPacientes?.map((item: any) => (
+                    <TableRow key={item.paciente.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9">
+                            <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                              {getInitials(item.paciente.nome)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{item.paciente.nome}</p>
+                            {item.paciente.cpf && (
+                              <p className="text-xs text-muted-foreground">
+                                CPF: {item.paciente.cpf}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {item.paciente.telefone ? (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                            {item.paciente.telefone}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
                         )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      </TableCell>
+                      <TableCell>
+                        {item.paciente.cidade && item.paciente.estado ? (
+                          <div className="flex items-center gap-2 text-sm">
+                            <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                            {item.paciente.cidade} - {item.paciente.estado}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="secondary">
+                          {item.consultaCount}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
