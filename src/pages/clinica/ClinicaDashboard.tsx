@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -8,10 +8,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock, Sun, Cloud, CloudRain, MapPin } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock, Sun, Cloud, CloudRain, MapPin, ArrowRight, CheckCircle, XCircle, AlertCircle, CalendarDays } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, parseISO } from "date-fns";
+import { format, subDays, parseISO, isToday, isTomorrow, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   BarChart,
@@ -28,6 +38,26 @@ import {
 type PeriodFilter = "7d" | "30d" | "60d" | "90d";
 
 const COLORS = ["#3b82f6", "#22c55e", "#eab308", "#ef4444"];
+
+const statusColors: Record<string, string> = {
+  confirmada: "bg-green-100 text-green-800",
+  concluida: "bg-blue-100 text-blue-800",
+  cancelada: "bg-red-100 text-red-800",
+  aguardando_pagamento: "bg-yellow-100 text-yellow-800",
+};
+
+const statusLabels: Record<string, string> = {
+  confirmada: "Confirmada",
+  concluida: "Concluída",
+  cancelada: "Cancelada",
+  aguardando_pagamento: "Aguardando",
+};
+
+const pagamentoColors: Record<string, string> = {
+  pago: "bg-green-100 text-green-800",
+  pendente: "bg-yellow-100 text-yellow-800",
+  cancelado: "bg-red-100 text-red-800",
+};
 
 // Greetings based on time
 function getGreeting() {
@@ -50,6 +80,7 @@ function getWeatherIcon(condition: string) {
 
 export default function ClinicaDashboard() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
+  const navigate = useNavigate();
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
   const [medicoFilter, setMedicoFilter] = useState("todos");
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -121,7 +152,17 @@ export default function ClinicaDashboard() {
 
       const medicoIds = vinculos?.map((v) => v.medico_id) || [];
       if (medicoIds.length === 0) {
-        return { medicos: 0, consultas: 0, pacientes: 0, faturamento: 0, pendente: 0, consultasPorDia: [], consultasPorStatus: [] };
+        return { 
+          medicos: 0, 
+          consultas: 0, 
+          pacientes: 0, 
+          faturamento: 0, 
+          pendente: 0, 
+          consultasHoje: 0,
+          consultasAmanha: 0,
+          consultasPorDia: [], 
+          consultasPorStatus: [] 
+        };
       }
 
       const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
@@ -147,6 +188,18 @@ export default function ClinicaDashboard() {
 
       const uniquePacientes = new Set(consultas.filter((c) => c.paciente_id).map((c) => c.paciente_id));
 
+      // Consultas hoje e amanhã
+      const today = new Date();
+      const consultasHoje = consultas.filter((c) => {
+        const date = parseISO(c.data_hora);
+        return isToday(date) && c.status_consulta !== "cancelada";
+      }).length;
+
+      const consultasAmanha = consultas.filter((c) => {
+        const date = parseISO(c.data_hora);
+        return isTomorrow(date) && c.status_consulta !== "cancelada";
+      }).length;
+
       const consultasPorDia: { [key: string]: number } = {};
       consultas.forEach((c) => {
         const date = format(parseISO(c.data_hora), "dd/MM");
@@ -164,6 +217,8 @@ export default function ClinicaDashboard() {
         pacientes: uniquePacientes.size,
         faturamento,
         pendente,
+        consultasHoje,
+        consultasAmanha,
         consultasPorDia: Object.entries(consultasPorDia)
           .map(([date, count]) => ({ date, count }))
           .slice(-15),
@@ -178,11 +233,59 @@ export default function ClinicaDashboard() {
     enabled: !!clinicaData?.id,
   });
 
+  // Fetch recent/upcoming consultations for the list
+  const { data: recentConsultas } = useQuery({
+    queryKey: ["clinica-recent-consultas", clinicaData?.id, medicoFilter],
+    queryFn: async () => {
+      if (!clinicaData?.id) return [];
+
+      const { data: vinculos } = await supabase
+        .from("clinicas_medicos")
+        .select("medico_id")
+        .eq("clinica_id", clinicaData.id)
+        .eq("ativo", true);
+
+      const medicoIds = vinculos?.map((v) => v.medico_id) || [];
+      if (medicoIds.length === 0) return [];
+
+      const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
+
+      const { data, error } = await supabase
+        .from("consultas")
+        .select(`
+          id,
+          data_hora,
+          status_consulta,
+          status_pagamento,
+          valor_consulta,
+          origem,
+          nome_paciente_consulta,
+          paciente:pacientes(nome),
+          medico:medicos(nome, especialidade)
+        `)
+        .in("medico_id", filterMedicoIds)
+        .gte("data_hora", subDays(new Date(), 7).toISOString())
+        .order("data_hora", { ascending: true })
+        .limit(15);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!clinicaData?.id,
+  });
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
     }).format(value);
+  };
+
+  const getConsultaDateLabel = (dataHora: string) => {
+    const date = parseISO(dataHora);
+    if (isToday(date)) return "Hoje";
+    if (isTomorrow(date)) return "Amanhã";
+    return format(date, "dd/MM");
   };
 
   if (isLoading) {
@@ -273,12 +376,63 @@ export default function ClinicaDashboard() {
         </Select>
       </div>
 
+      {/* Quick Stats - Today & Tomorrow */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Consultas Hoje</p>
+                <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{stats?.consultasHoje || 0}</p>
+              </div>
+              <CalendarDays className="h-10 w-10 text-blue-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Consultas Amanhã</p>
+                <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">{stats?.consultasAmanha || 0}</p>
+              </div>
+              <Calendar className="h-10 w-10 text-purple-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-700 dark:text-green-300">Faturado (Pago)</p>
+                <p className="text-2xl font-bold text-green-900 dark:text-green-100">{formatCurrency(stats?.faturamento || 0)}</p>
+              </div>
+              <CheckCircle className="h-10 w-10 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20 border-amber-200 dark:border-amber-800">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Pendente</p>
+                <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">{formatCurrency(stats?.pendente || 0)}</p>
+              </div>
+              <AlertCircle className="h-10 w-10 text-amber-500" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
-              Médicos
+              Médicos Ativos
             </CardTitle>
             <Stethoscope className="h-4 w-4 text-primary" />
           </CardHeader>
@@ -290,7 +444,7 @@ export default function ClinicaDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
-              Consultas
+              Total Consultas
             </CardTitle>
             <Calendar className="h-4 w-4 text-primary" />
           </CardHeader>
@@ -302,40 +456,12 @@ export default function ClinicaDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
-              Pacientes
+              Pacientes Únicos
             </CardTitle>
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold">{stats?.pacientes || 0}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
-              Faturamento
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-base sm:text-xl font-bold text-green-500 truncate">
-              {formatCurrency(stats?.faturamento || 0)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
-              Pendente
-            </CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-base sm:text-xl font-bold text-yellow-500 truncate">
-              {formatCurrency(stats?.pendente || 0)}
-            </div>
           </CardContent>
         </Card>
 
@@ -422,6 +548,85 @@ export default function ClinicaDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Recent Consultations List */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Consultas Recentes e Próximas</CardTitle>
+          <Button variant="outline" size="sm" onClick={() => navigate("/clinica/consultas")}>
+            Ver todas
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {recentConsultas?.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Calendar className="h-10 w-10 mx-auto mb-2 opacity-50" />
+              <p>Nenhuma consulta encontrada.</p>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data/Hora</TableHead>
+                    <TableHead>Paciente</TableHead>
+                    <TableHead>Médico</TableHead>
+                    <TableHead>Origem</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Pagamento</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentConsultas?.map((consulta: any) => (
+                    <TableRow key={consulta.id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{getConsultaDateLabel(consulta.data_hora)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(parseISO(consulta.data_hora), "HH:mm")}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <p className="font-medium">
+                          {consulta.nome_paciente_consulta || consulta.paciente?.nome || "—"}
+                        </p>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="text-sm">Dr(a). {consulta.medico?.nome}</p>
+                          <p className="text-xs text-muted-foreground">{consulta.medico?.especialidade}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={consulta.origem === "online" ? "default" : "secondary"}>
+                          {consulta.origem === "online" ? "Online" : "Interna"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatCurrency(consulta.valor_consulta || 0)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={pagamentoColors[consulta.status_pagamento] || "bg-gray-100 text-gray-800"}>
+                          {consulta.status_pagamento === "pago" ? "Pago" : 
+                           consulta.status_pagamento === "pendente" ? "Pendente" : "Cancelado"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={statusColors[consulta.status_consulta] || "bg-gray-100 text-gray-800"}>
+                          {statusLabels[consulta.status_consulta] || consulta.status_consulta}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Clinic Info */}
       <Card>
