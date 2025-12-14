@@ -1092,6 +1092,7 @@ export type Database = {
       usuarios_clinica: {
         Row: {
           ativo: boolean | null
+          clinica_id: string | null
           created_at: string | null
           email: string | null
           id: string
@@ -1101,9 +1102,11 @@ export type Database = {
           permissoes: string[] | null
           senha_hash: string | null
           telefone: string | null
+          todos_medicos: boolean | null
         }
         Insert: {
           ativo?: boolean | null
+          clinica_id?: string | null
           created_at?: string | null
           email?: string | null
           id?: string
@@ -1113,9 +1116,11 @@ export type Database = {
           permissoes?: string[] | null
           senha_hash?: string | null
           telefone?: string | null
+          todos_medicos?: boolean | null
         }
         Update: {
           ativo?: boolean | null
+          clinica_id?: string | null
           created_at?: string | null
           email?: string | null
           id?: string
@@ -1125,8 +1130,16 @@ export type Database = {
           permissoes?: string[] | null
           senha_hash?: string | null
           telefone?: string | null
+          todos_medicos?: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "usuarios_clinica_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "usuarios_clinica_medico_id_fkey"
             columns: ["medico_id"]

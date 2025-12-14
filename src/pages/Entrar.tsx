@@ -77,9 +77,9 @@ export default function Entrar() {
       }
 
       // If not found in usuarios, try usuarios_clinica (clinic staff)
-      const { data: clinicaData, error: clinicaError } = await supabase
+      const { data: clinicaUserData, error: clinicaError } = await supabase
         .from("usuarios_clinica")
-        .select("id, nome, email, papel, medico_id, ativo, permissoes")
+        .select("id, nome, email, papel, medico_id, clinica_id, todos_medicos, ativo, permissoes")
         .eq("email", email.trim())
         .eq("senha_hash", senha)
         .eq("ativo", true)
@@ -91,19 +91,35 @@ export default function Entrar() {
         return;
       }
 
-      if (clinicaData) {
-        // Clinic user login successful - set as medico type with atendente role
-        setCurrentUser({
-          id: clinicaData.id,
-          nome: clinicaData.nome,
-          email: clinicaData.email || "",
-          tipo: "medico", // Access medico area
-          papel: "atendente", // But with restricted permissions
-          medicoId: clinicaData.medico_id, // Link to the doctor
-          permissoes: clinicaData.permissoes || [], // Custom permissions set by doctor
-        });
-
-        navigate("/medico");
+      if (clinicaUserData) {
+        // Clinic user login successful
+        // If user has clinica_id, redirect to clinica area, otherwise medico area
+        if (clinicaUserData.clinica_id) {
+          setCurrentUser({
+            id: clinicaUserData.id,
+            nome: clinicaUserData.nome,
+            email: clinicaUserData.email || "",
+            tipo: "clinica", // Access clinica area
+            papel: "atendente",
+            clinicaId: clinicaUserData.clinica_id,
+            medicoId: clinicaUserData.medico_id,
+            todosMedicos: clinicaUserData.todos_medicos || false,
+            permissoes: clinicaUserData.permissoes || [],
+          });
+          navigate("/clinica");
+        } else {
+          // Legacy: user linked to doctor only (no clinica_id)
+          setCurrentUser({
+            id: clinicaUserData.id,
+            nome: clinicaUserData.nome,
+            email: clinicaUserData.email || "",
+            tipo: "medico", // Access medico area
+            papel: "atendente",
+            medicoId: clinicaUserData.medico_id,
+            permissoes: clinicaUserData.permissoes || [],
+          });
+          navigate("/medico");
+        }
         return;
       }
 
