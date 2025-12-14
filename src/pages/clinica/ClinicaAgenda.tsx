@@ -562,6 +562,35 @@ export default function ClinicaAgenda() {
     );
   }
 
+  function handleDayClick(day: Date) {
+    if (medicos.length === 0 || locais.length === 0) {
+      toast.error("Configure médicos e locais antes de agendar");
+      return;
+    }
+    
+    // Create a temporary slot for this day
+    const dateTime = new Date(day);
+    dateTime.setHours(8, 0, 0, 0);
+    
+    const medicoId = filterMedico !== "todos" ? filterMedico : medicos[0].id;
+    const medicoLocais = locais.filter(l => l.medico_id === medicoId);
+    const localId = filterLocal !== "todos" ? filterLocal : medicoLocais[0]?.id || locais[0].id;
+    const local = locais.find(l => l.id === localId);
+    
+    const tempSlot: Slot = {
+      id: 'manual-' + Date.now(),
+      local_id: localId,
+      data_hora: dateTime.toISOString(),
+      disponivel: true,
+      medico_id: medicoId,
+      locais_atendimento: local ? { nome_local: local.nome_local, tipo_atendimento: local.tipo_atendimento } : undefined,
+      medicos: medicos.find(m => m.id === medicoId) ? { nome: medicos.find(m => m.id === medicoId)!.nome } : undefined,
+      consultas: [],
+    };
+    setSelectedSlot(tempSlot);
+    setAgendaModalOpen(true);
+  }
+
   function renderMonthView() {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
@@ -589,11 +618,14 @@ export default function ClinicaAgenda() {
               const bookedSlots = daySlots.filter(s => getSlotStatus(s).status === "reservado").length;
 
               return (
-                <div
+                <button
+                  type="button"
                   key={day.toISOString()}
-                  className={`min-h-[80px] p-2 border rounded-lg ${
+                  onClick={() => isCurrentMonth && handleDayClick(day)}
+                  disabled={!isCurrentMonth}
+                  className={`min-h-[80px] p-2 border rounded-lg text-left transition-all ${
                     dayIsToday ? "border-primary bg-primary/5" : "border-border"
-                  } ${!isCurrentMonth ? "opacity-40" : ""}`}
+                  } ${!isCurrentMonth ? "opacity-40" : "hover:bg-muted/50 cursor-pointer"}`}
                 >
                   <p className={`text-sm font-medium ${dayIsToday ? "text-primary" : ""}`}>
                     {format(day, "dd")}
@@ -612,7 +644,7 @@ export default function ClinicaAgenda() {
                       )}
                     </div>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
