@@ -257,22 +257,25 @@ serve(async (req) => {
       console.log('Saved Asaas customer ID to paciente:', asaasCustomerId);
     }
 
-    // 6. Create payment with UNDEFINED billing type (allows PIX, Card, Boleto)
+    // 6. Create payment with PIX as primary (disabling Boleto)
     const createPayment = async (customerId: string) => {
-      console.log('Creating payment with multiple payment options...');
+      console.log('Creating payment with PIX and Card options only (no Boleto)...');
       
       // Due date: 3 days from now
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + 3);
       const dueDateStr = dueDate.toISOString().split('T')[0];
 
+      // Using PIX as billingType - Asaas will show PIX QR code and also allow card payment
+      // BOLETO is excluded by not using 'UNDEFINED' or 'BOLETO'
       const paymentPayload = {
         customer: customerId,
-        billingType: 'UNDEFINED', // Allows customer to choose between PIX, Card, or Boleto
+        billingType: 'PIX', // PIX payment - invoice page will also show card option
         value: consulta.valor_consulta,
         dueDate: dueDateStr,
         description: `Consulta médica - MeConsulta`,
         externalReference: consulta.id,
+        postalService: false, // Disable postal service for boleto
       };
 
       console.log('Payment payload:', JSON.stringify(paymentPayload));
