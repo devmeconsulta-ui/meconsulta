@@ -53,7 +53,7 @@ import {
   Filter,
   AlertTriangle
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
@@ -559,11 +559,11 @@ export default function PacienteConsultas() {
               <div>
                 <div className="flex items-center gap-2 text-primary font-semibold">
                   <Calendar className="w-4 h-4" />
-                  {format(new Date(consulta.data_hora), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  {format(parseISO(consulta.data_hora), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground mt-1">
                   <Clock className="w-4 h-4" />
-                  {format(new Date(consulta.data_hora), "HH:mm")}
+                  {format(parseISO(consulta.data_hora), "HH:mm")}
                 </div>
                 <p className="text-lg font-bold text-foreground mt-2">
                   R$ {Number(consulta.valor_consulta || 0).toFixed(2)}
@@ -847,7 +847,7 @@ export default function PacienteConsultas() {
                 <span className="font-semibold">Dr(a). {confirmarAtendimentoModal?.medicos?.nome}</span>{" "}
                 na data{" "}
                 <span className="font-semibold">
-                  {confirmarAtendimentoModal && format(new Date(confirmarAtendimentoModal.data_hora), "dd/MM/yyyy 'às' HH:mm")}
+                  {confirmarAtendimentoModal && format(parseISO(confirmarAtendimentoModal.data_hora), "dd/MM/yyyy 'às' HH:mm")}
                 </span>?
               </p>
               <p className="text-xs text-muted-foreground mt-2">
@@ -1000,13 +1000,13 @@ export default function PacienteConsultas() {
                 <div className="p-3 bg-muted/30 rounded-lg">
                   <p className="text-xs text-muted-foreground">Data</p>
                   <p className="font-medium">
-                    {format(new Date(detalhesModal.data_hora), "dd/MM/yyyy")}
+                    {format(parseISO(detalhesModal.data_hora), "dd/MM/yyyy")}
                   </p>
                 </div>
                 <div className="p-3 bg-muted/30 rounded-lg">
                   <p className="text-xs text-muted-foreground">Horário</p>
                   <p className="font-medium">
-                    {format(new Date(detalhesModal.data_hora), "HH:mm")}
+                    {format(parseISO(detalhesModal.data_hora), "HH:mm")}
                   </p>
                 </div>
                 <div className="p-3 bg-muted/30 rounded-lg">

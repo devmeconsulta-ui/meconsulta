@@ -138,7 +138,7 @@ export default function AdminFinanceiro() {
     const days: Record<string, { receita: number; repasse: number; lucro: number; count: number }> = {};
     
     consultasOnline.forEach((c) => {
-      const day = format(new Date(c.data_hora), "dd/MM");
+      const day = format(parseISO(c.data_hora), "dd/MM");
       if (!days[day]) {
         days[day] = { receita: 0, repasse: 0, lucro: 0, count: 0 };
       }
@@ -698,7 +698,7 @@ export default function AdminFinanceiro() {
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">Data:</span>
-                        <span>{format(new Date(consulta.data_hora), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
+                        <span>{format(parseISO(consulta.data_hora), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
                       </div>
                       <div className="flex items-center justify-between text-xs pt-1 border-t border-border">
                         <div>
