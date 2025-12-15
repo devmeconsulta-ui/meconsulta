@@ -93,7 +93,8 @@ export default function ClinicaConsultas() {
       const medicoIds = vinculos?.map((v) => v.medico_id) || [];
       if (medicoIds.length === 0) return [];
 
-      // IMPORTANTE: Filtrar por clinica_id para isolar dados entre clínicas
+      // Buscar consultas pelos médicos vinculados à clínica
+      // Considera tanto consultas com clinica_id da clínica quanto consultas dos médicos vinculados
       const { data, error } = await supabase
         .from("consultas")
         .select(`
@@ -105,21 +106,31 @@ export default function ClinicaConsultas() {
           nome_paciente_consulta,
           origem,
           medico_id,
+          clinica_id,
           motivo_consulta,
           sintomas,
           observacoes_paciente,
           medico:medicos!consultas_medico_id_fkey(nome, especialidade),
           paciente:pacientes(nome, cpf, telefone),
-          local:locais_atendimento(nome_local)
+          local:locais_atendimento(nome_local, clinica_id)
         `)
-        .eq("clinica_id", clinicaData.id)
         .in("medico_id", medicoIds)
         .gte("data_hora", dateRange.start.toISOString())
         .lte("data_hora", dateRange.end.toISOString())
         .order("data_hora", { ascending: false });
+      
+      // Filtra para mostrar apenas consultas que:
+      // 1. Têm clinica_id igual à clínica atual, OU
+      // 2. Têm local com clinica_id igual à clínica atual, OU
+      // 3. Não têm clinica_id definido (para compatibilidade com dados antigos dos médicos da clínica)
+      const filteredData = data?.filter((c: any) => 
+        c.clinica_id === clinicaData.id || 
+        c.local?.clinica_id === clinicaData.id ||
+        c.clinica_id === null
+      ) || [];
 
       if (error) throw error;
-      return data || [];
+      return filteredData;
     },
     enabled: !!clinicaData?.id,
   });
