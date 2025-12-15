@@ -51,7 +51,8 @@ import {
   ThumbsUp,
   Search,
   Filter,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -115,12 +116,21 @@ export default function PacienteConsultas() {
   const [enviando, setEnviando] = useState(false);
   const [processandoPagamento, setProcessandoPagamento] = useState<string | null>(null);
   const [sincronizando, setSincronizando] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("todos");
   const [notifiedPending, setNotifiedPending] = useState(false);
+
+  // Count pending and cancelled consultations
+  const cleanupCounts = useMemo(() => {
+    const pending = consultas.filter(c => c.status_consulta === "aguardando_pagamento").length;
+    const cancelled = consultas.filter(c => c.status_consulta === "cancelada").length;
+    return { pending, cancelled, total: pending + cancelled };
+  }, [consultas]);
 
   useEffect(() => {
     if (pacienteData?.id) {
@@ -414,6 +424,45 @@ export default function PacienteConsultas() {
     } finally {
       setCancelarModal(null);
       setEnviando(false);
+    }
+  }
+
+  // Delete pending and cancelled consultations
+  async function handleDeleteCleanup() {
+    if (cleanupCounts.total === 0) return;
+
+    setIsDeleting(true);
+    try {
+      const cleanupConsultas = consultas.filter(c => 
+        c.status_consulta === "aguardando_pagamento" || c.status_consulta === "cancelada"
+      );
+      const cleanupIds = cleanupConsultas.map(c => c.id);
+      const slotIds = cleanupConsultas.map(c => c.agenda_slot_id).filter(Boolean);
+
+      // Delete consultas
+      const { error: deleteError } = await supabase
+        .from("consultas")
+        .delete()
+        .in("id", cleanupIds);
+
+      if (deleteError) throw deleteError;
+
+      // Reopen agenda slots
+      if (slotIds.length > 0) {
+        await supabase
+          .from("agenda_slots")
+          .update({ disponivel: true })
+          .in("id", slotIds);
+      }
+
+      toast.success(`${cleanupIds.length} consulta(s) removidas`);
+      setDeleteDialogOpen(false);
+      fetchConsultas();
+    } catch (error: any) {
+      console.error("Erro ao excluir consultas:", error);
+      toast.error("Não foi possível excluir as consultas");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -816,19 +865,69 @@ export default function PacienteConsultas() {
 
       {/* Consultas List */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <p className="text-sm text-muted-foreground">
             {filteredConsultas.length} consulta{filteredConsultas.length !== 1 ? 's' : ''} encontrada{filteredConsultas.length !== 1 ? 's' : ''}
           </p>
-          {(statusFilter !== "todos" || paymentFilter !== "todos" || searchTerm) && (
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => { setStatusFilter("todos"); setPaymentFilter("todos"); setSearchTerm(""); }}
-            >
-              Limpar filtros
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {(statusFilter !== "todos" || paymentFilter !== "todos" || searchTerm) && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => { setStatusFilter("todos"); setPaymentFilter("todos"); setSearchTerm(""); }}
+              >
+                Limpar filtros
+              </Button>
+            )}
+            
+            {/* Delete pending/cancelled button */}
+            {cleanupCounts.total > 0 && (
+              <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="gap-2"
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Limpar ({cleanupCounts.total})
+                </Button>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Limpar consultas?</AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-2">
+                      <p>Esta ação irá excluir:</p>
+                      <ul className="list-disc list-inside text-sm">
+                        {cleanupCounts.pending > 0 && <li><strong>{cleanupCounts.pending}</strong> consulta(s) aguardando pagamento</li>}
+                        {cleanupCounts.cancelled > 0 && <li><strong>{cleanupCounts.cancelled}</strong> consulta(s) canceladas</li>}
+                      </ul>
+                      <p className="pt-2">Esta ação não pode ser desfeita.</p>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteCleanup}
+                      disabled={isDeleting}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Excluindo...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Excluir {cleanupCounts.total} consulta(s)
+                        </>
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         </div>
 
         {filteredConsultas.length === 0 ? (
