@@ -18,7 +18,8 @@ import {
   UserX,
   ThumbsUp,
   HelpCircle,
-  Edit
+  Edit,
+  MapPin
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -40,6 +41,7 @@ interface Consulta {
   finalizado_paciente: boolean | null;
   elegivel_repasse: boolean | null;
   medico_id: string | null;
+  local_id: string | null;
   paciente: {
     id: string;
     nome: string;
@@ -54,8 +56,13 @@ interface Consulta {
     nome: string;
     parentesco: string;
   } | null;
-  local?: {
+  local: {
+    id: string;
     nome_local: string;
+    endereco: string | null;
+    cidade: string | null;
+    estado: string | null;
+    tipo_atendimento: string;
   } | null;
 }
 
@@ -117,8 +124,10 @@ export default function MedicoConsultas() {
         finalizado_paciente,
         elegivel_repasse,
         medico_id,
+        local_id,
         paciente:pacientes!consultas_paciente_id_fkey(id, nome, cpf, data_nascimento, cidade, estado, bairro),
-        dependente:paciente_dependentes(id, nome, parentesco)
+        dependente:paciente_dependentes(id, nome, parentesco),
+        local:locais_atendimento(id, nome_local, endereco, cidade, estado, tipo_atendimento)
       `)
       .eq("medico_id", currentUser.medicoId)
       .order("data_hora", { ascending: false });
@@ -295,6 +304,17 @@ export default function MedicoConsultas() {
                           <Calendar className="w-4 h-4" />
                           {format(parseISO(consulta.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                         </div>
+                        {/* Local de atendimento */}
+                        {consulta.local && (
+                          <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                            <MapPin className="w-4 h-4" />
+                            <span>
+                              {consulta.local.nome_local}
+                              {consulta.local.cidade && ` - ${consulta.local.cidade}`}
+                              {consulta.local.estado && `/${consulta.local.estado}`}
+                            </span>
+                          </div>
+                        )}
                         {consulta.motivo_consulta && (
                           <p className="text-sm text-muted-foreground mt-1">
                             <span className="font-medium">Motivo:</span> {consulta.motivo_consulta}

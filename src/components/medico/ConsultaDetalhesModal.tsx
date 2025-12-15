@@ -20,7 +20,8 @@ import {
   Clock,
   Pencil,
   X,
-  Lock
+  Lock,
+  MapPin
 } from "lucide-react";
 import { maskCPF } from "@/lib/maskUtils";
 import { format } from "date-fns";
@@ -48,6 +49,14 @@ interface Consulta {
     id: string;
     nome: string;
     parentesco: string;
+  } | null;
+  local?: {
+    id: string;
+    nome_local: string;
+    endereco: string | null;
+    cidade: string | null;
+    estado: string | null;
+    tipo_atendimento: string;
   } | null;
 }
 
@@ -368,6 +377,23 @@ export default function ConsultaDetalhesModal({
                       </Badge>
                     </div>
                   </div>
+                  {/* Local de atendimento */}
+                  {consulta.local && (
+                    <div>
+                      <Label className="text-muted-foreground text-xs flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        Local de Atendimento
+                      </Label>
+                      <p className="font-medium">
+                        {consulta.local.nome_local}
+                        {consulta.local.cidade && ` - ${consulta.local.cidade}`}
+                        {consulta.local.estado && `/${consulta.local.estado}`}
+                      </p>
+                      {consulta.local.endereco && (
+                        <p className="text-sm text-muted-foreground">{consulta.local.endereco}</p>
+                      )}
+                    </div>
+                  )}
                   {consulta.motivo_consulta && (
                     <div>
                       <Label className="text-muted-foreground text-xs">Motivo da Consulta</Label>

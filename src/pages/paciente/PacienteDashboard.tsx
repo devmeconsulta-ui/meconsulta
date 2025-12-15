@@ -62,7 +62,8 @@ export default function PacienteDashboard() {
           .from("consultas")
           .select(`
             *,
-            medicos!consultas_medico_id_fkey (nome, especialidade, foto_url)
+            medicos!consultas_medico_id_fkey (nome, especialidade, foto_url),
+            local:locais_atendimento (nome_local, endereco, cidade, estado)
           `)
           .eq("paciente_id", pacienteData.id)
           .gte("data_hora", now)
@@ -104,7 +105,8 @@ export default function PacienteDashboard() {
           .from("consultas")
           .select(`
             *,
-            medicos!consultas_medico_id_fkey (id, nome, especialidade, foto_url)
+            medicos!consultas_medico_id_fkey (id, nome, especialidade, foto_url),
+            local:locais_atendimento (nome_local, endereco, cidade, estado)
           `)
           .eq("paciente_id", pacienteData.id)
           .gte("data_hora", now)
@@ -299,6 +301,13 @@ export default function PacienteDashboard() {
                       <Clock className="w-4 h-4" />
                       {format(new Date(stats.proximaConsulta.data_hora), "HH:mm")}
                     </div>
+                    {stats.proximaConsulta.local && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <MapPin className="w-4 h-4" />
+                        {stats.proximaConsulta.local.nome_local}
+                        {stats.proximaConsulta.local.cidade && ` - ${stats.proximaConsulta.local.cidade}`}
+                      </div>
+                    )}
                   </div>
                   {stats.proximaConsulta.status_pagamento === "pendente" && (
                     <Badge variant="destructive" className="mt-3">
@@ -413,6 +422,13 @@ export default function PacienteDashboard() {
                     <p className="text-sm text-muted-foreground">
                       {consulta.medicos?.especialidade}
                     </p>
+                    {consulta.local && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                        <MapPin className="w-3 h-3" />
+                        {consulta.local.nome_local}
+                        {consulta.local.cidade && ` - ${consulta.local.cidade}`}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="font-medium text-primary">
