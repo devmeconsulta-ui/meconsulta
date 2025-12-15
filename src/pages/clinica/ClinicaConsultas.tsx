@@ -16,21 +16,36 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { useQuery } from "@tanstack/react-query";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye } from "lucide-react";
+import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2 } from "lucide-react";
 import { format, subDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ConsultaDetalhesModal } from "@/components/clinica/ConsultaDetalhesModal";
+import { toast } from "@/hooks/use-toast";
 
 type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d";
 
 export default function ClinicaConsultas() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
   const [detalhesOpen, setDetalhesOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   // Filters
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
@@ -156,6 +171,58 @@ export default function ClinicaConsultas() {
     });
   }, [consultas, search, medicoFilter, statusFilter, origemFilter]);
 
+  // Count pending consultations
+  const pendingCount = useMemo(() => {
+    if (!consultas) return 0;
+    return consultas.filter((c: any) => c.status_consulta === "aguardando_pagamento").length;
+  }, [consultas]);
+
+  // Delete all pending consultations
+  const handleDeletePending = async () => {
+    if (!consultas || pendingCount === 0) return;
+
+    setIsDeleting(true);
+    try {
+      const pendingConsultas = consultas.filter((c: any) => c.status_consulta === "aguardando_pagamento");
+      const pendingIds = pendingConsultas.map((c: any) => c.id);
+      const slotIds = pendingConsultas.map((c: any) => c.agenda_slot_id).filter(Boolean);
+
+      // Delete consultas
+      const { error: deleteError } = await supabase
+        .from("consultas")
+        .delete()
+        .in("id", pendingIds);
+
+      if (deleteError) throw deleteError;
+
+      // Reopen agenda slots
+      if (slotIds.length > 0) {
+        await supabase
+          .from("agenda_slots")
+          .update({ disponivel: true })
+          .in("id", slotIds);
+      }
+
+      toast({
+        title: "Consultas excluídas",
+        description: `${pendingIds.length} consulta(s) aguardando pagamento foram removidas.`,
+      });
+
+      // Refresh data
+      queryClient.invalidateQueries({ queryKey: ["clinica-consultas"] });
+      setDeleteDialogOpen(false);
+    } catch (error: any) {
+      console.error("Erro ao excluir consultas:", error);
+      toast({
+        title: "Erro ao excluir",
+        description: error.message || "Não foi possível excluir as consultas.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "confirmada":
@@ -196,15 +263,16 @@ export default function ClinicaConsultas() {
         </Select>
       </div>
 
-      {/* Filters */}
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="outline" className="gap-2 w-full sm:w-auto">
-            <Filter className="w-4 h-4" />
-            Filtros
-            <ChevronDown className={`w-4 h-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
-          </Button>
-        </CollapsibleTrigger>
+      {/* Filters and Actions */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="flex-1">
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="gap-2 w-full sm:w-auto">
+              <Filter className="w-4 h-4" />
+              Filtros
+              <ChevronDown className={`w-4 h-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+            </Button>
+          </CollapsibleTrigger>
         <CollapsibleContent className="pt-4">
           <Card>
             <CardContent className="pt-6">
@@ -272,7 +340,49 @@ export default function ClinicaConsultas() {
             </CardContent>
           </Card>
         </CollapsibleContent>
-      </Collapsible>
+        </Collapsible>
+
+        {/* Delete pending button */}
+        {pendingCount > 0 && (
+          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" className="gap-2">
+                <Trash2 className="w-4 h-4" />
+                Excluir pendentes ({pendingCount})
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir consultas pendentes?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação irá excluir <strong>{pendingCount} consulta(s)</strong> que estão aguardando pagamento. 
+                  Os horários serão liberados novamente na agenda. Esta ação não pode ser desfeita.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeletePending}
+                  disabled={isDeleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Excluindo...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Excluir {pendingCount} consulta(s)
+                    </>
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
 
       <Card>
         <CardHeader>
