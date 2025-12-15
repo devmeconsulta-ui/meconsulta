@@ -1,28 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { MapPin, Plus, Edit, Building, Video, Globe } from "lucide-react";
+import { MapPin, Building, Video, Globe, Users } from "lucide-react";
 
 interface ClinicaContext {
   clinicaData: any;
@@ -42,21 +23,23 @@ interface Local {
   medicos?: { nome: string };
 }
 
+interface LocalAgrupado {
+  nome_local: string;
+  tipo_atendimento: string;
+  endereco: string | null;
+  cidade: string | null;
+  estado: string | null;
+  cep: string | null;
+  observacoes: string | null;
+  medicos: Array<{ id: string; nome: string; localId: string; ativo: boolean }>;
+  ativos: number;
+  inativos: number;
+}
+
 export default function ClinicaLocais() {
   const { clinicaData } = useOutletContext<ClinicaContext>();
   const [locais, setLocais] = useState<Local[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingLocal, setEditingLocal] = useState<Local | null>(null);
-  const [formData, setFormData] = useState({
-    nome_local: "",
-    tipo_atendimento: "presencial",
-    endereco: "",
-    cidade: "",
-    estado: "",
-    cep: "",
-    observacoes: "",
-  });
 
   useEffect(() => {
     fetchLocais();
@@ -65,28 +48,55 @@ export default function ClinicaLocais() {
   async function fetchLocais() {
     if (!clinicaData?.id) return;
 
-    // Busca locais que pertencem diretamente a esta clínica (clinica_id)
     const { data } = await supabase
       .from("locais_atendimento")
       .select("*, medicos(nome)")
       .eq("clinica_id", clinicaData.id)
-      .order("created_at", { ascending: false });
+      .order("nome_local", { ascending: true });
 
     setLocais(data || []);
     setLoading(false);
   }
 
-  async function toggleAtivo(local: Local) {
-    const { error } = await supabase
-      .from("locais_atendimento")
-      .update({ ativo: !local.ativo })
-      .eq("id", local.id);
-    if (error) {
-      toast.error("Erro ao atualizar status");
-      return;
-    }
-    fetchLocais();
-  }
+  // Agrupa locais por nome_local + endereco (mesmo endereço físico = um card só)
+  const locaisAgrupados = useMemo(() => {
+    const grupos: Record<string, LocalAgrupado> = {};
+
+    locais.forEach((local) => {
+      // Chave única: nome do local + endereço
+      const chave = `${local.nome_local}-${local.endereco || ""}-${local.cidade || ""}`;
+      
+      if (!grupos[chave]) {
+        grupos[chave] = {
+          nome_local: local.nome_local,
+          tipo_atendimento: local.tipo_atendimento,
+          endereco: local.endereco,
+          cidade: local.cidade,
+          estado: local.estado,
+          cep: local.cep,
+          observacoes: local.observacoes,
+          medicos: [],
+          ativos: 0,
+          inativos: 0,
+        };
+      }
+
+      grupos[chave].medicos.push({
+        id: local.medico_id,
+        nome: local.medicos?.nome || "Médico",
+        localId: local.id,
+        ativo: local.ativo,
+      });
+
+      if (local.ativo) {
+        grupos[chave].ativos++;
+      } else {
+        grupos[chave].inativos++;
+      }
+    });
+
+    return Object.values(grupos);
+  }, [locais]);
 
   const getTipoIcon = (tipo: string) => {
     switch (tipo) {
@@ -126,23 +136,25 @@ export default function ClinicaLocais() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Locais de Atendimento</h2>
-        <p className="text-muted-foreground">Visualize os locais de atendimento dos médicos vinculados</p>
+        <p className="text-muted-foreground">
+          Gerencie os endereços da clínica e veja os médicos associados
+        </p>
       </div>
 
-      {locais.length === 0 ? (
+      {locaisAgrupados.length === 0 ? (
         <Card className="card-shadow">
           <CardContent className="py-12 text-center">
             <MapPin className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <p className="text-muted-foreground">Nenhum local de atendimento encontrado</p>
+            <p className="text-muted-foreground">Nenhum local de atendimento cadastrado</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Os locais são cadastrados pelos médicos vinculados à clínica
+              Os locais podem ser cadastrados na aba de gerenciamento de médicos
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4">
-          {locais.map((local) => (
-            <Card key={local.id} className={`card-shadow ${!local.ativo ? "opacity-60" : ""}`}>
+          {locaisAgrupados.map((local, index) => (
+            <Card key={index} className="card-shadow">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
@@ -155,35 +167,62 @@ export default function ClinicaLocais() {
                     }`}>
                       {getTipoIcon(local.tipo_atendimento)}
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <h3 className="font-semibold text-lg">{local.nome_local}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {getTipoLabel(local.tipo_atendimento)}
-                      </p>
-                      {local.medicos && (
-                        <p className="text-sm text-primary mt-1">
-                          Dr(a). {local.medicos.nome}
-                        </p>
-                      )}
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className="text-xs">
+                          {getTipoLabel(local.tipo_atendimento)}
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs gap-1">
+                          <Users className="w-3 h-3" />
+                          {local.medicos.length} médico{local.medicos.length !== 1 ? "s" : ""}
+                        </Badge>
+                      </div>
+                      
                       {local.endereco && (
-                        <p className="text-sm text-muted-foreground mt-1">
+                        <p className="text-sm text-muted-foreground mt-2">
                           {local.endereco}
                           {local.cidade && `, ${local.cidade}`}
                           {local.estado && ` - ${local.estado}`}
                         </p>
                       )}
+                      
                       {local.observacoes && (
                         <p className="text-sm text-muted-foreground mt-2 italic">
                           {local.observacoes}
                         </p>
                       )}
+
+                      {/* Lista de médicos associados */}
+                      <div className="mt-4 pt-3 border-t">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">
+                          Médicos neste local:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {local.medicos.map((medico) => (
+                            <Badge 
+                              key={medico.localId} 
+                              variant={medico.ativo ? "default" : "secondary"}
+                              className={`text-xs ${!medico.ativo ? "opacity-60" : ""}`}
+                            >
+                              Dr(a). {medico.nome}
+                              {!medico.ativo && " (inativo)"}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm ${local.ativo ? "text-green-500" : "text-muted-foreground"}`}>
-                      {local.ativo ? "Ativo" : "Inativo"}
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-sm text-green-500">
+                      {local.ativos} ativo{local.ativos !== 1 ? "s" : ""}
                     </span>
+                    {local.inativos > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {local.inativos} inativo{local.inativos !== 1 ? "s" : ""}
+                      </span>
+                    )}
                   </div>
                 </div>
               </CardContent>
