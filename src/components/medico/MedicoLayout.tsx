@@ -59,6 +59,27 @@ export function MedicoLayout() {
     );
   }
 
+  // Show error if medicoData couldn't be loaded after dataLoading is done
+  if (!dataLoading && !medicoData) {
+    return (
+      <div className="min-h-screen bg-background">
+        <MedicoSidebar />
+        <div className="lg:pl-64">
+          <MedicoHeader medicoData={null} isAtendente={isAtendente} />
+          <main className="p-6 lg:p-8">
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+              <p className="text-destructive font-medium text-lg">Erro ao carregar dados do médico</p>
+              <p className="text-muted-foreground text-sm text-center max-w-md">
+                Não foi possível encontrar os dados do médico vinculado à sua conta. 
+                Verifique se o cadastro está completo ou entre em contato com o suporte.
+              </p>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <MedicoSidebar />

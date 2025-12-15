@@ -65,11 +65,11 @@ export default function ClinicaMedicos() {
   const [selectedMedicoToEdit, setSelectedMedicoToEdit] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("vinculados");
 
-  // Form state para cadastro
+  // Form state para cadastro - senha padrão 123456
   const [formData, setFormData] = useState({
     nome: "",
     email: "",
-    senha: "",
+    senha: "123456", // Senha padrão
     especialidade: "",
     crm: "",
     telefone_whatsapp: "",
@@ -339,7 +339,7 @@ export default function ClinicaMedicos() {
     setFormData({
       nome: "",
       email: "",
-      senha: "",
+      senha: "123456", // Senha padrão
       especialidade: "",
       crm: "",
       telefone_whatsapp: "",
@@ -452,14 +452,14 @@ export default function ClinicaMedicos() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Senha Inicial *</Label>
+                    <Label>Senha Inicial</Label>
                     <Input
-                      type="password"
+                      type="text"
                       value={formData.senha}
                       onChange={(e) => setFormData(prev => ({ ...prev, senha: e.target.value }))}
-                      placeholder="Mínimo 4 caracteres"
+                      placeholder="123456"
                     />
-                    <p className="text-xs text-muted-foreground">O médico será solicitado a trocar a senha no primeiro login.</p>
+                    <p className="text-xs text-muted-foreground">Senha padrão: 123456. O médico será solicitado a trocar no primeiro login.</p>
                   </div>
                   <div className="space-y-2">
                     <Label>Especialidade *</Label>
