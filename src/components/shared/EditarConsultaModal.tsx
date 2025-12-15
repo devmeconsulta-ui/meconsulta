@@ -28,10 +28,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Save, Trash2, X, Edit } from "lucide-react";
+import { Loader2, Save, Trash2, X, Edit, Plus, ClipboardList } from "lucide-react";
 import { format, parseISO } from "date-fns";
+
+interface Procedimento {
+  id?: string;
+  nome_procedimento: string;
+  valor: number;
+  isNew?: boolean;
+}
 
 interface EditarConsultaModalProps {
   open: boolean;
@@ -64,6 +74,9 @@ export function EditarConsultaModal({
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
+  const [procedimentosRemovidos, setProcedimentosRemovidos] = useState<string[]>([]);
+  const [novoProcedimento, setNovoProcedimento] = useState({ nome: "", valor: "" });
   
   const [formData, setFormData] = useState({
     data_hora: "",
@@ -77,7 +90,7 @@ export function EditarConsultaModal({
   });
 
   useEffect(() => {
-    if (consulta) {
+    if (consulta && open) {
       const dataHora = parseISO(consulta.data_hora);
       setFormData({
         data_hora: format(dataHora, "yyyy-MM-dd'T'HH:mm"),
@@ -89,8 +102,75 @@ export function EditarConsultaModal({
         valor_consulta: consulta.valor_consulta || 0,
         nome_paciente_consulta: consulta.nome_paciente_consulta || consulta.paciente?.nome || "",
       });
+      
+      // Fetch existing procedures
+      fetchProcedimentos();
     }
-  }, [consulta]);
+  }, [consulta, open]);
+
+  const fetchProcedimentos = async () => {
+    if (!consulta?.id) return;
+    
+    const { data, error } = await supabase
+      .from("consulta_procedimentos")
+      .select("*")
+      .eq("consulta_id", consulta.id)
+      .order("created_at", { ascending: true });
+    
+    if (!error && data) {
+      setProcedimentos(data.map(p => ({
+        id: p.id,
+        nome_procedimento: p.nome_procedimento,
+        valor: Number(p.valor)
+      })));
+    }
+    setProcedimentosRemovidos([]);
+  };
+
+  const handleAddProcedimento = () => {
+    if (!novoProcedimento.nome.trim()) {
+      toast({
+        title: "Nome obrigatório",
+        description: "Digite o nome do procedimento.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const valor = parseFloat(novoProcedimento.valor) || 0;
+    setProcedimentos(prev => [
+      ...prev,
+      {
+        nome_procedimento: novoProcedimento.nome.trim(),
+        valor: valor,
+        isNew: true
+      }
+    ]);
+    setNovoProcedimento({ nome: "", valor: "" });
+  };
+
+  const handleRemoveProcedimento = (index: number) => {
+    const proc = procedimentos[index];
+    if (proc.id) {
+      setProcedimentosRemovidos(prev => [...prev, proc.id!]);
+    }
+    setProcedimentos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleProcedimentoChange = (index: number, field: "nome_procedimento" | "valor", value: string) => {
+    setProcedimentos(prev => prev.map((p, i) => {
+      if (i === index) {
+        return {
+          ...p,
+          [field]: field === "valor" ? (parseFloat(value) || 0) : value
+        };
+      }
+      return p;
+    }));
+  };
+
+  const totalProcedimentos = procedimentos.reduce((acc, p) => acc + p.valor, 0);
+  const valorTotal = formData.valor_consulta + totalProcedimentos;
 
   const handleSave = async () => {
     if (!consulta?.id) return;
@@ -104,7 +184,7 @@ export function EditarConsultaModal({
         motivo_consulta: formData.motivo_consulta || null,
         sintomas: formData.sintomas || null,
         observacoes_paciente: formData.observacoes_paciente || null,
-        valor_consulta: formData.valor_consulta,
+        valor_consulta: valorTotal, // Save total including procedures
         nome_paciente_consulta: formData.nome_paciente_consulta || null,
       };
 
@@ -133,6 +213,37 @@ export function EditarConsultaModal({
         .eq("id", consulta.id);
 
       if (error) throw error;
+
+      // Delete removed procedures
+      if (procedimentosRemovidos.length > 0) {
+        await supabase
+          .from("consulta_procedimentos")
+          .delete()
+          .in("id", procedimentosRemovidos);
+      }
+
+      // Save procedures
+      for (const proc of procedimentos) {
+        if (proc.isNew) {
+          // Insert new
+          await supabase
+            .from("consulta_procedimentos")
+            .insert({
+              consulta_id: consulta.id,
+              nome_procedimento: proc.nome_procedimento,
+              valor: proc.valor
+            });
+        } else if (proc.id) {
+          // Update existing
+          await supabase
+            .from("consulta_procedimentos")
+            .update({
+              nome_procedimento: proc.nome_procedimento,
+              valor: proc.valor
+            })
+            .eq("id", proc.id);
+        }
+      }
 
       toast({
         title: "Consulta atualizada",
@@ -177,7 +288,7 @@ export function EditarConsultaModal({
           .eq("id", consulta.agenda_slot_id);
       }
 
-      // Deletar a consulta
+      // Deletar a consulta (procedimentos são deletados por CASCADE)
       const { error } = await supabase
         .from("consultas")
         .delete()
@@ -209,7 +320,7 @@ export function EditarConsultaModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Edit className="h-5 w-5 text-primary" />
@@ -217,136 +328,244 @@ export function EditarConsultaModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          {/* Nome do paciente */}
-          <div className="space-y-2">
-            <Label htmlFor="nome_paciente">Nome do Paciente</Label>
-            <Input
-              id="nome_paciente"
-              value={formData.nome_paciente_consulta}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, nome_paciente_consulta: e.target.value }))
-              }
-              placeholder="Nome do paciente"
-            />
-          </div>
+        <Tabs defaultValue="dados" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="dados">Dados da Consulta</TabsTrigger>
+            <TabsTrigger value="procedimentos" className="gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Procedimentos
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Data e Hora */}
-          <div className="space-y-2">
-            <Label htmlFor="data_hora">Data e Hora</Label>
-            <Input
-              id="data_hora"
-              type="datetime-local"
-              value={formData.data_hora}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, data_hora: e.target.value }))
-              }
-            />
-          </div>
+          <TabsContent value="dados" className="space-y-4 mt-4">
+            {/* Nome do paciente */}
+            <div className="space-y-2">
+              <Label htmlFor="nome_paciente">Nome do Paciente</Label>
+              <Input
+                id="nome_paciente"
+                value={formData.nome_paciente_consulta}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, nome_paciente_consulta: e.target.value }))
+                }
+                placeholder="Nome do paciente"
+              />
+            </div>
 
-          {/* Status da Consulta */}
-          <div className="space-y-2">
-            <Label>Status da Consulta</Label>
-            <Select
-              value={formData.status_consulta}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, status_consulta: value }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {statusOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
+            {/* Data e Hora */}
+            <div className="space-y-2">
+              <Label htmlFor="data_hora">Data e Hora</Label>
+              <Input
+                id="data_hora"
+                type="datetime-local"
+                value={formData.data_hora}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, data_hora: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Status da Consulta */}
+              <div className="space-y-2">
+                <Label>Status da Consulta</Label>
+                <Select
+                  value={formData.status_consulta}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, status_consulta: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Status do Pagamento */}
+              <div className="space-y-2">
+                <Label>Status do Pagamento</Label>
+                <Select
+                  value={formData.status_pagamento}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, status_pagamento: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Valor base da consulta */}
+            <div className="space-y-2">
+              <Label htmlFor="valor">Valor Base da Consulta (R$)</Label>
+              <Input
+                id="valor"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.valor_consulta}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, valor_consulta: parseFloat(e.target.value) || 0 }))
+                }
+              />
+            </div>
+
+            {/* Motivo */}
+            <div className="space-y-2">
+              <Label htmlFor="motivo">Motivo da Consulta</Label>
+              <Textarea
+                id="motivo"
+                value={formData.motivo_consulta}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, motivo_consulta: e.target.value }))
+                }
+                placeholder="Descreva o motivo da consulta"
+                rows={2}
+              />
+            </div>
+
+            {/* Sintomas */}
+            <div className="space-y-2">
+              <Label htmlFor="sintomas">Sintomas</Label>
+              <Textarea
+                id="sintomas"
+                value={formData.sintomas}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, sintomas: e.target.value }))
+                }
+                placeholder="Descreva os sintomas"
+                rows={2}
+              />
+            </div>
+
+            {/* Observações */}
+            <div className="space-y-2">
+              <Label htmlFor="observacoes">Observações</Label>
+              <Textarea
+                id="observacoes"
+                value={formData.observacoes_paciente}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, observacoes_paciente: e.target.value }))
+                }
+                placeholder="Observações adicionais"
+                rows={2}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="procedimentos" className="space-y-4 mt-4">
+            {/* Add new procedure */}
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1 space-y-2">
+                    <Label>Nome do Procedimento</Label>
+                    <Input
+                      placeholder="Ex: Raio-X, Ultrassom, Exame de sangue..."
+                      value={novoProcedimento.nome}
+                      onChange={(e) => setNovoProcedimento(prev => ({ ...prev, nome: e.target.value }))}
+                    />
+                  </div>
+                  <div className="w-32 space-y-2">
+                    <Label>Valor (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={novoProcedimento.valor}
+                      onChange={(e) => setNovoProcedimento(prev => ({ ...prev, valor: e.target.value }))}
+                    />
+                  </div>
+                  <Button onClick={handleAddProcedimento} size="icon" className="shrink-0">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Procedures list */}
+            {procedimentos.length > 0 ? (
+              <div className="space-y-2">
+                <Label>Procedimentos Adicionados</Label>
+                {procedimentos.map((proc, index) => (
+                  <Card key={proc.id || `new-${index}`} className="bg-muted/50">
+                    <CardContent className="py-3">
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          value={proc.nome_procedimento}
+                          onChange={(e) => handleProcedimentoChange(index, "nome_procedimento", e.target.value)}
+                          className="flex-1"
+                        />
+                        <div className="flex items-center gap-1 w-32">
+                          <span className="text-muted-foreground text-sm">R$</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={proc.valor}
+                            onChange={(e) => handleProcedimentoChange(index, "valor", e.target.value)}
+                          />
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveProcedimento(index)}
+                          className="text-destructive hover:text-destructive shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <ClipboardList className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>Nenhum procedimento adicional</p>
+                <p className="text-sm">Adicione procedimentos usando o formulário acima</p>
+              </div>
+            )}
 
-          {/* Status do Pagamento */}
-          <div className="space-y-2">
-            <Label>Status do Pagamento</Label>
-            <Select
-              value={formData.status_pagamento}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, status_pagamento: value }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {paymentStatusOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            {/* Totals */}
+            <Separator />
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Valor base da consulta:</span>
+                <span>R$ {formData.valor_consulta.toFixed(2)}</span>
+              </div>
+              {procedimentos.length > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Procedimentos ({procedimentos.length}):</span>
+                  <span>R$ {totalProcedimentos.toFixed(2)}</span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex justify-between text-lg font-semibold">
+                <span>Total:</span>
+                <span className="text-primary">R$ {valorTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
 
-          {/* Valor */}
-          <div className="space-y-2">
-            <Label htmlFor="valor">Valor (R$)</Label>
-            <Input
-              id="valor"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.valor_consulta}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, valor_consulta: parseFloat(e.target.value) || 0 }))
-              }
-            />
-          </div>
-
-          {/* Motivo */}
-          <div className="space-y-2">
-            <Label htmlFor="motivo">Motivo da Consulta</Label>
-            <Textarea
-              id="motivo"
-              value={formData.motivo_consulta}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, motivo_consulta: e.target.value }))
-              }
-              placeholder="Descreva o motivo da consulta"
-              rows={2}
-            />
-          </div>
-
-          {/* Sintomas */}
-          <div className="space-y-2">
-            <Label htmlFor="sintomas">Sintomas</Label>
-            <Textarea
-              id="sintomas"
-              value={formData.sintomas}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, sintomas: e.target.value }))
-              }
-              placeholder="Descreva os sintomas"
-              rows={2}
-            />
-          </div>
-
-          {/* Observações */}
-          <div className="space-y-2">
-            <Label htmlFor="observacoes">Observações</Label>
-            <Textarea
-              id="observacoes"
-              value={formData.observacoes_paciente}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, observacoes_paciente: e.target.value }))
-              }
-              placeholder="Observações adicionais"
-              rows={2}
-            />
-          </div>
-        </div>
-
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
           {/* Delete button with confirmation */}
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
             <AlertDialogTrigger asChild>
