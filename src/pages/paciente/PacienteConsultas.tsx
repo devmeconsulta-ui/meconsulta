@@ -340,6 +340,7 @@ export default function PacienteConsultas() {
   }
 
   async function handleFinalizarPagamento(consulta: any) {
+    // If invoice URL already exists, just open it
     if (consulta.asaas_invoice_url) {
       window.open(consulta.asaas_invoice_url, '_blank');
       return;
@@ -359,8 +360,21 @@ export default function PacienteConsultas() {
       }
 
       if (!data.success) {
-        console.error('Erro do Asaas:', data.error);
-        toast.error(data.error || 'Erro ao gerar pagamento');
+        console.error('Erro do Asaas:', data);
+        
+        // Handle specific error codes
+        if (data.code === 'INVALID_CPF') {
+          toast.error('CPF inválido no cadastro', {
+            description: 'Por favor, atualize seu CPF no perfil para continuar.',
+            action: {
+              label: 'Atualizar perfil',
+              onClick: () => navigate('/paciente/perfil'),
+            },
+            duration: 10000,
+          });
+        } else {
+          toast.error(data.error || 'Erro ao gerar pagamento');
+        }
         return;
       }
 
