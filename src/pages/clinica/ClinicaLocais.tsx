@@ -65,26 +65,11 @@ export default function ClinicaLocais() {
   async function fetchLocais() {
     if (!clinicaData?.id) return;
 
-    // Busca médicos vinculados à clínica
-    const { data: vinculosData } = await supabase
-      .from("clinicas_medicos")
-      .select("medico_id")
-      .eq("clinica_id", clinicaData.id)
-      .eq("ativo", true);
-
-    if (!vinculosData || vinculosData.length === 0) {
-      setLocais([]);
-      setLoading(false);
-      return;
-    }
-
-    const medicoIds = vinculosData.map((v) => v.medico_id);
-
-    // Busca locais dos médicos vinculados
+    // Busca locais que pertencem diretamente a esta clínica (clinica_id)
     const { data } = await supabase
       .from("locais_atendimento")
       .select("*, medicos(nome)")
-      .in("medico_id", medicoIds)
+      .eq("clinica_id", clinicaData.id)
       .order("created_at", { ascending: false });
 
     setLocais(data || []);
