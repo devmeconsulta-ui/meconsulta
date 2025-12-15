@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import { Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 
 const COLORS = ["#0066CC", "#FFB800", "#10B981", "#8B5CF6", "#F59E0B", "#EF4444", "#06B6D4"];
 
@@ -469,23 +469,17 @@ export default function AdminMedicos() {
           </CardHeader>
           <CardContent>
             {especialidadeData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={especialidadeData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                  >
+              <ResponsiveContainer width="100%" height={Math.max(250, especialidadeData.length * 35)}>
+                <BarChart data={especialidadeData.sort((a, b) => b.value - a.value)} layout="vertical" margin={{ left: 20, right: 30 }}>
+                  <XAxis type="number" />
+                  <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(value: number) => [`${value} médico(s)`, 'Quantidade']} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                     {especialidadeData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             ) : (
               <p className="text-center text-muted-foreground py-8">Sem dados disponíveis</p>
@@ -501,9 +495,9 @@ export default function AdminMedicos() {
             {valorData.some((d) => d.count > 0) ? (
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={valorData}>
-                  <XAxis dataKey="range" />
+                  <XAxis dataKey="range" tick={{ fontSize: 12 }} />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip formatter={(value: number) => [`${value} médico(s)`, 'Quantidade']} />
                   <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
