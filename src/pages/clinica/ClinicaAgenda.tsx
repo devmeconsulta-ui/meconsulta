@@ -36,6 +36,8 @@ import {
   Calendar as CalendarDays,
   LayoutGrid,
   User,
+  Ban,
+  Unlock,
 } from "lucide-react";
 import {
   format,
@@ -355,6 +357,32 @@ export default function ClinicaAgenda() {
     }
   }
 
+  async function handleToggleSlotBlock(slot: Slot, e: React.MouseEvent) {
+    e.stopPropagation();
+    
+    // Se tem consulta, não pode bloquear
+    if (slot.consultas && slot.consultas.length > 0) {
+      toast.error("Não é possível bloquear um horário com consulta agendada");
+      return;
+    }
+
+    const newDisponivel = !slot.disponivel;
+    
+    const { error } = await supabase
+      .from("agenda_slots")
+      .update({ disponivel: newDisponivel })
+      .eq("id", slot.id);
+
+    if (error) {
+      toast.error("Erro ao atualizar horário");
+      console.error(error);
+      return;
+    }
+
+    toast.success(newDisponivel ? "Horário liberado!" : "Horário bloqueado!");
+    fetchData();
+  }
+
   async function handleGerarSlots() {
     if (!gerarForm.medicoId || !gerarForm.localId || !gerarForm.dateRange?.from || !gerarForm.dateRange?.to) {
       toast.error("Preencha todos os campos obrigatórios");
@@ -444,51 +472,78 @@ export default function ClinicaAgenda() {
     const isLivre = slotInfo.status === "livre";
     const isOnline = slotInfo.origem === "online";
     const isInterna = slotInfo.origem === "interna";
+    const isBloqueado = slotInfo.status === "indisponivel";
+    const hasConsulta = slot.consultas && slot.consultas.length > 0;
 
     return (
-      <button
-        type="button"
+      <div
         key={slot.id}
-        onClick={() => isLivre && handleSlotClick(slot)}
-        disabled={!isLivre}
-        className={`w-full p-2 rounded-lg text-left transition-all text-xs select-none ${
+        className={`relative w-full p-2 rounded-lg text-left transition-all text-xs select-none ${
           isLivre
-            ? "bg-primary/10 hover:bg-primary/20 cursor-pointer border border-primary/20 hover:border-primary/40"
+            ? "bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40"
             : isOnline
-            ? "bg-blue-600/90 text-white border-l-4 border-l-blue-400 cursor-default"
+            ? "bg-blue-600/90 text-white border-l-4 border-l-blue-400"
             : isInterna
-            ? "bg-emerald-600/90 text-white border-l-4 border-l-emerald-400 cursor-default"
-            : "bg-muted/50 cursor-default"
+            ? "bg-emerald-600/90 text-white border-l-4 border-l-emerald-400"
+            : isBloqueado
+            ? "bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700"
+            : "bg-muted/50"
         }`}
       >
-        <div className="flex items-center gap-2">
-          <Clock className={`w-3 h-3 shrink-0 ${isLivre ? "" : "text-white/80"}`} />
-          <span className="font-semibold">
-            {format(parseISO(slot.data_hora), "HH:mm")}
-          </span>
-        </div>
-        {!compact && slot.medicos && (
-          <p className={`text-xs mt-1 ${isLivre ? "text-muted-foreground" : "text-white/70"}`}>
-            Dr(a). {slot.medicos.nome}
-          </p>
+        <button
+          type="button"
+          onClick={() => isLivre && handleSlotClick(slot)}
+          disabled={!isLivre}
+          className={`w-full text-left ${isLivre ? "cursor-pointer" : "cursor-default"}`}
+        >
+          <div className="flex items-center gap-2">
+            {isBloqueado && <Ban className="w-3 h-3 text-red-500" />}
+            <Clock className={`w-3 h-3 shrink-0 ${isLivre ? "" : isBloqueado ? "text-red-500" : "text-white/80"}`} />
+            <span className={`font-semibold ${isBloqueado ? "text-red-600 dark:text-red-400" : ""}`}>
+              {format(parseISO(slot.data_hora), "HH:mm")}
+            </span>
+          </div>
+          {!compact && slot.medicos && (
+            <p className={`text-xs mt-1 ${isLivre ? "text-muted-foreground" : isBloqueado ? "text-red-500" : "text-white/70"}`}>
+              Dr(a). {slot.medicos.nome}
+            </p>
+          )}
+          {!compact && (
+            slotInfo.pacienteNome ? (
+              <div className="mt-1 flex items-center gap-1">
+                {isOnline ? (
+                  <Globe className="w-3 h-3 text-white/80" />
+                ) : (
+                  <Building2 className="w-3 h-3 text-white/80" />
+                )}
+                <span className="truncate text-white/90">
+                  {slotInfo.pacienteNome}
+                </span>
+              </div>
+            ) : isBloqueado ? (
+              <p className="mt-1 text-red-500 dark:text-red-400 font-medium">Bloqueado</p>
+            ) : (
+              <p className="mt-1 text-primary/70 font-medium">Disponível</p>
+            )
+          )}
+        </button>
+
+        {/* Botão de bloquear/desbloquear - só aparece se não tem consulta */}
+        {!hasConsulta && !compact && (
+          <button
+            type="button"
+            onClick={(e) => handleToggleSlotBlock(slot, e)}
+            className={`absolute top-1 right-1 p-1 rounded transition-colors ${
+              isBloqueado 
+                ? "text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30" 
+                : "text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30"
+            }`}
+            title={isBloqueado ? "Liberar horário" : "Bloquear horário"}
+          >
+            {isBloqueado ? <Unlock className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
+          </button>
         )}
-        {!compact && (
-          slotInfo.pacienteNome ? (
-            <div className="mt-1 flex items-center gap-1">
-              {isOnline ? (
-                <Globe className="w-3 h-3 text-white/80" />
-              ) : (
-                <Building2 className="w-3 h-3 text-white/80" />
-              )}
-              <span className="truncate text-white/90">
-                {slotInfo.pacienteNome}
-              </span>
-            </div>
-          ) : (
-            <p className="mt-1 text-primary/70 font-medium">Disponível</p>
-          )
-        )}
-      </button>
+      </div>
     );
   }
 
@@ -547,18 +602,30 @@ export default function ClinicaAgenda() {
     return (
       <Card className="card-shadow">
         <CardContent className="p-4 md:p-6">
-          <div className="flex items-center gap-3 mb-4 pb-3 border-b">
-            <div className={`p-3 rounded-xl ${isToday(currentDate) ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-              <span className="text-2xl font-bold">{format(currentDate, "dd")}</span>
+          <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b">
+            <div className="flex items-center gap-3">
+              <div className={`p-3 rounded-xl ${isToday(currentDate) ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                <span className="text-2xl font-bold">{format(currentDate, "dd")}</span>
+              </div>
+              <div>
+                <p className="text-lg font-semibold capitalize">
+                  {format(currentDate, "EEEE", { locale: ptBR })}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-lg font-semibold capitalize">
-                {format(currentDate, "EEEE", { locale: ptBR })}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })}
-              </p>
-            </div>
+            {/* Botão de agendar no dia */}
+            <Button
+              size="sm"
+              onClick={() => handleDayClick(currentDate)}
+              className="gap-2"
+              disabled={medicos.length === 0 || locais.length === 0}
+            >
+              <Plus className="w-4 h-4" />
+              Agendar
+            </Button>
           </div>
 
           {daySlots.length === 0 ? (
@@ -795,6 +862,26 @@ export default function ClinicaAgenda() {
           {viewMode === "mes" && renderMonthView()}
         </>
       )}
+
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-primary/30 rounded border border-primary/40"></div>
+          <span>Disponível</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-blue-600 rounded"></div>
+          <span>Agendado Online</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-emerald-600 rounded"></div>
+          <span>Agendado Interno</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-red-200 dark:bg-red-900/50 rounded border border-red-400"></div>
+          <span>Bloqueado</span>
+        </div>
+      </div>
 
       {/* Modal Gerar Slots */}
       <Dialog open={gerarSlotsModalOpen} onOpenChange={setGerarSlotsModalOpen}>
