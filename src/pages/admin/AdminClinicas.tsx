@@ -303,7 +303,7 @@ export default function AdminClinicas() {
     }
   };
 
-  const FormFields = () => (
+  const renderFormFields = (isEditing: boolean) => (
     <div className="grid gap-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -312,7 +312,7 @@ export default function AdminClinicas() {
             id="nome_fantasia"
             value={formData.nome_fantasia}
             onChange={(e) =>
-              setFormData({ ...formData, nome_fantasia: e.target.value })
+              setFormData((prev) => ({ ...prev, nome_fantasia: e.target.value }))
             }
             placeholder="Nome da clínica"
           />
@@ -323,7 +323,7 @@ export default function AdminClinicas() {
             id="razao_social"
             value={formData.razao_social}
             onChange={(e) =>
-              setFormData({ ...formData, razao_social: e.target.value })
+              setFormData((prev) => ({ ...prev, razao_social: e.target.value }))
             }
             placeholder="Razão social"
           />
@@ -336,7 +336,7 @@ export default function AdminClinicas() {
           <Input
             id="cnpj"
             value={formData.cnpj}
-            onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
+            onChange={(e) => setFormData((prev) => ({ ...prev, cnpj: e.target.value }))}
             placeholder="00.000.000/0000-00"
           />
         </div>
@@ -346,7 +346,7 @@ export default function AdminClinicas() {
             id="telefone"
             value={formData.telefone}
             onChange={(e) =>
-              setFormData({ ...formData, telefone: e.target.value })
+              setFormData((prev) => ({ ...prev, telefone: e.target.value }))
             }
             placeholder="(00) 00000-0000"
           />
@@ -354,13 +354,13 @@ export default function AdminClinicas() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="email_contato">E-mail de Contato</Label>
+        <Label htmlFor="email_contato">E-mail de Contato {!isEditing && "*"}</Label>
         <Input
           id="email_contato"
           type="email"
           value={formData.email_contato}
           onChange={(e) =>
-            setFormData({ ...formData, email_contato: e.target.value })
+            setFormData((prev) => ({ ...prev, email_contato: e.target.value }))
           }
           placeholder="contato@clinica.com"
         />
@@ -372,7 +372,7 @@ export default function AdminClinicas() {
           id="endereco_principal"
           value={formData.endereco_principal}
           onChange={(e) =>
-            setFormData({ ...formData, endereco_principal: e.target.value })
+            setFormData((prev) => ({ ...prev, endereco_principal: e.target.value }))
           }
           placeholder="Rua, número, bairro"
         />
@@ -385,7 +385,7 @@ export default function AdminClinicas() {
             id="cidade"
             value={formData.cidade}
             onChange={(e) =>
-              setFormData({ ...formData, cidade: e.target.value })
+              setFormData((prev) => ({ ...prev, cidade: e.target.value }))
             }
             placeholder="Cidade"
           />
@@ -396,7 +396,7 @@ export default function AdminClinicas() {
             id="estado"
             value={formData.estado}
             onChange={(e) =>
-              setFormData({ ...formData, estado: e.target.value })
+              setFormData((prev) => ({ ...prev, estado: e.target.value }))
             }
             placeholder="UF"
             maxLength={2}
@@ -405,7 +405,7 @@ export default function AdminClinicas() {
       </div>
 
       {/* Password field - only show when creating */}
-      {!editingClinica && (
+      {!isEditing && (
         <div className="space-y-2">
           <Label htmlFor="senha">Senha de Acesso *</Label>
           <Input
@@ -413,7 +413,7 @@ export default function AdminClinicas() {
             type="password"
             value={formData.senha}
             onChange={(e) =>
-              setFormData({ ...formData, senha: e.target.value })
+              setFormData((prev) => ({ ...prev, senha: e.target.value }))
             }
             placeholder="Mínimo 6 caracteres"
           />
@@ -447,7 +447,7 @@ export default function AdminClinicas() {
               <DialogTitle>Cadastrar Nova Clínica</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <FormFields />
+              {renderFormFields(false)}
               <div className="flex justify-end gap-2">
                 <Button
                   type="button"
@@ -478,7 +478,7 @@ export default function AdminClinicas() {
             <DialogTitle>Editar Clínica</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <FormFields />
+            {renderFormFields(true)}
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
