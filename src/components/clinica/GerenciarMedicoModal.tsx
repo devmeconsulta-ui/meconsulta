@@ -20,16 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -40,9 +30,9 @@ import {
   FileText,
   Globe,
   Trash2,
-  Edit,
   Building2,
-  Video,
+  Check,
+  AlertCircle,
 } from "lucide-react";
 
 const especialidades = [
@@ -53,16 +43,12 @@ const especialidades = [
   "Medicina Esportiva", "Nutrição", "Fisioterapia", "Psicologia"
 ];
 
-const tiposAtendimento = [
-  { value: "presencial", label: "Presencial", icon: Building2 },
-  { value: "telemedicina", label: "Telemedicina", icon: Video },
-];
-
 interface GerenciarMedicoModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   medico: any;
   clinicaId: string;
+  clinicaData: any;
   onSuccess: () => void;
 }
 
@@ -88,6 +74,7 @@ export function GerenciarMedicoModal({
   onOpenChange,
   medico,
   clinicaId,
+  clinicaData,
   onSuccess,
 }: GerenciarMedicoModalProps) {
   const [activeTab, setActiveTab] = useState("perfil");
@@ -107,20 +94,10 @@ export function GerenciarMedicoModal({
   });
   const [novaFormacao, setNovaFormacao] = useState("");
   
-  // Locais
-  const [locais, setLocais] = useState<Local[]>([]);
+  // Local da clínica
+  const [localClinica, setLocalClinica] = useState<Local | null>(null);
   const [loadingLocais, setLoadingLocais] = useState(false);
-  const [showLocalForm, setShowLocalForm] = useState(false);
-  const [editingLocal, setEditingLocal] = useState<Local | null>(null);
-  const [localForm, setLocalForm] = useState({
-    nome_local: "",
-    tipo_atendimento: "presencial",
-    endereco: "",
-    cidade: "",
-    estado: "",
-    cep: "",
-  });
-  const [deleteLocalId, setDeleteLocalId] = useState<string | null>(null);
+  const [localAtivo, setLocalAtivo] = useState(true);
   
   // Serviços
   const [servicos, setServicos] = useState<Servico[]>([]);
@@ -140,23 +117,71 @@ export function GerenciarMedicoModal({
         foto_url: medico.foto_url || "",
         aparecer_home: medico.aparecer_home || false,
       });
-      fetchLocais();
+      fetchLocalClinica();
       fetchServicos();
     }
   }, [open, medico]);
 
-  async function fetchLocais() {
+  async function fetchLocalClinica() {
     if (!medico?.id || !clinicaId) return;
     setLoadingLocais(true);
-    // Busca apenas locais que pertencem a esta clínica
+    
     const { data } = await supabase
       .from("locais_atendimento")
       .select("*")
       .eq("medico_id", medico.id)
       .eq("clinica_id", clinicaId)
-      .order("nome_local");
-    setLocais(data || []);
+      .maybeSingle();
+    
+    setLocalClinica(data);
+    setLocalAtivo(data?.ativo ?? true);
     setLoadingLocais(false);
+  }
+
+  async function handleVincularLocal() {
+    if (!clinicaData?.endereco_principal) {
+      toast.error("A clínica não possui endereço cadastrado. Cadastre primeiro em 'Locais'.");
+      return;
+    }
+
+    setLoadingLocais(true);
+    const { error } = await supabase
+      .from("locais_atendimento")
+      .insert({
+        medico_id: medico.id,
+        clinica_id: clinicaId,
+        nome_local: clinicaData.nome_fantasia || "Clínica",
+        tipo_atendimento: "presencial",
+        endereco: clinicaData.endereco_principal,
+        cidade: clinicaData.cidade,
+        estado: clinicaData.estado,
+        ativo: true,
+      });
+
+    if (error) {
+      toast.error("Erro ao vincular local");
+    } else {
+      toast.success("Médico vinculado ao endereço da clínica!");
+      fetchLocalClinica();
+    }
+    setLoadingLocais(false);
+  }
+
+  async function handleToggleLocalAtivo() {
+    if (!localClinica) return;
+    
+    const newStatus = !localAtivo;
+    const { error } = await supabase
+      .from("locais_atendimento")
+      .update({ ativo: newStatus })
+      .eq("id", localClinica.id);
+
+    if (error) {
+      toast.error("Erro ao atualizar status");
+    } else {
+      setLocalAtivo(newStatus);
+      toast.success(newStatus ? "Local ativado!" : "Local desativado!");
+    }
   }
 
   async function fetchServicos() {
@@ -215,113 +240,6 @@ export function GerenciarMedicoModal({
     } finally {
       setLoading(false);
     }
-  }
-
-  // Local handlers
-  function resetLocalForm() {
-    setLocalForm({
-      nome_local: "",
-      tipo_atendimento: "presencial",
-      endereco: "",
-      cidade: "",
-      estado: "",
-      cep: "",
-    });
-    setEditingLocal(null);
-    setShowLocalForm(false);
-  }
-
-  function handleEditLocal(local: Local) {
-    setEditingLocal(local);
-    setLocalForm({
-      nome_local: local.nome_local,
-      tipo_atendimento: local.tipo_atendimento,
-      endereco: local.endereco || "",
-      cidade: local.cidade || "",
-      estado: local.estado || "",
-      cep: local.cep || "",
-    });
-    setShowLocalForm(true);
-  }
-
-  async function handleSaveLocal() {
-    if (!localForm.nome_local.trim()) {
-      toast.error("Nome do local é obrigatório");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      if (editingLocal) {
-        const { error } = await supabase
-          .from("locais_atendimento")
-          .update({
-            nome_local: localForm.nome_local,
-            tipo_atendimento: localForm.tipo_atendimento,
-            endereco: localForm.endereco || null,
-            cidade: localForm.cidade || null,
-            estado: localForm.estado || null,
-            cep: localForm.cep || null,
-          })
-          .eq("id", editingLocal.id);
-
-        if (error) throw error;
-        toast.success("Local atualizado!");
-      } else {
-        const { error } = await supabase
-          .from("locais_atendimento")
-          .insert({
-            medico_id: medico.id,
-            clinica_id: clinicaId,
-            nome_local: localForm.nome_local,
-            tipo_atendimento: localForm.tipo_atendimento,
-            endereco: localForm.endereco || null,
-            cidade: localForm.cidade || null,
-            estado: localForm.estado || null,
-            cep: localForm.cep || null,
-            ativo: true,
-          });
-
-        if (error) throw error;
-        toast.success("Local adicionado!");
-      }
-      resetLocalForm();
-      fetchLocais();
-    } catch (error) {
-      toast.error("Erro ao salvar local");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleToggleLocalAtivo(local: Local) {
-    const { error } = await supabase
-      .from("locais_atendimento")
-      .update({ ativo: !local.ativo })
-      .eq("id", local.id);
-
-    if (error) {
-      toast.error("Erro ao atualizar local");
-    } else {
-      fetchLocais();
-    }
-  }
-
-  async function handleDeleteLocal() {
-    if (!deleteLocalId) return;
-    
-    const { error } = await supabase
-      .from("locais_atendimento")
-      .delete()
-      .eq("id", deleteLocalId);
-
-    if (error) {
-      toast.error("Erro ao excluir local");
-    } else {
-      toast.success("Local excluído!");
-      fetchLocais();
-    }
-    setDeleteLocalId(null);
   }
 
   // Serviço handlers
@@ -393,396 +311,300 @@ export function GerenciarMedicoModal({
     toast.success("Foto enviada!");
   }
 
+  const hasClinicaEndereco = clinicaData?.endereco_principal;
+
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Globe className="w-5 h-5 text-primary" />
-              Gerenciar Médico - {medico?.nome}
-            </DialogTitle>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Globe className="w-5 h-5 text-primary" />
+            Gerenciar Médico - {medico?.nome}
+          </DialogTitle>
+        </DialogHeader>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
-            <TabsList className="grid grid-cols-3">
-              <TabsTrigger value="perfil" className="gap-1">
-                <Stethoscope className="h-4 w-4" />
-                <span className="hidden sm:inline">Perfil</span>
-              </TabsTrigger>
-              <TabsTrigger value="locais" className="gap-1">
-                <MapPin className="h-4 w-4" />
-                <span className="hidden sm:inline">Locais</span>
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5">{locais.length}</Badge>
-              </TabsTrigger>
-              <TabsTrigger value="servicos" className="gap-1">
-                <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">Serviços</span>
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5">{servicos.length}</Badge>
-              </TabsTrigger>
-            </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
+          <TabsList className="grid grid-cols-3">
+            <TabsTrigger value="perfil" className="gap-1">
+              <Stethoscope className="h-4 w-4" />
+              <span className="hidden sm:inline">Perfil</span>
+            </TabsTrigger>
+            <TabsTrigger value="locais" className="gap-1">
+              <MapPin className="h-4 w-4" />
+              <span className="hidden sm:inline">Local</span>
+              {localClinica && <Badge variant="secondary" className="ml-1 h-5 px-1.5">1</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="servicos" className="gap-1">
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">Serviços</span>
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">{servicos.length}</Badge>
+            </TabsTrigger>
+          </TabsList>
 
-            <div className="flex-1 overflow-y-auto mt-4">
-              {/* Tab Perfil */}
-              <TabsContent value="perfil" className="mt-0 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Nome Completo</Label>
-                    <Input
-                      value={formData.nome}
-                      onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Especialidade</Label>
-                    <Select
-                      value={formData.especialidade}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, especialidade: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {especialidades.map((esp) => (
-                          <SelectItem key={esp} value={esp}>{esp}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>CRM</Label>
-                    <Input
-                      value={formData.crm}
-                      onChange={(e) => setFormData(prev => ({ ...prev, crm: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>WhatsApp</Label>
-                    <Input
-                      value={formData.telefone_whatsapp}
-                      onChange={(e) => setFormData(prev => ({ ...prev, telefone_whatsapp: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>Valor da Consulta</Label>
-                    <Input
-                      type="number"
-                      value={formData.valor_consulta}
-                      onChange={(e) => setFormData(prev => ({ ...prev, valor_consulta: e.target.value }))}
-                    />
-                  </div>
-                </div>
-
+          <div className="flex-1 overflow-y-auto mt-4">
+            {/* Tab Perfil */}
+            <TabsContent value="perfil" className="mt-0 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Foto do Médico</Label>
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden border">
-                      {formData.foto_url ? (
-                        <img src={formData.foto_url} alt="Preview" className="w-full h-full object-cover" />
-                      ) : (
-                        <Stethoscope className="h-6 w-6 text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <Input type="file" accept="image/*" onChange={handleFileUpload} />
-                      <Input
-                        value={formData.foto_url}
-                        onChange={(e) => setFormData(prev => ({ ...prev, foto_url: e.target.value }))}
-                        placeholder="ou cole a URL da imagem"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Biografia</Label>
-                  <Textarea
-                    value={formData.bio}
-                    onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
-                    rows={3}
+                  <Label>Nome Completo</Label>
+                  <Input
+                    value={formData.nome}
+                    onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
                   />
                 </div>
-
                 <div className="space-y-2">
-                  <Label>Formação Acadêmica</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={novaFormacao}
-                      onChange={(e) => setNovaFormacao(e.target.value)}
-                      placeholder="Ex: Residência em Cardiologia - USP"
-                      onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), handleAddFormacao())}
-                    />
-                    <Button type="button" variant="outline" onClick={handleAddFormacao}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {formData.formacao.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {formData.formacao.map((f, i) => (
-                        <Badge key={i} variant="secondary" className="gap-1">
-                          {f}
-                          <X className="h-3 w-3 cursor-pointer" onClick={() => handleRemoveFormacao(i)} />
-                        </Badge>
+                  <Label>Especialidade</Label>
+                  <Select
+                    value={formData.especialidade}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, especialidade: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {especialidades.map((esp) => (
+                        <SelectItem key={esp} value={esp}>{esp}</SelectItem>
                       ))}
-                    </div>
-                  )}
+                    </SelectContent>
+                  </Select>
                 </div>
-
-                <div className="flex items-center gap-2 p-4 bg-muted/50 rounded-lg">
-                  <Switch
-                    checked={formData.aparecer_home}
-                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, aparecer_home: checked }))}
+                <div className="space-y-2">
+                  <Label>CRM</Label>
+                  <Input
+                    value={formData.crm}
+                    onChange={(e) => setFormData(prev => ({ ...prev, crm: e.target.value }))}
                   />
-                  <div>
-                    <Label className="font-medium">Aparecer na Home</Label>
-                    <p className="text-xs text-muted-foreground">
-                      O médico aparecerá no carrossel e nas buscas da landing page
-                    </p>
-                  </div>
                 </div>
-
-                <div className="flex justify-end pt-4">
-                  <Button onClick={handleSavePerfil} disabled={loading}>
-                    {loading ? "Salvando..." : "Salvar Perfil"}
-                  </Button>
+                <div className="space-y-2">
+                  <Label>WhatsApp</Label>
+                  <Input
+                    value={formData.telefone_whatsapp}
+                    onChange={(e) => setFormData(prev => ({ ...prev, telefone_whatsapp: e.target.value }))}
+                  />
                 </div>
-              </TabsContent>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Valor da Consulta</Label>
+                  <Input
+                    type="number"
+                    value={formData.valor_consulta}
+                    onChange={(e) => setFormData(prev => ({ ...prev, valor_consulta: e.target.value }))}
+                  />
+                </div>
+              </div>
 
-              {/* Tab Locais */}
-              <TabsContent value="locais" className="mt-0 space-y-4">
-                {!showLocalForm ? (
-                  <>
-                    <Button onClick={() => setShowLocalForm(true)} className="gap-2">
-                      <Plus className="h-4 w-4" />
-                      Adicionar Local
-                    </Button>
-
-                    {loadingLocais ? (
-                      <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-                    ) : locais.length === 0 ? (
-                      <div className="text-center py-8">
-                        <MapPin className="h-10 w-10 mx-auto mb-2 text-muted-foreground/50" />
-                        <p className="text-muted-foreground">Nenhum local cadastrado</p>
-                      </div>
+              <div className="space-y-2">
+                <Label>Foto do Médico</Label>
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden border">
+                    {formData.foto_url ? (
+                      <img src={formData.foto_url} alt="Preview" className="w-full h-full object-cover" />
                     ) : (
-                      <div className="space-y-3">
-                        {locais.map((local) => (
-                          <Card key={local.id} className={!local.ativo ? "opacity-60" : ""}>
-                            <CardContent className="p-4">
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex items-start gap-3">
-                                  <div className="p-2 rounded-lg bg-primary/10">
-                                    {local.tipo_atendimento === "telemedicina" ? (
-                                      <Video className="h-5 w-5 text-primary" />
-                                    ) : (
-                                      <Building2 className="h-5 w-5 text-primary" />
-                                    )}
-                                  </div>
-                                  <div>
-                                    <p className="font-medium">{local.nome_local}</p>
-                                    <p className="text-sm text-muted-foreground capitalize">
-                                      {local.tipo_atendimento}
-                                    </p>
-                                    {local.endereco && (
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        {local.endereco}
-                                        {local.cidade && `, ${local.cidade}`}
-                                        {local.estado && ` - ${local.estado}`}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Switch
-                                    checked={local.ativo}
-                                    onCheckedChange={() => handleToggleLocalAtivo(local)}
-                                  />
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleEditLocal(local)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-destructive"
-                                    onClick={() => setDeleteLocalId(local.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
+                      <Stethoscope className="h-6 w-6 text-muted-foreground" />
                     )}
-                  </>
-                ) : (
-                  <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
-                    <h4 className="font-medium">
-                      {editingLocal ? "Editar Local" : "Novo Local"}
-                    </h4>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2 sm:col-span-2">
-                        <Label>Nome do Local *</Label>
-                        <Input
-                          value={localForm.nome_local}
-                          onChange={(e) => setLocalForm(prev => ({ ...prev, nome_local: e.target.value }))}
-                          placeholder="Ex: Clínica Central, Consultório Particular"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Tipo de Atendimento</Label>
-                        <Select
-                          value={localForm.tipo_atendimento}
-                          onValueChange={(v) => setLocalForm(prev => ({ ...prev, tipo_atendimento: v }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {tiposAtendimento.map((tipo) => (
-                              <SelectItem key={tipo.value} value={tipo.value}>
-                                {tipo.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>CEP</Label>
-                        <Input
-                          value={localForm.cep}
-                          onChange={(e) => setLocalForm(prev => ({ ...prev, cep: e.target.value }))}
-                          placeholder="00000-000"
-                        />
-                      </div>
-                      <div className="space-y-2 sm:col-span-2">
-                        <Label>Endereço</Label>
-                        <Input
-                          value={localForm.endereco}
-                          onChange={(e) => setLocalForm(prev => ({ ...prev, endereco: e.target.value }))}
-                          placeholder="Rua, número, complemento"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Cidade</Label>
-                        <Input
-                          value={localForm.cidade}
-                          onChange={(e) => setLocalForm(prev => ({ ...prev, cidade: e.target.value }))}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Estado</Label>
-                        <Input
-                          value={localForm.estado}
-                          onChange={(e) => setLocalForm(prev => ({ ...prev, estado: e.target.value }))}
-                          placeholder="UF"
-                          maxLength={2}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-2">
-                      <Button variant="outline" onClick={resetLocalForm}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={handleSaveLocal} disabled={loading}>
-                        {loading ? "Salvando..." : editingLocal ? "Atualizar" : "Adicionar"}
-                      </Button>
-                    </div>
                   </div>
-                )}
-              </TabsContent>
+                  <div className="flex-1 space-y-2">
+                    <Input type="file" accept="image/*" onChange={handleFileUpload} />
+                    <Input
+                      value={formData.foto_url}
+                      onChange={(e) => setFormData(prev => ({ ...prev, foto_url: e.target.value }))}
+                      placeholder="ou cole a URL da imagem"
+                    />
+                  </div>
+                </div>
+              </div>
 
-              {/* Tab Serviços */}
-              <TabsContent value="servicos" className="mt-0 space-y-4">
+              <div className="space-y-2">
+                <Label>Biografia</Label>
+                <Textarea
+                  value={formData.bio}
+                  onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Formação Acadêmica</Label>
                 <div className="flex gap-2">
                   <Input
-                    value={novoServico}
-                    onChange={(e) => setNovoServico(e.target.value)}
-                    placeholder="Nome do serviço (ex: Consulta de rotina)"
-                    onKeyPress={(e) => e.key === "Enter" && handleAddServico()}
+                    value={novaFormacao}
+                    onChange={(e) => setNovaFormacao(e.target.value)}
+                    placeholder="Ex: Residência em Cardiologia - USP"
+                    onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), handleAddFormacao())}
                   />
-                  <Button onClick={handleAddServico} className="gap-1">
+                  <Button type="button" variant="outline" onClick={handleAddFormacao}>
                     <Plus className="h-4 w-4" />
-                    Adicionar
                   </Button>
                 </div>
-
-                {loadingServicos ? (
-                  <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-                ) : servicos.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileText className="h-10 w-10 mx-auto mb-2 text-muted-foreground/50" />
-                    <p className="text-muted-foreground">Nenhum serviço cadastrado</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Adicione serviços que este médico oferece
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {servicos.map((servico) => (
-                      <div
-                        key={servico.id}
-                        className={`flex items-center justify-between p-3 border rounded-lg ${
-                          !servico.ativo ? "opacity-60 bg-muted/30" : "bg-card"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <FileText className="h-4 w-4 text-primary" />
-                          <span className={!servico.ativo ? "line-through" : ""}>
-                            {servico.nome_servico}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={servico.ativo}
-                            onCheckedChange={() => handleToggleServicoAtivo(servico)}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive h-8 w-8"
-                            onClick={() => handleDeleteServico(servico.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
+                {formData.formacao.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.formacao.map((f, i) => (
+                      <Badge key={i} variant="secondary" className="gap-1">
+                        {f}
+                        <X className="h-3 w-3 cursor-pointer" onClick={() => handleRemoveFormacao(i)} />
+                      </Badge>
                     ))}
                   </div>
                 )}
-              </TabsContent>
-            </div>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
+              </div>
 
-      {/* Alert Dialog para excluir local */}
-      <AlertDialog open={!!deleteLocalId} onOpenChange={() => setDeleteLocalId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Local?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O local será permanentemente removido.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDeleteLocal}
-            >
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+              <div className="flex items-center gap-2 p-4 bg-muted/50 rounded-lg">
+                <Switch
+                  checked={formData.aparecer_home}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, aparecer_home: checked }))}
+                />
+                <div>
+                  <Label className="font-medium">Aparecer na Home</Label>
+                  <p className="text-xs text-muted-foreground">
+                    O médico aparecerá no carrossel e nas buscas da landing page
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <Button onClick={handleSavePerfil} disabled={loading}>
+                  {loading ? "Salvando..." : "Salvar Perfil"}
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Tab Locais - Mostra apenas o endereço da clínica */}
+            <TabsContent value="locais" className="mt-0 space-y-4">
+              {loadingLocais ? (
+                <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+              ) : !hasClinicaEndereco ? (
+                <div className="text-center py-8">
+                  <AlertCircle className="h-12 w-12 mx-auto mb-4 text-amber-500" />
+                  <p className="text-muted-foreground font-medium">A clínica não possui endereço cadastrado</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Cadastre o endereço da clínica primeiro na seção "Locais" do menu
+                  </p>
+                </div>
+              ) : localClinica ? (
+                <Card className={!localAtivo ? "opacity-60" : ""}>
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                          <Building2 className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="font-semibold text-lg">{localClinica.nome_local}</h3>
+                            <Badge variant={localAtivo ? "default" : "secondary"} className="gap-1">
+                              {localAtivo ? <Check className="w-3 h-3" /> : null}
+                              {localAtivo ? "Ativo" : "Inativo"}
+                            </Badge>
+                          </div>
+                          <p className="text-muted-foreground">
+                            {localClinica.endereco}
+                            {localClinica.cidade && `, ${localClinica.cidade}`}
+                            {localClinica.estado && ` - ${localClinica.estado}`}
+                          </p>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            Este médico atende no endereço da clínica
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={localAtivo}
+                          onCheckedChange={handleToggleLocalAtivo}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="text-center py-8">
+                  <MapPin className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <p className="text-muted-foreground mb-4">
+                    Este médico ainda não está vinculado ao endereço da clínica
+                  </p>
+                  <Card className="max-w-md mx-auto mb-4">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <Building2 className="w-5 h-5 text-primary mt-0.5" />
+                        <div className="text-left">
+                          <p className="font-medium">{clinicaData?.nome_fantasia}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {clinicaData?.endereco_principal}
+                            {clinicaData?.cidade && `, ${clinicaData.cidade}`}
+                            {clinicaData?.estado && ` - ${clinicaData.estado}`}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Button onClick={handleVincularLocal} disabled={loadingLocais} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Vincular ao Endereço da Clínica
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Tab Serviços */}
+            <TabsContent value="servicos" className="mt-0 space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={novoServico}
+                  onChange={(e) => setNovoServico(e.target.value)}
+                  placeholder="Nome do serviço (ex: Consulta de rotina)"
+                  onKeyPress={(e) => e.key === "Enter" && handleAddServico()}
+                />
+                <Button onClick={handleAddServico} className="gap-1">
+                  <Plus className="h-4 w-4" />
+                  Adicionar
+                </Button>
+              </div>
+
+              {loadingServicos ? (
+                <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+              ) : servicos.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileText className="h-10 w-10 mx-auto mb-2 text-muted-foreground/50" />
+                  <p className="text-muted-foreground">Nenhum serviço cadastrado</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Adicione serviços que este médico oferece
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {servicos.map((servico) => (
+                    <div
+                      key={servico.id}
+                      className={`flex items-center justify-between p-3 border rounded-lg ${
+                        !servico.ativo ? "opacity-60 bg-muted/30" : "bg-card"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-4 w-4 text-primary" />
+                        <span className={!servico.ativo ? "line-through" : ""}>
+                          {servico.nome_servico}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={servico.ativo}
+                          onCheckedChange={() => handleToggleServicoAtivo(servico)}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive h-8 w-8"
+                          onClick={() => handleDeleteServico(servico.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </div>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }
