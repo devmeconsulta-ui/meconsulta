@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import logo from "@/assets/logo.avif";
 import { SignupModal } from "@/components/SignupModal";
+import { TrocarSenhaModal } from "@/components/TrocarSenhaModal";
 
 export default function Entrar() {
   const [email, setEmail] = useState("");
@@ -16,8 +17,41 @@ export default function Entrar() {
   const [erro, setErro] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [signupOpen, setSignupOpen] = useState(false);
+  const [trocarSenhaModal, setTrocarSenhaModal] = useState<{
+    open: boolean;
+    userId: string;
+    userTable: "usuarios" | "usuarios_clinica";
+    userData: any;
+  }>({ open: false, userId: "", userTable: "usuarios", userData: null });
   const navigate = useNavigate();
   const { setCurrentUser } = useAuth();
+
+  const completeLogin = async (usuarioData: any) => {
+    await setCurrentUser({
+      id: usuarioData.id,
+      nome: usuarioData.nome,
+      email: usuarioData.email,
+      tipo: usuarioData.tipo as "admin" | "medico" | "paciente" | "clinica",
+      papel: usuarioData.papel as "atendente" | "supervisor" | "admin" | "superadmin",
+    });
+
+    switch (usuarioData.tipo) {
+      case "admin":
+        navigate("/admin");
+        break;
+      case "medico":
+        navigate("/medico");
+        break;
+      case "paciente":
+        navigate("/paciente");
+        break;
+      case "clinica":
+        navigate("/clinica");
+        break;
+      default:
+        navigate("/");
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +68,7 @@ export default function Entrar() {
       // First, try to login as regular user (usuarios table)
       const { data: usuarioData, error: usuarioError } = await supabase
         .from("usuarios")
-        .select("id, nome, email, tipo, papel")
+        .select("id, nome, email, tipo, papel, deve_trocar_senha")
         .eq("email", email.trim())
         .eq("senha_hash", senha)
         .eq("ativo", true)
@@ -47,32 +81,19 @@ export default function Entrar() {
       }
 
       if (usuarioData) {
-        // Regular user login successful
-        await setCurrentUser({
-          id: usuarioData.id,
-          nome: usuarioData.nome,
-          email: usuarioData.email,
-          tipo: usuarioData.tipo as "admin" | "medico" | "paciente" | "clinica",
-          papel: usuarioData.papel as "atendente" | "supervisor" | "admin" | "superadmin",
-        });
-
-        // Redirect based on user type
-        switch (usuarioData.tipo) {
-          case "admin":
-            navigate("/admin");
-            break;
-          case "medico":
-            navigate("/medico");
-            break;
-          case "paciente":
-            navigate("/paciente");
-            break;
-          case "clinica":
-            navigate("/clinica");
-            break;
-          default:
-            navigate("/");
+        // Check if user must change password
+        if (usuarioData.deve_trocar_senha) {
+          setTrocarSenhaModal({
+            open: true,
+            userId: usuarioData.id,
+            userTable: "usuarios",
+            userData: usuarioData,
+          });
+          return;
         }
+
+        // Regular user login successful
+        await completeLogin(usuarioData);
         return;
       }
 
@@ -238,6 +259,18 @@ export default function Entrar() {
       </Card>
 
       <SignupModal open={signupOpen} onOpenChange={setSignupOpen} />
+      
+      <TrocarSenhaModal
+        open={trocarSenhaModal.open}
+        userId={trocarSenhaModal.userId}
+        userTable={trocarSenhaModal.userTable}
+        onSuccess={() => {
+          setTrocarSenhaModal({ open: false, userId: "", userTable: "usuarios", userData: null });
+          if (trocarSenhaModal.userData) {
+            completeLogin(trocarSenhaModal.userData);
+          }
+        }}
+      />
     </div>
   );
 }
