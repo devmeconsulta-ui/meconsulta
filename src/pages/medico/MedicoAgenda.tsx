@@ -139,8 +139,22 @@ export default function MedicoAgenda() {
   useEffect(() => {
     if (medicoData?.id) {
       fetchData();
+    } else {
+      setLoading(false);
     }
   }, [medicoData, currentDate, viewMode]);
+
+  // Se não tiver medicoData, mostrar mensagem de erro
+  if (!loading && !medicoData?.id) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive font-medium">Erro: Dados do médico não encontrados.</p>
+        <p className="text-muted-foreground text-sm">
+          Verifique se o cadastro do médico está completo ou entre em contato com o suporte.
+        </p>
+      </div>
+    );
+  }
 
   async function fetchData() {
     setLoading(true);
