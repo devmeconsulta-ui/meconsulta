@@ -465,17 +465,21 @@ export default function AdminMedicos() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Distribuição por Especialidade</CardTitle>
+            <CardTitle>Top Especialidades</CardTitle>
           </CardHeader>
           <CardContent>
             {especialidadeData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(250, especialidadeData.length * 35)}>
-                <BarChart data={especialidadeData.sort((a, b) => b.value - a.value)} layout="vertical" margin={{ left: 20, right: 30 }}>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart 
+                  data={especialidadeData.sort((a, b) => b.value - a.value).slice(0, 8)} 
+                  layout="vertical" 
+                  margin={{ left: 10, right: 20 }}
+                >
                   <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 12 }} />
+                  <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(value: number) => [`${value} médico(s)`, 'Quantidade']} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                    {especialidadeData.map((_, index) => (
+                    {especialidadeData.slice(0, 8).map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Bar>
