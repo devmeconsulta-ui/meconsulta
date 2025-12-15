@@ -37,6 +37,7 @@ interface Local {
   endereco: string | null;
   cidade: string | null;
   estado: string | null;
+  clinica_id: string | null;
 }
 
 interface Servico {
@@ -185,7 +186,7 @@ const Checkout = () => {
     if (localId) {
       const { data: localData } = await supabase
         .from("locais_atendimento")
-        .select("id, nome_local, endereco, cidade, estado")
+        .select("id, nome_local, endereco, cidade, estado, clinica_id")
         .eq("id", localId)
         .maybeSingle();
       
@@ -463,6 +464,7 @@ const Checkout = () => {
           status_pagamento: "pendente",
           status_repasse: "pendente",
           local_id: localId || null,
+          clinica_id: local?.clinica_id || null,
         })
         .select('id')
         .single();
