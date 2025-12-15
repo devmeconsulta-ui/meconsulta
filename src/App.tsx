@@ -10,6 +10,7 @@ import SouMedico from "./pages/SouMedico";
 import BuscarMedicos from "./pages/BuscarMedicos";
 import PerfilMedico from "./pages/PerfilMedico";
 import Checkout from "./pages/Checkout";
+import Pagamento from "./pages/Pagamento";
 import Entrar from "./pages/Entrar";
 import NotFound from "./pages/NotFound";
 
@@ -80,6 +81,7 @@ const App = () => (
             <Route path="/buscar-medicos" element={<BuscarMedicos />} />
             <Route path="/medico/:id" element={<PerfilMedico />} />
             <Route path="/checkout/:id" element={<Checkout />} />
+            <Route path="/pagamento/:consultaId" element={<Pagamento />} />
             <Route path="/entrar" element={<Entrar />} />
 
             {/* Paciente routes */}
