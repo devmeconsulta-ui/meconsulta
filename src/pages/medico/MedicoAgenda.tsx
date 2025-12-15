@@ -96,13 +96,27 @@ interface UsuarioClinica {
 type ViewMode = "dia" | "semana" | "mes";
 
 export default function MedicoAgenda() {
-  const { medicoData } = useOutletContext<MedicoContext>();
+  const context = useOutletContext<MedicoContext>();
+  const medicoData = context?.medicoData;
   const [locais, setLocais] = useState<Local[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [usuariosClinica, setUsuariosClinica] = useState<UsuarioClinica[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("semana");
+
+  // Proteção contra medicoData undefined
+  if (!medicoData?.id) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive font-medium text-lg">Erro ao carregar dados do médico</p>
+        <p className="text-muted-foreground text-sm text-center max-w-md">
+          Não foi possível encontrar os dados do médico vinculado à sua conta. 
+          Verifique se o cadastro está completo ou entre em contato com o suporte.
+        </p>
+      </div>
+    );
+  }
 
   // Filters
   const [filterLocal, setFilterLocal] = useState("todos");
@@ -137,11 +151,7 @@ export default function MedicoAgenda() {
   const { start: rangeStart, end: rangeEnd } = getDateRange();
 
   useEffect(() => {
-    if (medicoData?.id) {
-      fetchData();
-    } else {
-      setLoading(false);
-    }
+    fetchData();
   }, [medicoData, currentDate, viewMode]);
 
   async function fetchData() {
