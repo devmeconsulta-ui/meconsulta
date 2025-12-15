@@ -348,6 +348,38 @@ export type Database = {
         }
         Relationships: []
       }
+      consulta_procedimentos: {
+        Row: {
+          consulta_id: string
+          created_at: string
+          id: string
+          nome_procedimento: string
+          valor: number
+        }
+        Insert: {
+          consulta_id: string
+          created_at?: string
+          id?: string
+          nome_procedimento: string
+          valor?: number
+        }
+        Update: {
+          consulta_id?: string
+          created_at?: string
+          id?: string
+          nome_procedimento?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consulta_procedimentos_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consultas: {
         Row: {
           agenda_slot_id: string | null
