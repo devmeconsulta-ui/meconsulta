@@ -111,6 +111,7 @@ export default function MedicoAgenda() {
   const [agendaModalOpen, setAgendaModalOpen] = useState(false);
   const [gerarSlotsModalOpen, setGerarSlotsModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+  const [expandedMonthDay, setExpandedMonthDay] = useState<Date | null>(null);
 
   // Date range helpers
   function getDateRange() {
@@ -671,8 +672,6 @@ export default function MedicoAgenda() {
     );
   }
 
-  // Estado para visualização expandida do dia no mês
-  const [expandedMonthDay, setExpandedMonthDay] = useState<Date | null>(null);
 
   // Render month view
   function renderMonthView() {
