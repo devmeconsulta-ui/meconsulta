@@ -18,9 +18,10 @@ import {
 } from "@/components/ui/collapsible";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Calendar, Filter, ChevronDown, Globe, Building2 } from "lucide-react";
+import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye } from "lucide-react";
 import { format, subDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ConsultaDetalhesModal } from "@/components/clinica/ConsultaDetalhesModal";
 
 type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d";
 
@@ -28,6 +29,8 @@ export default function ClinicaConsultas() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
   const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
+  const [detalhesOpen, setDetalhesOpen] = useState(false);
   
   // Filters
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
@@ -102,8 +105,11 @@ export default function ClinicaConsultas() {
           nome_paciente_consulta,
           origem,
           medico_id,
+          motivo_consulta,
+          sintomas,
+          observacoes_paciente,
           medico:medicos!consultas_medico_id_fkey(nome, especialidade),
-          paciente:pacientes(nome),
+          paciente:pacientes(nome, cpf, telefone),
           local:locais_atendimento(nome_local)
         `)
         .eq("clinica_id", clinicaData.id)
@@ -281,7 +287,10 @@ export default function ClinicaConsultas() {
           ) : (
             <div className="space-y-4">
               {filteredConsultas.map((consulta: any) => (
-                <Card key={consulta.id} className="hover:shadow-md transition-shadow">
+                <Card key={consulta.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => {
+                  setSelectedConsulta(consulta);
+                  setDetalhesOpen(true);
+                }}>
                   <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div className="space-y-1">
@@ -312,6 +321,17 @@ export default function ClinicaConsultas() {
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedConsulta(consulta);
+                            setDetalhesOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                         <span className="text-lg font-bold text-primary">
                           R$ {consulta.valor_consulta?.toFixed(2)}
                         </span>
@@ -325,6 +345,12 @@ export default function ClinicaConsultas() {
           )}
         </CardContent>
       </Card>
+
+      <ConsultaDetalhesModal
+        open={detalhesOpen}
+        onOpenChange={setDetalhesOpen}
+        consulta={selectedConsulta}
+      />
     </div>
   );
 }
