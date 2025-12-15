@@ -183,12 +183,58 @@ export default function PacienteConsultas() {
         avsMap[`medico_${av.medico_id}`] = av;
       });
 
-      setConsultas(consultasResult.data || []);
+      const consultasData = consultasResult.data || [];
+      setConsultas(consultasData);
       setAvaliacoes(avsMap);
+
+      // Check payment status for pending consultations with asaas_payment_id
+      const pendingWithPayment = consultasData.filter(
+        c => c.status_pagamento === 'pendente' && 
+             c.asaas_payment_id && 
+             c.status_consulta !== 'cancelada'
+      );
+
+      if (pendingWithPayment.length > 0) {
+        // Check each pending payment in the background
+        syncPaymentStatuses(pendingWithPayment);
+      }
     } catch (error) {
       console.error("Error fetching consultas:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Sync payment statuses with Asaas (background check)
+  async function syncPaymentStatuses(pendingConsultas: any[]) {
+    let hasUpdates = false;
+    
+    for (const consulta of pendingConsultas) {
+      try {
+        const { data } = await supabase.functions.invoke('check-payment-status', {
+          body: { consulta_id: consulta.id }
+        });
+
+        if (data?.updated) {
+          hasUpdates = true;
+          console.log(`Payment status updated for consulta ${consulta.id}`);
+        }
+      } catch (err) {
+        console.error(`Error checking payment for ${consulta.id}:`, err);
+      }
+    }
+
+    // Refresh list if any payments were updated
+    if (hasUpdates) {
+      toast.success('Status de pagamento atualizado!');
+      // Refetch without triggering sync again
+      const { data } = await supabase
+        .from("consultas")
+        .select(`*, medicos (id, nome, especialidade, foto_url, crm)`)
+        .eq("paciente_id", pacienteData?.id)
+        .order("data_hora", { ascending: false });
+      
+      if (data) setConsultas(data);
     }
   }
 
