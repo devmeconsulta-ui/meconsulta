@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.auto-cancel-unpaid]
 verify_jwt = false
+
+[functions.check-payment-status]
+verify_jwt = false
