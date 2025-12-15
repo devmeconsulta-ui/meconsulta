@@ -63,6 +63,7 @@ export default function AdminClinicas() {
     endereco_principal: "",
     cidade: "",
     estado: "",
+    senha: "",
   });
 
   const { data: clinicas, isLoading } = useQuery({
@@ -87,14 +88,23 @@ export default function AdminClinicas() {
 
   const createClinica = useMutation({
     mutationFn: async (data: typeof formData) => {
-      // Create user for clinic
+      if (!data.email_contato) {
+        throw new Error("E-mail de contato é obrigatório para criar a clínica.");
+      }
+      if (!data.senha || data.senha.length < 6) {
+        throw new Error("Senha deve ter no mínimo 6 caracteres.");
+      }
+
+      // Create user for clinic with password and flag to change on first login
       const { data: usuario, error: userError } = await supabase
         .from("usuarios")
         .insert({
           nome: data.nome_fantasia,
-          email: data.email_contato || `clinica_${Date.now()}@meconsulta.com`,
+          email: data.email_contato,
           tipo: "clinica",
           papel: "clinica",
+          senha_hash: data.senha,
+          deve_trocar_senha: true,
         })
         .select()
         .single();
@@ -237,6 +247,7 @@ export default function AdminClinicas() {
       endereco_principal: "",
       cidade: "",
       estado: "",
+      senha: "",
     });
   };
 
@@ -251,6 +262,7 @@ export default function AdminClinicas() {
       endereco_principal: clinica.endereco_principal || "",
       cidade: clinica.cidade || "",
       estado: clinica.estado || "",
+      senha: "",
     });
   };
 
@@ -263,6 +275,25 @@ export default function AdminClinicas() {
         variant: "destructive",
       });
       return;
+    }
+
+    if (!editingClinica) {
+      if (!formData.email_contato) {
+        toast({
+          title: "Erro",
+          description: "E-mail de contato é obrigatório.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!formData.senha || formData.senha.length < 6) {
+        toast({
+          title: "Erro",
+          description: "Senha deve ter no mínimo 6 caracteres.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     if (editingClinica) {
@@ -372,6 +403,25 @@ export default function AdminClinicas() {
           />
         </div>
       </div>
+
+      {/* Password field - only show when creating */}
+      {!editingClinica && (
+        <div className="space-y-2">
+          <Label htmlFor="senha">Senha de Acesso *</Label>
+          <Input
+            id="senha"
+            type="password"
+            value={formData.senha}
+            onChange={(e) =>
+              setFormData({ ...formData, senha: e.target.value })
+            }
+            placeholder="Mínimo 6 caracteres"
+          />
+          <p className="text-xs text-muted-foreground">
+            A clínica deverá trocar a senha no primeiro acesso.
+          </p>
+        </div>
+      )}
     </div>
   );
 
