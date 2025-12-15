@@ -69,6 +69,7 @@ export default function ClinicaMedicos() {
   const [formData, setFormData] = useState({
     nome: "",
     email: "",
+    senha: "",
     especialidade: "",
     crm: "",
     telefone_whatsapp: "",
@@ -160,15 +161,21 @@ export default function ClinicaMedicos() {
   // Cadastrar novo médico
   const cadastrarMedicoMutation = useMutation({
     mutationFn: async () => {
-      // Criar usuário
+      if (!formData.senha || formData.senha.length < 4) {
+        throw new Error("Senha deve ter pelo menos 4 caracteres");
+      }
+
+      // Criar usuário com senha
       const { data: usuario, error: userError } = await supabase
         .from("usuarios")
         .insert({
           nome: formData.nome,
           email: formData.email,
+          senha_hash: formData.senha,
           tipo: "medico",
           papel: "medico",
           ativo: true,
+          deve_trocar_senha: true,
         })
         .select()
         .single();
@@ -332,6 +339,7 @@ export default function ClinicaMedicos() {
     setFormData({
       nome: "",
       email: "",
+      senha: "",
       especialidade: "",
       crm: "",
       telefone_whatsapp: "",
@@ -442,6 +450,16 @@ export default function ClinicaMedicos() {
                       onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                       placeholder="email@exemplo.com"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Senha Inicial *</Label>
+                    <Input
+                      type="password"
+                      value={formData.senha}
+                      onChange={(e) => setFormData(prev => ({ ...prev, senha: e.target.value }))}
+                      placeholder="Mínimo 4 caracteres"
+                    />
+                    <p className="text-xs text-muted-foreground">O médico será solicitado a trocar a senha no primeiro login.</p>
                   </div>
                   <div className="space-y-2">
                     <Label>Especialidade *</Label>
