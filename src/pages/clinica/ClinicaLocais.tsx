@@ -1,235 +1,163 @@
-import { useEffect, useState, useMemo } from "react";
+import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { MapPin, Building, Video, Globe, Users } from "lucide-react";
+import { toast } from "sonner";
+import { MapPin, Building, Edit, Check } from "lucide-react";
 
 interface ClinicaContext {
   clinicaData: any;
 }
 
-interface Local {
-  id: string;
-  nome_local: string;
-  tipo_atendimento: string;
-  endereco: string | null;
-  cidade: string | null;
-  estado: string | null;
-  cep: string | null;
-  observacoes: string | null;
-  ativo: boolean;
-  medico_id: string;
-  medicos?: { nome: string };
-}
-
-interface LocalAgrupado {
-  nome_local: string;
-  tipo_atendimento: string;
-  endereco: string | null;
-  cidade: string | null;
-  estado: string | null;
-  cep: string | null;
-  observacoes: string | null;
-  medicos: Array<{ id: string; nome: string; localId: string; ativo: boolean }>;
-  ativos: number;
-  inativos: number;
-}
-
 export default function ClinicaLocais() {
   const { clinicaData } = useOutletContext<ClinicaContext>();
-  const [locais, setLocais] = useState<Local[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    endereco_principal: clinicaData?.endereco_principal || "",
+    cidade: clinicaData?.cidade || "",
+    estado: clinicaData?.estado || "",
+  });
 
-  useEffect(() => {
-    fetchLocais();
-  }, [clinicaData]);
-
-  async function fetchLocais() {
+  async function handleSave() {
     if (!clinicaData?.id) return;
+    setLoading(true);
 
-    const { data } = await supabase
-      .from("locais_atendimento")
-      .select("*, medicos(nome)")
-      .eq("clinica_id", clinicaData.id)
-      .order("nome_local", { ascending: true });
+    const { error } = await supabase
+      .from("clinicas")
+      .update({
+        endereco_principal: formData.endereco_principal,
+        cidade: formData.cidade,
+        estado: formData.estado,
+      })
+      .eq("id", clinicaData.id);
 
-    setLocais(data || []);
+    if (error) {
+      toast.error("Erro ao atualizar endereço");
+    } else {
+      toast.success("Endereço atualizado com sucesso!");
+      // Update local data
+      clinicaData.endereco_principal = formData.endereco_principal;
+      clinicaData.cidade = formData.cidade;
+      clinicaData.estado = formData.estado;
+      setDialogOpen(false);
+    }
     setLoading(false);
   }
 
-  // Agrupa locais por nome_local + endereco (mesmo endereço físico = um card só)
-  const locaisAgrupados = useMemo(() => {
-    const grupos: Record<string, LocalAgrupado> = {};
-
-    locais.forEach((local) => {
-      // Chave única: nome do local + endereço
-      const chave = `${local.nome_local}-${local.endereco || ""}-${local.cidade || ""}`;
-      
-      if (!grupos[chave]) {
-        grupos[chave] = {
-          nome_local: local.nome_local,
-          tipo_atendimento: local.tipo_atendimento,
-          endereco: local.endereco,
-          cidade: local.cidade,
-          estado: local.estado,
-          cep: local.cep,
-          observacoes: local.observacoes,
-          medicos: [],
-          ativos: 0,
-          inativos: 0,
-        };
-      }
-
-      grupos[chave].medicos.push({
-        id: local.medico_id,
-        nome: local.medicos?.nome || "Médico",
-        localId: local.id,
-        ativo: local.ativo,
-      });
-
-      if (local.ativo) {
-        grupos[chave].ativos++;
-      } else {
-        grupos[chave].inativos++;
-      }
-    });
-
-    return Object.values(grupos);
-  }, [locais]);
-
-  const getTipoIcon = (tipo: string) => {
-    switch (tipo) {
-      case "presencial":
-        return <Building className="w-5 h-5" />;
-      case "online":
-        return <Video className="w-5 h-5" />;
-      case "hibrido":
-        return <Globe className="w-5 h-5" />;
-      default:
-        return <MapPin className="w-5 h-5" />;
-    }
-  };
-
-  const getTipoLabel = (tipo: string) => {
-    switch (tipo) {
-      case "presencial":
-        return "Presencial";
-      case "online":
-        return "Online";
-      case "hibrido":
-        return "Híbrido";
-      default:
-        return tipo;
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  const hasAddress = clinicaData?.endereco_principal || clinicaData?.cidade;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Locais de Atendimento</h2>
-        <p className="text-muted-foreground">
-          Gerencie os endereços da clínica e veja os médicos associados
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Endereço da Clínica</h2>
+          <p className="text-muted-foreground">
+            Este é o endereço padrão para todos os médicos vinculados
+          </p>
+        </div>
+        <Button onClick={() => setDialogOpen(true)} className="gap-2">
+          <Edit className="w-4 h-4" />
+          {hasAddress ? "Editar Endereço" : "Cadastrar Endereço"}
+        </Button>
       </div>
 
-      {locaisAgrupados.length === 0 ? (
-        <Card className="card-shadow">
-          <CardContent className="py-12 text-center">
-            <MapPin className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <p className="text-muted-foreground">Nenhum local de atendimento cadastrado</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Os locais podem ser cadastrados na aba de gerenciamento de médicos
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {locaisAgrupados.map((local, index) => (
-            <Card key={index} className="card-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                      local.tipo_atendimento === "online" 
-                        ? "bg-green-500/10 text-green-500" 
-                        : local.tipo_atendimento === "hibrido"
-                        ? "bg-purple-500/10 text-purple-500"
-                        : "bg-primary/10 text-primary"
-                    }`}>
-                      {getTipoIcon(local.tipo_atendimento)}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{local.nome_local}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          {getTipoLabel(local.tipo_atendimento)}
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs gap-1">
-                          <Users className="w-3 h-3" />
-                          {local.medicos.length} médico{local.medicos.length !== 1 ? "s" : ""}
-                        </Badge>
-                      </div>
-                      
-                      {local.endereco && (
-                        <p className="text-sm text-muted-foreground mt-2">
-                          {local.endereco}
-                          {local.cidade && `, ${local.cidade}`}
-                          {local.estado && ` - ${local.estado}`}
-                        </p>
-                      )}
-                      
-                      {local.observacoes && (
-                        <p className="text-sm text-muted-foreground mt-2 italic">
-                          {local.observacoes}
-                        </p>
-                      )}
-
-                      {/* Lista de médicos associados */}
-                      <div className="mt-4 pt-3 border-t">
-                        <p className="text-xs font-medium text-muted-foreground mb-2">
-                          Médicos neste local:
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {local.medicos.map((medico) => (
-                            <Badge 
-                              key={medico.localId} 
-                              variant={medico.ativo ? "default" : "secondary"}
-                              className={`text-xs ${!medico.ativo ? "opacity-60" : ""}`}
-                            >
-                              Dr(a). {medico.nome}
-                              {!medico.ativo && " (inativo)"}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-sm text-green-500">
-                      {local.ativos} ativo{local.ativos !== 1 ? "s" : ""}
-                    </span>
-                    {local.inativos > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        {local.inativos} inativo{local.inativos !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
+      <Card className="card-shadow">
+        <CardContent className="p-6">
+          {hasAddress ? (
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                <Building className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h3 className="font-semibold text-xl">{clinicaData?.nome_fantasia}</h3>
+                  <Badge variant="default" className="gap-1">
+                    <Check className="w-3 h-3" />
+                    Ativo
+                  </Badge>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                <p className="text-muted-foreground">
+                  {clinicaData?.endereco_principal}
+                  {clinicaData?.cidade && `, ${clinicaData.cidade}`}
+                  {clinicaData?.estado && ` - ${clinicaData.estado}`}
+                </p>
+                <p className="text-sm text-muted-foreground mt-3">
+                  Todos os médicos vinculados à clínica utilizam este endereço automaticamente.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <MapPin className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground">Nenhum endereço cadastrado</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Clique em "Cadastrar Endereço" para adicionar o endereço da clínica
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog para editar endereço */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {hasAddress ? "Editar Endereço" : "Cadastrar Endereço"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Endereço Completo *</Label>
+              <Input
+                value={formData.endereco_principal}
+                onChange={(e) => setFormData({ ...formData, endereco_principal: e.target.value })}
+                placeholder="Rua, número, bairro"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Cidade *</Label>
+                <Input
+                  value={formData.cidade}
+                  onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
+                  placeholder="Cidade"
+                />
+              </div>
+              <div>
+                <Label>Estado *</Label>
+                <Input
+                  value={formData.estado}
+                  onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                  placeholder="UF"
+                  maxLength={2}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} disabled={loading}>
+                {loading ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
