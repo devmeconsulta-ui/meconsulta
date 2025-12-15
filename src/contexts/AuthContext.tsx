@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function fetchRelatedIds(user: CurrentUser) {
-    if (user.tipo === "paciente") {
+    if (user.tipo === "paciente" && !user.pacienteId) {
       const { data } = await supabase
         .from("pacientes")
         .select("id")
@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrentUser(updatedUser);
         localStorage.setItem("meconsulta_user", JSON.stringify(updatedUser));
       }
-    } else if (user.tipo === "medico") {
+    } else if (user.tipo === "medico" && !user.medicoId) {
       const { data } = await supabase
         .from("medicos")
         .select("id")
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrentUser(updatedUser);
         localStorage.setItem("meconsulta_user", JSON.stringify(updatedUser));
       }
-    } else if (user.tipo === "clinica") {
+    } else if (user.tipo === "clinica" && !user.clinicaId) {
       const { data } = await supabase
         .from("clinicas")
         .select("id")
@@ -87,10 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleSetCurrentUser = async (user: CurrentUser | null) => {
     if (user) {
-      // Fetch related IDs on login
+      // Fetch related IDs on login (only if not already provided)
       let updatedUser = { ...user };
       
-      if (user.tipo === "paciente") {
+      if (user.tipo === "paciente" && !user.pacienteId) {
         const { data } = await supabase
           .from("pacientes")
           .select("id")
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data) {
           updatedUser.pacienteId = data.id;
         }
-      } else if (user.tipo === "medico") {
+      } else if (user.tipo === "medico" && !user.medicoId) {
         const { data } = await supabase
           .from("medicos")
           .select("id")
@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data) {
           updatedUser.medicoId = data.id;
         }
-      } else if (user.tipo === "clinica") {
+      } else if (user.tipo === "clinica" && !user.clinicaId) {
         const { data } = await supabase
           .from("clinicas")
           .select("id")
