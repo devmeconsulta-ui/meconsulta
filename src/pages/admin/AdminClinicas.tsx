@@ -188,6 +188,45 @@ export default function AdminClinicas() {
     },
   });
 
+  const deleteClinica = useMutation({
+    mutationFn: async (id: string) => {
+      // Delete related records first
+      await supabase.from("clinicas_medicos").delete().eq("clinica_id", id);
+      await supabase.from("usuarios_clinica").delete().eq("clinica_id", id);
+      await supabase.from("locais_atendimento").delete().eq("clinica_id", id);
+      
+      // Get clinic to find usuario_id
+      const { data: clinica } = await supabase
+        .from("clinicas")
+        .select("usuario_id")
+        .eq("id", id)
+        .single();
+
+      // Delete clinic
+      const { error } = await supabase.from("clinicas").delete().eq("id", id);
+      if (error) throw error;
+
+      // Delete associated user if exists
+      if (clinica?.usuario_id) {
+        await supabase.from("usuarios").delete().eq("id", clinica.usuario_id);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-clinicas"] });
+      toast({
+        title: "Clínica excluída",
+        description: "A clínica foi removida do sistema.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const resetForm = () => {
     setFormData({
       nome_fantasia: "",
@@ -509,6 +548,36 @@ export default function AdminClinicas() {
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive" size="sm">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir Clínica</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tem certeza que deseja excluir a clínica "{clinica.nome_fantasia}"? 
+                                  Esta ação irá remover todos os dados associados (médicos vinculados, 
+                                  usuários da clínica, locais de atendimento) e não pode ser desfeita.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteClinica.mutate(clinica.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  {deleteClinica.isPending ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    "Excluir"
+                                  )}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </TableCell>
                     </TableRow>
