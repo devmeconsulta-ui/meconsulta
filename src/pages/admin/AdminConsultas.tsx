@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Calendar, Filter, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, Search, Eye, Download, ThumbsUp, HelpCircle, UserX } from "lucide-react";
+import { Calendar, Filter, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, Search, Eye, Download, ThumbsUp, HelpCircle, UserX, MapPin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,8 @@ export default function AdminConsultas() {
         .select(`
           *,
           medico:medicos!consultas_medico_id_fkey(nome, especialidade),
-          paciente:pacientes!consultas_paciente_id_fkey(nome, cpf, telefone)
+          paciente:pacientes!consultas_paciente_id_fkey(nome, cpf, telefone),
+          local:locais_atendimento(id, nome_local, endereco, cidade, estado, tipo_atendimento)
         `)
         .order("data_hora", { ascending: false });
 
@@ -403,6 +404,7 @@ export default function AdminConsultas() {
                   <TableRow>
                     <TableHead>Paciente</TableHead>
                     <TableHead>Médico</TableHead>
+                    <TableHead>Local</TableHead>
                     <TableHead>Data/Hora</TableHead>
                     <TableHead>Valor</TableHead>
                     <TableHead>Status</TableHead>
@@ -416,6 +418,14 @@ export default function AdminConsultas() {
                     <TableRow key={consulta.id}>
                       <TableCell className="font-medium">{consulta.paciente?.nome || "—"}</TableCell>
                       <TableCell>{consulta.medico?.nome || "—"}</TableCell>
+                      <TableCell>
+                        {consulta.local ? (
+                          <div className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-muted-foreground" />
+                            <span className="text-sm">{consulta.local.nome_local}</span>
+                          </div>
+                        ) : "—"}
+                      </TableCell>
                       <TableCell>
                         {format(parseISO(consulta.data_hora), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                       </TableCell>
