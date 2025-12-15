@@ -170,9 +170,11 @@ export default function ClinicaDashboard() {
       const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
       const medicosCount = medicoFilter === "todos" ? medicoIds.length : 1;
 
+      // IMPORTANTE: Filtrar por clinica_id para isolar dados entre clínicas
       let query = supabase
         .from("consultas")
         .select("id, data_hora, valor_consulta, status_pagamento, status_consulta, origem, paciente_id, medico_id")
+        .eq("clinica_id", clinicaData.id)
         .in("medico_id", filterMedicoIds)
         .gte("data_hora", dateRange.start.toISOString())
         .lte("data_hora", dateRange.end.toISOString());
@@ -252,6 +254,7 @@ export default function ClinicaDashboard() {
 
       const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
 
+      // IMPORTANTE: Filtrar por clinica_id para isolar dados entre clínicas
       let query = supabase
         .from("consultas")
         .select(`
@@ -269,6 +272,7 @@ export default function ClinicaDashboard() {
           medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
           local:locais_atendimento(nome_local, cidade)
         `)
+        .eq("clinica_id", clinicaData.id)
         .in("medico_id", filterMedicoIds)
         .gte("data_hora", new Date().toISOString())
         .neq("status_consulta", "cancelada")
@@ -308,6 +312,7 @@ export default function ClinicaDashboard() {
       const todayStart = startOfDay(new Date()).toISOString();
       const todayEnd = endOfDay(new Date()).toISOString();
 
+      // IMPORTANTE: Filtrar por clinica_id para isolar dados entre clínicas
       const { data, error } = await supabase
         .from("consultas")
         .select(`
@@ -323,6 +328,7 @@ export default function ClinicaDashboard() {
           medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
           local:locais_atendimento(nome_local)
         `)
+        .eq("clinica_id", clinicaData.id)
         .in("medico_id", filterMedicoIds)
         .gte("data_hora", todayStart)
         .lte("data_hora", todayEnd)
