@@ -17,6 +17,36 @@ interface CreatePaymentRequest {
   consulta_id: string;
 }
 
+// Validate CPF using algorithm
+function isValidCPF(cpf: string): boolean {
+  const cleanCPF = cpf.replace(/\D/g, '');
+  
+  if (cleanCPF.length !== 11) return false;
+  
+  // Check for known invalid patterns
+  if (/^(\d)\1+$/.test(cleanCPF)) return false;
+  
+  // Validate first check digit
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cleanCPF[i]) * (10 - i);
+  }
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanCPF[9])) return false;
+  
+  // Validate second check digit
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cleanCPF[i]) * (11 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanCPF[10])) return false;
+  
+  return true;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -113,6 +143,19 @@ serve(async (req) => {
       );
     }
 
+    // Validate CPF before proceeding
+    const cpfClean = paciente.cpf?.replace(/\D/g, '') || '';
+    if (!cpfClean || !isValidCPF(cpfClean)) {
+      console.error(`CPF inválido para paciente ${paciente.id}: ${cpfClean}`);
+      return new Response(
+        JSON.stringify({ 
+          error: 'CPF inválido. Por favor, atualize seu CPF no perfil antes de continuar.',
+          code: 'INVALID_CPF'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // 4. Fetch patient email from usuarios table
     let pacienteEmail = '';
     if (paciente.usuario_id) {
@@ -134,12 +177,9 @@ serve(async (req) => {
     const createAsaasCustomer = async (): Promise<string | null> => {
       console.log('Creating new Asaas customer...');
       
-      // Format CPF - remove non-numeric characters
-      const cpfFormatted = paciente.cpf?.replace(/\D/g, '') || '';
-      
       const customerPayload = {
         name: paciente.nome,
-        cpfCnpj: cpfFormatted,
+        cpfCnpj: cpfClean,
         email: pacienteEmail || undefined,
         phone: paciente.telefone?.replace(/\D/g, '') || undefined,
         notificationDisabled: false,
@@ -169,11 +209,12 @@ serve(async (req) => {
 
       if (!customerResponse.ok) {
         // Check if customer already exists (by CPF)
-        if (customerResult.errors?.[0]?.code === 'invalid_cpfCnpj' || 
-            customerResult.errors?.[0]?.description?.includes('já cadastrado')) {
+        if (customerResult.errors?.[0]?.description?.includes('já cadastrado') ||
+            customerResult.errors?.[0]?.description?.includes('já existe')) {
           // Try to find existing customer
+          console.log('Customer may already exist, searching by CPF...');
           const searchResponse = await fetch(
-            `${config.base_url}/customers?cpfCnpj=${cpfFormatted}`,
+            `${config.base_url}/customers?cpfCnpj=${cpfClean}`,
             {
               headers: { 'access_token': config.api_key },
             }
@@ -199,7 +240,10 @@ serve(async (req) => {
       
       if (!asaasCustomerId) {
         return new Response(
-          JSON.stringify({ error: 'Erro ao criar cliente no Asaas' }),
+          JSON.stringify({ 
+            error: 'Erro ao criar cliente no Asaas. Verifique seus dados cadastrais.',
+            code: 'ASAAS_CUSTOMER_ERROR'
+          }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -268,7 +312,10 @@ serve(async (req) => {
       
       if (!asaasCustomerId) {
         return new Response(
-          JSON.stringify({ error: 'Erro ao criar cliente no Asaas' }),
+          JSON.stringify({ 
+            error: 'Erro ao criar cliente no Asaas. Verifique seus dados cadastrais.',
+            code: 'ASAAS_CUSTOMER_ERROR'
+          }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
