@@ -182,8 +182,7 @@ export default function ClinicaDashboard() {
       // Filtrar para consultas que pertencem à clínica (por clinica_id direto ou pelo local)
       const consultas = (consultasData || []).filter((c: any) => 
         c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id ||
-        c.clinica_id === null
+        c.local?.clinica_id === clinicaData.id
       );
 
       const faturamento = consultas
@@ -287,8 +286,7 @@ export default function ClinicaDashboard() {
       // Filtrar consultas que pertencem à clínica (por clinica_id direto ou pelo local)
       let filteredData = (data || []).filter((c: any) => 
         c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id ||
-        c.clinica_id === null
+        c.local?.clinica_id === clinicaData.id
       );
 
       // Apply status filter
@@ -349,8 +347,7 @@ export default function ClinicaDashboard() {
       // Filtrar consultas que pertencem à clínica (por clinica_id direto ou pelo local)
       return (data || []).filter((c: any) => 
         c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id ||
-        c.clinica_id === null
+        c.local?.clinica_id === clinicaData.id
       );
     },
     enabled: !!clinicaData?.id,

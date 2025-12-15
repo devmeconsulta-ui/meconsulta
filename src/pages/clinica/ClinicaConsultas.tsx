@@ -121,12 +121,10 @@ export default function ClinicaConsultas() {
       
       // Filtra para mostrar apenas consultas que:
       // 1. Têm clinica_id igual à clínica atual, OU
-      // 2. Têm local com clinica_id igual à clínica atual, OU
-      // 3. Não têm clinica_id definido (para compatibilidade com dados antigos dos médicos da clínica)
+      // 2. Têm local com clinica_id igual à clínica atual
       const filteredData = data?.filter((c: any) => 
         c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id ||
-        c.clinica_id === null
+        c.local?.clinica_id === clinicaData.id
       ) || [];
 
       if (error) throw error;
