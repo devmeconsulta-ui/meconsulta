@@ -48,7 +48,7 @@ export default function Entrar() {
 
       if (usuarioData) {
         // Regular user login successful
-        setCurrentUser({
+        await setCurrentUser({
           id: usuarioData.id,
           nome: usuarioData.nome,
           email: usuarioData.email,
@@ -95,7 +95,7 @@ export default function Entrar() {
         // Clinic user login successful
         // If user has clinica_id, redirect to clinica area, otherwise medico area
         if (clinicaUserData.clinica_id) {
-          setCurrentUser({
+          await setCurrentUser({
             id: clinicaUserData.id,
             nome: clinicaUserData.nome,
             email: clinicaUserData.email || "",
@@ -109,7 +109,7 @@ export default function Entrar() {
           navigate("/clinica");
         } else {
           // Legacy: user linked to doctor only (no clinica_id)
-          setCurrentUser({
+          await setCurrentUser({
             id: clinicaUserData.id,
             nome: clinicaUserData.nome,
             email: clinicaUserData.email || "",
