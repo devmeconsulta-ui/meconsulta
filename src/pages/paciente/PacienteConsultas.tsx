@@ -114,6 +114,7 @@ export default function PacienteConsultas() {
   const [comentario, setComentario] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [processandoPagamento, setProcessandoPagamento] = useState<string | null>(null);
+  const [sincronizando, setSincronizando] = useState(false);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -122,7 +123,9 @@ export default function PacienteConsultas() {
   const [notifiedPending, setNotifiedPending] = useState(false);
 
   useEffect(() => {
-    fetchConsultas();
+    if (pacienteData?.id) {
+      fetchConsultas();
+    }
   }, [pacienteData?.id]);
 
   // Show toast notification for pending payments
@@ -195,8 +198,8 @@ export default function PacienteConsultas() {
       );
 
       if (pendingWithPayment.length > 0) {
-        // Check each pending payment in the background
-        syncPaymentStatuses(pendingWithPayment);
+        // Check each pending payment in the background (don't show toast for auto-sync)
+        syncPaymentStatuses(pendingWithPayment, false);
       }
     } catch (error) {
       console.error("Error fetching consultas:", error);
@@ -206,7 +209,10 @@ export default function PacienteConsultas() {
   }
 
   // Sync payment statuses with Asaas (background check)
-  async function syncPaymentStatuses(pendingConsultas: any[]) {
+  async function syncPaymentStatuses(pendingConsultas: any[], showToast = false) {
+    if (sincronizando) return;
+    
+    setSincronizando(true);
     let hasUpdates = false;
     
     for (const consulta of pendingConsultas) {
@@ -217,17 +223,19 @@ export default function PacienteConsultas() {
 
         if (data?.updated) {
           hasUpdates = true;
-          console.log(`Payment status updated for consulta ${consulta.id}`);
+          console.log(`Payment status updated for consulta ${consulta.id}: ${data.status_pagamento}`);
         }
       } catch (err) {
         console.error(`Error checking payment for ${consulta.id}:`, err);
       }
     }
 
+    setSincronizando(false);
+
     // Refresh list if any payments were updated
     if (hasUpdates) {
       toast.success('Status de pagamento atualizado!');
-      // Refetch without triggering sync again
+      // Refetch the data
       const { data } = await supabase
         .from("consultas")
         .select(`*, medicos (id, nome, especialidade, foto_url, crm)`)
@@ -235,6 +243,25 @@ export default function PacienteConsultas() {
         .order("data_hora", { ascending: false });
       
       if (data) setConsultas(data);
+    } else if (showToast) {
+      toast.info('Todos os pagamentos estão atualizados');
+    }
+  }
+
+  // Manual refresh button handler
+  async function handleRefresh() {
+    const pendingWithPayment = consultas.filter(
+      c => c.status_pagamento === 'pendente' && 
+           c.asaas_payment_id && 
+           c.status_consulta !== 'cancelada'
+    );
+
+    if (pendingWithPayment.length > 0) {
+      await syncPaymentStatuses(pendingWithPayment, true);
+    } else {
+      // Just refetch data
+      await fetchConsultas();
+      toast.success('Dados atualizados!');
     }
   }
 
@@ -672,11 +699,23 @@ export default function PacienteConsultas() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-bold">Minhas Consultas</h1>
-        <p className="text-muted-foreground mt-1">
-          Gerencie suas consultas agendadas e histórico
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold">Minhas Consultas</h1>
+          <p className="text-muted-foreground mt-1">
+            Gerencie suas consultas agendadas e histórico
+          </p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleRefresh}
+          disabled={sincronizando || loading}
+          className="gap-2"
+        >
+          <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />
+          {sincronizando ? 'Atualizando...' : 'Atualizar'}
+        </Button>
       </div>
 
       {/* Stats Cards */}
