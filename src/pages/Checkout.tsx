@@ -486,13 +486,9 @@ const Checkout = () => {
         return;
       }
 
-      // Show payment screen with creation timestamp
-      setPaymentData({
-        ...paymentResponse,
-        createdAt: Date.now(),
-      });
-      setShowPayment(true);
-      toast.success("Cobrança gerada com sucesso!");
+      // Redirect to custom payment page
+      toast.success("Consulta agendada! Redirecionando para pagamento...");
+      navigate(`/pagamento/${consultaData.id}`);
       
     } catch (error: any) {
       console.error("Error creating consultation:", error);
