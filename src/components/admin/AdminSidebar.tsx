@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   Plug,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -36,6 +37,12 @@ const menuItems: MenuItem[] = [
     title: "Usuários", 
     url: "/admin/usuarios", 
     icon: UserCog,
+    allowedRoles: ["admin", "superadmin"]
+  },
+  { 
+    title: "Clínicas", 
+    url: "/admin/clinicas", 
+    icon: Building2,
     allowedRoles: ["admin", "superadmin"]
   },
   { 
