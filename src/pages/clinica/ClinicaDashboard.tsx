@@ -266,7 +266,7 @@ export default function ClinicaDashboard() {
           sintomas,
           nome_paciente_consulta,
           paciente:pacientes(id, nome, telefone, cpf),
-          medico:medicos(id, nome, especialidade),
+          medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
           local:locais_atendimento(nome_local, cidade)
         `)
         .in("medico_id", filterMedicoIds)
@@ -320,7 +320,7 @@ export default function ClinicaDashboard() {
           motivo_consulta,
           nome_paciente_consulta,
           paciente:pacientes(id, nome, telefone),
-          medico:medicos(id, nome, especialidade),
+          medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
           local:locais_atendimento(nome_local)
         `)
         .in("medico_id", filterMedicoIds)

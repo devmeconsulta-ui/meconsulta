@@ -166,7 +166,7 @@ export default function PacienteConsultas() {
           .from("consultas")
           .select(`
             *,
-            medicos (id, nome, especialidade, foto_url, crm)
+            medicos!consultas_medico_id_fkey (id, nome, especialidade, foto_url, crm)
           `)
           .eq("paciente_id", pacienteData.id)
           .order("data_hora", { ascending: false }),
@@ -238,7 +238,7 @@ export default function PacienteConsultas() {
       // Refetch the data
       const { data } = await supabase
         .from("consultas")
-        .select(`*, medicos (id, nome, especialidade, foto_url, crm)`)
+        .select(`*, medicos!consultas_medico_id_fkey (id, nome, especialidade, foto_url, crm)`)
         .eq("paciente_id", pacienteData?.id)
         .order("data_hora", { ascending: false });
       

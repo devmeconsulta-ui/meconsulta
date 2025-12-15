@@ -101,7 +101,7 @@ export default function ClinicaConsultas() {
           nome_paciente_consulta,
           origem,
           medico_id,
-          medico:medicos(nome, especialidade),
+          medico:medicos!consultas_medico_id_fkey(nome, especialidade),
           paciente:pacientes(nome),
           local:locais_atendimento(nome_local)
         `)

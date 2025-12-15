@@ -62,7 +62,7 @@ export default function PacienteDashboard() {
           .from("consultas")
           .select(`
             *,
-            medicos (nome, especialidade, foto_url)
+            medicos!consultas_medico_id_fkey (nome, especialidade, foto_url)
           `)
           .eq("paciente_id", pacienteData.id)
           .gte("data_hora", now)
@@ -104,7 +104,7 @@ export default function PacienteDashboard() {
           .from("consultas")
           .select(`
             *,
-            medicos (id, nome, especialidade, foto_url)
+            medicos!consultas_medico_id_fkey (id, nome, especialidade, foto_url)
           `)
           .eq("paciente_id", pacienteData.id)
           .gte("data_hora", now)
