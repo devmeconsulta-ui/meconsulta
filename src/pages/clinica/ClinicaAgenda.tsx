@@ -149,7 +149,11 @@ export default function ClinicaAgenda() {
 
   function getDateRange() {
     if (viewMode === "dia") {
-      return { start: currentDate, end: currentDate };
+      const start = new Date(currentDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(currentDate);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
     } else if (viewMode === "semana") {
       return {
         start: startOfWeek(currentDate, { weekStartsOn: 1 }),
@@ -321,7 +325,11 @@ export default function ClinicaAgenda() {
   function getFilteredSlots() {
     return slots.filter((slot) => {
       if (filterMedico !== "todos" && slot.medico_id !== filterMedico) return false;
-      if (filterLocal !== "todos" && slot.local_id !== filterLocal) return false;
+      // Filtrar por nome do local (não por ID, já que temos múltiplos IDs com mesmo nome)
+      if (filterLocal !== "todos") {
+        const localNome = slot.locais_atendimento?.nome_local;
+        if (localNome !== filterLocal) return false;
+      }
       
       if (filterOrigem === "todos") return true;
       if (filterOrigem === "livres") {
@@ -1106,8 +1114,9 @@ export default function ClinicaAgenda() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos os locais</SelectItem>
-                {locais.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
+                {/* Mostrar apenas nomes únicos de locais */}
+                {[...new Map(locais.map(l => [l.nome_local, l])).values()].map((l) => (
+                  <SelectItem key={l.nome_local} value={l.nome_local}>
                     {l.nome_local}
                   </SelectItem>
                 ))}
