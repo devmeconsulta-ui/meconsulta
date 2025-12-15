@@ -16,7 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Pencil, Save, X, Phone, MapPin, CreditCard, Calendar, Clock, Stethoscope, Lock } from "lucide-react";
 import { maskPhone, maskCPF } from "@/lib/maskUtils";
@@ -328,7 +328,7 @@ export function PacienteDetalhesModal({
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">
-                              {format(new Date(consulta.data_hora), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
+                              {format(parseISO(consulta.data_hora), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
                             </span>
                           </div>
                           {consulta.medico && (

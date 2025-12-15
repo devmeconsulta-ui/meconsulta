@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, startOfDay, endOfDay, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line } from "recharts";
 
@@ -135,7 +135,7 @@ export default function AdminConsultas() {
     const days: Record<string, number> = {};
     
     consultas.forEach((c) => {
-      const day = format(new Date(c.data_hora), "dd/MM");
+      const day = format(parseISO(c.data_hora), "dd/MM");
       days[day] = (days[day] || 0) + 1;
     });
 
@@ -417,7 +417,7 @@ export default function AdminConsultas() {
                       <TableCell className="font-medium">{consulta.paciente?.nome || "—"}</TableCell>
                       <TableCell>{consulta.medico?.nome || "—"}</TableCell>
                       <TableCell>
-                        {format(new Date(consulta.data_hora), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        {format(parseISO(consulta.data_hora), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                       </TableCell>
                       <TableCell>
                         {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(consulta.valor_consulta)}

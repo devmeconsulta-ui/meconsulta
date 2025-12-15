@@ -307,7 +307,7 @@ export default function ClinicaConsultas() {
                           Dr(a). {consulta.medico?.nome} • {consulta.medico?.especialidade}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {format(new Date(consulta.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          {format(parseISO(consulta.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                           {consulta.local?.nome_local && ` • ${consulta.local.nome_local}`}
                         </p>
                       </div>

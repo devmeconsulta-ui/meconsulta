@@ -19,7 +19,7 @@ import {
   ThumbsUp,
   HelpCircle
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -289,7 +289,7 @@ export default function MedicoConsultas() {
                         )}
                         <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                           <Calendar className="w-4 h-4" />
-                          {format(new Date(consulta.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          {format(parseISO(consulta.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                         </div>
                         {consulta.motivo_consulta && (
                           <p className="text-sm text-muted-foreground mt-1">

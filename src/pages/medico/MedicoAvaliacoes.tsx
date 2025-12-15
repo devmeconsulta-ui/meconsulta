@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Star, MessageSquare, Send, User } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface MedicoContext {
@@ -176,7 +176,7 @@ export default function MedicoAvaliacoes() {
                         <div>
                           <p className="font-medium">{avaliacao.pacientes?.nome || "Paciente"}</p>
                           <p className="text-sm text-muted-foreground">
-                            {format(new Date(avaliacao.created_at), "dd 'de' MMMM 'de' yyyy", {
+                            {format(parseISO(avaliacao.created_at), "dd 'de' MMMM 'de' yyyy", {
                               locale: ptBR,
                             })}
                           </p>
