@@ -18,7 +18,8 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Pencil, Save, X, Phone, MapPin, CreditCard, Calendar, Clock, Stethoscope } from "lucide-react";
+import { Pencil, Save, X, Phone, MapPin, CreditCard, Calendar, Clock, Stethoscope, Lock } from "lucide-react";
+import { maskPhone, maskCPF } from "@/lib/maskUtils";
 
 interface PacienteDetalhesModalProps {
   open: boolean;
@@ -111,16 +112,14 @@ export function PacienteDetalhesModal({
 
     setSaving(true);
     try {
+      // Marketplace: clínicas só podem editar localização, não dados sensíveis
       const { error } = await supabase
         .from("pacientes")
         .update({
           nome: formData.nome,
-          telefone: formData.telefone || null,
-          cpf: formData.cpf || null,
           cidade: formData.cidade || null,
           estado: formData.estado || null,
           bairro: formData.bairro || null,
-          data_nascimento: formData.data_nascimento || null,
         })
         .eq("id", paciente.id);
 
@@ -223,21 +222,24 @@ export function PacienteDetalhesModal({
 
           <TabsContent value="dados" className="flex-1 overflow-auto mt-4">
             <div className="grid gap-4">
+              {/* Aviso de privacidade marketplace */}
+              <div className="p-3 bg-muted/50 rounded-lg border border-dashed">
+                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Dados sensíveis de pacientes são protegidos. Como marketplace, exibimos apenas prévia.
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-muted-foreground">
                     <Phone className="h-4 w-4" />
                     Telefone
                   </Label>
-                  {isEditing ? (
-                    <Input
-                      value={formData.telefone}
-                      onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                      placeholder="(00) 00000-0000"
-                    />
-                  ) : (
-                    <p className="text-sm">{formData.telefone || "Não informado"}</p>
-                  )}
+                  <p className="text-sm flex items-center gap-2">
+                    <Lock className="h-3 w-3 text-muted-foreground" />
+                    {maskPhone(formData.telefone)}
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -245,15 +247,10 @@ export function PacienteDetalhesModal({
                     <CreditCard className="h-4 w-4" />
                     CPF
                   </Label>
-                  {isEditing ? (
-                    <Input
-                      value={formData.cpf}
-                      onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
-                      placeholder="000.000.000-00"
-                    />
-                  ) : (
-                    <p className="text-sm">{formData.cpf || "Não informado"}</p>
-                  )}
+                  <p className="text-sm flex items-center gap-2">
+                    <Lock className="h-3 w-3 text-muted-foreground" />
+                    {maskCPF(formData.cpf)}
+                  </p>
                 </div>
               </div>
 
