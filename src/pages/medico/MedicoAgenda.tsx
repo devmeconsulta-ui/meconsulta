@@ -60,6 +60,9 @@ interface Local {
   id: string;
   nome_local: string;
   tipo_atendimento: string;
+  clinica_id?: string | null;
+  clinicas?: { nome_fantasia: string } | null;
+  displayName?: string;
 }
 
 interface Consulta {
@@ -136,14 +139,22 @@ export default function MedicoAgenda() {
   async function fetchData() {
     setLoading(true);
 
-    // Fetch locations
+    // Fetch locations - próprios do médico E de clínicas onde está vinculado
     const { data: locaisData } = await supabase
       .from("locais_atendimento")
-      .select("id, nome_local, tipo_atendimento")
+      .select("id, nome_local, tipo_atendimento, clinica_id, clinicas(nome_fantasia)")
       .eq("medico_id", medicoData.id)
       .eq("ativo", true);
 
-    setLocais(locaisData || []);
+    // Formatar locais com indicação de origem (próprio vs clínica)
+    const locaisFormatados = (locaisData || []).map(local => ({
+      ...local,
+      displayName: local.clinica_id && local.clinicas 
+        ? `${local.nome_local} (${local.clinicas.nome_fantasia})`
+        : local.nome_local
+    }));
+
+    setLocais(locaisFormatados);
 
     // Fetch slots for the range
     const { start, end } = getDateRange();
@@ -290,7 +301,7 @@ export default function MedicoAgenda() {
   // Get current location name for display
   const currentLocalName = filterLocal === "todos" 
     ? "Todos os locais" 
-    : locais.find(l => l.id === filterLocal)?.nome_local || "Local";
+    : locais.find(l => l.id === filterLocal)?.displayName || locais.find(l => l.id === filterLocal)?.nome_local || "Local";
 
   if (loading) {
     return (
@@ -658,7 +669,10 @@ export default function MedicoAgenda() {
                   ) : (
                     <Building2 className="w-3 h-3 text-emerald-500" />
                   )}
-                  {local.nome_local}
+                  <span>{local.displayName || local.nome_local}</span>
+                  {local.clinica_id && (
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 ml-1">Clínica</Badge>
+                  )}
                 </div>
               </SelectItem>
             ))}
