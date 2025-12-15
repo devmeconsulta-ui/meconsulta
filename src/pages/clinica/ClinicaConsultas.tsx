@@ -90,6 +90,7 @@ export default function ClinicaConsultas() {
       const medicoIds = vinculos?.map((v) => v.medico_id) || [];
       if (medicoIds.length === 0) return [];
 
+      // IMPORTANTE: Filtrar por clinica_id para isolar dados entre clínicas
       const { data, error } = await supabase
         .from("consultas")
         .select(`
@@ -105,6 +106,7 @@ export default function ClinicaConsultas() {
           paciente:pacientes(nome),
           local:locais_atendimento(nome_local)
         `)
+        .eq("clinica_id", clinicaData.id)
         .in("medico_id", medicoIds)
         .gte("data_hora", dateRange.start.toISOString())
         .lte("data_hora", dateRange.end.toISOString())

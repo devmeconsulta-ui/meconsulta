@@ -148,7 +148,7 @@ export default function ClinicaFinanceiro() {
 
     setLocais(locaisData || []);
 
-    // Busca consultas
+    // IMPORTANTE: Filtrar por clinica_id para isolar dados entre clínicas
     const { data, error } = await supabase
       .from("consultas")
       .select(`
@@ -167,6 +167,7 @@ export default function ClinicaFinanceiro() {
         medico:medicos!consultas_medico_id_fkey(nome, especialidade),
         local:locais_atendimento!consultas_local_id_fkey(nome_local)
       `)
+      .eq("clinica_id", clinicaData.id)
       .in("medico_id", medicoIds)
       .gte("data_hora", dateRange.start.toISOString())
       .lte("data_hora", dateRange.end.toISOString())
