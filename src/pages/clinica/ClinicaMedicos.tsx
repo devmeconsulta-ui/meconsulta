@@ -1013,6 +1013,7 @@ export default function ClinicaMedicos() {
         open={gerenciarDialogOpen}
         onOpenChange={setGerenciarDialogOpen}
         medico={selectedMedicoToGerenciar}
+        clinicaId={clinicaData?.id}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ["clinica-medicos"] });
         }}

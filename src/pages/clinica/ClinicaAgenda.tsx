@@ -175,10 +175,12 @@ export default function ClinicaAgenda() {
   }, [gerarForm.medicoId]);
 
   async function fetchLocaisForMedico(medicoId: string) {
+    // Busca apenas locais que pertencem a esta clínica
     const { data } = await supabase
       .from("locais_atendimento")
       .select("id, nome_local, tipo_atendimento, medico_id")
       .eq("medico_id", medicoId)
+      .eq("clinica_id", clinicaData.id)
       .eq("ativo", true);
     setLocais(data || []);
     setGerarForm(prev => ({ ...prev, localId: "" }));
@@ -207,25 +209,33 @@ export default function ClinicaAgenda() {
     const medicoIds = medicosVinculados.map((m: any) => m.id);
     const { start, end } = getDateRange();
 
-    // Busca todos os locais dos médicos
+    // Busca apenas locais desta clínica
     const { data: locaisData } = await supabase
       .from("locais_atendimento")
       .select("id, nome_local, tipo_atendimento, medico_id")
-      .in("medico_id", medicoIds)
+      .eq("clinica_id", clinicaData.id)
       .eq("ativo", true);
     
     setLocais(locaisData || []);
 
-    // Busca usuarios_clinica de todos os médicos
+    // Busca usuarios_clinica desta clínica
     const { data: usuariosData } = await supabase
       .from("usuarios_clinica")
       .select("id, nome, papel")
-      .in("medico_id", medicoIds)
+      .eq("clinica_id", clinicaData.id)
       .eq("ativo", true);
     
     setUsuariosClinica(usuariosData || []);
 
-    // Busca slots dos médicos vinculados
+    // Busca slots apenas dos locais desta clínica
+    if (!locaisData || locaisData.length === 0) {
+      setSlots([]);
+      setLoading(false);
+      return;
+    }
+
+    const localIds = locaisData.map(l => l.id);
+
     const { data: slotsData } = await supabase
       .from("agenda_slots")
       .select(`
@@ -233,7 +243,7 @@ export default function ClinicaAgenda() {
         locais_atendimento(nome_local, tipo_atendimento),
         medicos(nome)
       `)
-      .in("medico_id", medicoIds)
+      .in("local_id", localIds)
       .gte("data_hora", start.toISOString())
       .lte("data_hora", end.toISOString())
       .order("data_hora", { ascending: true });

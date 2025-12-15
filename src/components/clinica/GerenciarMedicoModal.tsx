@@ -62,6 +62,7 @@ interface GerenciarMedicoModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   medico: any;
+  clinicaId: string;
   onSuccess: () => void;
 }
 
@@ -86,6 +87,7 @@ export function GerenciarMedicoModal({
   open,
   onOpenChange,
   medico,
+  clinicaId,
   onSuccess,
 }: GerenciarMedicoModalProps) {
   const [activeTab, setActiveTab] = useState("perfil");
@@ -144,12 +146,14 @@ export function GerenciarMedicoModal({
   }, [open, medico]);
 
   async function fetchLocais() {
-    if (!medico?.id) return;
+    if (!medico?.id || !clinicaId) return;
     setLoadingLocais(true);
+    // Busca apenas locais que pertencem a esta clínica
     const { data } = await supabase
       .from("locais_atendimento")
       .select("*")
       .eq("medico_id", medico.id)
+      .eq("clinica_id", clinicaId)
       .order("nome_local");
     setLocais(data || []);
     setLoadingLocais(false);
@@ -268,6 +272,7 @@ export function GerenciarMedicoModal({
           .from("locais_atendimento")
           .insert({
             medico_id: medico.id,
+            clinica_id: clinicaId,
             nome_local: localForm.nome_local,
             tipo_atendimento: localForm.tipo_atendimento,
             endereco: localForm.endereco || null,

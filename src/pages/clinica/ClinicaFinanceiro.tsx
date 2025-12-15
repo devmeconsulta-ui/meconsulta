@@ -139,11 +139,11 @@ export default function ClinicaFinanceiro() {
 
     const medicoIds = medicosVinculados.map((m: any) => m.id);
 
-    // Busca locais dos médicos
+    // Busca apenas locais desta clínica
     const { data: locaisData } = await supabase
       .from("locais_atendimento")
       .select("id, nome_local")
-      .in("medico_id", medicoIds)
+      .eq("clinica_id", clinicaData.id)
       .eq("ativo", true);
 
     setLocais(locaisData || []);
