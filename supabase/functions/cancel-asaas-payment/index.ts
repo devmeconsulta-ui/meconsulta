@@ -29,10 +29,10 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 1. Get consulta with asaas_payment_id
+    // 1. Get consulta with asaas_payment_id and agenda_slot_id
     const { data: consulta, error: consultaError } = await supabase
       .from('consultas')
-      .select('id, asaas_payment_id, status_consulta')
+      .select('id, asaas_payment_id, status_consulta, agenda_slot_id, medico_id, data_hora')
       .eq('id', consulta_id)
       .maybeSingle();
 
@@ -44,7 +44,52 @@ serve(async (req) => {
       );
     }
 
-    // 2. Update consulta status to cancelled
+    console.log(`Found consulta:`, JSON.stringify(consulta));
+
+    // 2. Cancel in Asaas FIRST (before updating local status)
+    if (consulta.asaas_payment_id) {
+      // Get Asaas config
+      const { data: asaasConfig, error: configError } = await supabase
+        .from('config_asaas')
+        .select('api_key, base_url')
+        .eq('ativo', true)
+        .maybeSingle();
+
+      if (!configError && asaasConfig) {
+        console.log(`Cancelling Asaas payment: ${consulta.asaas_payment_id}`);
+        
+        try {
+          const cancelResponse = await fetch(
+            `${asaasConfig.base_url}/payments/${consulta.asaas_payment_id}`,
+            {
+              method: 'DELETE',
+              headers: {
+                'access_token': asaasConfig.api_key,
+              },
+            }
+          );
+
+          const responseText = await cancelResponse.text();
+          console.log(`Asaas response status: ${cancelResponse.status}, body: ${responseText}`);
+
+          if (cancelResponse.ok) {
+            console.log('Asaas payment cancelled successfully');
+          } else {
+            console.error('Failed to cancel Asaas payment:', cancelResponse.status, responseText);
+            // Continue anyway - we still want to cancel locally
+          }
+        } catch (asaasError) {
+          console.error('Error calling Asaas API:', asaasError);
+          // Continue anyway - we still want to cancel locally
+        }
+      } else {
+        console.log('No active Asaas config found');
+      }
+    } else {
+      console.log('No Asaas payment ID - skipping Asaas cancellation');
+    }
+
+    // 3. Update consulta status to cancelled
     const { error: updateError } = await supabase
       .from('consultas')
       .update({ 
@@ -61,39 +106,48 @@ serve(async (req) => {
       );
     }
 
-    // 3. If has asaas_payment_id, cancel in Asaas
-    if (consulta.asaas_payment_id) {
-      // Get Asaas config
-      const { data: asaasConfig, error: configError } = await supabase
-        .from('config_asaas')
-        .select('api_key, base_url')
-        .eq('ativo', true)
-        .maybeSingle();
+    console.log('Consulta status updated to cancelada');
 
-      if (!configError && asaasConfig) {
-        console.log(`Cancelling Asaas payment: ${consulta.asaas_payment_id}`);
-        
-        const cancelResponse = await fetch(
-          `${asaasConfig.base_url}/payments/${consulta.asaas_payment_id}`,
-          {
-            method: 'DELETE',
-            headers: {
-              'access_token': asaasConfig.api_key,
-            },
-          }
-        );
-
-        if (cancelResponse.ok) {
-          console.log('Asaas payment cancelled successfully');
-        } else {
-          const errorText = await cancelResponse.text();
-          console.error('Failed to cancel Asaas payment:', cancelResponse.status, errorText);
-          // Continue anyway - local cancellation was successful
-        }
+    // 4. Reopen the agenda slot
+    if (consulta.agenda_slot_id) {
+      console.log(`Reopening agenda slot: ${consulta.agenda_slot_id}`);
+      const { error: slotError } = await supabase
+        .from('agenda_slots')
+        .update({ disponivel: true })
+        .eq('id', consulta.agenda_slot_id);
+      
+      if (slotError) {
+        console.error('Error reopening slot by ID:', slotError);
+      } else {
+        console.log('Agenda slot reopened successfully');
+      }
+    } else if (consulta.medico_id && consulta.data_hora) {
+      // Try to find and reopen by medico_id + data_hora
+      console.log(`Trying to reopen slot by medico_id + data_hora: ${consulta.medico_id}, ${consulta.data_hora}`);
+      const { error: slotError } = await supabase
+        .from('agenda_slots')
+        .update({ disponivel: true })
+        .eq('medico_id', consulta.medico_id)
+        .eq('data_hora', consulta.data_hora);
+      
+      if (slotError) {
+        console.error('Error reopening slot by medico/data:', slotError);
+      } else {
+        console.log('Agenda slot reopened by medico/data');
       }
     } else {
-      console.log('No Asaas payment ID - skipping Asaas cancellation');
+      console.log('No agenda_slot_id or medico_id/data_hora to reopen slot');
     }
+
+    // 5. Log the event
+    await supabase.from('consultas_eventos').insert({
+      consulta_id: consulta_id,
+      tipo_evento: 'cancelada',
+      descricao: 'Consulta cancelada pelo paciente',
+      usuario_tipo: 'paciente',
+    });
+
+    console.log('Cancellation completed successfully');
 
     return new Response(
       JSON.stringify({ success: true, message: 'Consulta cancelada com sucesso' }),
