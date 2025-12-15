@@ -19,8 +19,10 @@ import {
   AlertCircle,
   Clock,
   Pencil,
-  X
+  X,
+  Lock
 } from "lucide-react";
+import { maskCPF } from "@/lib/maskUtils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -304,8 +306,10 @@ export default function ConsultaDetalhesModal({
                       </p>
                     </div>
                     <div>
-                      <Label className="text-muted-foreground text-xs">CPF</Label>
-                      <p className="font-medium">{formatCPF(consulta.paciente?.cpf)}</p>
+                      <Label className="text-muted-foreground text-xs flex items-center gap-1">
+                        CPF <Lock className="h-3 w-3" />
+                      </Label>
+                      <p className="font-medium text-muted-foreground">{maskCPF(consulta.paciente?.cpf)}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs">Data de Nascimento</Label>

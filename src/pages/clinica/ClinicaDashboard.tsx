@@ -18,7 +18,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock, Sun, Cloud, CloudRain, MapPin, ArrowRight, CheckCircle, XCircle, AlertCircle, CalendarDays, Phone } from "lucide-react";
+import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock, Sun, Cloud, CloudRain, MapPin, ArrowRight, CheckCircle, XCircle, AlertCircle, CalendarDays, Phone, Lock } from "lucide-react";
+import { maskPhone, maskCPF } from "@/lib/maskUtils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, parseISO, isToday, isTomorrow, startOfDay, endOfDay } from "date-fns";
@@ -657,11 +658,10 @@ export default function ClinicaDashboard() {
                         </p>
                       </TableCell>
                       <TableCell>
-                        {consulta.paciente?.telefone ? (
-                          <span className="text-sm">{consulta.paciente.telefone}</span>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <Lock className="h-3 w-3" />
+                          {maskPhone(consulta.paciente?.telefone)}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div>
@@ -756,22 +756,21 @@ export default function ClinicaDashboard() {
                       <TableCell>
                         <div>
                           <p className="font-medium">
-                            {consulta.nome_paciente_consulta || consulta.paciente?.nome || "—"}
+                          {consulta.nome_paciente_consulta || consulta.paciente?.nome || "—"}
                           </p>
                           {consulta.paciente?.cpf && (
-                            <p className="text-xs text-muted-foreground">CPF: {consulta.paciente.cpf}</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Lock className="h-3 w-3" />
+                              CPF: {maskCPF(consulta.paciente.cpf)}
+                            </p>
                           )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        {consulta.paciente?.telefone ? (
-                          <div className="flex items-center gap-1 text-sm">
-                            <Phone className="h-3 w-3 text-muted-foreground" />
-                            {consulta.paciente.telefone}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <Lock className="h-3 w-3" />
+                          {maskPhone(consulta.paciente?.telefone)}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div>

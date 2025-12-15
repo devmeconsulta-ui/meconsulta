@@ -39,7 +39,9 @@ import {
   ChevronDown, 
   Calendar,
   CalendarIcon,
+  Lock
 } from "lucide-react";
+import { maskPhone } from "@/lib/maskUtils";
 
 interface UsuarioClinica {
   id: string;
@@ -421,8 +423,9 @@ export function AgendaInternaModal({
                           onClick={() => selectPaciente(paciente)}
                         >
                           <p className="font-medium">{paciente.nome}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {paciente.telefone || "Sem telefone"}
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Lock className="h-3 w-3" />
+                            {maskPhone(paciente.telefone)}
                           </p>
                         </button>
                       ))}

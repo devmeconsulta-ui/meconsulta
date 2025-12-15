@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Users, Phone, MapPin, Eye, Download, Filter, X } from "lucide-react";
+import { Search, Users, Phone, MapPin, Eye, Download, Filter, X, Lock } from "lucide-react";
+import { maskPhone, maskCPF } from "@/lib/maskUtils";
 import {
   Table,
   TableBody,
@@ -168,11 +169,12 @@ export default function ClinicaPacientes() {
       return;
     }
 
-    const headers = ["Nome", "CPF", "Telefone", "Cidade", "Estado", "Consultas"];
+    // Marketplace: não exportar dados sensíveis completos
+    const headers = ["Nome", "CPF (Mascarado)", "Telefone (Mascarado)", "Cidade", "Estado", "Consultas"];
     const rows = filteredPacientes.map((item: any) => [
       item.paciente.nome || "",
-      item.paciente.cpf || "",
-      item.paciente.telefone || "",
+      maskCPF(item.paciente.cpf),
+      maskPhone(item.paciente.telefone),
       item.paciente.cidade || "",
       item.paciente.estado || "",
       item.consultaCount.toString(),
@@ -358,22 +360,19 @@ export default function ClinicaPacientes() {
                             <div>
                               <p className="font-medium">{item.paciente.nome}</p>
                               {item.paciente.cpf && (
-                                <p className="text-xs text-muted-foreground">
-                                  CPF: {item.paciente.cpf}
+                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Lock className="h-3 w-3" />
+                                  CPF: {maskCPF(item.paciente.cpf)}
                                 </p>
                               )}
                             </div>
                           </div>
                         </TableCell>
                         <TableCell onClick={() => handleOpenDetails(item)}>
-                          {item.paciente.telefone ? (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                              {item.paciente.telefone}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">—</span>
-                          )}
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Lock className="h-3.5 w-3.5" />
+                            {maskPhone(item.paciente.telefone)}
+                          </div>
                         </TableCell>
                         <TableCell onClick={() => handleOpenDetails(item)}>
                           {item.paciente.cidade && item.paciente.estado ? (
