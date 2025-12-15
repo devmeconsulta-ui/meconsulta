@@ -657,7 +657,7 @@ export default function ClinicaAgenda() {
               <p className="text-muted-foreground">Nenhum horário para este dia</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {daySlots.map((slot) => {
                 const slotInfo = getSlotStatus(slot);
                 const isLivre = slotInfo.status === "livre";
@@ -670,72 +670,79 @@ export default function ClinicaAgenda() {
                 return (
                   <div
                     key={slot.id}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                    className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
                       isLivre
-                        ? "bg-primary/5 border-primary/20 hover:border-primary/40 hover:bg-primary/10"
+                        ? "bg-white dark:bg-card border-blue-200 dark:border-blue-800 hover:border-blue-400"
                         : isOnline
-                        ? "bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800"
+                        ? "bg-blue-50 dark:bg-blue-950/50 border-blue-300 dark:border-blue-700"
                         : isInterna
-                        ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
+                        ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700"
                         : isBloqueado
-                        ? "bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800"
+                        ? "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"
                         : "bg-muted/50 border-border"
                     }`}
                   >
                     <div className="flex items-center gap-4 flex-wrap">
-                      <div className="flex items-center gap-2 min-w-[80px]">
-                        {isBloqueado && <Ban className="w-4 h-4 text-red-500" />}
-                        <Clock className={`w-4 h-4 ${isBloqueado ? "text-red-500" : isLivre ? "text-primary" : "text-muted-foreground"}`} />
-                        <span className={`font-semibold ${isBloqueado ? "text-red-600 dark:text-red-400" : ""}`}>
+                      {/* Ícone de bloqueio à esquerda do horário */}
+                      {isBloqueado && (
+                        <Ban className="w-5 h-5 text-red-500" />
+                      )}
+                      
+                      {/* Horário */}
+                      <div className="flex items-center gap-2">
+                        <Clock className={`w-5 h-5 ${isBloqueado ? "text-red-500" : "text-muted-foreground"}`} />
+                        <span className={`text-lg font-bold ${isBloqueado ? "text-red-600 dark:text-red-400" : "text-foreground"}`}>
                           {format(parseISO(slot.data_hora), "HH:mm")}
                         </span>
                       </div>
                       
+                      {/* Badge do Médico - Amarelo */}
                       {medicoNome && (
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge className="bg-amber-400 hover:bg-amber-500 text-amber-950 border-0 text-xs font-medium uppercase px-3 py-1">
                           <User className="w-3 h-3 mr-1" />
                           Dr(a). {medicoNome}
                         </Badge>
                       )}
                       
-                      <div className="flex items-center gap-2">
-                        {slot.locais_atendimento && (
-                          <Badge variant="outline" className="text-xs">
-                            <MapPin className="w-3 h-3 mr-1" />
-                            {slot.locais_atendimento.nome_local}
-                          </Badge>
-                        )}
-                        
-                        {slotInfo.pacienteNome ? (
-                          <div className="flex items-center gap-2">
-                            {isOnline ? (
-                              <Badge className="bg-blue-600 text-white text-xs">
-                                <Globe className="w-3 h-3 mr-1" />
-                                Online
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-emerald-600 text-white text-xs">
-                                <Building2 className="w-3 h-3 mr-1" />
-                                Interno
-                              </Badge>
-                            )}
-                            <span className="font-medium">{slotInfo.pacienteNome}</span>
-                          </div>
-                        ) : isBloqueado ? (
-                          <Badge variant="destructive" className="text-xs">Bloqueado</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">Disponível</Badge>
-                        )}
-                      </div>
+                      {/* Badge do Local - Cinza */}
+                      {slot.locais_atendimento && (
+                        <Badge variant="secondary" className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-0 text-xs px-3 py-1">
+                          <MapPin className="w-3 h-3 mr-1" />
+                          {slot.locais_atendimento.nome_local}
+                        </Badge>
+                      )}
+                      
+                      {/* Badge de Status */}
+                      {slotInfo.pacienteNome ? (
+                        <div className="flex items-center gap-2">
+                          {isOnline ? (
+                            <Badge className="bg-blue-600 text-white text-xs">
+                              <Globe className="w-3 h-3 mr-1" />
+                              Online
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-emerald-600 text-white text-xs">
+                              <Building2 className="w-3 h-3 mr-1" />
+                              Interno
+                            </Badge>
+                          )}
+                          <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
+                        </div>
+                      ) : isBloqueado ? (
+                        <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1">Bloqueado</Badge>
+                      ) : (
+                        <Badge className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-0 text-xs px-3 py-1">Disponível</Badge>
+                      )}
                     </div>
                     
-                    <div className="flex items-center gap-2">
+                    {/* Ações à direita */}
+                    <div className="flex items-center gap-3">
                       {isLivre && (
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => handleSlotClick(slot)}
-                          className="gap-1 text-primary hover:text-primary"
+                          className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
                         >
                           <Plus className="w-4 h-4" />
                           Marcar
@@ -746,10 +753,10 @@ export default function ClinicaAgenda() {
                           size="icon"
                           variant="ghost"
                           onClick={(e) => handleToggleSlotBlock(slot, e)}
-                          className={isBloqueado ? "text-green-600 hover:text-green-700" : "text-red-500 hover:text-red-600"}
+                          className={isBloqueado ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-red-500 hover:text-red-600 hover:bg-red-50"}
                           title={isBloqueado ? "Liberar horário" : "Bloquear horário"}
                         >
-                          {isBloqueado ? <Unlock className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                          {isBloqueado ? <Unlock className="w-5 h-5" /> : <Ban className="w-5 h-5" />}
                         </Button>
                       )}
                     </div>
@@ -867,7 +874,7 @@ export default function ClinicaAgenda() {
                 <p className="text-muted-foreground">Nenhum horário para este dia</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {daySlots.map((slot) => {
                   const slotInfo = getSlotStatus(slot);
                   const isLivre = slotInfo.status === "livre";
@@ -880,72 +887,79 @@ export default function ClinicaAgenda() {
                   return (
                     <div
                       key={slot.id}
-                      className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                      className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
                         isLivre
-                          ? "bg-primary/5 border-primary/20 hover:border-primary/40 hover:bg-primary/10"
+                          ? "bg-white dark:bg-card border-blue-200 dark:border-blue-800 hover:border-blue-400"
                           : isOnline
-                          ? "bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800"
+                          ? "bg-blue-50 dark:bg-blue-950/50 border-blue-300 dark:border-blue-700"
                           : isInterna
-                          ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
+                          ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700"
                           : isBloqueado
-                          ? "bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800"
+                          ? "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"
                           : "bg-muted/50 border-border"
                       }`}
                     >
                       <div className="flex items-center gap-4 flex-wrap">
-                        <div className="flex items-center gap-2 min-w-[80px]">
-                          {isBloqueado && <Ban className="w-4 h-4 text-red-500" />}
-                          <Clock className={`w-4 h-4 ${isBloqueado ? "text-red-500" : isLivre ? "text-primary" : "text-muted-foreground"}`} />
-                          <span className={`font-semibold ${isBloqueado ? "text-red-600 dark:text-red-400" : ""}`}>
+                        {/* Ícone de bloqueio à esquerda do horário */}
+                        {isBloqueado && (
+                          <Ban className="w-5 h-5 text-red-500" />
+                        )}
+                        
+                        {/* Horário */}
+                        <div className="flex items-center gap-2">
+                          <Clock className={`w-5 h-5 ${isBloqueado ? "text-red-500" : "text-muted-foreground"}`} />
+                          <span className={`text-lg font-bold ${isBloqueado ? "text-red-600 dark:text-red-400" : "text-foreground"}`}>
                             {format(parseISO(slot.data_hora), "HH:mm")}
                           </span>
                         </div>
                         
+                        {/* Badge do Médico - Amarelo */}
                         {medicoNome && (
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge className="bg-amber-400 hover:bg-amber-500 text-amber-950 border-0 text-xs font-medium uppercase px-3 py-1">
                             <User className="w-3 h-3 mr-1" />
                             Dr(a). {medicoNome}
                           </Badge>
                         )}
                         
-                        <div className="flex items-center gap-2">
-                          {slot.locais_atendimento && (
-                            <Badge variant="outline" className="text-xs">
-                              <MapPin className="w-3 h-3 mr-1" />
-                              {slot.locais_atendimento.nome_local}
-                            </Badge>
-                          )}
-                          
-                          {slotInfo.pacienteNome ? (
-                            <div className="flex items-center gap-2">
-                              {isOnline ? (
-                                <Badge className="bg-blue-600 text-white text-xs">
-                                  <Globe className="w-3 h-3 mr-1" />
-                                  Online
-                                </Badge>
-                              ) : (
-                                <Badge className="bg-emerald-600 text-white text-xs">
-                                  <Building2 className="w-3 h-3 mr-1" />
-                                  Interno
-                                </Badge>
-                              )}
-                              <span className="font-medium">{slotInfo.pacienteNome}</span>
-                            </div>
-                          ) : isBloqueado ? (
-                            <Badge variant="destructive" className="text-xs">Bloqueado</Badge>
-                          ) : (
-                            <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">Disponível</Badge>
-                          )}
-                        </div>
+                        {/* Badge do Local - Cinza */}
+                        {slot.locais_atendimento && (
+                          <Badge variant="secondary" className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-0 text-xs px-3 py-1">
+                            <MapPin className="w-3 h-3 mr-1" />
+                            {slot.locais_atendimento.nome_local}
+                          </Badge>
+                        )}
+                        
+                        {/* Badge de Status */}
+                        {slotInfo.pacienteNome ? (
+                          <div className="flex items-center gap-2">
+                            {isOnline ? (
+                              <Badge className="bg-blue-600 text-white text-xs">
+                                <Globe className="w-3 h-3 mr-1" />
+                                Online
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-emerald-600 text-white text-xs">
+                                <Building2 className="w-3 h-3 mr-1" />
+                                Interno
+                              </Badge>
+                            )}
+                            <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
+                          </div>
+                        ) : isBloqueado ? (
+                          <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1">Bloqueado</Badge>
+                        ) : (
+                          <Badge className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-0 text-xs px-3 py-1">Disponível</Badge>
+                        )}
                       </div>
                       
-                      <div className="flex items-center gap-2">
+                      {/* Ações à direita */}
+                      <div className="flex items-center gap-3">
                         {isLivre && (
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => handleSlotClick(slot)}
-                            className="gap-1 text-primary hover:text-primary"
+                            className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
                           >
                             <Plus className="w-4 h-4" />
                             Marcar
@@ -956,10 +970,10 @@ export default function ClinicaAgenda() {
                             size="icon"
                             variant="ghost"
                             onClick={(e) => handleToggleSlotBlock(slot, e)}
-                            className={isBloqueado ? "text-green-600 hover:text-green-700" : "text-red-500 hover:text-red-600"}
+                            className={isBloqueado ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-red-500 hover:text-red-600 hover:bg-red-50"}
                             title={isBloqueado ? "Liberar horário" : "Bloquear horário"}
                           >
-                            {isBloqueado ? <Unlock className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                            {isBloqueado ? <Unlock className="w-5 h-5" /> : <Ban className="w-5 h-5" />}
                           </Button>
                         )}
                       </div>
