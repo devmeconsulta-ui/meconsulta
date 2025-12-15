@@ -92,6 +92,7 @@ export function EditarConsultaModal({
   useEffect(() => {
     if (consulta && open) {
       const dataHora = parseISO(consulta.data_hora);
+      // Carrega dados iniciais - valor será recalculado após carregar procedimentos
       setFormData({
         data_hora: format(dataHora, "yyyy-MM-dd'T'HH:mm"),
         status_consulta: consulta.status_consulta || "confirmada",
@@ -118,11 +119,17 @@ export function EditarConsultaModal({
       .order("created_at", { ascending: true });
     
     if (!error && data) {
-      setProcedimentos(data.map(p => ({
+      const procs = data.map(p => ({
         id: p.id,
         nome_procedimento: p.nome_procedimento,
         valor: Number(p.valor)
-      })));
+      }));
+      setProcedimentos(procs);
+      
+      // Recalcula valor base: valor_consulta salvo - soma dos procedimentos existentes
+      const somaProcedimentos = procs.reduce((sum, p) => sum + p.valor, 0);
+      const valorBase = (consulta.valor_consulta || 0) - somaProcedimentos;
+      setFormData(prev => ({ ...prev, valor_consulta: Math.max(0, valorBase) }));
     }
     setProcedimentosRemovidos([]);
   };
@@ -177,6 +184,7 @@ export function EditarConsultaModal({
     
     setLoading(true);
     try {
+      // valor_consulta = valor base + procedimentos (reflete em todo sistema financeiro)
       const updateData: any = {
         data_hora: new Date(formData.data_hora).toISOString(),
         status_consulta: formData.status_consulta,
@@ -184,7 +192,7 @@ export function EditarConsultaModal({
         motivo_consulta: formData.motivo_consulta || null,
         sintomas: formData.sintomas || null,
         observacoes_paciente: formData.observacoes_paciente || null,
-        valor_consulta: valorTotal, // Save total including procedures
+        valor_consulta: valorTotal, // Total = base + procedimentos (reflete nos relatórios financeiros)
         nome_paciente_consulta: formData.nome_paciente_consulta || null,
       };
 
