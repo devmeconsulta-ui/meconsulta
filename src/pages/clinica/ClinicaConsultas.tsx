@@ -171,27 +171,36 @@ export default function ClinicaConsultas() {
     });
   }, [consultas, search, medicoFilter, statusFilter, origemFilter]);
 
-  // Count pending consultations
+  // Count pending and cancelled consultations
   const pendingCount = useMemo(() => {
     if (!consultas) return 0;
     return consultas.filter((c: any) => c.status_consulta === "aguardando_pagamento").length;
   }, [consultas]);
 
-  // Delete all pending consultations
-  const handleDeletePending = async () => {
-    if (!consultas || pendingCount === 0) return;
+  const cancelledCount = useMemo(() => {
+    if (!consultas) return 0;
+    return consultas.filter((c: any) => c.status_consulta === "cancelada").length;
+  }, [consultas]);
+
+  const cleanupCount = pendingCount + cancelledCount;
+
+  // Delete all pending and cancelled consultations
+  const handleDeleteCleanup = async () => {
+    if (!consultas || cleanupCount === 0) return;
 
     setIsDeleting(true);
     try {
-      const pendingConsultas = consultas.filter((c: any) => c.status_consulta === "aguardando_pagamento");
-      const pendingIds = pendingConsultas.map((c: any) => c.id);
-      const slotIds = pendingConsultas.map((c: any) => c.agenda_slot_id).filter(Boolean);
+      const cleanupConsultas = consultas.filter((c: any) => 
+        c.status_consulta === "aguardando_pagamento" || c.status_consulta === "cancelada"
+      );
+      const cleanupIds = cleanupConsultas.map((c: any) => c.id);
+      const slotIds = cleanupConsultas.map((c: any) => c.agenda_slot_id).filter(Boolean);
 
       // Delete consultas
       const { error: deleteError } = await supabase
         .from("consultas")
         .delete()
-        .in("id", pendingIds);
+        .in("id", cleanupIds);
 
       if (deleteError) throw deleteError;
 
@@ -205,7 +214,7 @@ export default function ClinicaConsultas() {
 
       toast({
         title: "Consultas excluídas",
-        description: `${pendingIds.length} consulta(s) aguardando pagamento foram removidas.`,
+        description: `${cleanupIds.length} consulta(s) foram removidas (${pendingCount} pendentes, ${cancelledCount} canceladas).`,
       });
 
       // Refresh data
@@ -342,27 +351,31 @@ export default function ClinicaConsultas() {
         </CollapsibleContent>
         </Collapsible>
 
-        {/* Delete pending button */}
-        {pendingCount > 0 && (
+        {/* Delete pending/cancelled button */}
+        {cleanupCount > 0 && (
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm" className="gap-2">
                 <Trash2 className="w-4 h-4" />
-                Excluir pendentes ({pendingCount})
+                Limpar ({cleanupCount})
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Excluir consultas pendentes?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta ação irá excluir <strong>{pendingCount} consulta(s)</strong> que estão aguardando pagamento. 
-                  Os horários serão liberados novamente na agenda. Esta ação não pode ser desfeita.
+                <AlertDialogTitle>Limpar consultas?</AlertDialogTitle>
+                <AlertDialogDescription className="space-y-2">
+                  <p>Esta ação irá excluir:</p>
+                  <ul className="list-disc list-inside text-sm">
+                    {pendingCount > 0 && <li><strong>{pendingCount}</strong> consulta(s) aguardando pagamento</li>}
+                    {cancelledCount > 0 && <li><strong>{cancelledCount}</strong> consulta(s) canceladas</li>}
+                  </ul>
+                  <p className="pt-2">Os horários serão liberados na agenda. Esta ação não pode ser desfeita.</p>
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={handleDeletePending}
+                  onClick={handleDeleteCleanup}
                   disabled={isDeleting}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
@@ -374,7 +387,7 @@ export default function ClinicaConsultas() {
                   ) : (
                     <>
                       <Trash2 className="w-4 h-4 mr-2" />
-                      Excluir {pendingCount} consulta(s)
+                      Excluir {cleanupCount} consulta(s)
                     </>
                   )}
                 </AlertDialogAction>
