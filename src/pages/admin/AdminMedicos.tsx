@@ -54,6 +54,9 @@ export default function AdminMedicos() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [especialidadeFilter, setEspecialidadeFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedMedico, setSelectedMedico] = useState<any>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     nome: "",
@@ -64,6 +67,18 @@ export default function AdminMedicos() {
     percentual_repasse: 75,
     pix_key: "",
     pix_key_type: "",
+  });
+
+  const [editFormData, setEditFormData] = useState({
+    nome: "",
+    especialidade: "",
+    crm: "",
+    valor_consulta: 160,
+    percentual_repasse: 75,
+    pix_key: "",
+    pix_key_type: "",
+    telefone_whatsapp: "",
+    bio: "",
   });
 
   // Fetch médicos with filters
@@ -189,6 +204,36 @@ export default function AdminMedicos() {
     },
   });
 
+  // Update médico
+  const updateMedico = useMutation({
+    mutationFn: async (data: typeof editFormData & { id: string }) => {
+      const { error } = await supabase
+        .from("medicos")
+        .update({
+          nome: data.nome,
+          especialidade: data.especialidade,
+          crm: data.crm,
+          valor_consulta: data.valor_consulta,
+          percentual_repasse: data.percentual_repasse,
+          pix_key: data.pix_key,
+          pix_key_type: data.pix_key_type,
+          telefone_whatsapp: data.telefone_whatsapp,
+          bio: data.bio,
+        })
+        .eq("id", data.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-medicos"] });
+      toast.success("Médico atualizado com sucesso!");
+      setIsEditDialogOpen(false);
+      setSelectedMedico(null);
+    },
+    onError: (error: any) => {
+      toast.error(`Erro: ${error.message}`);
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nome || !formData.email) {
@@ -196,6 +241,36 @@ export default function AdminMedicos() {
       return;
     }
     createMedico.mutate(formData);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editFormData.nome) {
+      toast.error("Nome é obrigatório");
+      return;
+    }
+    updateMedico.mutate({ ...editFormData, id: selectedMedico.id });
+  };
+
+  const openViewDialog = (medico: any) => {
+    setSelectedMedico(medico);
+    setIsViewDialogOpen(true);
+  };
+
+  const openEditDialog = (medico: any) => {
+    setSelectedMedico(medico);
+    setEditFormData({
+      nome: medico.nome || "",
+      especialidade: medico.especialidade || "",
+      crm: medico.crm || "",
+      valor_consulta: medico.valor_consulta || 160,
+      percentual_repasse: medico.percentual_repasse || 75,
+      pix_key: medico.pix_key || "",
+      pix_key_type: medico.pix_key_type || "",
+      telefone_whatsapp: medico.telefone_whatsapp || "",
+      bio: medico.bio || "",
+    });
+    setIsEditDialogOpen(true);
   };
 
   const clearFilters = () => {
@@ -536,10 +611,10 @@ export default function AdminMedicos() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" title="Visualizar">
+                          <Button variant="ghost" size="icon" title="Visualizar" onClick={() => openViewDialog(medico)}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" title="Editar">
+                          <Button variant="ghost" size="icon" title="Editar" onClick={() => openEditDialog(medico)}>
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button
@@ -562,6 +637,187 @@ export default function AdminMedicos() {
           )}
         </CardContent>
       </Card>
+
+      {/* View Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Médico</DialogTitle>
+          </DialogHeader>
+          {selectedMedico && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                {selectedMedico.foto_url ? (
+                  <img src={selectedMedico.foto_url} alt={selectedMedico.nome} className="w-20 h-20 rounded-full object-cover" />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Stethoscope className="w-10 h-10 text-primary" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedMedico.nome}</h3>
+                  <p className="text-muted-foreground">{selectedMedico.especialidade || "Especialidade não informada"}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-xs">Email</Label>
+                  <p className="font-medium">{selectedMedico.usuario?.email || "—"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">CRM</Label>
+                  <p className="font-medium">{selectedMedico.crm || "—"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">WhatsApp</Label>
+                  <p className="font-medium">{selectedMedico.telefone_whatsapp || "—"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Status</Label>
+                  <Badge variant="secondary" className={selectedMedico.ativo ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                    {selectedMedico.ativo ? "Ativo" : "Inativo"}
+                  </Badge>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Valor Consulta</Label>
+                  <p className="font-medium">
+                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(selectedMedico.valor_consulta)}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">% Repasse</Label>
+                  <p className="font-medium">{selectedMedico.percentual_repasse}%</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Chave PIX</Label>
+                  <p className="font-medium">{selectedMedico.pix_key || "—"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Tipo PIX</Label>
+                  <p className="font-medium">{selectedMedico.pix_key_type || "—"}</p>
+                </div>
+              </div>
+              {selectedMedico.bio && (
+                <div>
+                  <Label className="text-muted-foreground text-xs">Bio</Label>
+                  <p className="text-sm">{selectedMedico.bio}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Médico</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-nome">Nome Completo *</Label>
+              <Input
+                id="edit-nome"
+                value={editFormData.nome}
+                onChange={(e) => setEditFormData({ ...editFormData, nome: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Especialidade</Label>
+              <Select
+                value={editFormData.especialidade}
+                onValueChange={(value) => setEditFormData({ ...editFormData, especialidade: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a especialidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  {especialidades.map((esp) => (
+                    <SelectItem key={esp} value={esp}>
+                      {esp}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-crm">CRM</Label>
+              <Input
+                id="edit-crm"
+                value={editFormData.crm}
+                onChange={(e) => setEditFormData({ ...editFormData, crm: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-whatsapp">WhatsApp</Label>
+              <Input
+                id="edit-whatsapp"
+                value={editFormData.telefone_whatsapp}
+                onChange={(e) => setEditFormData({ ...editFormData, telefone_whatsapp: e.target.value })}
+                placeholder="(00) 00000-0000"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Valor Consulta (R$)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={editFormData.valor_consulta}
+                  onChange={(e) => setEditFormData({ ...editFormData, valor_consulta: parseFloat(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Repasse (%)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={editFormData.percentual_repasse}
+                  onChange={(e) => setEditFormData({ ...editFormData, percentual_repasse: parseFloat(e.target.value) })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Chave Pix</Label>
+              <Input
+                value={editFormData.pix_key}
+                onChange={(e) => setEditFormData({ ...editFormData, pix_key: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo Chave Pix</Label>
+              <Select
+                value={editFormData.pix_key_type}
+                onValueChange={(value) => setEditFormData({ ...editFormData, pix_key_type: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CPF">CPF</SelectItem>
+                  <SelectItem value="EMAIL">Email</SelectItem>
+                  <SelectItem value="PHONE">Telefone</SelectItem>
+                  <SelectItem value="RANDOM">Aleatória</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-bio">Bio</Label>
+              <Input
+                id="edit-bio"
+                value={editFormData.bio}
+                onChange={(e) => setEditFormData({ ...editFormData, bio: e.target.value })}
+                placeholder="Breve descrição do médico"
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={updateMedico.isPending}>
+              {updateMedico.isPending ? "Salvando..." : "Salvar Alterações"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
