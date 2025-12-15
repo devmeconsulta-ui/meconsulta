@@ -428,11 +428,14 @@ export default function MedicoAgenda() {
   // Render day view
   function renderDayView() {
     const daySlots = getSlotsForDay(currentDate);
+    const freeSlots = daySlots.filter(s => getSlotStatus(s).status === "livre").length;
+    const bookedSlots = daySlots.filter(s => getSlotStatus(s).status === "reservado").length;
+    const blockedSlots = daySlots.filter(s => getSlotStatus(s).status === "indisponivel").length;
 
     return (
       <Card className="card-shadow">
         <CardContent className="p-4 md:p-6">
-          <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 pb-3 border-b">
             <div className="flex items-center gap-3">
               <div className={`p-3 rounded-xl ${isToday(currentDate) ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                 <span className="text-2xl font-bold">{format(currentDate, "dd")}</span>
@@ -446,32 +449,52 @@ export default function MedicoAgenda() {
                 </p>
               </div>
             </div>
-            {/* Botão de agendar no dia */}
-            <Button
-              size="sm"
-              onClick={() => {
-                if (locais.length > 0) {
-                  const dateTime = new Date(currentDate);
-                  dateTime.setHours(8, 0, 0, 0);
-                  const tempSlot: Slot = {
-                    id: 'manual-' + Date.now(),
-                    local_id: locais[0].id,
-                    data_hora: dateTime.toISOString(),
-                    disponivel: true,
-                    locais_atendimento: locais[0],
-                    consultas: [],
-                  };
-                  setSelectedSlot(tempSlot);
-                  setAgendaModalOpen(true);
-                } else {
-                  toast.error("Cadastre um local de atendimento primeiro");
-                }
-              }}
-              className="gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Agendar
-            </Button>
+            
+            {/* Stats do dia */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Badge variant="outline" className="gap-1">
+                  <div className="w-2 h-2 rounded-full bg-primary/50"></div>
+                  {freeSlots} livres
+                </Badge>
+                <Badge variant="outline" className="gap-1 bg-blue-50 dark:bg-blue-950">
+                  <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                  {bookedSlots} agendados
+                </Badge>
+                {blockedSlots > 0 && (
+                  <Badge variant="outline" className="gap-1 bg-red-50 dark:bg-red-950">
+                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                    {blockedSlots} bloqueados
+                  </Badge>
+                )}
+              </div>
+              
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (locais.length > 0) {
+                    const dateTime = new Date(currentDate);
+                    dateTime.setHours(8, 0, 0, 0);
+                    const tempSlot: Slot = {
+                      id: 'manual-' + Date.now(),
+                      local_id: locais[0].id,
+                      data_hora: dateTime.toISOString(),
+                      disponivel: true,
+                      locais_atendimento: locais[0],
+                      consultas: [],
+                    };
+                    setSelectedSlot(tempSlot);
+                    setAgendaModalOpen(true);
+                  } else {
+                    toast.error("Cadastre um local de atendimento primeiro");
+                  }
+                }}
+                className="gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Agendar
+              </Button>
+            </div>
           </div>
 
           {daySlots.length === 0 ? (
@@ -480,8 +503,97 @@ export default function MedicoAgenda() {
               <p className="text-muted-foreground">Nenhum horário para este dia</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {daySlots.map((slot) => renderSlot(slot))}
+            <div className="space-y-2">
+              {daySlots.map((slot) => {
+                const slotInfo = getSlotStatus(slot);
+                const isLivre = slotInfo.status === "livre";
+                const isOnline = slotInfo.origem === "online";
+                const isInterna = slotInfo.origem === "interna";
+                const isBloqueado = slotInfo.status === "indisponivel";
+                const hasConsulta = slot.consultas && slot.consultas.length > 0;
+
+                return (
+                  <div
+                    key={slot.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                      isLivre
+                        ? "bg-primary/5 border-primary/20 hover:border-primary/40 hover:bg-primary/10"
+                        : isOnline
+                        ? "bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800"
+                        : isInterna
+                        ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
+                        : isBloqueado
+                        ? "bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800"
+                        : "bg-muted/50 border-border"
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 min-w-[80px]">
+                        {isBloqueado && <Ban className="w-4 h-4 text-red-500" />}
+                        <Clock className={`w-4 h-4 ${isBloqueado ? "text-red-500" : isLivre ? "text-primary" : "text-muted-foreground"}`} />
+                        <span className={`font-semibold ${isBloqueado ? "text-red-600 dark:text-red-400" : ""}`}>
+                          {format(parseISO(slot.data_hora), "HH:mm")}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {slot.locais_atendimento && (
+                          <Badge variant="outline" className="text-xs">
+                            <MapPin className="w-3 h-3 mr-1" />
+                            {slot.locais_atendimento.nome_local}
+                          </Badge>
+                        )}
+                        
+                        {slotInfo.pacienteNome ? (
+                          <div className="flex items-center gap-2">
+                            {isOnline ? (
+                              <Badge className="bg-blue-600 text-white text-xs">
+                                <Globe className="w-3 h-3 mr-1" />
+                                Online
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-emerald-600 text-white text-xs">
+                                <Building2 className="w-3 h-3 mr-1" />
+                                Interno
+                              </Badge>
+                            )}
+                            <span className="font-medium">{slotInfo.pacienteNome}</span>
+                          </div>
+                        ) : isBloqueado ? (
+                          <Badge variant="destructive" className="text-xs">Bloqueado</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">Disponível</Badge>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {isLivre && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openBookingModal(slot)}
+                          className="gap-1 text-primary hover:text-primary"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Marcar
+                        </Button>
+                      )}
+                      {!hasConsulta && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={(e) => handleToggleSlotBlock(slot, e)}
+                          className={isBloqueado ? "text-green-600 hover:text-green-700" : "text-red-500 hover:text-red-600"}
+                          title={isBloqueado ? "Liberar horário" : "Bloquear horário"}
+                        >
+                          {isBloqueado ? <Unlock className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -537,16 +649,195 @@ export default function MedicoAgenda() {
     );
   }
 
+  // Estado para visualização expandida do dia no mês
+  const [expandedMonthDay, setExpandedMonthDay] = useState<Date | null>(null);
+
   // Render month view
   function renderMonthView() {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
     
-    // Get the first day of the calendar grid (may be from previous month)
     const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
     const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
     
     const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+
+    // Se tem dia expandido, mostrar os slots desse dia
+    if (expandedMonthDay) {
+      const daySlots = getSlotsForDay(expandedMonthDay);
+      const freeSlots = daySlots.filter(s => getSlotStatus(s).status === "livre").length;
+      const bookedSlots = daySlots.filter(s => getSlotStatus(s).status === "reservado").length;
+      const blockedSlots = daySlots.filter(s => getSlotStatus(s).status === "indisponivel").length;
+
+      return (
+        <Card className="card-shadow">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 pb-3 border-b">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="sm" onClick={() => setExpandedMonthDay(null)}>
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Voltar
+                </Button>
+                <div className={`p-3 rounded-xl ${isToday(expandedMonthDay) ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                  <span className="text-2xl font-bold">{format(expandedMonthDay, "dd")}</span>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold capitalize">
+                    {format(expandedMonthDay, "EEEE", { locale: ptBR })}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {format(expandedMonthDay, "MMMM 'de' yyyy", { locale: ptBR })}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <Badge variant="outline" className="gap-1">
+                    <div className="w-2 h-2 rounded-full bg-primary/50"></div>
+                    {freeSlots} livres
+                  </Badge>
+                  <Badge variant="outline" className="gap-1 bg-blue-50 dark:bg-blue-950">
+                    <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                    {bookedSlots} agendados
+                  </Badge>
+                  {blockedSlots > 0 && (
+                    <Badge variant="outline" className="gap-1 bg-red-50 dark:bg-red-950">
+                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                      {blockedSlots} bloqueados
+                    </Badge>
+                  )}
+                </div>
+                
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (locais.length > 0) {
+                      const dateTime = new Date(expandedMonthDay);
+                      dateTime.setHours(8, 0, 0, 0);
+                      const tempSlot: Slot = {
+                        id: 'manual-' + Date.now(),
+                        local_id: locais[0].id,
+                        data_hora: dateTime.toISOString(),
+                        disponivel: true,
+                        locais_atendimento: locais[0],
+                        consultas: [],
+                      };
+                      setSelectedSlot(tempSlot);
+                      setAgendaModalOpen(true);
+                    }
+                  }}
+                  className="gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Agendar
+                </Button>
+              </div>
+            </div>
+
+            {daySlots.length === 0 ? (
+              <div className="text-center py-12">
+                <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" />
+                <p className="text-muted-foreground">Nenhum horário para este dia</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {daySlots.map((slot) => {
+                  const slotInfo = getSlotStatus(slot);
+                  const isLivre = slotInfo.status === "livre";
+                  const isOnline = slotInfo.origem === "online";
+                  const isInterna = slotInfo.origem === "interna";
+                  const isBloqueado = slotInfo.status === "indisponivel";
+                  const hasConsulta = slot.consultas && slot.consultas.length > 0;
+
+                  return (
+                    <div
+                      key={slot.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                        isLivre
+                          ? "bg-primary/5 border-primary/20 hover:border-primary/40 hover:bg-primary/10"
+                          : isOnline
+                          ? "bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800"
+                          : isInterna
+                          ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
+                          : isBloqueado
+                          ? "bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800"
+                          : "bg-muted/50 border-border"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 min-w-[80px]">
+                          {isBloqueado && <Ban className="w-4 h-4 text-red-500" />}
+                          <Clock className={`w-4 h-4 ${isBloqueado ? "text-red-500" : isLivre ? "text-primary" : "text-muted-foreground"}`} />
+                          <span className={`font-semibold ${isBloqueado ? "text-red-600 dark:text-red-400" : ""}`}>
+                            {format(parseISO(slot.data_hora), "HH:mm")}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          {slot.locais_atendimento && (
+                            <Badge variant="outline" className="text-xs">
+                              <MapPin className="w-3 h-3 mr-1" />
+                              {slot.locais_atendimento.nome_local}
+                            </Badge>
+                          )}
+                          
+                          {slotInfo.pacienteNome ? (
+                            <div className="flex items-center gap-2">
+                              {isOnline ? (
+                                <Badge className="bg-blue-600 text-white text-xs">
+                                  <Globe className="w-3 h-3 mr-1" />
+                                  Online
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-emerald-600 text-white text-xs">
+                                  <Building2 className="w-3 h-3 mr-1" />
+                                  Interno
+                                </Badge>
+                              )}
+                              <span className="font-medium">{slotInfo.pacienteNome}</span>
+                            </div>
+                          ) : isBloqueado ? (
+                            <Badge variant="destructive" className="text-xs">Bloqueado</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">Disponível</Badge>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {isLivre && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openBookingModal(slot)}
+                            className="gap-1 text-primary hover:text-primary"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Marcar
+                          </Button>
+                        )}
+                        {!hasConsulta && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => handleToggleSlotBlock(slot, e)}
+                            className={isBloqueado ? "text-green-600 hover:text-green-700" : "text-red-500 hover:text-red-600"}
+                            title={isBloqueado ? "Liberar horário" : "Bloquear horário"}
+                          >
+                            {isBloqueado ? <Unlock className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      );
+    }
 
     return (
       <Card className="card-shadow">
@@ -569,33 +860,14 @@ export default function MedicoAgenda() {
               
               const freeSlots = daySlots.filter(s => getSlotStatus(s).status === "livre").length;
               const bookedSlots = daySlots.filter(s => getSlotStatus(s).status === "reservado").length;
-
-              // Handle clicking on a day cell to open booking modal
-              const handleDayClick = () => {
-                if (!isCurrentMonth || locais.length === 0) return;
-                
-                // Create a temporary slot for this day
-                const dateTime = new Date(day);
-                dateTime.setHours(8, 0, 0, 0);
-                
-                const tempSlot: Slot = {
-                  id: 'manual-' + Date.now(),
-                  local_id: locais[0].id,
-                  data_hora: dateTime.toISOString(),
-                  disponivel: true,
-                  locais_atendimento: locais[0],
-                  consultas: [],
-                };
-                setSelectedSlot(tempSlot);
-                setAgendaModalOpen(true);
-              };
+              const blockedSlots = daySlots.filter(s => getSlotStatus(s).status === "indisponivel").length;
 
               return (
                 <button
                   type="button"
                   key={day.toISOString()}
-                  onClick={handleDayClick}
-                  disabled={!isCurrentMonth || locais.length === 0}
+                  onClick={() => isCurrentMonth && setExpandedMonthDay(day)}
+                  disabled={!isCurrentMonth}
                   className={`min-h-[80px] md:min-h-[100px] p-1 md:p-2 rounded-lg border transition-all text-left ${
                     !isCurrentMonth 
                       ? "bg-muted/30 border-transparent cursor-default" 
@@ -626,6 +898,12 @@ export default function MedicoAgenda() {
                         <div className="flex items-center gap-1">
                           <div className="w-2 h-2 rounded-full bg-blue-600"></div>
                           <span className="text-[10px] text-muted-foreground">{bookedSlots} agend.</span>
+                        </div>
+                      )}
+                      {blockedSlots > 0 && (
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                          <span className="text-[10px] text-muted-foreground">{blockedSlots} bloq.</span>
                         </div>
                       )}
                     </div>
