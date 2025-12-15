@@ -171,17 +171,20 @@ export default function ClinicaDashboard() {
       const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
       const medicosCount = medicoFilter === "todos" ? medicoIds.length : 1;
 
-      // IMPORTANTE: Filtrar por clinica_id para isolar dados entre clínicas
-      let query = supabase
+      // Buscar consultas pelos médicos vinculados (inclui consultas com clinica_id NULL)
+      const { data: consultasData } = await supabase
         .from("consultas")
-        .select("id, data_hora, valor_consulta, status_pagamento, status_consulta, origem, paciente_id, medico_id")
-        .eq("clinica_id", clinicaData.id)
+        .select("id, data_hora, valor_consulta, status_pagamento, status_consulta, origem, paciente_id, medico_id, clinica_id, local:locais_atendimento(clinica_id)")
         .in("medico_id", filterMedicoIds)
         .gte("data_hora", dateRange.start.toISOString())
         .lte("data_hora", dateRange.end.toISOString());
 
-      const { data: consultasData } = await query;
-      const consultas = consultasData || [];
+      // Filtrar para consultas que pertencem à clínica (por clinica_id direto ou pelo local)
+      const consultas = (consultasData || []).filter((c: any) => 
+        c.clinica_id === clinicaData.id || 
+        c.local?.clinica_id === clinicaData.id ||
+        c.clinica_id === null
+      );
 
       const faturamento = consultas
         .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
@@ -255,8 +258,8 @@ export default function ClinicaDashboard() {
 
       const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
 
-      // IMPORTANTE: Filtrar por clinica_id para isolar dados entre clínicas
-      let query = supabase
+      // Buscar consultas pelos médicos vinculados (sem filtro por clinica_id para incluir consultas com clinica_id NULL)
+      const { data, error } = await supabase
         .from("consultas")
         .select(`
           id,
@@ -269,26 +272,31 @@ export default function ClinicaDashboard() {
           motivo_consulta,
           sintomas,
           nome_paciente_consulta,
+          clinica_id,
           paciente:pacientes(id, nome, telefone, cpf),
           medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
-          local:locais_atendimento(nome_local, cidade)
+          local:locais_atendimento(nome_local, cidade, clinica_id)
         `)
-        .eq("clinica_id", clinicaData.id)
         .in("medico_id", filterMedicoIds)
         .gte("data_hora", new Date().toISOString())
         .neq("status_consulta", "cancelada")
-        .order("data_hora", { ascending: true })
-        .limit(10);
+        .order("data_hora", { ascending: true });
+
+      if (error) throw error;
+      
+      // Filtrar consultas que pertencem à clínica (por clinica_id direto ou pelo local)
+      let filteredData = (data || []).filter((c: any) => 
+        c.clinica_id === clinicaData.id || 
+        c.local?.clinica_id === clinicaData.id ||
+        c.clinica_id === null
+      );
 
       // Apply status filter
       if (statusFilter !== "todos") {
-        query = query.eq("status_consulta", statusFilter);
+        filteredData = filteredData.filter((c: any) => c.status_consulta === statusFilter);
       }
 
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data || [];
+      return filteredData.slice(0, 10);
     },
     enabled: !!clinicaData?.id,
   });
@@ -313,7 +321,7 @@ export default function ClinicaDashboard() {
       const todayStart = startOfDay(new Date()).toISOString();
       const todayEnd = endOfDay(new Date()).toISOString();
 
-      // IMPORTANTE: Filtrar por clinica_id para isolar dados entre clínicas
+      // Buscar consultas pelos médicos vinculados (sem filtro por clinica_id para incluir consultas com clinica_id NULL)
       const { data, error } = await supabase
         .from("consultas")
         .select(`
@@ -325,11 +333,11 @@ export default function ClinicaDashboard() {
           origem,
           motivo_consulta,
           nome_paciente_consulta,
+          clinica_id,
           paciente:pacientes(id, nome, telefone),
           medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
-          local:locais_atendimento(nome_local)
+          local:locais_atendimento(nome_local, clinica_id)
         `)
-        .eq("clinica_id", clinicaData.id)
         .in("medico_id", filterMedicoIds)
         .gte("data_hora", todayStart)
         .lte("data_hora", todayEnd)
@@ -337,7 +345,13 @@ export default function ClinicaDashboard() {
         .order("data_hora", { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      
+      // Filtrar consultas que pertencem à clínica (por clinica_id direto ou pelo local)
+      return (data || []).filter((c: any) => 
+        c.clinica_id === clinicaData.id || 
+        c.local?.clinica_id === clinicaData.id ||
+        c.clinica_id === null
+      );
     },
     enabled: !!clinicaData?.id,
   });
