@@ -116,7 +116,11 @@ export default function MedicoAgenda() {
   // Date range helpers
   function getDateRange() {
     if (viewMode === "dia") {
-      return { start: currentDate, end: currentDate };
+      const start = new Date(currentDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(currentDate);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
     } else if (viewMode === "semana") {
       return {
         start: startOfWeek(currentDate, { weekStartsOn: 1 }),
