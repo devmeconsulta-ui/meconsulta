@@ -37,6 +37,7 @@ interface Consulta {
   finalizado_medico: boolean | null;
   finalizado_paciente: boolean | null;
   elegivel_repasse: boolean | null;
+  medico_id: string | null;
   paciente: {
     id: string;
     nome: string;
@@ -111,6 +112,7 @@ export default function MedicoConsultas() {
         finalizado_medico,
         finalizado_paciente,
         elegivel_repasse,
+        medico_id,
         paciente:pacientes!consultas_paciente_id_fkey(id, nome, cpf, data_nascimento, cidade, estado, bairro),
         dependente:paciente_dependentes(id, nome, parentesco)
       `)
@@ -389,12 +391,12 @@ export default function MedicoConsultas() {
       )}
 
       {/* Finalizar Modal */}
-      {consultaToFinalize && currentUser?.medicoId && (
+      {consultaToFinalize && consultaToFinalize.medico_id && (
         <FinalizarConsultaModal
           open={finalizarModalOpen}
           onOpenChange={setFinalizarModalOpen}
           consulta={consultaToFinalize}
-          medicoId={currentUser.medicoId}
+          medicoId={consultaToFinalize.medico_id}
           onSuccess={fetchConsultas}
         />
       )}
