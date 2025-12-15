@@ -98,31 +98,16 @@ type ViewMode = "dia" | "semana" | "mes";
 export default function MedicoAgenda() {
   const context = useOutletContext<MedicoContext>();
   const medicoData = context?.medicoData;
+  
+  // ALL hooks must be declared before any conditional returns
   const [locais, setLocais] = useState<Local[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [usuariosClinica, setUsuariosClinica] = useState<UsuarioClinica[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("semana");
-
-  // Proteção contra medicoData undefined
-  if (!medicoData?.id) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <p className="text-destructive font-medium text-lg">Erro ao carregar dados do médico</p>
-        <p className="text-muted-foreground text-sm text-center max-w-md">
-          Não foi possível encontrar os dados do médico vinculado à sua conta. 
-          Verifique se o cadastro está completo ou entre em contato com o suporte.
-        </p>
-      </div>
-    );
-  }
-
-  // Filters
   const [filterLocal, setFilterLocal] = useState("todos");
   const [filterOrigem, setFilterOrigem] = useState("todos");
-
-  // Modals
   const [agendaModalOpen, setAgendaModalOpen] = useState(false);
   const [gerarSlotsModalOpen, setGerarSlotsModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
@@ -151,8 +136,23 @@ export default function MedicoAgenda() {
   const { start: rangeStart, end: rangeEnd } = getDateRange();
 
   useEffect(() => {
-    fetchData();
+    if (medicoData?.id) {
+      fetchData();
+    }
   }, [medicoData, currentDate, viewMode]);
+
+  // Proteção contra medicoData undefined - AFTER all hooks
+  if (!medicoData?.id) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive font-medium text-lg">Erro ao carregar dados do médico</p>
+        <p className="text-muted-foreground text-sm text-center max-w-md">
+          Não foi possível encontrar os dados do médico vinculado à sua conta. 
+          Verifique se o cadastro está completo ou entre em contato com o suporte.
+        </p>
+      </div>
+    );
+  }
 
   async function fetchData() {
     setLoading(true);
