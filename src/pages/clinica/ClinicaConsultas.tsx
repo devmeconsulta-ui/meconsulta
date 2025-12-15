@@ -29,10 +29,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2 } from "lucide-react";
+import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit } from "lucide-react";
 import { format, subDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ConsultaDetalhesModal } from "@/components/clinica/ConsultaDetalhesModal";
+import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
 import { toast } from "@/hooks/use-toast";
 
 type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d";
@@ -44,6 +45,8 @@ export default function ClinicaConsultas() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
   const [detalhesOpen, setDetalhesOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [consultaToEdit, setConsultaToEdit] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
@@ -458,9 +461,22 @@ export default function ClinicaConsultas() {
                           size="icon"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setConsultaToEdit(consulta);
+                            setEditModalOpen(true);
+                          }}
+                          title="Editar consulta"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSelectedConsulta(consulta);
                             setDetalhesOpen(true);
                           }}
+                          title="Ver detalhes"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -482,7 +498,18 @@ export default function ClinicaConsultas() {
         open={detalhesOpen}
         onOpenChange={setDetalhesOpen}
         consulta={selectedConsulta}
+        onUpdate={() => queryClient.invalidateQueries({ queryKey: ["clinica-consultas"] })}
       />
+
+      {/* Edit Modal */}
+      {consultaToEdit && (
+        <EditarConsultaModal
+          open={editModalOpen}
+          onOpenChange={setEditModalOpen}
+          consulta={consultaToEdit}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ["clinica-consultas"] })}
+        />
+      )}
     </div>
   );
 }
