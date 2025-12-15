@@ -166,7 +166,8 @@ export default function PacienteConsultas() {
           .from("consultas")
           .select(`
             *,
-            medicos!consultas_medico_id_fkey (id, nome, especialidade, foto_url, crm)
+            medicos!consultas_medico_id_fkey (id, nome, especialidade, foto_url, crm),
+            local:locais_atendimento (id, nome_local, endereco, cidade, estado, tipo_atendimento)
           `)
           .eq("paciente_id", pacienteData.id)
           .order("data_hora", { ascending: false }),
@@ -238,7 +239,11 @@ export default function PacienteConsultas() {
       // Refetch the data
       const { data } = await supabase
         .from("consultas")
-        .select(`*, medicos!consultas_medico_id_fkey (id, nome, especialidade, foto_url, crm)`)
+        .select(`
+          *, 
+          medicos!consultas_medico_id_fkey (id, nome, especialidade, foto_url, crm),
+          local:locais_atendimento (id, nome_local, endereco, cidade, estado, tipo_atendimento)
+        `)
         .eq("paciente_id", pacienteData?.id)
         .order("data_hora", { ascending: false });
       
@@ -565,6 +570,22 @@ export default function PacienteConsultas() {
                   <Clock className="w-4 h-4" />
                   {format(parseISO(consulta.data_hora), "HH:mm")}
                 </div>
+                
+                {/* Local de atendimento */}
+                {consulta.local && (
+                  <div className="flex items-start gap-2 mt-2 text-sm">
+                    <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-foreground">{consulta.local.nome_local}</p>
+                      {consulta.local.cidade && (
+                        <p className="text-muted-foreground text-xs">
+                          {consulta.local.cidade}{consulta.local.estado ? `, ${consulta.local.estado}` : ''}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
                 <p className="text-lg font-bold text-foreground mt-2">
                   R$ {Number(consulta.valor_consulta || 0).toFixed(2)}
                 </p>
