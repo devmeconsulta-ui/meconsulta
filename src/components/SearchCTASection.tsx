@@ -132,20 +132,20 @@ const SearchCTASection = () => {
               >
                 <CarouselContent className="-ml-2 md:-ml-4">
                   {medicos.map((medico) => (
-                    <CarouselItem key={medico.id} className="pl-2 md:pl-4 md:basis-1/2 lg:basis-1/3">
+                    <CarouselItem key={medico.id} className="pl-2 md:pl-4 basis-full sm:basis-1/2 lg:basis-1/3">
                       <Card className="overflow-hidden h-full border-border/50 hover:border-primary/50 transition-colors">
                         <CardContent className="p-0">
                           {/* Doctor Image */}
-                          <div className="aspect-square relative bg-muted">
+                          <div className="h-32 relative bg-muted">
                             {medico.foto_url ? (
                               <img
                                 src={medico.foto_url}
                                 alt={medico.nome}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover object-top"
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
-                                <User className="w-20 h-20 text-muted-foreground/50" />
+                                <User className="w-12 h-12 text-muted-foreground/50" />
                               </div>
                             )}
                           </div>
