@@ -2,35 +2,23 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
-  MapPin,
   Calendar,
-  User,
-  Users,
-  Wallet,
   Star,
-  Settings,
   LogOut,
   Stethoscope,
   Menu,
   X,
-  DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-// Define all menu items with permission keys
+// Menu items for doctor area - simplified to only essential items
 const allMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/medico", permKey: "dashboard" },
   { icon: Stethoscope, label: "Consultas", path: "/medico/consultas", permKey: "consultas" },
-  { icon: MapPin, label: "Locais de Atendimento", path: "/medico/locais", permKey: "locais" },
   { icon: Calendar, label: "Agenda", path: "/medico/agenda", permKey: "agenda" },
-  { icon: DollarSign, label: "Financeiro", path: "/medico/financeiro", permKey: "financeiro" },
-  { icon: Users, label: "Usuários da Clínica", path: "/medico/usuarios-clinica", permKey: "usuarios-clinica" },
-  { icon: User, label: "Minha Página Pública", path: "/medico/pagina-publica", permKey: "pagina-publica" },
-  { icon: Wallet, label: "Dados Bancários", path: "/medico/dados-bancarios", permKey: "dados-bancarios" },
   { icon: Star, label: "Avaliações", path: "/medico/avaliacoes", permKey: "avaliacoes" },
-  { icon: Settings, label: "Configurações", path: "/medico/configuracoes", permKey: "configuracoes" },
 ];
 
 export function MedicoSidebar() {
