@@ -32,7 +32,7 @@ serve(async (req) => {
     // 1. Get consulta with asaas_payment_id and agenda_slot_id
     const { data: consulta, error: consultaError } = await supabase
       .from('consultas')
-      .select('id, asaas_payment_id, status_consulta, agenda_slot_id, medico_id, data_hora')
+      .select('id, asaas_payment_id, status_consulta, status_pagamento, agenda_slot_id, medico_id, data_hora, valor_consulta')
       .eq('id', consulta_id)
       .maybeSingle();
 
@@ -46,7 +46,7 @@ serve(async (req) => {
 
     console.log(`Found consulta:`, JSON.stringify(consulta));
 
-    // 2. Cancel in Asaas FIRST (before updating local status)
+    // 2. Cancel or Refund in Asaas FIRST (before updating local status)
     if (consulta.asaas_payment_id) {
       // Get Asaas config
       const { data: asaasConfig, error: configError } = await supabase
@@ -56,31 +56,63 @@ serve(async (req) => {
         .maybeSingle();
 
       if (!configError && asaasConfig) {
-        console.log(`Cancelling Asaas payment: ${consulta.asaas_payment_id}`);
-        
-        try {
-          const cancelResponse = await fetch(
-            `${asaasConfig.base_url}/payments/${consulta.asaas_payment_id}`,
-            {
-              method: 'DELETE',
-              headers: {
-                'access_token': asaasConfig.api_key,
-              },
+        // Se o pagamento já foi feito, fazer estorno
+        if (consulta.status_pagamento === 'pago') {
+          console.log(`Payment already paid - requesting refund for: ${consulta.asaas_payment_id}`);
+          
+          try {
+            const refundResponse = await fetch(
+              `${asaasConfig.base_url}/payments/${consulta.asaas_payment_id}/refund`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'access_token': asaasConfig.api_key,
+                },
+                body: JSON.stringify({
+                  value: consulta.valor_consulta,
+                  description: `Estorno da consulta ${consulta_id} - Cancelamento`,
+                }),
+              }
+            );
+
+            const refundData = await refundResponse.json();
+            console.log(`Refund response status: ${refundResponse.status}, body: ${JSON.stringify(refundData)}`);
+
+            if (refundResponse.ok) {
+              console.log('Asaas payment refunded successfully');
+            } else {
+              console.error('Failed to refund Asaas payment:', refundResponse.status, refundData);
             }
-          );
-
-          const responseText = await cancelResponse.text();
-          console.log(`Asaas response status: ${cancelResponse.status}, body: ${responseText}`);
-
-          if (cancelResponse.ok) {
-            console.log('Asaas payment cancelled successfully');
-          } else {
-            console.error('Failed to cancel Asaas payment:', cancelResponse.status, responseText);
-            // Continue anyway - we still want to cancel locally
+          } catch (refundError) {
+            console.error('Error calling Asaas refund API:', refundError);
           }
-        } catch (asaasError) {
-          console.error('Error calling Asaas API:', asaasError);
-          // Continue anyway - we still want to cancel locally
+        } else {
+          // Se não foi pago, apenas cancelar
+          console.log(`Cancelling unpaid Asaas payment: ${consulta.asaas_payment_id}`);
+          
+          try {
+            const cancelResponse = await fetch(
+              `${asaasConfig.base_url}/payments/${consulta.asaas_payment_id}`,
+              {
+                method: 'DELETE',
+                headers: {
+                  'access_token': asaasConfig.api_key,
+                },
+              }
+            );
+
+            const responseText = await cancelResponse.text();
+            console.log(`Asaas cancel response status: ${cancelResponse.status}, body: ${responseText}`);
+
+            if (cancelResponse.ok) {
+              console.log('Asaas payment cancelled successfully');
+            } else {
+              console.error('Failed to cancel Asaas payment:', cancelResponse.status, responseText);
+            }
+          } catch (asaasError) {
+            console.error('Error calling Asaas cancel API:', asaasError);
+          }
         }
       } else {
         console.log('No active Asaas config found');
@@ -89,12 +121,13 @@ serve(async (req) => {
       console.log('No Asaas payment ID - skipping Asaas cancellation');
     }
 
-    // 3. Update consulta status to cancelled
+    // 3. Update consulta status to cancelled (estornado se foi pago)
+    const newPaymentStatus = consulta.status_pagamento === 'pago' ? 'estornado' : 'cancelado';
     const { error: updateError } = await supabase
       .from('consultas')
       .update({ 
         status_consulta: 'cancelada',
-        status_pagamento: 'cancelado'
+        status_pagamento: newPaymentStatus
       })
       .eq('id', consulta_id);
 

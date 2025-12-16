@@ -25,6 +25,7 @@ interface FinalizarConsultaModalProps {
     id: string;
     data_hora: string;
     origem: string | null;
+    status_pagamento?: string;
     paciente?: { nome: string } | null;
     nome_paciente_consulta?: string | null;
     local?: { nome_local: string } | null;
@@ -95,6 +96,29 @@ export default function FinalizarConsultaModal({
 
       if (eventError) {
         console.error("Error creating event log:", eventError);
+      }
+
+      // Se é elegível para repasse, consulta online e foi paga, realizar transferência automática
+      if (elegivelRepasse && consulta.origem === "online" && consulta.status_pagamento === "pago") {
+        try {
+          console.log("Iniciando transferência PIX automática para médico...");
+          const { data: transferData, error: transferError } = await supabase.functions.invoke(
+            "transfer-to-doctor",
+            { body: { consulta_id: consulta.id } }
+          );
+
+          if (transferError) {
+            console.error("Erro na transferência automática:", transferError);
+            toast.warning("Consulta finalizada, mas houve erro na transferência automática. Entre em contato com o suporte.");
+          } else if (transferData?.success) {
+            console.log("Transferência realizada com sucesso:", transferData);
+            toast.success(`Transferência PIX de R$ ${transferData.valor?.toFixed(2)} realizada!`);
+          } else {
+            console.warn("Resposta da transferência:", transferData);
+          }
+        } catch (transferErr) {
+          console.error("Erro ao chamar transferência:", transferErr);
+        }
       }
 
       toast.success(
