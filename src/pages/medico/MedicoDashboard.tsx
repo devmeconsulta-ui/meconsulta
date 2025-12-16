@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, Clock, Star, User, MapPin } from "lucide-react";
+import { Calendar, Clock, Star, DollarSign, User, MapPin } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -120,6 +120,13 @@ export default function MedicoDashboard() {
       bgColor: "bg-yellow-500/10",
       suffix: "/5",
     },
+    {
+      title: "Faturamento do Mês",
+      value: `R$ ${stats.valorMesConfirmado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      icon: DollarSign,
+      color: "text-green-500",
+      bgColor: "bg-green-500/10",
+    },
   ];
 
   if (loading) {
@@ -133,7 +140,7 @@ export default function MedicoDashboard() {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat, index) => (
           <Card key={index} className="card-shadow hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
