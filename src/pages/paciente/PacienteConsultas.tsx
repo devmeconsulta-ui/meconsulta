@@ -1116,6 +1116,37 @@ export default function PacienteConsultas() {
                 </div>
               </div>
 
+              {/* Local de Atendimento */}
+              {detalhesModal.local && (
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <MapPin className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-base">
+                        {detalhesModal.local.nome_local}
+                      </p>
+                      {detalhesModal.local.endereco && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {detalhesModal.local.endereco}
+                        </p>
+                      )}
+                      {(detalhesModal.local.cidade || detalhesModal.local.estado) && (
+                        <p className="text-sm text-muted-foreground">
+                          {[detalhesModal.local.cidade, detalhesModal.local.estado].filter(Boolean).join(', ')}
+                        </p>
+                      )}
+                      {detalhesModal.local.cep && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          CEP: {detalhesModal.local.cep}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 bg-muted/30 rounded-lg">
                   <p className="text-xs text-muted-foreground">Data</p>
@@ -1142,6 +1173,30 @@ export default function PacienteConsultas() {
                   </Badge>
                 </div>
               </div>
+
+              {/* Motivo e Sintomas */}
+              {(detalhesModal.motivo_consulta || detalhesModal.sintomas || detalhesModal.tipo_servico) && (
+                <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                  {detalhesModal.tipo_servico && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Tipo de Serviço</p>
+                      <p className="text-sm font-medium">{detalhesModal.tipo_servico}</p>
+                    </div>
+                  )}
+                  {detalhesModal.motivo_consulta && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Motivo da Consulta</p>
+                      <p className="text-sm">{detalhesModal.motivo_consulta}</p>
+                    </div>
+                  )}
+                  {detalhesModal.sintomas && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Sintomas</p>
+                      <p className="text-sm">{detalhesModal.sintomas}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Timeline do status */}
               <div className="p-4 bg-muted/20 rounded-lg">
