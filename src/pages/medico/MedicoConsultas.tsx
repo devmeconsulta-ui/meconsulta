@@ -18,7 +18,6 @@ import {
   UserX,
   ThumbsUp,
   HelpCircle,
-  Edit,
   MapPin
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -26,8 +25,6 @@ import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import ConsultaDetalhesModal from "@/components/medico/ConsultaDetalhesModal";
-import FinalizarConsultaModal from "@/components/medico/FinalizarConsultaModal";
-import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
 
 interface Consulta {
   id: string;
@@ -94,10 +91,6 @@ export default function MedicoConsultas() {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [selectedConsulta, setSelectedConsulta] = useState<Consulta | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [finalizarModalOpen, setFinalizarModalOpen] = useState(false);
-  const [consultaToFinalize, setConsultaToFinalize] = useState<Consulta | null>(null);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [consultaToEdit, setConsultaToEdit] = useState<Consulta | null>(null);
 
   useEffect(() => {
     if (currentUser?.medicoId) {
@@ -344,25 +337,6 @@ export default function MedicoConsultas() {
                         {statusLabels[consulta.status_consulta] || consulta.status_consulta}
                       </Badge>
                       
-                      {/* Finalizar button - only show for paid confirmed consultations that haven't been finalized */}
-                      {consulta.status_pagamento === "pago" &&
-                        consulta.status_consulta === "confirmada" &&
-                        !consulta.finalizado_medico &&
-                        new Date(consulta.data_hora) <= new Date() && (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="gap-1 bg-green-600 hover:bg-green-700"
-                            onClick={() => {
-                              setConsultaToFinalize(consulta);
-                              setFinalizarModalOpen(true);
-                            }}
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            Finalizar
-                          </Button>
-                        )}
-                      
                       {/* Show finalized status */}
                       {consulta.finalizado_medico && (
                         <Badge className="bg-green-500/10 text-green-600 gap-1">
@@ -385,19 +359,6 @@ export default function MedicoConsultas() {
                           </Badge>
                         )
                       )}
-                      
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="gap-2"
-                        onClick={() => {
-                          setConsultaToEdit(consulta);
-                          setEditModalOpen(true);
-                        }}
-                      >
-                        <Edit className="w-4 h-4" />
-                        Editar
-                      </Button>
                       <Button 
                         variant="outline" 
                         size="sm" 
@@ -423,27 +384,6 @@ export default function MedicoConsultas() {
           onOpenChange={setModalOpen}
           consulta={selectedConsulta}
           onUpdate={fetchConsultas}
-        />
-      )}
-
-      {/* Finalizar Modal */}
-      {consultaToFinalize && consultaToFinalize.medico_id && (
-        <FinalizarConsultaModal
-          open={finalizarModalOpen}
-          onOpenChange={setFinalizarModalOpen}
-          consulta={consultaToFinalize}
-          medicoId={consultaToFinalize.medico_id}
-          onSuccess={fetchConsultas}
-        />
-      )}
-
-      {/* Edit Modal */}
-      {consultaToEdit && (
-        <EditarConsultaModal
-          open={editModalOpen}
-          onOpenChange={setEditModalOpen}
-          consulta={consultaToEdit}
-          onSuccess={fetchConsultas}
         />
       )}
     </div>
