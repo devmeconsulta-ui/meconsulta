@@ -21,6 +21,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,11 +53,13 @@ import {
   Search,
   Filter,
   AlertTriangle,
-  Trash2
+  Trash2,
+  FileText
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import DocumentosPacienteTab from "@/components/paciente/DocumentosPacienteTab";
 
 interface PacienteContext {
   pacienteData: any;
@@ -1088,10 +1091,11 @@ export default function PacienteConsultas() {
 
       {/* Modal de Detalhes */}
       <Dialog open={!!detalhesModal} onOpenChange={() => setDetalhesModal(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Detalhes da Consulta</DialogTitle>
           </DialogHeader>
+          <ScrollArea className="max-h-[75vh] pr-2">
           {detalhesModal && (
             <div className="space-y-4">
               <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
@@ -1245,9 +1249,23 @@ export default function PacienteConsultas() {
                   <CreditCard className="w-4 h-4 mr-2" />
                   Pagar Agora
                 </Button>
+               )}
+
+              {/* Documentos emitidos */}
+              {(detalhesModal.status_consulta === "concluida" || 
+                detalhesModal.status_consulta === "atendida_medico" ||
+                detalhesModal.finalizado_medico) && (
+                <div className="p-4 bg-muted/20 rounded-lg">
+                  <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Receitas, Atestados e Exames
+                  </p>
+                  <DocumentosPacienteTab consultaId={detalhesModal.id} />
+                </div>
               )}
             </div>
           )}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>
