@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,14 +19,41 @@ import {
   ThumbsUp,
   HelpCircle,
   MapPin,
-  Pencil
+  Pencil,
+  Timer
 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import ConsultaDetalhesModal from "@/components/medico/ConsultaDetalhesModal";
 import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
+
+// Componente para mostrar tempo de espera
+function TempoEspera({ dataHora }: { dataHora: string }) {
+  const [minutos, setMinutos] = useState(0);
+
+  useEffect(() => {
+    const calcularMinutos = () => {
+      const agora = new Date();
+      const horaConsulta = parseISO(dataHora);
+      const diff = differenceInMinutes(agora, horaConsulta);
+      setMinutos(Math.max(0, diff));
+    };
+
+    calcularMinutos();
+    const interval = setInterval(calcularMinutos, 60000); // Atualiza a cada minuto
+
+    return () => clearInterval(interval);
+  }, [dataHora]);
+
+  return (
+    <Badge className="bg-orange-500/10 text-orange-600 gap-1 animate-pulse">
+      <Timer className="w-3 h-3" />
+      {minutos} min aguardando
+    </Badge>
+  );
+}
 
 interface Consulta {
   id: string;
@@ -66,22 +93,24 @@ interface Consulta {
 }
 
 const statusLabels: Record<string, string> = {
+  agendada: "Agendada",
   aguardando_pagamento: "Aguardando Pagamento",
   confirmada: "Confirmada",
-  realizada: "Realizada",
-  atendida_medico: "Atendida",
-  nao_compareceu: "Não Compareceu",
+  aguardando: "Aguardando",
+  atendendo: "Atendendo",
   concluida: "Concluída",
+  nao_compareceu: "Não Compareceu",
   cancelada: "Cancelada",
 };
 
 const statusColors: Record<string, string> = {
+  agendada: "bg-slate-500/10 text-slate-600",
   aguardando_pagamento: "bg-yellow-500/10 text-yellow-600",
   confirmada: "bg-blue-500/10 text-blue-600",
-  realizada: "bg-green-500/10 text-green-600",
-  atendida_medico: "bg-green-500/10 text-green-600",
-  nao_compareceu: "bg-red-500/10 text-red-600",
+  aguardando: "bg-orange-500/10 text-orange-600",
+  atendendo: "bg-purple-500/10 text-purple-600",
   concluida: "bg-emerald-500/10 text-emerald-600",
+  nao_compareceu: "bg-red-500/10 text-red-600",
   cancelada: "bg-red-500/10 text-red-600",
 };
 
@@ -96,11 +125,32 @@ export default function MedicoConsultas() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [consultaToEdit, setConsultaToEdit] = useState<Consulta | null>(null);
 
+  // Auto-atualiza status de consultas online quando chega a hora
+  const autoUpdateStatus = useCallback(async () => {
+    try {
+      await supabase.functions.invoke("auto-update-consulta-status");
+    } catch (error) {
+      console.error("Erro ao auto-atualizar status:", error);
+    }
+  }, []);
+
   useEffect(() => {
     if (currentUser?.medicoId) {
-      fetchConsultas();
+      // Primeiro atualiza os status automaticamente
+      autoUpdateStatus().then(() => {
+        fetchConsultas();
+      });
+      
+      // Atualiza a cada 1 minuto
+      const interval = setInterval(() => {
+        autoUpdateStatus().then(() => {
+          fetchConsultas();
+        });
+      }, 60000);
+      
+      return () => clearInterval(interval);
     }
-  }, [currentUser?.medicoId]);
+  }, [currentUser?.medicoId, autoUpdateStatus]);
 
   async function fetchConsultas() {
     if (!currentUser?.medicoId) return;
@@ -195,9 +245,13 @@ export default function MedicoConsultas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos os status</SelectItem>
+                <SelectItem value="agendada">Agendada</SelectItem>
                 <SelectItem value="aguardando_pagamento">Aguardando Pagamento</SelectItem>
                 <SelectItem value="confirmada">Confirmada</SelectItem>
-                <SelectItem value="realizada">Realizada</SelectItem>
+                <SelectItem value="aguardando">Aguardando</SelectItem>
+                <SelectItem value="atendendo">Atendendo</SelectItem>
+                <SelectItem value="concluida">Concluída</SelectItem>
+                <SelectItem value="nao_compareceu">Não Compareceu</SelectItem>
                 <SelectItem value="cancelada">Cancelada</SelectItem>
               </SelectContent>
             </Select>
@@ -345,6 +399,11 @@ export default function MedicoConsultas() {
                       <Badge className={statusColors[consulta.status_consulta] || "bg-muted"}>
                         {statusLabels[consulta.status_consulta] || consulta.status_consulta}
                       </Badge>
+                      
+                      {/* Tempo de espera para status "aguardando" */}
+                      {consulta.status_consulta === "aguardando" && (
+                        <TempoEspera dataHora={consulta.data_hora} />
+                      )}
                       
                       {/* Show finalized status */}
                       {consulta.finalizado_medico && (
