@@ -660,7 +660,7 @@ export default function PacienteMarcar() {
             onClick={() => setShowAddDependente(true)}
           >
             <UserPlus className="w-4 h-4" />
-            Adicionar dependente
+            Marcar para outra pessoa
           </Button>
         </CardContent>
       </Card>
