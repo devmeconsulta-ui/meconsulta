@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -125,32 +125,16 @@ export default function MedicoConsultas() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [consultaToEdit, setConsultaToEdit] = useState<Consulta | null>(null);
 
-  // Auto-atualiza status de consultas online quando chega a hora
-  const autoUpdateStatus = useCallback(async () => {
-    try {
-      await supabase.functions.invoke("auto-update-consulta-status");
-    } catch (error) {
-      console.error("Erro ao auto-atualizar status:", error);
-    }
-  }, []);
-
   useEffect(() => {
     if (currentUser?.medicoId) {
-      // Primeiro atualiza os status automaticamente
-      autoUpdateStatus().then(() => {
-        fetchConsultas();
-      });
+      fetchConsultas();
       
-      // Atualiza a cada 1 minuto
-      const interval = setInterval(() => {
-        autoUpdateStatus().then(() => {
-          fetchConsultas();
-        });
-      }, 60000);
+      // Atualiza a cada 1 minuto para manter o tempo de espera atualizado
+      const interval = setInterval(fetchConsultas, 60000);
       
       return () => clearInterval(interval);
     }
-  }, [currentUser?.medicoId, autoUpdateStatus]);
+  }, [currentUser?.medicoId]);
 
   async function fetchConsultas() {
     if (!currentUser?.medicoId) return;

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,12 +29,38 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit } from "lucide-react";
-import { format, subDays, parseISO } from "date-fns";
+import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit, Timer } from "lucide-react";
+import { format, subDays, parseISO, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ConsultaDetalhesModal } from "@/components/clinica/ConsultaDetalhesModal";
 import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
 import { toast } from "@/hooks/use-toast";
+
+// Componente para mostrar tempo de espera
+function TempoEspera({ dataHora }: { dataHora: string }) {
+  const [minutos, setMinutos] = useState(0);
+
+  useEffect(() => {
+    const calcularMinutos = () => {
+      const agora = new Date();
+      const horaConsulta = parseISO(dataHora);
+      const diff = differenceInMinutes(agora, horaConsulta);
+      setMinutos(Math.max(0, diff));
+    };
+
+    calcularMinutos();
+    const interval = setInterval(calcularMinutos, 60000);
+
+    return () => clearInterval(interval);
+  }, [dataHora]);
+
+  return (
+    <Badge className="bg-orange-500/10 text-orange-600 gap-1 animate-pulse">
+      <Timer className="w-3 h-3" />
+      {minutos} min
+    </Badge>
+  );
+}
 
 type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d";
 
@@ -162,11 +188,7 @@ export default function ClinicaConsultas() {
 
       const matchMedico = medicoFilter === "todos" || c.medico_id === medicoFilter;
 
-      const matchStatus = statusFilter === "todos" ||
-        (statusFilter === "confirmada" && c.status_consulta === "confirmada") ||
-        (statusFilter === "aguardando" && c.status_consulta === "aguardando_pagamento") ||
-        (statusFilter === "concluida" && c.status_consulta === "concluida") ||
-        (statusFilter === "cancelada" && c.status_consulta === "cancelada");
+      const matchStatus = statusFilter === "todos" || c.status_consulta === statusFilter;
 
       const matchOrigem = origemFilter === "todos" || c.origem === origemFilter;
 
@@ -235,16 +257,29 @@ export default function ClinicaConsultas() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, dataHora?: string) => {
     switch (status) {
-      case "confirmada":
-        return <Badge className="bg-green-500">Confirmada</Badge>;
+      case "agendada":
+        return <Badge className="bg-slate-500">Agendada</Badge>;
       case "aguardando_pagamento":
         return <Badge className="bg-yellow-500">Aguardando Pagamento</Badge>;
+      case "confirmada":
+        return <Badge className="bg-blue-500">Confirmada</Badge>;
+      case "aguardando":
+        return (
+          <div className="flex items-center gap-2">
+            <Badge className="bg-orange-500">Aguardando</Badge>
+            {dataHora && <TempoEspera dataHora={dataHora} />}
+          </div>
+        );
+      case "atendendo":
+        return <Badge className="bg-purple-500">Atendendo</Badge>;
+      case "concluida":
+        return <Badge className="bg-emerald-500">Concluída</Badge>;
+      case "nao_compareceu":
+        return <Badge variant="destructive">Não Compareceu</Badge>;
       case "cancelada":
         return <Badge variant="destructive">Cancelada</Badge>;
-      case "concluida":
-        return <Badge className="bg-blue-500">Concluída</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -327,9 +362,13 @@ export default function ClinicaConsultas() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="agendada">Agendada</SelectItem>
+                      <SelectItem value="aguardando_pagamento">Aguardando Pagamento</SelectItem>
                       <SelectItem value="confirmada">Confirmada</SelectItem>
-                      <SelectItem value="aguardando">Aguardando Pagamento</SelectItem>
+                      <SelectItem value="aguardando">Aguardando</SelectItem>
+                      <SelectItem value="atendendo">Atendendo</SelectItem>
                       <SelectItem value="concluida">Concluída</SelectItem>
+                      <SelectItem value="nao_compareceu">Não Compareceu</SelectItem>
                       <SelectItem value="cancelada">Cancelada</SelectItem>
                     </SelectContent>
                   </Select>
@@ -483,7 +522,7 @@ export default function ClinicaConsultas() {
                         <span className="text-lg font-bold text-primary">
                           R$ {consulta.valor_consulta?.toFixed(2)}
                         </span>
-                        {getStatusBadge(consulta.status_consulta)}
+                        {getStatusBadge(consulta.status_consulta, consulta.data_hora)}
                       </div>
                     </div>
                   </CardContent>
