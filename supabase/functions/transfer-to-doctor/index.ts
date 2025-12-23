@@ -25,7 +25,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Buscar dados da consulta com médico
+    // Buscar dados da consulta com médico e clínica
     const { data: consulta, error: consultaError } = await supabase
       .from('consultas')
       .select(`
@@ -36,6 +36,12 @@ serve(async (req) => {
           pix_key,
           pix_key_type,
           percentual_repasse
+        ),
+        clinicas (
+          id,
+          nome_fantasia,
+          pix_key,
+          pix_key_type
         )
       `)
       .eq('id', consulta_id)
@@ -77,6 +83,8 @@ serve(async (req) => {
     }
 
     const medico = consulta.medicos;
+    const clinica = consulta.clinicas;
+
     if (!medico) {
       return new Response(
         JSON.stringify({ error: 'Médico não encontrado' }),
@@ -84,11 +92,33 @@ serve(async (req) => {
       );
     }
 
-    // Verificar se médico tem PIX configurado
-    if (!medico.pix_key) {
-      console.log('Médico não possui chave PIX configurada');
+    // Determinar para quem transferir: clínica (se tiver PIX) ou médico
+    let destinatarioPix = null;
+    let destinatarioNome = "";
+    let destinatarioTipo = "";
+
+    if (clinica && clinica.pix_key) {
+      // Transferir para a clínica
+      destinatarioPix = {
+        pix_key: clinica.pix_key,
+        pix_key_type: clinica.pix_key_type
+      };
+      destinatarioNome = clinica.nome_fantasia;
+      destinatarioTipo = "clinica";
+      console.log(`Transferindo para CLÍNICA: ${clinica.nome_fantasia}`);
+    } else if (medico.pix_key) {
+      // Transferir para o médico
+      destinatarioPix = {
+        pix_key: medico.pix_key,
+        pix_key_type: medico.pix_key_type
+      };
+      destinatarioNome = medico.nome;
+      destinatarioTipo = "medico";
+      console.log(`Transferindo para MÉDICO: ${medico.nome}`);
+    } else {
+      console.log('Nem clínica nem médico possuem chave PIX configurada');
       return new Response(
-        JSON.stringify({ error: 'Médico não possui chave PIX configurada' }),
+        JSON.stringify({ error: 'Destinatário não possui chave PIX configurada' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -110,7 +140,7 @@ serve(async (req) => {
 
     // Calcular valor do repasse
     const valorRepasse = consulta.valor_medico;
-    console.log(`Valor do repasse para médico: R$ ${valorRepasse}`);
+    console.log(`Valor do repasse: R$ ${valorRepasse} para ${destinatarioNome} (${destinatarioTipo})`);
 
     // Mapear tipo de chave PIX para Asaas
     const pixKeyTypeMap: Record<string, string> = {
@@ -121,10 +151,10 @@ serve(async (req) => {
       'aleatoria': 'EVP',
     };
 
-    const asaasPixKeyType = pixKeyTypeMap[medico.pix_key_type || 'aleatoria'] || 'EVP';
+    const asaasPixKeyType = pixKeyTypeMap[destinatarioPix.pix_key_type || 'aleatoria'] || 'EVP';
 
     // Realizar transferência PIX via Asaas
-    console.log(`Realizando transferência PIX de R$ ${valorRepasse} para ${medico.nome}`);
+    console.log(`Realizando transferência PIX de R$ ${valorRepasse} para ${destinatarioNome}`);
     
     const transferResponse = await fetch(
       `${configAsaas.base_url}/transfers`,
@@ -136,9 +166,9 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           value: valorRepasse,
-          pixAddressKey: medico.pix_key,
+          pixAddressKey: destinatarioPix.pix_key,
           pixAddressKeyType: asaasPixKeyType,
-          description: `Repasse consulta ${consulta_id} - ${medico.nome}`,
+          description: `Repasse consulta ${consulta_id} - ${destinatarioNome}`,
           scheduleDate: null, // Transferência imediata
         }),
       }
@@ -167,7 +197,7 @@ serve(async (req) => {
         status: 'pago',
         data_pagamento: new Date().toISOString(),
         asaas_transfer_id: transferData.id,
-        observacoes: `Transferência automática - Consulta ${consulta_id}`,
+        observacoes: `Transferência automática para ${destinatarioTipo === 'clinica' ? 'clínica' : 'médico'} - Consulta ${consulta_id}`,
       })
       .select()
       .single();
@@ -206,18 +236,20 @@ serve(async (req) => {
       .insert({
         consulta_id: consulta_id,
         tipo_evento: 'repasse_realizado',
-        descricao: `Transferência PIX de R$ ${valorRepasse} realizada para ${medico.nome}`,
+        descricao: `Transferência PIX de R$ ${valorRepasse} realizada para ${destinatarioTipo === 'clinica' ? 'clínica' : 'médico'}: ${destinatarioNome}`,
         usuario_tipo: 'sistema',
       });
 
-    console.log('Transferência realizada com sucesso');
+    console.log(`Transferência realizada com sucesso para ${destinatarioNome}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: 'Transferência realizada com sucesso',
         transfer_id: transferData.id,
-        valor: valorRepasse
+        valor: valorRepasse,
+        destinatario: destinatarioNome,
+        tipo_destinatario: destinatarioTipo
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
