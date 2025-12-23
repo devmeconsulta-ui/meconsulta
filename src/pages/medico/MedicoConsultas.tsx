@@ -18,13 +18,15 @@ import {
   UserX,
   ThumbsUp,
   HelpCircle,
-  MapPin
+  MapPin,
+  Pencil
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import ConsultaDetalhesModal from "@/components/medico/ConsultaDetalhesModal";
+import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
 
 interface Consulta {
   id: string;
@@ -91,6 +93,8 @@ export default function MedicoConsultas() {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [selectedConsulta, setSelectedConsulta] = useState<Consulta | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [consultaToEdit, setConsultaToEdit] = useState<Consulta | null>(null);
 
   useEffect(() => {
     if (currentUser?.medicoId) {
@@ -148,6 +152,11 @@ export default function MedicoConsultas() {
   const handleViewDetails = (consulta: Consulta) => {
     setSelectedConsulta(consulta);
     setModalOpen(true);
+  };
+
+  const handleEditConsulta = (consulta: Consulta) => {
+    setConsultaToEdit(consulta);
+    setEditModalOpen(true);
   };
 
   if (loading) {
@@ -363,6 +372,15 @@ export default function MedicoConsultas() {
                         variant="outline" 
                         size="sm" 
                         className="gap-2"
+                        onClick={() => handleEditConsulta(consulta)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Editar
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2"
                         onClick={() => handleViewDetails(consulta)}
                       >
                         <Eye className="w-4 h-4" />
@@ -384,6 +402,16 @@ export default function MedicoConsultas() {
           onOpenChange={setModalOpen}
           consulta={selectedConsulta}
           onUpdate={fetchConsultas}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {consultaToEdit && (
+        <EditarConsultaModal
+          open={editModalOpen}
+          onOpenChange={setEditModalOpen}
+          consulta={consultaToEdit}
+          onSuccess={fetchConsultas}
         />
       )}
     </div>
