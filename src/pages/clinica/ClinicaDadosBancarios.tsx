@@ -21,7 +21,6 @@ interface ClinicaContext {
 
 export default function ClinicaDadosBancarios() {
   const { clinicaData } = useOutletContext<ClinicaContext>();
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     banco_nome: "",
@@ -63,7 +62,6 @@ export default function ClinicaDadosBancarios() {
         pix_key_type: clinicaData.pix_key_type || "cnpj",
         telefone: clinicaData.telefone || "",
       });
-      setLoading(false);
     }
   }, [clinicaData]);
 
@@ -100,7 +98,7 @@ export default function ClinicaDadosBancarios() {
     toast.success("Dados bancários salvos com sucesso!");
   }
 
-  if (loading) {
+  if (!clinicaData) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
