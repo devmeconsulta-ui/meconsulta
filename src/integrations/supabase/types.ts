@@ -189,9 +189,13 @@ export type Database = {
       }
       clinicas: {
         Row: {
+          agencia: string | null
           ativo: boolean | null
+          banco_codigo: string | null
+          banco_nome: string | null
           cidade: string | null
           cnpj: string | null
+          conta: string | null
           created_at: string | null
           email_contato: string | null
           endereco_principal: string | null
@@ -199,14 +203,23 @@ export type Database = {
           id: string
           logo_url: string | null
           nome_fantasia: string
+          pix_key: string | null
+          pix_key_type: string | null
           razao_social: string | null
           telefone: string | null
+          tipo_conta: string | null
+          titular_cpf_cnpj: string | null
+          titular_nome: string | null
           usuario_id: string | null
         }
         Insert: {
+          agencia?: string | null
           ativo?: boolean | null
+          banco_codigo?: string | null
+          banco_nome?: string | null
           cidade?: string | null
           cnpj?: string | null
+          conta?: string | null
           created_at?: string | null
           email_contato?: string | null
           endereco_principal?: string | null
@@ -214,14 +227,23 @@ export type Database = {
           id?: string
           logo_url?: string | null
           nome_fantasia: string
+          pix_key?: string | null
+          pix_key_type?: string | null
           razao_social?: string | null
           telefone?: string | null
+          tipo_conta?: string | null
+          titular_cpf_cnpj?: string | null
+          titular_nome?: string | null
           usuario_id?: string | null
         }
         Update: {
+          agencia?: string | null
           ativo?: boolean | null
+          banco_codigo?: string | null
+          banco_nome?: string | null
           cidade?: string | null
           cnpj?: string | null
+          conta?: string | null
           created_at?: string | null
           email_contato?: string | null
           endereco_principal?: string | null
@@ -229,8 +251,13 @@ export type Database = {
           id?: string
           logo_url?: string | null
           nome_fantasia?: string
+          pix_key?: string | null
+          pix_key_type?: string | null
           razao_social?: string | null
           telefone?: string | null
+          tipo_conta?: string | null
+          titular_cpf_cnpj?: string | null
+          titular_nome?: string | null
           usuario_id?: string | null
         }
         Relationships: [

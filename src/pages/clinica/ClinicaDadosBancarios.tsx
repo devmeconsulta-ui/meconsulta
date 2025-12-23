@@ -52,15 +52,15 @@ export default function ClinicaDadosBancarios() {
   useEffect(() => {
     if (clinicaData) {
       setFormData({
-        banco_nome: "",
-        banco_codigo: "",
-        agencia: "",
-        conta: "",
-        tipo_conta: "corrente",
-        titular_nome: clinicaData.razao_social || clinicaData.nome_fantasia || "",
-        titular_cpf_cnpj: clinicaData.cnpj || "",
-        pix_key: "",
-        pix_key_type: "cnpj",
+        banco_nome: clinicaData.banco_nome || "",
+        banco_codigo: clinicaData.banco_codigo || "",
+        agencia: clinicaData.agencia || "",
+        conta: clinicaData.conta || "",
+        tipo_conta: clinicaData.tipo_conta || "corrente",
+        titular_nome: clinicaData.titular_nome || clinicaData.razao_social || clinicaData.nome_fantasia || "",
+        titular_cpf_cnpj: clinicaData.titular_cpf_cnpj || clinicaData.cnpj || "",
+        pix_key: clinicaData.pix_key || "",
+        pix_key_type: clinicaData.pix_key_type || "cnpj",
         telefone: clinicaData.telefone || "",
       });
       setLoading(false);
@@ -73,20 +73,31 @@ export default function ClinicaDadosBancarios() {
 
     setSaving(true);
     
-    // Atualiza apenas telefone na tabela de clínicas (dados bancários serão implementados futuramente)
     const { error } = await supabase
       .from("clinicas")
-      .update({ telefone: formData.telefone })
+      .update({
+        banco_nome: formData.banco_nome,
+        banco_codigo: formData.banco_codigo,
+        agencia: formData.agencia,
+        conta: formData.conta,
+        tipo_conta: formData.tipo_conta,
+        titular_nome: formData.titular_nome,
+        titular_cpf_cnpj: formData.titular_cpf_cnpj,
+        pix_key: formData.pix_key,
+        pix_key_type: formData.pix_key_type,
+        telefone: formData.telefone,
+      })
       .eq("id", clinicaData.id);
 
     setSaving(false);
 
     if (error) {
+      console.error("Erro ao salvar dados bancários:", error);
       toast.error("Erro ao salvar dados");
       return;
     }
 
-    toast.success("Dados salvos com sucesso!");
+    toast.success("Dados bancários salvos com sucesso!");
   }
 
   if (loading) {
