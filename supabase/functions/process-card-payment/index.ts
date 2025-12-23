@@ -111,12 +111,32 @@ serve(async (req) => {
     const cpfClean = paciente.cpf?.replace(/\D/g, '') || '';
     const phoneClean = paciente.telefone?.replace(/\D/g, '') || '';
 
-    console.log('Creating credit card payment...');
+    console.log('Processing credit card payment...');
+
+    // If there's an existing PIX payment, cancel it first
+    if (consulta.asaas_payment_id) {
+      console.log(`Cancelling existing PIX payment: ${consulta.asaas_payment_id}`);
+      try {
+        const cancelResponse = await fetch(
+          `${asaasConfig.base_url}/payments/${consulta.asaas_payment_id}`,
+          {
+            method: 'DELETE',
+            headers: {
+              'access_token': asaasConfig.api_key,
+            },
+          }
+        );
+        const cancelResult = await cancelResponse.text();
+        console.log(`Cancel PIX response: ${cancelResponse.status} - ${cancelResult}`);
+      } catch (cancelError) {
+        console.log('Could not cancel existing payment, proceeding anyway:', cancelError);
+      }
+    }
 
     // Due date: today
     const dueDate = new Date().toISOString().split('T')[0];
 
-    // Create payment with credit card
+    // Create new payment with credit card
     const paymentPayload = {
       customer: paciente.asaas_customer_id,
       billingType: 'CREDIT_CARD',
