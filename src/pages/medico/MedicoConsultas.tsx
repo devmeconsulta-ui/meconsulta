@@ -29,28 +29,52 @@ import { useAuth } from "@/contexts/AuthContext";
 import ConsultaDetalhesModal from "@/components/medico/ConsultaDetalhesModal";
 import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
 
-// Componente para mostrar tempo de espera
+// Componente para mostrar tempo (restante ou de espera)
 function TempoEspera({ dataHora }: { dataHora: string }) {
-  const [minutos, setMinutos] = useState(0);
+  const [info, setInfo] = useState({ minutos: 0, atrasado: false });
 
   useEffect(() => {
-    const calcularMinutos = () => {
+    const calcular = () => {
       const agora = new Date();
       const horaConsulta = parseISO(dataHora);
       const diff = differenceInMinutes(agora, horaConsulta);
-      setMinutos(Math.max(0, diff));
+      
+      if (diff >= 0) {
+        // Já passou do horário - mostra tempo de espera/atraso
+        setInfo({ minutos: diff, atrasado: true });
+      } else {
+        // Ainda não chegou - mostra tempo restante (máx 60 min)
+        const restante = Math.abs(diff);
+        if (restante <= 60) {
+          setInfo({ minutos: restante, atrasado: false });
+        } else {
+          setInfo({ minutos: 0, atrasado: false }); // Não mostra se falta mais de 1h
+        }
+      }
     };
 
-    calcularMinutos();
-    const interval = setInterval(calcularMinutos, 60000); // Atualiza a cada minuto
+    calcular();
+    const interval = setInterval(calcular, 30000); // Atualiza a cada 30 segundos
 
     return () => clearInterval(interval);
   }, [dataHora]);
 
+  // Não mostra se falta mais de 1h
+  if (!info.atrasado && info.minutos === 0) return null;
+
+  if (info.atrasado) {
+    return (
+      <Badge className="bg-red-500/10 text-red-600 gap-1 animate-pulse">
+        <Timer className="w-3 h-3" />
+        {info.minutos} min atrasado
+      </Badge>
+    );
+  }
+
   return (
-    <Badge className="bg-orange-500/10 text-orange-600 gap-1 animate-pulse">
+    <Badge className="bg-green-500/10 text-green-600 gap-1">
       <Timer className="w-3 h-3" />
-      {minutos} min aguardando
+      Falta {info.minutos} min
     </Badge>
   );
 }
