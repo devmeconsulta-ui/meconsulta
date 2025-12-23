@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.memed-auth]
 verify_jwt = false
+
+[functions.admin-execute-transfer]
+verify_jwt = false
