@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,16 +29,31 @@ export default function PacientePerfil() {
   const { pacienteData, setPacienteData } = useOutletContext<PacienteContext>();
   
   const [formData, setFormData] = useState({
-    nome: pacienteData?.nome || "",
-    telefone: pacienteData?.telefone || "",
-    cpf: pacienteData?.cpf || "",
-    data_nascimento: pacienteData?.data_nascimento || "",
-    estado: pacienteData?.estado || "",
-    cidade: pacienteData?.cidade || "",
-    bairro: pacienteData?.bairro || "",
+    nome: "",
+    telefone: "",
+    cpf: "",
+    data_nascimento: "",
+    estado: "",
+    cidade: "",
+    bairro: "",
   });
   
   const [saving, setSaving] = useState(false);
+
+  // Sincronizar formData quando pacienteData carregar
+  useEffect(() => {
+    if (pacienteData) {
+      setFormData({
+        nome: pacienteData.nome || "",
+        telefone: pacienteData.telefone || "",
+        cpf: pacienteData.cpf || "",
+        data_nascimento: pacienteData.data_nascimento || "",
+        estado: pacienteData.estado || "",
+        cidade: pacienteData.cidade || "",
+        bairro: pacienteData.bairro || "",
+      });
+    }
+  }, [pacienteData]);
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => {
