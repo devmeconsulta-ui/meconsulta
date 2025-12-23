@@ -46,7 +46,27 @@ serve(async (req) => {
 
     console.log(`Found consulta:`, JSON.stringify(consulta));
 
-    // 2. Cancel or Refund in Asaas FIRST (before updating local status)
+    // 2. Check if refund is allowed (48 hours before consultation)
+    const consultaDate = new Date(consulta.data_hora);
+    const now = new Date();
+    const hoursUntilConsulta = (consultaDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+    
+    console.log(`Hours until consulta: ${hoursUntilConsulta}`);
+    
+    // Se o pagamento foi feito e faltam menos de 48 horas, não permitir estorno
+    if (consulta.status_pagamento === 'pago' && hoursUntilConsulta < 48) {
+      console.log('Refund not allowed - less than 48 hours until consultation');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Não é possível cancelar com estorno. O cancelamento com reembolso só é permitido até 48 horas antes da consulta.',
+          hours_until_consulta: Math.floor(hoursUntilConsulta)
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 3. Cancel or Refund in Asaas FIRST (before updating local status)
     if (consulta.asaas_payment_id) {
       // Get Asaas config
       const { data: asaasConfig, error: configError } = await supabase
@@ -56,7 +76,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (!configError && asaasConfig) {
-        // Se o pagamento já foi feito, fazer estorno
+        // Se o pagamento já foi feito e faltam mais de 48h, fazer estorno
         if (consulta.status_pagamento === 'pago') {
           console.log(`Payment already paid - requesting refund for: ${consulta.asaas_payment_id}`);
           
@@ -121,7 +141,7 @@ serve(async (req) => {
       console.log('No Asaas payment ID - skipping Asaas cancellation');
     }
 
-    // 3. Update consulta status to cancelled (estornado se foi pago)
+    // 4. Update consulta status to cancelled (estornado se foi pago)
     const newPaymentStatus = consulta.status_pagamento === 'pago' ? 'estornado' : 'cancelado';
     const { error: updateError } = await supabase
       .from('consultas')
@@ -141,7 +161,7 @@ serve(async (req) => {
 
     console.log('Consulta status updated to cancelada');
 
-    // 4. Reopen the agenda slot
+    // 5. Reopen the agenda slot
     if (consulta.agenda_slot_id) {
       console.log(`Reopening agenda slot: ${consulta.agenda_slot_id}`);
       const { error: slotError } = await supabase
@@ -172,18 +192,26 @@ serve(async (req) => {
       console.log('No agenda_slot_id or medico_id/data_hora to reopen slot');
     }
 
-    // 5. Log the event
+    // 6. Log the event
+    const eventDescription = consulta.status_pagamento === 'pago' 
+      ? 'Consulta cancelada com estorno (mais de 48h antes)' 
+      : 'Consulta cancelada pelo paciente';
+    
     await supabase.from('consultas_eventos').insert({
       consulta_id: consulta_id,
       tipo_evento: 'cancelada',
-      descricao: 'Consulta cancelada pelo paciente',
+      descricao: eventDescription,
       usuario_tipo: 'paciente',
     });
 
     console.log('Cancellation completed successfully');
 
     return new Response(
-      JSON.stringify({ success: true, message: 'Consulta cancelada com sucesso' }),
+      JSON.stringify({ 
+        success: true, 
+        message: 'Consulta cancelada com sucesso',
+        refunded: consulta.status_pagamento === 'pago'
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
