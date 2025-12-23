@@ -393,8 +393,16 @@ export default function ClinicaAgenda() {
   }
 
   async function handleGerarSlots() {
-    if (!gerarForm.medicoId || !gerarForm.localId || !gerarForm.dateRange?.from || !gerarForm.dateRange?.to) {
-      toast.error("Preencha todos os campos obrigatórios");
+    if (!gerarForm.medicoId) {
+      toast.error("Selecione um médico");
+      return;
+    }
+    if (!gerarForm.localId) {
+      toast.error("Selecione um local de atendimento");
+      return;
+    }
+    if (!gerarForm.dateRange?.from || !gerarForm.dateRange?.to) {
+      toast.error("Selecione o período (data inicial e final)");
       return;
     }
 
