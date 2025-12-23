@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -28,9 +29,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Plus, UserCog, Shield, Eye, Edit, Trash2 } from "lucide-react";
+import { Search, Plus, UserCog, Shield, Eye, Edit, Trash2, User, Mail, Calendar, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -51,6 +53,13 @@ const papelLabels: Record<Papel, string> = {
   superadmin: "Super Admin",
 };
 
+const tipoLabels: Record<string, string> = {
+  admin: "Administrador",
+  medico: "Médico",
+  paciente: "Paciente",
+  clinica: "Clínica",
+};
+
 interface Usuario {
   id: string;
   nome: string;
@@ -67,6 +76,10 @@ export default function AdminUsuarios() {
   const [search, setSearch] = useState("");
   const [papelFilter, setPapelFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null);
+  const [editUsuario, setEditUsuario] = useState<Partial<Usuario>>({});
   const [newUser, setNewUser] = useState({
     nome: "",
     email: "",
@@ -135,6 +148,24 @@ export default function AdminUsuarios() {
     },
   });
 
+  // Update usuario mutation
+  const updateUsuario = useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Partial<Usuario>) => {
+      const { error } = await supabase.from("usuarios").update(updates).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-usuarios"] });
+      toast.success("Usuário atualizado com sucesso!");
+      setIsEditDialogOpen(false);
+      setSelectedUsuario(null);
+      setEditUsuario({});
+    },
+    onError: (error: any) => {
+      toast.error(`Erro ao atualizar usuário: ${error.message}`);
+    },
+  });
+
   // Delete usuario mutation
   const deleteUsuario = useMutation({
     mutationFn: async (id: string) => {
@@ -157,6 +188,29 @@ export default function AdminUsuarios() {
       return;
     }
     createUsuario.mutate(newUser);
+  };
+
+  const handleEditUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUsuario) return;
+    updateUsuario.mutate({ id: selectedUsuario.id, ...editUsuario });
+  };
+
+  const openViewDialog = (usuario: Usuario) => {
+    setSelectedUsuario(usuario);
+    setIsViewDialogOpen(true);
+  };
+
+  const openEditDialog = (usuario: Usuario) => {
+    setSelectedUsuario(usuario);
+    setEditUsuario({
+      nome: usuario.nome,
+      email: usuario.email,
+      tipo: usuario.tipo,
+      papel: usuario.papel,
+      ativo: usuario.ativo,
+    });
+    setIsEditDialogOpen(true);
   };
 
   const canEditUser = (usuario: Usuario) => {
@@ -246,6 +300,7 @@ export default function AdminUsuarios() {
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="medico">Médico</SelectItem>
                       <SelectItem value="paciente">Paciente</SelectItem>
+                      <SelectItem value="clinica">Clínica</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -353,7 +408,9 @@ export default function AdminUsuarios() {
                         {usuario.nome}
                       </TableCell>
                       <TableCell>{usuario.email}</TableCell>
-                      <TableCell className="capitalize">{usuario.tipo}</TableCell>
+                      <TableCell className="capitalize">
+                        {tipoLabels[usuario.tipo] || usuario.tipo}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant="secondary"
@@ -381,11 +438,21 @@ export default function AdminUsuarios() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" title="Visualizar">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            title="Visualizar"
+                            onClick={() => openViewDialog(usuario)}
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
                           {canEditUser(usuario) && (
-                            <Button variant="ghost" size="icon" title="Editar">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              title="Editar"
+                              onClick={() => openEditDialog(usuario)}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
                           )}
@@ -422,6 +489,221 @@ export default function AdminUsuarios() {
           )}
         </CardContent>
       </Card>
+
+      {/* View User Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Detalhes do Usuário
+            </DialogTitle>
+          </DialogHeader>
+          {selectedUsuario && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-center">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="h-10 w-10 text-primary" />
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                  <User className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Nome</p>
+                    <p className="font-medium">{selectedUsuario.nome}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                  <Mail className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">E-mail</p>
+                    <p className="font-medium">{selectedUsuario.email}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <UserCog className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Tipo</p>
+                      <p className="font-medium capitalize">
+                        {tipoLabels[selectedUsuario.tipo] || selectedUsuario.tipo}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <Shield className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Papel</p>
+                      <Badge className={papelColors[selectedUsuario.papel] || ""}>
+                        {papelLabels[selectedUsuario.papel] || selectedUsuario.papel}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    {selectedUsuario.ativo ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    )}
+                    <div>
+                      <p className="text-xs text-muted-foreground">Status</p>
+                      <Badge className={selectedUsuario.ativo ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                        {selectedUsuario.ativo ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <Calendar className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Criado em</p>
+                      <p className="font-medium">
+                        {format(new Date(selectedUsuario.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+              Fechar
+            </Button>
+            {selectedUsuario && canEditUser(selectedUsuario) && (
+              <Button onClick={() => {
+                setIsViewDialogOpen(false);
+                openEditDialog(selectedUsuario);
+              }}>
+                <Edit className="h-4 w-4 mr-2" />
+                Editar
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Editar Usuário
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditUser} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-nome">Nome</Label>
+              <Input
+                id="edit-nome"
+                value={editUsuario.nome || ""}
+                onChange={(e) =>
+                  setEditUsuario({ ...editUsuario, nome: e.target.value })
+                }
+                placeholder="Nome completo"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">E-mail</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editUsuario.email || ""}
+                onChange={(e) =>
+                  setEditUsuario({ ...editUsuario, email: e.target.value })
+                }
+                placeholder="email@exemplo.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-tipo">Tipo de Usuário</Label>
+              <Select
+                value={editUsuario.tipo || ""}
+                onValueChange={(value) =>
+                  setEditUsuario({ ...editUsuario, tipo: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="medico">Médico</SelectItem>
+                  <SelectItem value="paciente">Paciente</SelectItem>
+                  <SelectItem value="clinica">Clínica</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-papel">Papel/Permissão</Label>
+              <Select
+                value={editUsuario.papel || ""}
+                onValueChange={(value: Papel) =>
+                  setEditUsuario({ ...editUsuario, papel: value })
+                }
+                disabled={!canChangePapel && selectedUsuario?.papel !== "atendente"}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="atendente">Atendente</SelectItem>
+                  <SelectItem value="supervisor">Supervisor</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  {userPapel === "superadmin" && (
+                    <SelectItem value="superadmin">Super Admin</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              <div>
+                <Label htmlFor="edit-ativo" className="font-medium">Status Ativo</Label>
+                <p className="text-xs text-muted-foreground">
+                  Usuários inativos não podem acessar o sistema
+                </p>
+              </div>
+              <Switch
+                id="edit-ativo"
+                checked={editUsuario.ativo ?? true}
+                onCheckedChange={(checked) =>
+                  setEditUsuario({ ...editUsuario, ativo: checked })
+                }
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsEditDialogOpen(false);
+                  setSelectedUsuario(null);
+                  setEditUsuario({});
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateUsuario.isPending}>
+                {updateUsuario.isPending ? "Salvando..." : "Salvar Alterações"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
