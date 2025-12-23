@@ -186,10 +186,36 @@ export default function MemedPrescricao({
     getMemedToken();
   };
 
-  // Initial load
-  useEffect(() => {
-    getMemedToken();
-  }, [getMemedToken]);
+  // Remove auto-load - user needs to click to connect
+  // useEffect(() => {
+  //   getMemedToken();
+  // }, [getMemedToken]);
+
+  // Show connect button if not yet connected
+  if (!token && !loading && !error) {
+    return (
+      <Card className="border-purple-500/30 bg-purple-500/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Pill className="w-5 h-5 text-purple-500" />
+            Prescrição Digital Memed
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Use a plataforma Memed para prescrever medicamentos com assinatura digital.
+          </p>
+          <Button 
+            onClick={getMemedToken}
+            className="w-full gap-2 bg-purple-600 hover:bg-purple-700"
+          >
+            <Pill className="w-4 h-4" />
+            Conectar ao Memed
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (error) {
     return (
