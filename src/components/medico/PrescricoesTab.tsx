@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,10 +17,8 @@ import {
   Save, 
   Printer, 
   Download,
-  Plus,
   Clock,
-  AlertCircle,
-  Sparkles
+  Upload
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +26,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import MemedPrescricao from "./MemedPrescricao";
+import jsPDF from "jspdf";
 
 interface PrescricaoDocumento {
   id: string;
@@ -36,7 +35,14 @@ interface PrescricaoDocumento {
   conteudo: string;
   dados_adicionais: any;
   created_at: string;
-  medico: { nome: string } | null;
+  medico: { nome: string; crm: string; especialidade: string } | null;
+}
+
+interface MedicoData {
+  nome: string;
+  crm: string | null;
+  especialidade: string | null;
+  telefone_whatsapp: string | null;
 }
 
 interface PrescricoesTabProps {
@@ -61,6 +67,9 @@ export default function PrescricoesTab({
   const [activeTab, setActiveTab] = useState("lista");
   const [selectedDocumento, setSelectedDocumento] = useState<PrescricaoDocumento | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [medicoData, setMedicoData] = useState<MedicoData | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Forms state
   const [exameForm, setExameForm] = useState({
@@ -87,7 +96,22 @@ export default function PrescricoesTab({
 
   useEffect(() => {
     fetchDocumentos();
+    fetchMedicoData();
   }, [consultaId, pacienteId]);
+
+  async function fetchMedicoData() {
+    if (!currentUser?.medicoId) return;
+    
+    const { data, error } = await supabase
+      .from("medicos")
+      .select("nome, crm, especialidade, telefone_whatsapp")
+      .eq("id", currentUser.medicoId)
+      .single();
+    
+    if (!error && data) {
+      setMedicoData(data);
+    }
+  }
 
   async function fetchDocumentos() {
     setLoading(true);
@@ -100,7 +124,7 @@ export default function PrescricoesTab({
         conteudo,
         dados_adicionais,
         created_at,
-        medico:medicos(nome)
+        medico:medicos(nome, crm, especialidade)
       `)
       .eq("consulta_id", consultaId)
       .order("created_at", { ascending: false });
@@ -111,6 +135,81 @@ export default function PrescricoesTab({
       setDocumentos(data || []);
     }
     setLoading(false);
+  }
+
+  function generatePDF(tipo: string, titulo: string, conteudo: string) {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const contentWidth = pageWidth - margin * 2;
+    let yPosition = 20;
+
+    // Header
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(26, 86, 219); // Azul
+    doc.text(titulo.toUpperCase(), pageWidth / 2, yPosition, { align: "center" });
+    yPosition += 15;
+
+    // Linha decorativa
+    doc.setDrawColor(26, 86, 219);
+    doc.setLineWidth(0.5);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 15;
+
+    // Data de emissão
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Emitido em: ${format(new Date(), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}`, margin, yPosition);
+    yPosition += 15;
+
+    // Conteúdo
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    
+    const lines = doc.splitTextToSize(conteudo, contentWidth);
+    lines.forEach((line: string) => {
+      if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      doc.text(line, margin, yPosition);
+      yPosition += 7;
+    });
+
+    // Espaço para assinatura
+    yPosition = Math.max(yPosition + 30, 200);
+    
+    // Linha de assinatura
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.3);
+    const lineStart = (pageWidth - 120) / 2;
+    doc.line(lineStart, yPosition, lineStart + 120, yPosition);
+    yPosition += 5;
+
+    // Dados do médico
+    if (medicoData) {
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Dr(a). ${medicoData.nome}`, pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 6;
+      
+      if (medicoData.crm) {
+        doc.setFont("helvetica", "normal");
+        doc.text(medicoData.crm, pageWidth / 2, yPosition, { align: "center" });
+        yPosition += 6;
+      }
+      
+      if (medicoData.especialidade) {
+        doc.text(medicoData.especialidade, pageWidth / 2, yPosition, { align: "center" });
+      }
+    }
+
+    // Abrir PDF para impressão
+    const pdfBlob = doc.output("blob");
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    window.open(pdfUrl, "_blank");
   }
 
   async function handleSaveExame() {
@@ -143,6 +242,8 @@ export default function PrescricoesTab({
       toast.error("Erro ao salvar pedido de exame");
     } else {
       toast.success("Pedido de exame salvo com sucesso");
+      // Gerar PDF automaticamente
+      generatePDF("exame", exameForm.titulo, conteudo);
       setExameForm({ titulo: "Pedido de Exame", exames: "", indicacao_clinica: "", observacoes: "" });
       fetchDocumentos();
       onUpdate();
@@ -181,6 +282,8 @@ export default function PrescricoesTab({
       toast.error("Erro ao salvar atestado");
     } else {
       toast.success("Atestado salvo com sucesso");
+      // Gerar PDF automaticamente
+      generatePDF("atestado", atestadoForm.titulo, conteudo);
       setAtestadoForm({ titulo: "Atestado Médico", dias_afastamento: "", cid: "", motivo: "", data_inicio: format(new Date(), "yyyy-MM-dd") });
       fetchDocumentos();
       onUpdate();
@@ -219,6 +322,7 @@ export default function PrescricoesTab({
       toast.error("Erro ao salvar receita");
     } else {
       toast.success("Receita salva com sucesso");
+      generatePDF("receita", receitaForm.titulo, conteudo);
       setReceitaForm({ titulo: "Receita Médica", medicamentos: "", posologia: "", observacoes: "" });
       fetchDocumentos();
       onUpdate();
@@ -227,95 +331,204 @@ export default function PrescricoesTab({
     setSaving(false);
   }
 
-  function handlePrint(documento: PrescricaoDocumento) {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      toast.error("Permita pop-ups para imprimir");
-      return;
+  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !currentUser?.medicoId) return;
+
+    setUploading(true);
+    
+    try {
+      // Ler o arquivo como texto ou base64
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const content = e.target?.result as string;
+        
+        const { error } = await supabase
+          .from("prescricoes_documentos")
+          .insert({
+            consulta_id: consultaId,
+            paciente_id: pacienteId,
+            medico_id: currentUser.medicoId,
+            tipo: "documento",
+            titulo: file.name,
+            conteudo: `Documento anexado: ${file.name}\nTipo: ${file.type}\nTamanho: ${(file.size / 1024).toFixed(2)} KB`,
+            dados_adicionais: { 
+              fileName: file.name, 
+              fileType: file.type, 
+              fileSize: file.size,
+              uploadedAt: new Date().toISOString()
+            },
+          });
+
+        if (error) {
+          toast.error("Erro ao fazer upload do documento");
+        } else {
+          toast.success("Documento enviado com sucesso");
+          fetchDocumentos();
+          onUpdate();
+        }
+        setUploading(false);
+      };
+      
+      reader.readAsText(file);
+    } catch (error) {
+      toast.error("Erro ao processar arquivo");
+      setUploading(false);
     }
 
-    const formattedDate = format(new Date(documento.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${documento.titulo}</title>
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            padding: 40px;
-            max-width: 800px;
-            margin: 0 auto;
-            line-height: 1.6;
-          }
-          .header {
-            text-align: center;
-            border-bottom: 2px solid #333;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-          }
-          .titulo {
-            font-size: 24px;
-            font-weight: bold;
-            color: #1a56db;
-          }
-          .conteudo {
-            white-space: pre-wrap;
-            margin-bottom: 40px;
-          }
-          .footer {
-            margin-top: 60px;
-            text-align: center;
-            border-top: 1px solid #ccc;
-            padding-top: 20px;
-          }
-          .assinatura {
-            margin-top: 40px;
-            text-align: center;
-          }
-          .assinatura-linha {
-            width: 300px;
-            border-top: 1px solid #333;
-            margin: 0 auto 10px;
-          }
-          .data {
-            color: #666;
-            font-size: 12px;
-          }
-          @media print {
-            body { padding: 20px; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="titulo">${documento.titulo}</div>
-          <div class="data">Emitido em: ${formattedDate}</div>
-        </div>
-        <div class="conteudo">${documento.conteudo}</div>
-        <div class="assinatura">
-          <div class="assinatura-linha"></div>
-          <div>Médico(a): ${documento.medico?.nome || "N/A"}</div>
-        </div>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+    // Limpar input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   }
 
-  function handleDownload(documento: PrescricaoDocumento) {
+  function handlePrintPDF(documento: PrescricaoDocumento) {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const contentWidth = pageWidth - margin * 2;
+    let yPosition = 20;
+
+    // Header
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(26, 86, 219);
+    doc.text(documento.titulo.toUpperCase(), pageWidth / 2, yPosition, { align: "center" });
+    yPosition += 15;
+
+    // Linha decorativa
+    doc.setDrawColor(26, 86, 219);
+    doc.setLineWidth(0.5);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 15;
+
+    // Data de emissão
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Emitido em: ${format(new Date(documento.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}`, margin, yPosition);
+    yPosition += 15;
+
+    // Conteúdo
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    
+    const lines = doc.splitTextToSize(documento.conteudo, contentWidth);
+    lines.forEach((line: string) => {
+      if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      doc.text(line, margin, yPosition);
+      yPosition += 7;
+    });
+
+    // Espaço para assinatura
+    yPosition = Math.max(yPosition + 30, 200);
+    
+    // Linha de assinatura
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.3);
+    const lineStart = (pageWidth - 120) / 2;
+    doc.line(lineStart, yPosition, lineStart + 120, yPosition);
+    yPosition += 5;
+
+    // Dados do médico
+    if (documento.medico) {
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Dr(a). ${documento.medico.nome}`, pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 6;
+      
+      if (documento.medico.crm) {
+        doc.setFont("helvetica", "normal");
+        doc.text(documento.medico.crm, pageWidth / 2, yPosition, { align: "center" });
+        yPosition += 6;
+      }
+      
+      if (documento.medico.especialidade) {
+        doc.text(documento.medico.especialidade, pageWidth / 2, yPosition, { align: "center" });
+      }
+    }
+
+    // Abrir PDF para impressão
+    const pdfBlob = doc.output("blob");
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    window.open(pdfUrl, "_blank");
+  }
+
+  function handleDownloadPDF(documento: PrescricaoDocumento) {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const contentWidth = pageWidth - margin * 2;
+    let yPosition = 20;
+
+    // Header
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(26, 86, 219);
+    doc.text(documento.titulo.toUpperCase(), pageWidth / 2, yPosition, { align: "center" });
+    yPosition += 15;
+
+    // Linha decorativa
+    doc.setDrawColor(26, 86, 219);
+    doc.setLineWidth(0.5);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 15;
+
+    // Data de emissão
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Emitido em: ${format(new Date(documento.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}`, margin, yPosition);
+    yPosition += 15;
+
+    // Conteúdo
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    
+    const lines = doc.splitTextToSize(documento.conteudo, contentWidth);
+    lines.forEach((line: string) => {
+      if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      doc.text(line, margin, yPosition);
+      yPosition += 7;
+    });
+
+    // Espaço para assinatura
+    yPosition = Math.max(yPosition + 30, 200);
+    
+    // Linha de assinatura
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.3);
+    const lineStart = (pageWidth - 120) / 2;
+    doc.line(lineStart, yPosition, lineStart + 120, yPosition);
+    yPosition += 5;
+
+    // Dados do médico
+    if (documento.medico) {
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Dr(a). ${documento.medico.nome}`, pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 6;
+      
+      if (documento.medico.crm) {
+        doc.setFont("helvetica", "normal");
+        doc.text(documento.medico.crm, pageWidth / 2, yPosition, { align: "center" });
+        yPosition += 6;
+      }
+      
+      if (documento.medico.especialidade) {
+        doc.text(documento.medico.especialidade, pageWidth / 2, yPosition, { align: "center" });
+      }
+    }
+
+    // Download PDF
     const formattedDate = format(new Date(documento.created_at), "dd-MM-yyyy", { locale: ptBR });
-    const blob = new Blob([documento.conteudo], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${documento.titulo.replace(/\s+/g, "_")}_${formattedDate}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    doc.save(`${documento.titulo.replace(/\s+/g, "_")}_${formattedDate}.pdf`);
   }
 
   function openViewModal(documento: PrescricaoDocumento) {
@@ -344,6 +557,8 @@ export default function PrescricoesTab({
         return "bg-green-500/20 text-green-700 border-green-500/30";
       case "receita":
         return "bg-purple-500/20 text-purple-700 border-purple-500/30";
+      case "documento":
+        return "bg-orange-500/20 text-orange-700 border-orange-500/30";
       default:
         return "";
     }
@@ -357,6 +572,8 @@ export default function PrescricoesTab({
         return "Atestado";
       case "receita":
         return "Receita";
+      case "documento":
+        return "Documento";
       default:
         return tipo;
     }
@@ -386,6 +603,26 @@ export default function PrescricoesTab({
 
         {/* Lista de documentos */}
         <TabsContent value="lista" className="mt-4">
+          {/* Botão de Upload */}
+          <div className="mb-4">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              className="hidden"
+              accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+            />
+            <Button 
+              variant="outline" 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="gap-2"
+            >
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              Enviar Documento
+            </Button>
+          </div>
+
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -402,7 +639,7 @@ export default function PrescricoesTab({
                 <Card 
                   key={doc.id} 
                   className="border-l-4 hover:shadow-md transition-all cursor-pointer"
-                  style={{ borderLeftColor: doc.tipo === "exame" ? "#3b82f6" : doc.tipo === "atestado" ? "#22c55e" : "#a855f7" }}
+                  style={{ borderLeftColor: doc.tipo === "exame" ? "#3b82f6" : doc.tipo === "atestado" ? "#22c55e" : doc.tipo === "documento" ? "#f97316" : "#a855f7" }}
                   onClick={() => openViewModal(doc)}
                 >
                   <CardContent className="p-4">
@@ -427,16 +664,16 @@ export default function PrescricoesTab({
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          onClick={(e) => { e.stopPropagation(); handlePrint(doc); }}
-                          title="Imprimir"
+                          onClick={(e) => { e.stopPropagation(); handlePrintPDF(doc); }}
+                          title="Imprimir PDF"
                         >
                           <Printer className="w-4 h-4" />
                         </Button>
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          onClick={(e) => { e.stopPropagation(); handleDownload(doc); }}
-                          title="Baixar"
+                          onClick={(e) => { e.stopPropagation(); handleDownloadPDF(doc); }}
+                          title="Baixar PDF"
                         >
                           <Download className="w-4 h-4" />
                         </Button>
@@ -496,7 +733,7 @@ export default function PrescricoesTab({
               </div>
               <Button onClick={handleSaveExame} disabled={saving} className="w-full gap-2">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Salvar Pedido de Exame
+                Salvar e Gerar PDF
               </Button>
             </CardContent>
           </Card>
@@ -561,7 +798,7 @@ export default function PrescricoesTab({
               </div>
               <Button onClick={handleSaveAtestado} disabled={saving} className="w-full gap-2">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Salvar Atestado
+                Salvar e Gerar PDF
               </Button>
             </CardContent>
           </Card>
@@ -633,7 +870,7 @@ export default function PrescricoesTab({
               </div>
               <Button onClick={handleSaveReceita} disabled={saving} className="w-full gap-2" variant="outline">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Salvar Receita Manual
+                Salvar e Gerar PDF
               </Button>
             </CardContent>
           </Card>
@@ -666,14 +903,21 @@ export default function PrescricoesTab({
                     {selectedDocumento.conteudo}
                   </pre>
                 </div>
+                {selectedDocumento.medico && (
+                  <div className="p-3 border rounded-lg">
+                    <p className="text-sm font-medium">Dr(a). {selectedDocumento.medico.nome}</p>
+                    {selectedDocumento.medico.crm && <p className="text-xs text-muted-foreground">{selectedDocumento.medico.crm}</p>}
+                    {selectedDocumento.medico.especialidade && <p className="text-xs text-muted-foreground">{selectedDocumento.medico.especialidade}</p>}
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <Button onClick={() => handlePrint(selectedDocumento)} className="gap-2">
+                  <Button onClick={() => handlePrintPDF(selectedDocumento)} className="gap-2">
                     <Printer className="w-4 h-4" />
-                    Imprimir
+                    Imprimir PDF
                   </Button>
-                  <Button variant="outline" onClick={() => handleDownload(selectedDocumento)} className="gap-2">
+                  <Button variant="outline" onClick={() => handleDownloadPDF(selectedDocumento)} className="gap-2">
                     <Download className="w-4 h-4" />
-                    Baixar
+                    Baixar PDF
                   </Button>
                 </div>
               </div>
