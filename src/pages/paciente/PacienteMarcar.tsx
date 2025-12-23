@@ -322,8 +322,17 @@ export default function PacienteMarcar() {
   }
 
   async function confirmarConsulta() {
-    if (!selectedSlot || !pacienteData?.id || !selectedMedico) return;
-
+    console.log("confirmarConsulta chamada", { selectedSlot, pacienteData, selectedMedico });
+    
+    if (!selectedSlot || !pacienteData?.id || !selectedMedico) {
+      console.error("Dados faltando:", { 
+        selectedSlot: !!selectedSlot, 
+        pacienteDataId: pacienteData?.id, 
+        selectedMedico: !!selectedMedico 
+      });
+      toast.error("Dados incompletos. Tente novamente.");
+      return;
+    }
     setAgendando(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
