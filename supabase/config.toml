@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.transfer-to-doctor]
 verify_jwt = false
+
+[functions.memed-auth]
+verify_jwt = false

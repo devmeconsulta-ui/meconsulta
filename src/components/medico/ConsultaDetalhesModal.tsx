@@ -846,6 +846,7 @@ export default function ConsultaDetalhesModal({
                   consultaId={consulta.id}
                   pacienteId={pacienteId}
                   pacienteNome={consulta.nome_paciente_consulta || consulta.paciente?.nome || "Paciente"}
+                  pacienteCpf={consulta.paciente?.cpf || undefined}
                   onUpdate={onUpdate}
                 />
               ) : (

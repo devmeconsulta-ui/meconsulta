@@ -19,13 +19,15 @@ import {
   Download,
   Plus,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import MemedPrescricao from "./MemedPrescricao";
 
 interface PrescricaoDocumento {
   id: string;
@@ -41,6 +43,7 @@ interface PrescricoesTabProps {
   consultaId: string;
   pacienteId: string;
   pacienteNome: string;
+  pacienteCpf?: string;
   onUpdate: () => void;
 }
 
@@ -48,6 +51,7 @@ export default function PrescricoesTab({
   consultaId, 
   pacienteId, 
   pacienteNome,
+  pacienteCpf,
   onUpdate 
 }: PrescricoesTabProps) {
   const { currentUser } = useAuth();
@@ -563,23 +567,35 @@ export default function PrescricoesTab({
           </Card>
         </TabsContent>
 
-        {/* Formulário de Receita */}
-        <TabsContent value="receita" className="mt-4">
+        {/* Formulário de Receita com Memed */}
+        <TabsContent value="receita" className="mt-4 space-y-4">
+          {/* Integração Memed */}
+          {currentUser?.medicoId && (
+            <MemedPrescricao
+              medicoId={currentUser.medicoId}
+              pacienteNome={pacienteNome}
+              pacienteCpf={pacienteCpf}
+              onPrescricaoConcluida={(prescricao) => {
+                console.log('Prescrição Memed concluída:', prescricao);
+                fetchDocumentos();
+                onUpdate();
+              }}
+            />
+          )}
+
+          {/* Opção Manual */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Pill className="w-5 h-5 text-purple-500" />
-                Nova Receita Médica
+                Receita Manual
+                <Badge variant="outline" className="ml-auto text-xs">Alternativo</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-2">
-                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-amber-700">
-                  <p className="font-medium">Integração Memed disponível em breve</p>
-                  <p className="text-xs mt-1">Por enquanto, preencha a receita manualmente.</p>
-                </div>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                Use esta opção se preferir criar uma receita simples sem a plataforma Memed.
+              </p>
               <div>
                 <Label>Título do Documento</Label>
                 <Input
@@ -615,9 +631,9 @@ export default function PrescricoesTab({
                   className="mt-1"
                 />
               </div>
-              <Button onClick={handleSaveReceita} disabled={saving} className="w-full gap-2">
+              <Button onClick={handleSaveReceita} disabled={saving} className="w-full gap-2" variant="outline">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Salvar Receita
+                Salvar Receita Manual
               </Button>
             </CardContent>
           </Card>
