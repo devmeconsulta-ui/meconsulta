@@ -21,7 +21,8 @@ import {
   Pencil,
   X,
   Lock,
-  MapPin
+  MapPin,
+  ClipboardList
 } from "lucide-react";
 import { maskCPF } from "@/lib/maskUtils";
 import { format } from "date-fns";
@@ -29,6 +30,7 @@ import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import PrescricoesTab from "./PrescricoesTab";
 
 interface Consulta {
   id: string;
@@ -290,10 +292,14 @@ export default function ConsultaDetalhesModal({
 
         <Tabs defaultValue="paciente" className="w-full">
           <TabsList className="w-full flex flex-wrap h-auto gap-1 p-1">
-            <TabsTrigger value="paciente" className="flex-1 min-w-[100px]">Paciente</TabsTrigger>
-            <TabsTrigger value="historico" className="flex-1 min-w-[100px]">Histórico</TabsTrigger>
-            <TabsTrigger value="anamneses" className="flex-1 min-w-[100px]">Anamneses</TabsTrigger>
-            <TabsTrigger value="nova-anamnese" className="flex-1 min-w-[120px]">Nova Anamnese</TabsTrigger>
+            <TabsTrigger value="paciente" className="flex-1 min-w-[80px]">Paciente</TabsTrigger>
+            <TabsTrigger value="historico" className="flex-1 min-w-[80px]">Histórico</TabsTrigger>
+            <TabsTrigger value="anamneses" className="flex-1 min-w-[80px]">Anamneses</TabsTrigger>
+            <TabsTrigger value="nova-anamnese" className="flex-1 min-w-[100px]">Nova Anamnese</TabsTrigger>
+            <TabsTrigger value="prescricoes" className="flex-1 min-w-[120px]">
+              <ClipboardList className="w-4 h-4 mr-1" />
+              Prescrições
+            </TabsTrigger>
           </TabsList>
 
           <ScrollArea className="h-[60vh] mt-4">
@@ -831,6 +837,23 @@ export default function ConsultaDetalhesModal({
                   </Button>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Tab: Prescrições e Pedidos */}
+            <TabsContent value="prescricoes">
+              {pacienteId ? (
+                <PrescricoesTab
+                  consultaId={consulta.id}
+                  pacienteId={pacienteId}
+                  pacienteNome={consulta.nome_paciente_consulta || consulta.paciente?.nome || "Paciente"}
+                  onUpdate={onUpdate}
+                />
+              ) : (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Paciente não identificado</p>
+                </div>
+              )}
             </TabsContent>
           </ScrollArea>
         </Tabs>

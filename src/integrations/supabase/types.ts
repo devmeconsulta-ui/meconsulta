@@ -973,6 +973,70 @@ export type Database = {
           },
         ]
       }
+      prescricoes_documentos: {
+        Row: {
+          consulta_id: string | null
+          conteudo: string
+          created_at: string
+          dados_adicionais: Json | null
+          id: string
+          medico_id: string
+          memed_id: string | null
+          paciente_id: string
+          tipo: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          consulta_id?: string | null
+          conteudo: string
+          created_at?: string
+          dados_adicionais?: Json | null
+          id?: string
+          medico_id: string
+          memed_id?: string | null
+          paciente_id: string
+          tipo: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          consulta_id?: string | null
+          conteudo?: string
+          created_at?: string
+          dados_adicionais?: Json | null
+          id?: string
+          medico_id?: string
+          memed_id?: string | null
+          paciente_id?: string
+          tipo?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prescricoes_documentos_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescricoes_documentos_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescricoes_documentos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       repasses_itens: {
         Row: {
           consulta_id: string
