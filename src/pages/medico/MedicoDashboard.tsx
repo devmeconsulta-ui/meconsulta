@@ -1,13 +1,39 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, Clock, Star, DollarSign, User, MapPin } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { Calendar, Clock, Star, DollarSign, User, MapPin, Timer, Users } from "lucide-react";
+import { format, parseISO, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface MedicoContext {
   medicoData: any;
+}
+
+// Componente para mostrar tempo de espera
+function TempoEspera({ dataHora }: { dataHora: string }) {
+  const [minutos, setMinutos] = useState(0);
+
+  useEffect(() => {
+    const calcularMinutos = () => {
+      const agora = new Date();
+      const horaConsulta = parseISO(dataHora);
+      const diff = differenceInMinutes(agora, horaConsulta);
+      setMinutos(Math.max(0, diff));
+    };
+
+    calcularMinutos();
+    const interval = setInterval(calcularMinutos, 60000);
+
+    return () => clearInterval(interval);
+  }, [dataHora]);
+
+  return (
+    <span className="text-orange-600 font-medium animate-pulse">
+      {minutos} min
+    </span>
+  );
 }
 
 export default function MedicoDashboard() {
@@ -17,8 +43,10 @@ export default function MedicoDashboard() {
     consultasHoje: 0,
     mediaAvaliacao: 0,
     valorMesConfirmado: 0,
+    aguardando: 0,
   });
   const [proximasConsultas, setProximasConsultas] = useState<any[]>([]);
+  const [consultasAguardando, setConsultasAguardando] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,6 +75,18 @@ export default function MedicoDashboard() {
         .eq("medico_id", medicoData.id)
         .gte("data_hora", hoje.toISOString())
         .lt("data_hora", amanha.toISOString());
+
+      // Consultas aguardando
+      const { data: aguardandoData, count: aguardandoCount } = await supabase
+        .from("consultas")
+        .select(`
+          *,
+          paciente:pacientes!consultas_paciente_id_fkey(nome),
+          local:locais_atendimento(nome_local, cidade, estado)
+        `, { count: "exact" })
+        .eq("medico_id", medicoData.id)
+        .in("status_consulta", ["aguardando", "atendendo"])
+        .order("data_hora", { ascending: true });
 
       // Média de avaliações
       const { data: avaliacoes } = await supabase
@@ -89,21 +129,28 @@ export default function MedicoDashboard() {
         consultasHoje: hojeCount || 0,
         mediaAvaliacao: media,
         valorMesConfirmado: valorMes,
+        aguardando: aguardandoCount || 0,
       });
       setProximasConsultas(proximas || []);
+      setConsultasAguardando(aguardandoData || []);
       setLoading(false);
     }
 
     fetchData();
+    
+    // Atualizar a cada 30 segundos
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
   }, [medicoData]);
 
   const statCards = [
     {
-      title: "Consultas Futuras",
-      value: stats.consultasFuturas,
-      icon: Calendar,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
+      title: "Aguardando Atendimento",
+      value: stats.aguardando,
+      icon: Users,
+      color: "text-orange-500",
+      bgColor: "bg-orange-500/10",
+      highlight: stats.aguardando > 0,
     },
     {
       title: "Consultas Hoje",
@@ -113,12 +160,11 @@ export default function MedicoDashboard() {
       bgColor: "bg-secondary/10",
     },
     {
-      title: "Média de Avaliação",
-      value: stats.mediaAvaliacao.toFixed(1),
-      icon: Star,
-      color: "text-yellow-500",
-      bgColor: "bg-yellow-500/10",
-      suffix: "/5",
+      title: "Consultas Futuras",
+      value: stats.consultasFuturas,
+      icon: Calendar,
+      color: "text-primary",
+      bgColor: "bg-primary/10",
     },
     {
       title: "Faturamento do Mês",
@@ -142,17 +188,16 @@ export default function MedicoDashboard() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat, index) => (
-          <Card key={index} className="card-shadow hover:shadow-lg transition-shadow">
+          <Card key={index} className={`card-shadow hover:shadow-lg transition-shadow ${stat.highlight ? 'ring-2 ring-orange-500' : ''}`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">{stat.title}</p>
                   <p className="text-2xl font-bold mt-1">
                     {stat.value}
-                    {stat.suffix && <span className="text-sm text-muted-foreground">{stat.suffix}</span>}
                   </p>
                 </div>
-                <div className={`w-12 h-12 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
+                <div className={`w-12 h-12 rounded-xl ${stat.bgColor} flex items-center justify-center ${stat.highlight ? 'animate-pulse' : ''}`}>
                   <stat.icon className={`w-6 h-6 ${stat.color}`} />
                 </div>
               </div>
@@ -160,6 +205,54 @@ export default function MedicoDashboard() {
           </Card>
         ))}
       </div>
+
+      {/* Pacientes Aguardando */}
+      {consultasAguardando.length > 0 && (
+        <Card className="card-shadow border-orange-500/50 bg-orange-500/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-orange-600">
+              <Timer className="w-5 h-5 animate-pulse" />
+              Pacientes Aguardando ({consultasAguardando.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {consultasAguardando.map((consulta) => (
+                <div
+                  key={consulta.id}
+                  className="flex items-center justify-between p-4 rounded-xl bg-white dark:bg-background border border-orange-200 dark:border-orange-900"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center">
+                      <User className="w-6 h-6 text-orange-500" />
+                    </div>
+                    <div>
+                      <p className="font-semibold">{consulta.nome_paciente_consulta || consulta.paciente?.nome || "Paciente"}</p>
+                      {consulta.local && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <MapPin className="w-4 h-4" />
+                          <span>{consulta.local.nome_local}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge className={consulta.status_consulta === 'atendendo' ? 'bg-purple-500' : 'bg-orange-500'}>
+                      {consulta.status_consulta === 'atendendo' ? 'Em Atendimento' : 'Aguardando'}
+                    </Badge>
+                    {consulta.status_consulta === 'aguardando' && (
+                      <div className="flex items-center gap-1 text-sm">
+                        <Timer className="w-4 h-4 text-orange-500" />
+                        <TempoEspera dataHora={consulta.data_hora} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Próximas Consultas */}
       <Card className="card-shadow">
