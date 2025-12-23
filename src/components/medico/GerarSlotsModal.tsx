@@ -18,7 +18,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format, addDays, setHours, setMinutes, isWeekend, eachDayOfInterval } from "date-fns";
+import { format, addDays, setHours, setMinutes, isWeekend, eachDayOfInterval, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarRange } from "lucide-react";
 
@@ -189,10 +189,10 @@ export function GerarSlotsModal({
               mode="range"
               selected={dateRange}
               onSelect={(range) => setDateRange(range as { from: Date; to: Date })}
-              disabled={(date) => date < new Date()}
+              disabled={(date) => date < startOfDay(new Date())}
               locale={ptBR}
               numberOfMonths={1}
-              className="rounded-md border"
+              className="rounded-md border pointer-events-auto"
             />
           </div>
 
