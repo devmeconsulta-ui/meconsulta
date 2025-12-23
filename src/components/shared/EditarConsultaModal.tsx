@@ -51,12 +51,14 @@ interface EditarConsultaModalProps {
 }
 
 const statusOptions = [
+  { value: "agendada", label: "Agendada" },
   { value: "aguardando_pagamento", label: "Aguardando Pagamento" },
   { value: "confirmada", label: "Confirmada" },
-  { value: "atendida_medico", label: "Atendida pelo Médico" },
+  { value: "aguardando", label: "Aguardando" },
+  { value: "atendendo", label: "Atendendo" },
   { value: "concluida", label: "Concluída" },
-  { value: "cancelada", label: "Cancelada" },
   { value: "nao_compareceu", label: "Não Compareceu" },
+  { value: "cancelada", label: "Cancelada" },
 ];
 
 const paymentStatusOptions = [
