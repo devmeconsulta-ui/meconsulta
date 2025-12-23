@@ -59,6 +59,7 @@ import {
   isWeekend,
   setHours,
   setMinutes,
+  startOfDay,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AgendaInternaModal } from "@/components/medico/AgendaInternaModal";
@@ -1265,7 +1266,7 @@ export default function ClinicaAgenda() {
                 mode="range"
                 selected={gerarForm.dateRange}
                 onSelect={(range) => setGerarForm(prev => ({ ...prev, dateRange: range as { from: Date; to: Date } }))}
-                disabled={(date) => date < new Date()}
+                disabled={(date) => date < startOfDay(new Date())}
                 locale={ptBR}
                 numberOfMonths={1}
                 className={cn("rounded-md border pointer-events-auto")}
