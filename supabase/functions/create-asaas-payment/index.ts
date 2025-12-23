@@ -257,11 +257,10 @@ serve(async (req) => {
       console.log('Saved Asaas customer ID to paciente:', asaasCustomerId);
     }
 
-    // 6. Create payment with UNDEFINED billing type
-    // Note: To disable Boleto, you must configure it in Asaas dashboard:
-    // My Account > Configuration > System Settings > Disable Boleto
+    // 6. Create payment with PIX billing type (no boleto)
+    // Using PIX as default - card payments are processed separately via process-card-payment
     const createPayment = async (customerId: string) => {
-      console.log('Creating payment with multiple payment options...');
+      console.log('Creating PIX payment (no boleto allowed)...');
       
       // Due date: 3 days from now
       const dueDate = new Date();
@@ -270,7 +269,7 @@ serve(async (req) => {
 
       const paymentPayload = {
         customer: customerId,
-        billingType: 'UNDEFINED', // Allows PIX, Card, Boleto - disable Boleto in Asaas dashboard
+        billingType: 'PIX', // Only PIX - card is processed separately, no boleto
         value: consulta.valor_consulta,
         dueDate: dueDateStr,
         description: `Consulta médica - MeConsulta`,
