@@ -293,14 +293,14 @@ function NotificationList({
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-3">
-                  {notification.type === "pagamento" && notification.invoiceUrl && (
+                  {notification.type === "pagamento" && notification.consultaId && (
                     <Button
                       variant="default"
                       size="sm"
                       className="text-xs sm:text-sm h-8"
-                      onClick={() => window.open(notification.invoiceUrl, '_blank')}
+                      onClick={() => navigate(`/pagamento/${notification.consultaId}`)}
                     >
-                      <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
+                      <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
                       Pagar
                     </Button>
                   )}
