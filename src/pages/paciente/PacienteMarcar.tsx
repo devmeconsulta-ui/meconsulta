@@ -290,7 +290,7 @@ export default function PacienteMarcar() {
     }
   }
 
-  async function fetchSlotsForMedico(medicoId: string) {
+  async function fetchSlotsForMedico(medicoId: string, checkSelectedSlot: boolean = false) {
     const now = new Date().toISOString();
     
     const { data: slotsData } = await supabase
@@ -304,7 +304,20 @@ export default function PacienteMarcar() {
       .gte("data_hora", now)
       .order("data_hora", { ascending: true });
 
-    setSlots(slotsData || []);
+    const newSlots = slotsData || [];
+    
+    // Check if selected slot is still available
+    if (checkSelectedSlot && selectedSlot) {
+      const slotStillAvailable = newSlots.some(slot => slot.id === selectedSlot.id);
+      if (!slotStillAvailable) {
+        toast.error("O horário selecionado foi ocupado por outro paciente. Por favor, escolha outro horário.", {
+          duration: 5000,
+        });
+        setSelectedSlot(null);
+      }
+    }
+
+    setSlots(newSlots);
   }
 
   async function verAgenda(medico: any) {
@@ -330,11 +343,11 @@ export default function PacienteMarcar() {
     if (!selectedMedico?.id) return;
 
     const interval = setInterval(() => {
-      fetchSlotsForMedico(selectedMedico.id);
+      fetchSlotsForMedico(selectedMedico.id, true); // Check if selected slot is still available
     }, 30000); // 30 seconds
 
     return () => clearInterval(interval);
-  }, [selectedMedico?.id]);
+  }, [selectedMedico?.id, selectedSlot]);
 
   async function confirmarConsulta() {
     console.log("confirmarConsulta chamada", { selectedSlot, pacienteData, selectedMedico });
