@@ -290,25 +290,30 @@ export default function PacienteMarcar() {
     }
   }
 
-  async function verAgenda(medico: any) {
-    setSelectedMedico(medico);
-    setSelectedSlot(null);
-    setSelectedLocal(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    
+  async function fetchSlotsForMedico(medicoId: string) {
     const now = new Date().toISOString();
     
-    // Buscar slots disponíveis
     const { data: slotsData } = await supabase
       .from("agenda_slots")
       .select(`
         *,
         locais_atendimento (*)
       `)
-      .eq("medico_id", medico.id)
+      .eq("medico_id", medicoId)
       .eq("disponivel", true)
       .gte("data_hora", now)
       .order("data_hora", { ascending: true });
+
+    setSlots(slotsData || []);
+  }
+
+  async function verAgenda(medico: any) {
+    setSelectedMedico(medico);
+    setSelectedSlot(null);
+    setSelectedLocal(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    await fetchSlotsForMedico(medico.id);
 
     // Buscar locais ativos
     const { data: locaisData } = await supabase
@@ -317,9 +322,19 @@ export default function PacienteMarcar() {
       .eq("medico_id", medico.id)
       .eq("ativo", true);
 
-    setSlots(slotsData || []);
     setLocais(locaisData || []);
   }
+
+  // Auto-refresh slots every 30 seconds when viewing a doctor's schedule
+  useEffect(() => {
+    if (!selectedMedico?.id) return;
+
+    const interval = setInterval(() => {
+      fetchSlotsForMedico(selectedMedico.id);
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [selectedMedico?.id]);
 
   async function confirmarConsulta() {
     console.log("confirmarConsulta chamada", { selectedSlot, pacienteData, selectedMedico });
