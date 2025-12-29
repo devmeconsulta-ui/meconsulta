@@ -39,6 +39,17 @@ interface PixData {
 
 const PAYMENT_TIMEOUT = 15 * 60 * 1000; // 15 minutes
 
+// Credit card fee constants (same as edge function)
+const CARD_FEE_PERCENTAGE = 2.99; // 2.99%
+const CARD_FEE_FIXED = 0.49; // R$ 0.49
+
+const calculateCardFees = (originalValue: number) => {
+  const percentageFee = originalValue * (CARD_FEE_PERCENTAGE / 100);
+  const totalFees = percentageFee + CARD_FEE_FIXED;
+  const totalWithFees = Math.round((originalValue + totalFees) * 100) / 100;
+  return { totalFees, totalWithFees };
+};
+
 const Pagamento = () => {
   const { consultaId } = useParams();
   const navigate = useNavigate();
@@ -476,6 +487,25 @@ const Pagamento = () => {
                         </div>
                       </div>
 
+                      {/* Card Fee Notice */}
+                      <div className="bg-muted/50 border rounded-lg p-4 space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Valor da consulta</span>
+                          <span>R$ {consulta.valor_consulta.toFixed(2).replace(".", ",")}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Taxa do cartão (2,99% + R$ 0,49)</span>
+                          <span>R$ {calculateCardFees(consulta.valor_consulta).totalFees.toFixed(2).replace(".", ",")}</span>
+                        </div>
+                        <div className="border-t pt-2 flex justify-between font-semibold">
+                          <span>Total a pagar</span>
+                          <span className="text-primary">R$ {calculateCardFees(consulta.valor_consulta).totalWithFees.toFixed(2).replace(".", ",")}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          💡 Pague via PIX para não pagar taxa!
+                        </p>
+                      </div>
+
                       {/* Pay Button */}
                       <Button
                         className="w-full mt-4"
@@ -489,7 +519,7 @@ const Pagamento = () => {
                             Processando...
                           </>
                         ) : (
-                          `Pagar R$ ${consulta.valor_consulta.toFixed(2).replace(".", ",")}`
+                          `Pagar R$ ${calculateCardFees(consulta.valor_consulta).totalWithFees.toFixed(2).replace(".", ",")}`
                         )}
                       </Button>
 
@@ -560,11 +590,27 @@ const Pagamento = () => {
                 </div>
 
                 {/* Total */}
-                <div className="border-t pt-4">
+                <div className="border-t pt-4 space-y-2">
                   <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Consulta</span>
+                    <span className="font-medium">
+                      R$ {consulta.valor_consulta.toFixed(2).replace(".", ",")}
+                    </span>
+                  </div>
+                  {paymentMethod === 'card' && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Taxa do cartão</span>
+                      <span className="text-muted-foreground">
+                        + R$ {calculateCardFees(consulta.valor_consulta).totalFees.toFixed(2).replace(".", ",")}
+                      </span>
+                    </div>
+                  )}
+                  <div className="border-t pt-2 flex justify-between items-center">
                     <span className="text-lg font-semibold">Total</span>
                     <span className="text-2xl font-bold text-primary">
-                      R$ {consulta.valor_consulta.toFixed(2).replace(".", ",")}
+                      R$ {paymentMethod === 'card' 
+                        ? calculateCardFees(consulta.valor_consulta).totalWithFees.toFixed(2).replace(".", ",")
+                        : consulta.valor_consulta.toFixed(2).replace(".", ",")}
                     </span>
                   </div>
                 </div>
