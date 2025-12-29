@@ -257,10 +257,9 @@ serve(async (req) => {
       console.log('Saved Asaas customer ID to paciente:', asaasCustomerId);
     }
 
-    // 6. Create payment with PIX billing type (no boleto)
-    // Using PIX as default - card payments are processed separately via process-card-payment
+    // 6. Create payment with UNDEFINED billing type (allows PIX and CREDIT_CARD)
     const createPayment = async (customerId: string) => {
-      console.log('Creating PIX payment (no boleto allowed)...');
+      console.log('Creating payment with PIX and CREDIT_CARD options...');
       
       // Due date: 3 days from now
       const dueDate = new Date();
@@ -269,7 +268,7 @@ serve(async (req) => {
 
       const paymentPayload = {
         customer: customerId,
-        billingType: 'PIX', // Only PIX - card is processed separately, no boleto
+        billingType: 'UNDEFINED', // UNDEFINED allows PIX and CREDIT_CARD (no boleto shown in checkout)
         value: consulta.valor_consulta,
         dueDate: dueDateStr,
         description: `Consulta médica - MeConsulta`,
