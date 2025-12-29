@@ -48,6 +48,7 @@ interface EditarConsultaModalProps {
   onOpenChange: (open: boolean) => void;
   consulta: any;
   onSuccess?: () => void;
+  readOnly?: boolean;
 }
 
 const statusOptions = [
@@ -72,6 +73,7 @@ export function EditarConsultaModal({
   onOpenChange,
   consulta,
   onSuccess,
+  readOnly = false,
 }: EditarConsultaModalProps) {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -334,7 +336,7 @@ export function EditarConsultaModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Edit className="h-5 w-5 text-primary" />
-            Editar Consulta
+            {readOnly ? "Detalhes da Consulta" : "Editar Consulta"}
           </DialogTitle>
         </DialogHeader>
 
@@ -358,6 +360,7 @@ export function EditarConsultaModal({
                   setFormData((prev) => ({ ...prev, nome_paciente_consulta: e.target.value }))
                 }
                 placeholder="Nome do paciente"
+                disabled={readOnly}
               />
             </div>
 
@@ -371,6 +374,7 @@ export function EditarConsultaModal({
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, data_hora: e.target.value }))
                 }
+                disabled={readOnly}
               />
             </div>
 
@@ -383,6 +387,7 @@ export function EditarConsultaModal({
                   onValueChange={(value) =>
                     setFormData((prev) => ({ ...prev, status_consulta: value }))
                   }
+                  disabled={readOnly}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -405,6 +410,7 @@ export function EditarConsultaModal({
                   onValueChange={(value) =>
                     setFormData((prev) => ({ ...prev, status_pagamento: value }))
                   }
+                  disabled={readOnly}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -432,6 +438,7 @@ export function EditarConsultaModal({
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, valor_consulta: parseFloat(e.target.value) || 0 }))
                 }
+                disabled={readOnly}
               />
             </div>
 
@@ -446,6 +453,7 @@ export function EditarConsultaModal({
                 }
                 placeholder="Descreva o motivo da consulta"
                 rows={2}
+                disabled={readOnly}
               />
             </div>
 
@@ -460,6 +468,7 @@ export function EditarConsultaModal({
                 }
                 placeholder="Descreva os sintomas"
                 rows={2}
+                disabled={readOnly}
               />
             </div>
 
@@ -474,40 +483,43 @@ export function EditarConsultaModal({
                 }
                 placeholder="Observações adicionais"
                 rows={2}
+                disabled={readOnly}
               />
             </div>
           </TabsContent>
 
           <TabsContent value="procedimentos" className="space-y-4 mt-4">
-            {/* Add new procedure */}
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1 space-y-2">
-                    <Label>Nome do Procedimento</Label>
-                    <Input
-                      placeholder="Ex: Raio-X, Ultrassom, Exame de sangue..."
-                      value={novoProcedimento.nome}
-                      onChange={(e) => setNovoProcedimento(prev => ({ ...prev, nome: e.target.value }))}
-                    />
+            {/* Add new procedure - hide in readOnly mode */}
+            {!readOnly && (
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1 space-y-2">
+                      <Label>Nome do Procedimento</Label>
+                      <Input
+                        placeholder="Ex: Raio-X, Ultrassom, Exame de sangue..."
+                        value={novoProcedimento.nome}
+                        onChange={(e) => setNovoProcedimento(prev => ({ ...prev, nome: e.target.value }))}
+                      />
+                    </div>
+                    <div className="w-32 space-y-2">
+                      <Label>Valor (R$)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0,00"
+                        value={novoProcedimento.valor}
+                        onChange={(e) => setNovoProcedimento(prev => ({ ...prev, valor: e.target.value }))}
+                      />
+                    </div>
+                    <Button onClick={handleAddProcedimento} size="icon" className="shrink-0">
+                      <Plus className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <div className="w-32 space-y-2">
-                    <Label>Valor (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={novoProcedimento.valor}
-                      onChange={(e) => setNovoProcedimento(prev => ({ ...prev, valor: e.target.value }))}
-                    />
-                  </div>
-                  <Button onClick={handleAddProcedimento} size="icon" className="shrink-0">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Procedures list */}
             {procedimentos.length > 0 ? (
@@ -521,6 +533,7 @@ export function EditarConsultaModal({
                           value={proc.nome_procedimento}
                           onChange={(e) => handleProcedimentoChange(index, "nome_procedimento", e.target.value)}
                           className="flex-1"
+                          disabled={readOnly}
                         />
                         <div className="flex items-center gap-1 w-32">
                           <span className="text-muted-foreground text-sm">R$</span>
@@ -530,16 +543,19 @@ export function EditarConsultaModal({
                             min="0"
                             value={proc.valor}
                             onChange={(e) => handleProcedimentoChange(index, "valor", e.target.value)}
+                            disabled={readOnly}
                           />
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveProcedimento(index)}
-                          className="text-destructive hover:text-destructive shrink-0"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {!readOnly && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveProcedimento(index)}
+                            className="text-destructive hover:text-destructive shrink-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -576,69 +592,82 @@ export function EditarConsultaModal({
         </Tabs>
 
         <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
-          {/* Delete button with confirmation */}
-          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" className="gap-2 w-full sm:w-auto">
-                <Trash2 className="h-4 w-4" />
-                Excluir
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Excluir consulta?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta ação é irreversível. A consulta será permanentemente excluída
-                  e o horário será liberado na agenda.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  {deleting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Excluindo...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Excluir
-                    </>
-                  )}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          <div className="flex gap-2 w-full sm:w-auto">
+          {readOnly ? (
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={loading}
-              className="flex-1 sm:flex-initial"
+              className="w-full sm:w-auto"
             >
               <X className="h-4 w-4 mr-2" />
-              Cancelar
+              Fechar
             </Button>
-            <Button onClick={handleSave} disabled={loading} className="flex-1 sm:flex-initial">
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Salvar
-                </>
-              )}
-            </Button>
-          </div>
+          ) : (
+            <>
+              {/* Delete button with confirmation */}
+              <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="gap-2 w-full sm:w-auto">
+                    <Trash2 className="h-4 w-4" />
+                    Excluir
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Excluir consulta?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta ação é irreversível. A consulta será permanentemente excluída
+                      e o horário será liberado na agenda.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {deleting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Excluindo...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir
+                        </>
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={loading}
+                  className="flex-1 sm:flex-initial"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancelar
+                </Button>
+                <Button onClick={handleSave} disabled={loading} className="flex-1 sm:flex-initial">
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Salvar
+                    </>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -517,17 +517,14 @@ export default function AdminConsultas() {
         </CardContent>
       </Card>
 
-      {/* Modal de detalhes/edição */}
+      {/* Modal de detalhes - apenas visualização para admin */}
       <EditarConsultaModal
         consulta={selectedConsulta}
         open={!!selectedConsulta}
         onOpenChange={(open) => {
           if (!open) setSelectedConsulta(null);
         }}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["admin-consultas-full"] });
-          setSelectedConsulta(null);
-        }}
+        readOnly={true}
       />
     </div>
   );
