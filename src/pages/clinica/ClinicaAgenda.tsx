@@ -138,9 +138,20 @@ export default function ClinicaAgenda() {
     horaInicial: "08:00",
     horaFinal: "18:00",
     intervalo: "30",
-    excluirFimSemana: true,
+    excluirFimSemana: false,
+    diasSemana: [1, 2, 3, 4, 5] as number[], // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sab
   });
   const [gerarLoading, setGerarLoading] = useState(false);
+
+  const diasSemanaOptions = [
+    { value: 0, label: "Dom" },
+    { value: 1, label: "Seg" },
+    { value: 2, label: "Ter" },
+    { value: 3, label: "Qua" },
+    { value: 4, label: "Qui" },
+    { value: 5, label: "Sex" },
+    { value: 6, label: "Sáb" },
+  ];
 
   const timeOptions: string[] = [];
   for (let h = 6; h <= 22; h++) {
@@ -405,6 +416,10 @@ export default function ClinicaAgenda() {
       toast.error("Selecione o período (data inicial e final)");
       return;
     }
+    if (gerarForm.diasSemana.length === 0) {
+      toast.error("Selecione pelo menos um dia da semana");
+      return;
+    }
 
     setGerarLoading(true);
 
@@ -416,7 +431,13 @@ export default function ClinicaAgenda() {
       const [horaFinalH, horaFinalM] = gerarForm.horaFinal.split(":").map(Number);
 
       for (const day of days) {
-        if (gerarForm.excluirFimSemana && isWeekend(day)) continue;
+        const dayOfWeek = day.getDay(); // 0=Dom, 1=Seg, ... 6=Sab
+        
+        // Filtra por dias da semana selecionados
+        if (!gerarForm.diasSemana.includes(dayOfWeek)) continue;
+        
+        // Também respeita a opção de excluir finais de semana
+        if (gerarForm.excluirFimSemana && (dayOfWeek === 0 || dayOfWeek === 6)) continue;
 
         let currentTime = setMinutes(setHours(day, horaInicialH), horaInicialM);
         const endTime = setMinutes(setHours(day, horaFinalH), horaFinalM);
@@ -473,7 +494,8 @@ export default function ClinicaAgenda() {
         horaInicial: "08:00",
         horaFinal: "18:00",
         intervalo: "30",
-        excluirFimSemana: true,
+        excluirFimSemana: false,
+        diasSemana: [1, 2, 3, 4, 5],
       });
       fetchData();
     } catch (error) {
@@ -1326,11 +1348,50 @@ export default function ClinicaAgenda() {
               </Select>
             </div>
 
+            <div>
+              <Label className="mb-2 block">Dias da Semana *</Label>
+              <div className="flex flex-wrap gap-2">
+                {diasSemanaOptions.map((dia) => (
+                  <button
+                    key={dia.value}
+                    type="button"
+                    onClick={() => {
+                      setGerarForm(prev => {
+                        const isSelected = prev.diasSemana.includes(dia.value);
+                        const newDias = isSelected
+                          ? prev.diasSemana.filter(d => d !== dia.value)
+                          : [...prev.diasSemana, dia.value].sort((a, b) => a - b);
+                        return { ...prev, diasSemana: newDias };
+                      });
+                    }}
+                    className={cn(
+                      "px-3 py-2 text-sm font-medium rounded-lg border transition-colors",
+                      gerarForm.diasSemana.includes(dia.value)
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background text-muted-foreground border-border hover:bg-muted"
+                    )}
+                  >
+                    {dia.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Selecione os dias da semana para gerar horários
+              </p>
+            </div>
+
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="excluirFimSemana"
                 checked={gerarForm.excluirFimSemana}
-                onCheckedChange={(checked) => setGerarForm(prev => ({ ...prev, excluirFimSemana: checked as boolean }))}
+                onCheckedChange={(checked) => {
+                  setGerarForm(prev => {
+                    const newDias = checked 
+                      ? prev.diasSemana.filter(d => d !== 0 && d !== 6) // Remove Dom (0) e Sab (6)
+                      : prev.diasSemana;
+                    return { ...prev, excluirFimSemana: checked as boolean, diasSemana: newDias };
+                  });
+                }}
               />
               <label htmlFor="excluirFimSemana" className="text-sm font-medium cursor-pointer">
                 Excluir finais de semana
@@ -1340,7 +1401,7 @@ export default function ClinicaAgenda() {
             <Button
               onClick={handleGerarSlots}
               className="w-full"
-              disabled={gerarLoading || !gerarForm.medicoId || !gerarForm.localId || !gerarForm.dateRange?.from}
+              disabled={gerarLoading || !gerarForm.medicoId || !gerarForm.localId || !gerarForm.dateRange?.from || gerarForm.diasSemana.length === 0}
             >
               {gerarLoading ? "Gerando..." : "Gerar Horários"}
             </Button>
