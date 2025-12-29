@@ -603,7 +603,7 @@ export default function PacienteMarcar() {
                     onClick={() => window.open(paymentData.invoiceUrl, '_blank')}
                   >
                     <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                    <span className="truncate">Pagar com PIX, Cartão ou Boleto</span>
+                    <span className="truncate">Pagar com PIX ou Cartão</span>
                   </Button>
                   <p className="text-xs text-center text-muted-foreground">
                     Você será redirecionado para a página de pagamento seguro

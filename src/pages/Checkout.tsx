@@ -631,7 +631,7 @@ const Checkout = () => {
                 <p className="text-xs text-muted-foreground mt-4 sm:mt-6">
                   Após o pagamento, sua consulta será confirmada automaticamente.
                   <br />
-                  Você pode pagar via PIX, cartão de crédito ou boleto.
+                  Você pode pagar via PIX ou cartão de crédito.
                 </p>
               )}
             </div>
