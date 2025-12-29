@@ -6,9 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Star, MapPin, GraduationCap, Stethoscope, Calendar, Clock, ChevronLeft, ChevronRight, User, Video, Building2, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays, parseISO } from "date-fns";
+import { format, addDays, parseISO, isBefore } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
 interface Medico {
   id: string;
   nome: string;
@@ -114,7 +113,7 @@ const PerfilMedico = () => {
         .select("id, data_hora, disponivel, local_id")
         .eq("medico_id", id)
         .eq("disponivel", true)
-        .gte("data_hora", new Date().toISOString())
+        .gte("data_hora", format(new Date(), "yyyy-MM-dd"))
         .order("data_hora", { ascending: true }),
     ]);
 
@@ -131,10 +130,14 @@ const PerfilMedico = () => {
     setLoading(false);
   }
 
-  // Filter slots based on selected local
-  const filteredSlots = selectedLocal 
-    ? agendaSlots.filter(slot => slot.local_id === selectedLocal)
-    : agendaSlots;
+  // Filter slots based on selected local AND exclude past times
+  const now = new Date();
+  const filteredSlots = agendaSlots.filter(slot => {
+    const slotTime = parseISO(slot.data_hora);
+    const isFuture = !isBefore(slotTime, now);
+    const matchesLocal = selectedLocal ? slot.local_id === selectedLocal : true;
+    return isFuture && matchesLocal;
+  });
 
   // Count slots per local
   const slotsPerLocal = locais.reduce((acc, local) => {
