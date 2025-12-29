@@ -60,6 +60,7 @@ import ClinicaPacientes from "./pages/clinica/ClinicaPacientes";
 import ClinicaLocais from "./pages/clinica/ClinicaLocais";
 import ClinicaAgenda from "./pages/clinica/ClinicaAgenda";
 import ClinicaFinanceiro from "./pages/clinica/ClinicaFinanceiro";
+import ClinicaRelatorios from "./pages/clinica/ClinicaRelatorios";
 import ClinicaDadosBancarios from "./pages/clinica/ClinicaDadosBancarios";
 import ClinicaAvaliacoes from "./pages/clinica/ClinicaAvaliacoes";
 import ClinicaUsuarios from "./pages/clinica/ClinicaUsuarios";
@@ -121,6 +122,7 @@ const App = () => (
               <Route path="locais" element={<ClinicaLocais />} />
               <Route path="agenda" element={<ClinicaAgenda />} />
               <Route path="financeiro" element={<ClinicaFinanceiro />} />
+              <Route path="relatorios" element={<ClinicaRelatorios />} />
               <Route path="dados-bancarios" element={<ClinicaDadosBancarios />} />
               <Route path="avaliacoes" element={<ClinicaAvaliacoes />} />
               <Route path="usuarios" element={<ClinicaUsuarios />} />
