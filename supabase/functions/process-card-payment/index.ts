@@ -136,13 +136,25 @@ serve(async (req) => {
     // Due date: today
     const dueDate = new Date().toISOString().split('T')[0];
 
-    // Create new payment with credit card
+    // Calculate credit card fees to pass to customer
+    // Asaas credit card fee: approximately 2.99% + R$ 0.49
+    const CARD_FEE_PERCENTAGE = 2.99; // 2.99%
+    const CARD_FEE_FIXED = 0.49; // R$ 0.49
+    
+    const originalValue = consulta.valor_consulta;
+    const percentageFee = originalValue * (CARD_FEE_PERCENTAGE / 100);
+    const totalFees = percentageFee + CARD_FEE_FIXED;
+    const valueWithFees = Math.round((originalValue + totalFees) * 100) / 100; // Round to 2 decimal places
+    
+    console.log(`Original value: R$ ${originalValue}, Fees: R$ ${totalFees.toFixed(2)}, Total with fees: R$ ${valueWithFees}`);
+
+    // Create new payment with credit card (value includes fees passed to customer)
     const paymentPayload = {
       customer: paciente.asaas_customer_id,
       billingType: 'CREDIT_CARD',
-      value: consulta.valor_consulta,
+      value: valueWithFees, // Value with fees passed to customer
       dueDate: dueDate,
-      description: `Consulta médica - MeConsulta`,
+      description: `Consulta médica - MeConsulta (inclui taxa de cartão)`,
       externalReference: consulta_id,
       creditCard: {
         holderName: card.holderName,
