@@ -117,6 +117,7 @@ export default function PacienteMarcar() {
     dueDate: string;
     value: number;
     createdAt: number;
+    consultaId: string;
   } | null>(null);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const PAYMENT_TIMEOUT = 15 * 60 * 1000; // 15 minutes
@@ -439,6 +440,7 @@ export default function PacienteMarcar() {
       setPaymentData({
         ...paymentResponse,
         createdAt: Date.now(),
+        consultaId: consultaData.id,
       });
       setConfirmDialog(false);
       setShowPayment(true);
@@ -600,9 +602,9 @@ export default function PacienteMarcar() {
                 <div className="space-y-3">
                   <Button 
                     className="w-full gap-2 h-12 text-sm sm:text-base px-3 sm:px-4" 
-                    onClick={() => window.open(paymentData.invoiceUrl, '_blank')}
+                    onClick={() => navigate(`/pagamento/${paymentData.consultaId}`)}
                   >
-                    <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                    <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                     <span className="truncate">Pagar com PIX ou Cartão</span>
                   </Button>
                   <p className="text-xs text-center text-muted-foreground">

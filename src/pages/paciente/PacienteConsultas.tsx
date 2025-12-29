@@ -470,55 +470,8 @@ export default function PacienteConsultas() {
   }
 
   async function handleFinalizarPagamento(consulta: any) {
-    // If invoice URL already exists, just open it
-    if (consulta.asaas_invoice_url) {
-      window.open(consulta.asaas_invoice_url, '_blank');
-      return;
-    }
-
-    setProcessandoPagamento(consulta.id);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('create-asaas-payment', {
-        body: { consulta_id: consulta.id }
-      });
-
-      if (error) {
-        console.error('Erro na edge function:', error);
-        toast.error('Erro ao gerar pagamento. Tente novamente.');
-        return;
-      }
-
-      if (!data.success) {
-        console.error('Erro do Asaas:', data);
-        
-        // Handle specific error codes
-        if (data.code === 'INVALID_CPF') {
-          toast.error('CPF inválido no cadastro', {
-            description: 'Por favor, atualize seu CPF no perfil para continuar.',
-            action: {
-              label: 'Atualizar perfil',
-              onClick: () => navigate('/paciente/perfil'),
-            },
-            duration: 10000,
-          });
-        } else {
-          toast.error(data.error || 'Erro ao gerar pagamento');
-        }
-        return;
-      }
-
-      if (data.invoiceUrl) {
-        window.open(data.invoiceUrl, '_blank');
-        toast.success('Pagamento gerado! Complete o pagamento na nova aba.');
-        fetchConsultas();
-      }
-    } catch (err) {
-      console.error('Erro ao processar pagamento:', err);
-      toast.error('Erro ao conectar com o serviço de pagamento');
-    } finally {
-      setProcessandoPagamento(null);
-    }
+    // Redirect to custom payment page
+    navigate(`/pagamento/${consulta.id}`);
   }
 
   const canConfirmAttendance = (consulta: any) => {
