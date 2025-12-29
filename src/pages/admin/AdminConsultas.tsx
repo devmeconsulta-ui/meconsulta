@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Calendar, Filter, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, Search, Eye, Download, ThumbsUp, HelpCircle, UserX, MapPin } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { format, subDays, startOfDay, endOfDay, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line } from "recharts";
+import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
 
 const COLORS = {
   confirmada: "#10B981",
@@ -52,6 +53,8 @@ const statusPagamentoLabels: Record<string, string> = {
 };
 
 export default function AdminConsultas() {
+  const queryClient = useQueryClient();
+  const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
   const [filters, setFilters] = useState({
     dataInicio: format(subDays(new Date(), 30), "yyyy-MM-dd"),
     dataFim: format(new Date(new Date().setMonth(new Date().getMonth() + 3)), "yyyy-MM-dd"), // Include future appointments
@@ -494,7 +497,12 @@ export default function AdminConsultas() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" title="Ver detalhes">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          title="Ver detalhes"
+                          onClick={() => setSelectedConsulta(consulta)}
+                        >
                           <Eye className="h-4 w-4" />
                         </Button>
                       </TableCell>
@@ -508,6 +516,19 @@ export default function AdminConsultas() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de detalhes/edição */}
+      <EditarConsultaModal
+        consulta={selectedConsulta}
+        open={!!selectedConsulta}
+        onOpenChange={(open) => {
+          if (!open) setSelectedConsulta(null);
+        }}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["admin-consultas-full"] });
+          setSelectedConsulta(null);
+        }}
+      />
     </div>
   );
 }
