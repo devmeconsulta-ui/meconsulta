@@ -33,8 +33,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Save, Trash2, X, Edit, Plus, ClipboardList } from "lucide-react";
+import { Loader2, Save, Trash2, X, Edit, Plus, ClipboardList, User, History, Stethoscope, MapPin, Phone } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Procedimento {
   id?: string;
@@ -81,6 +84,8 @@ export function EditarConsultaModal({
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
   const [procedimentosRemovidos, setProcedimentosRemovidos] = useState<string[]>([]);
   const [novoProcedimento, setNovoProcedimento] = useState({ nome: "", valor: "" });
+  const [medicoData, setMedicoData] = useState<any>(null);
+  const [eventos, setEventos] = useState<any[]>([]);
   
   const [formData, setFormData] = useState({
     data_hora: "",
@@ -110,8 +115,38 @@ export function EditarConsultaModal({
       
       // Fetch existing procedures
       fetchProcedimentos();
+      
+      // Fetch additional data for readOnly mode
+      if (readOnly) {
+        fetchMedicoData();
+        fetchEventos();
+      }
     }
-  }, [consulta, open]);
+  }, [consulta, open, readOnly]);
+
+  const fetchMedicoData = async () => {
+    if (!consulta?.medico_id) return;
+    
+    const { data } = await supabase
+      .from("medicos")
+      .select("*, locais_atendimento(*)")
+      .eq("id", consulta.medico_id)
+      .single();
+    
+    setMedicoData(data);
+  };
+
+  const fetchEventos = async () => {
+    if (!consulta?.id) return;
+    
+    const { data } = await supabase
+      .from("consultas_eventos")
+      .select("*")
+      .eq("consulta_id", consulta.id)
+      .order("created_at", { ascending: false });
+    
+    setEventos(data || []);
+  };
 
   const fetchProcedimentos = async () => {
     if (!consulta?.id) return;
@@ -341,12 +376,24 @@ export function EditarConsultaModal({
         </DialogHeader>
 
         <Tabs defaultValue="dados" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="dados">Dados da Consulta</TabsTrigger>
-            <TabsTrigger value="procedimentos" className="gap-2">
-              <ClipboardList className="h-4 w-4" />
+          <TabsList className={`grid w-full ${readOnly ? "grid-cols-4" : "grid-cols-2"}`}>
+            <TabsTrigger value="dados">Dados</TabsTrigger>
+            <TabsTrigger value="procedimentos" className="gap-1">
+              <ClipboardList className="h-3 w-3" />
               Procedimentos
             </TabsTrigger>
+            {readOnly && (
+              <>
+                <TabsTrigger value="medico" className="gap-1">
+                  <Stethoscope className="h-3 w-3" />
+                  Médico
+                </TabsTrigger>
+                <TabsTrigger value="historico" className="gap-1">
+                  <History className="h-3 w-3" />
+                  Histórico
+                </TabsTrigger>
+              </>
+            )}
           </TabsList>
 
           <TabsContent value="dados" className="space-y-4 mt-4">
@@ -589,6 +636,174 @@ export function EditarConsultaModal({
               </div>
             </div>
           </TabsContent>
+
+          {/* Aba Médico - só em readOnly */}
+          {readOnly && (
+            <TabsContent value="medico" className="space-y-4 mt-4">
+              {medicoData ? (
+                <div className="space-y-4">
+                  {/* Info básica */}
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="flex items-start gap-4">
+                        {medicoData.foto_url ? (
+                          <img 
+                            src={medicoData.foto_url} 
+                            alt={medicoData.nome}
+                            className="w-16 h-16 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                            <User className="h-8 w-8 text-primary" />
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg">{medicoData.nome}</h3>
+                          <p className="text-muted-foreground">{medicoData.especialidade || "Especialidade não informada"}</p>
+                          {medicoData.crm && (
+                            <Badge variant="outline" className="mt-1">CRM: {medicoData.crm}</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Contato */}
+                  {medicoData.telefone_whatsapp && (
+                    <Card>
+                      <CardContent className="pt-4">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          <span>WhatsApp: {medicoData.telefone_whatsapp}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Local da consulta */}
+                  {consulta.local && (
+                    <Card>
+                      <CardContent className="pt-4">
+                        <h4 className="font-medium mb-2 flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          Local do Atendimento
+                        </h4>
+                        <div className="text-sm space-y-1">
+                          <p className="font-medium">{consulta.local.nome_local}</p>
+                          {consulta.local.endereco && (
+                            <p className="text-muted-foreground">{consulta.local.endereco}</p>
+                          )}
+                          {(consulta.local.cidade || consulta.local.estado) && (
+                            <p className="text-muted-foreground">
+                              {consulta.local.cidade}{consulta.local.cidade && consulta.local.estado && " - "}{consulta.local.estado}
+                            </p>
+                          )}
+                          <Badge variant="secondary" className="mt-2">
+                            {consulta.local.tipo_atendimento === "online" ? "Online" : "Presencial"}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Valores */}
+                  <Card>
+                    <CardContent className="pt-4">
+                      <h4 className="font-medium mb-2">Valores do Médico</h4>
+                      <div className="text-sm space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Valor consulta padrão:</span>
+                          <span>R$ {(medicoData.valor_consulta || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Percentual de repasse:</span>
+                          <span>{medicoData.percentual_repasse || 70}%</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <User className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Dados do médico não disponíveis</p>
+                </div>
+              )}
+            </TabsContent>
+          )}
+
+          {/* Aba Histórico - só em readOnly */}
+          {readOnly && (
+            <TabsContent value="historico" className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Histórico de Eventos</Label>
+                {eventos.length > 0 ? (
+                  <ScrollArea className="h-[300px]">
+                    <div className="space-y-2 pr-4">
+                      {eventos.map((evento) => (
+                        <Card key={evento.id} className="bg-muted/50">
+                          <CardContent className="py-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    {evento.tipo_evento}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">
+                                    por {evento.usuario_tipo}
+                                  </span>
+                                </div>
+                                {evento.descricao && (
+                                  <p className="text-sm mt-1">{evento.descricao}</p>
+                                )}
+                              </div>
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                {evento.created_at && format(parseISO(evento.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Nenhum evento registrado</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Info adicional da consulta */}
+              <Separator />
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Origem:</span>
+                  <Badge variant={consulta.origem === "online" ? "default" : "secondary"}>
+                    {consulta.origem === "online" ? "Online" : "Interna"}
+                  </Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Criada em:</span>
+                  <span>{consulta.created_at && format(parseISO(consulta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                </div>
+                {consulta.asaas_payment_id && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">ID Pagamento Asaas:</span>
+                    <span className="font-mono text-xs">{consulta.asaas_payment_id}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Valor Médico:</span>
+                  <span>R$ {(consulta.valor_medico || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Valor Plataforma:</span>
+                  <span>R$ {(consulta.valor_plataforma || 0).toFixed(2)}</span>
+                </div>
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
 
         <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
