@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, Star, Heart, MapPin, Calendar, Clock, User, ChevronRight, UserPlus, Users, RefreshCw, Plus, Trash2, Video, Building2, Check, ExternalLink, CreditCard, AlertTriangle, CheckCircle } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO, isBefore } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { brazilStates, citiesByState } from "@/data/brazilData";
@@ -478,10 +478,14 @@ export default function PacienteMarcar() {
     setDeleteDependenteId(null);
   }
 
-  // Filtrar slots por local selecionado
-  const filteredSlots = selectedLocal 
-    ? slots.filter(slot => slot.local_id === selectedLocal)
-    : slots;
+  // Filtrar slots por local selecionado E excluir horários passados
+  const now = new Date();
+  const filteredSlots = slots.filter(slot => {
+    const slotTime = parseISO(slot.data_hora);
+    const isFuture = !isBefore(slotTime, now);
+    const matchesLocal = selectedLocal ? slot.local_id === selectedLocal : true;
+    return isFuture && matchesLocal;
+  });
 
   // Contar slots por local
   const slotsPerLocal = locais.reduce((acc, local) => {
