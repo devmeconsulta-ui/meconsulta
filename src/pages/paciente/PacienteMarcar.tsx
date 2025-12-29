@@ -493,9 +493,10 @@ export default function PacienteMarcar() {
     return acc;
   }, {} as Record<string, number>);
 
-  // Agrupar slots por data
+  // Agrupar slots por data (usando parseISO para evitar problemas de timezone)
   const slotsPorData = filteredSlots.reduce((acc, slot) => {
-    const date = format(new Date(slot.data_hora), "yyyy-MM-dd");
+    const slotDate = parseISO(slot.data_hora);
+    const date = format(slotDate, "yyyy-MM-dd");
     if (!acc[date]) acc[date] = [];
     acc[date].push(slot);
     return acc;
@@ -941,7 +942,7 @@ export default function PacienteMarcar() {
                 {Object.entries(slotsPorData).map(([date, daySlots]) => (
                   <div key={date}>
                     <p className="text-sm font-medium text-primary mb-2">
-                      {format(new Date(date), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                      {format(parseISO(date + "T00:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {(daySlots as any[]).map(slot => (
@@ -951,7 +952,7 @@ export default function PacienteMarcar() {
                           size="sm"
                           onClick={() => setSelectedSlot(slot)}
                         >
-                          {format(new Date(slot.data_hora), "HH:mm")}
+                          {format(parseISO(slot.data_hora), "HH:mm")}
                         </Button>
                       ))}
                     </div>
