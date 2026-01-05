@@ -10,9 +10,9 @@ const corsHeaders = {
 const MEMED_API_KEY = Deno.env.get('MEMED_API_KEY') || "";
 const MEMED_SECRET_KEY = Deno.env.get('MEMED_SECRET_KEY') || "";
 
-// Memed Production URLs
-const MEMED_API_URL = "https://integrations.api.memed.com.br";
-const MEMED_SCRIPT_URL = "https://integrations.memed.com.br/modulos/plataforma.sinapse-prescricao/build/sinapse-prescricao.min.js";
+// Memed Sandbox URLs (for testing with sandbox keys)
+const MEMED_API_URL = "https://sandbox.api.memed.com.br";
+const MEMED_SCRIPT_URL = "https://sandbox.memed.com.br/modulos/plataforma.sinapse-prescricao/build/sinapse-prescricao.min.js";
 
 serve(async (req) => {
   // Handle CORS preflight requests
