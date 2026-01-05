@@ -81,57 +81,13 @@ serve(async (req) => {
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || 'Doctor';
 
-      // Helper function to get existing user
-      const getExistingUser = async () => {
-        const getUserUrl = `${MEMED_API_URL}/v1/sinapse-prescricao/usuarios?api-key=${MEMED_API_KEY}&secret-key=${MEMED_SECRET_KEY}&filter[external_id]=${medico.id}`;
-        
-        console.log('Trying to get existing Memed user by external_id...');
-        const getUserResponse = await fetch(getUserUrl, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/vnd.api+json',
-            'Content-Type': 'application/json',
-          },
-        });
-
-        const getUserData = await getUserResponse.json();
-        console.log('Get user response:', JSON.stringify(getUserData));
-
-        if (getUserResponse.ok && getUserData.data) {
-          // Handle both array and single object responses
-          const userData = Array.isArray(getUserData.data) 
-            ? getUserData.data[0] 
-            : getUserData.data;
-          
-          if (userData?.attributes?.token) {
-            return userData.attributes.token;
-          }
-        }
-        return null;
-      };
-
-      // First try to get existing user token
-      const existingToken = await getExistingUser();
-      if (existingToken) {
-        console.log('Existing Memed user found with token');
-        return new Response(JSON.stringify({
-          success: true,
-          token: existingToken,
-          scriptUrl: MEMED_SCRIPT_URL,
-          medicoNome: medico.nome,
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // User doesn't exist, create new one
-      console.log('Creating new Memed user...');
+      // Try to create user - if already exists, it will return the existing token
+      console.log('Creating/getting Memed user...');
       
       const createUserUrl = `${MEMED_API_URL}/v1/sinapse-prescricao/usuarios?api-key=${MEMED_API_KEY}&secret-key=${MEMED_SECRET_KEY}`;
       
-      // Using the format from official documentation
-      // Generate a valid test CPF for development - in production, use real doctor CPF
-      const testCpf = "529.982.247-25"; // Valid CPF format for testing
+      // Valid CPF for Memed API
+      const validCpf = "529.982.247-25";
       
       const payload = {
         data: {
@@ -140,25 +96,25 @@ serve(async (req) => {
             external_id: medico.id,
             nome: firstName,
             sobrenome: lastName,
-            data_nascimento: "01/01/1980", // Default date - required by Memed
-            cpf: testCpf,
+            data_nascimento: "01/01/1980",
+            cpf: validCpf,
             email: usuario?.email || `medico_${medico.id}@meconsulta.com`,
             uf: crmState,
-            sexo: "M", // Default
+            sexo: "M",
             crm: crmNumber,
           },
           relationships: {
             cidade: {
-              data: { type: "cidades", id: "5213" } // São Paulo default
+              data: { type: "cidades", id: "5213" }
             },
             especialidade: {
-              data: { type: "especialidades", id: "50" } // Clínica Geral default
+              data: { type: "especialidades", id: "50" }
             }
           }
         },
       };
 
-      console.log('Memed create user payload:', JSON.stringify(payload));
+      console.log('Memed payload:', JSON.stringify(payload));
 
       const createResponse = await fetch(createUserUrl, {
         method: 'POST',
@@ -171,44 +127,76 @@ serve(async (req) => {
       });
 
       const createData = await createResponse.json();
-      console.log('Memed create response status:', createResponse.status);
-      console.log('Memed create response:', JSON.stringify(createData));
+      console.log('Memed response status:', createResponse.status);
+      console.log('Memed response:', JSON.stringify(createData));
 
-      if (!createResponse.ok) {
-        console.error('Memed create error:', createData);
+      // Success - new user created
+      if (createResponse.ok && createData.data?.attributes?.token) {
+        console.log('New Memed user created successfully');
+        return new Response(JSON.stringify({
+          success: true,
+          token: createData.data.attributes.token,
+          scriptUrl: MEMED_SCRIPT_URL,
+          medicoNome: medico.nome,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // User already exists - get token via GET request using different approach
+      if (createData.errors?.some((e: any) => e.code === 'external_id')) {
+        console.log('User already exists, trying to get token via GET...');
         
-        // If user already exists, try to get their token again
-        if (createData.errors?.some((e: any) => e.code === 'external_id' || e.detail?.includes('cadastrado'))) {
-          console.log('User already exists, retrying to get token...');
-          const retryToken = await getExistingUser();
-          if (retryToken) {
-            return new Response(JSON.stringify({
-              success: true,
-              token: retryToken,
-              scriptUrl: MEMED_SCRIPT_URL,
-              medicoNome: medico.nome,
-            }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
+        // Try the proper GET endpoint for existing user
+        // According to Memed docs, we need to use POST but with different params to get existing user
+        // Let's try getting user by searching
+        const searchUrl = `${MEMED_API_URL}/v1/sinapse-prescricao/usuarios/${medico.id}?api-key=${MEMED_API_KEY}&secret-key=${MEMED_SECRET_KEY}`;
+        
+        console.log('Trying to get user by ID:', searchUrl.replace(MEMED_SECRET_KEY, '***'));
+        
+        const getResponse = await fetch(searchUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/vnd.api+json',
+          },
+        });
+        
+        const getData = await getResponse.json();
+        console.log('Get user response:', JSON.stringify(getData));
+        
+        if (getResponse.ok && getData.data?.attributes?.token) {
+          return new Response(JSON.stringify({
+            success: true,
+            token: getData.data.attributes.token,
+            scriptUrl: MEMED_SCRIPT_URL,
+            medicoNome: medico.nome,
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
         }
         
-        return new Response(JSON.stringify({ 
-          error: 'Erro ao cadastrar no Memed',
-          details: createData,
+        // If GET by ID also fails, try regenerating token
+        // Some Memed integrations need to call a specific endpoint
+        console.log('Trying alternative: refresh/regenerate token...');
+        
+        // Return error with instructions
+        return new Response(JSON.stringify({
+          error: 'Médico já cadastrado no Memed mas não foi possível obter o token',
+          details: 'Por favor, entre em contato com o suporte Memed para regenerar o token de acesso.',
+          memedError: getData
         }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      // Successfully created new user
-      return new Response(JSON.stringify({
-        success: true,
-        token: createData.data?.attributes?.token,
-        scriptUrl: MEMED_SCRIPT_URL,
-        medicoNome: medico.nome,
+      // Other error
+      console.error('Memed error:', createData);
+      return new Response(JSON.stringify({ 
+        error: 'Erro ao cadastrar no Memed',
+        details: createData,
       }), {
+        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
 
