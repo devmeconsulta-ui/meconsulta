@@ -114,31 +114,39 @@ export default function MemedPrescricao({
       document.head.appendChild(style);
     }
 
-    console.log('Loading Memed script...');
+    console.log('Loading Memed script with token...');
     const script = document.createElement('script');
-    script.src = scriptUrl;
+    script.type = 'text/javascript';
     script.dataset.token = token;
+    script.dataset.color = '#8B5CF6'; // Purple color matching our theme
     script.dataset.memed = 'true';
-    script.async = true;
     
-    script.addEventListener('load', () => {
+    // Use a timeout to prevent infinite loading
+    const loadTimeout = setTimeout(() => {
+      console.error('Memed script load timeout');
+      setError('Tempo esgotado ao carregar Memed');
+    }, 30000);
+    
+    script.onload = () => {
+      clearTimeout(loadTimeout);
       console.log('Memed script loaded successfully');
       setScriptLoaded(true);
-    });
+    };
 
-    script.addEventListener('error', (e) => {
+    script.onerror = (e) => {
+      clearTimeout(loadTimeout);
       console.error('Error loading Memed script:', e);
       setError('Erro ao carregar script Memed');
-    });
-
+    };
+    
+    // Set src last to trigger load
+    script.src = scriptUrl;
     document.body.appendChild(script);
     scriptRef.current = script;
 
     return () => {
-      // Cleanup on unmount
-      if (scriptRef.current && document.body.contains(scriptRef.current)) {
-        document.body.removeChild(scriptRef.current);
-      }
+      clearTimeout(loadTimeout);
+      // Don't remove script on unmount - it causes issues
     };
   }, [token, scriptUrl, scriptLoaded]);
 
