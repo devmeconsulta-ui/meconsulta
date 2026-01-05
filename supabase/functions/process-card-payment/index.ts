@@ -17,6 +17,7 @@ interface CardData {
 interface ProcessCardRequest {
   consulta_id: string;
   card: CardData;
+  installments?: number;
 }
 
 serve(async (req) => {
@@ -26,7 +27,7 @@ serve(async (req) => {
   }
 
   try {
-    const { consulta_id, card } = await req.json() as ProcessCardRequest;
+    const { consulta_id, card, installments = 1 } = await req.json() as ProcessCardRequest;
     
     if (!consulta_id || !card) {
       return new Response(
@@ -35,7 +36,10 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Processing card payment for consulta: ${consulta_id}`);
+    // Validate installments (1-12)
+    const validInstallments = Math.min(Math.max(1, installments), 12);
+
+    console.log(`Processing card payment for consulta: ${consulta_id}, installments: ${validInstallments}`);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -137,24 +141,35 @@ serve(async (req) => {
     const dueDate = new Date().toISOString().split('T')[0];
 
     // Calculate credit card fees to pass to customer
-    // Asaas credit card fee: approximately 2.99% + R$ 0.49
-    const CARD_FEE_PERCENTAGE = 2.99; // 2.99%
-    const CARD_FEE_FIXED = 0.49; // R$ 0.49
+    // Base fee: 2.99% + R$ 0.49
+    // Installment fee: 1.99% per month if more than 1 installment
+    const CARD_FEE_PERCENTAGE = 2.99;
+    const CARD_FEE_FIXED = 0.49;
+    const INSTALLMENT_FEE_PER_MONTH = 1.99;
     
     const originalValue = consulta.valor_consulta;
     const percentageFee = originalValue * (CARD_FEE_PERCENTAGE / 100);
-    const totalFees = percentageFee + CARD_FEE_FIXED;
-    const valueWithFees = Math.round((originalValue + totalFees) * 100) / 100; // Round to 2 decimal places
+    let totalFees = percentageFee + CARD_FEE_FIXED;
     
-    console.log(`Original value: R$ ${originalValue}, Fees: R$ ${totalFees.toFixed(2)}, Total with fees: R$ ${valueWithFees}`);
+    // Add installment fees if more than 1 installment
+    if (validInstallments > 1) {
+      const installmentFee = originalValue * (INSTALLMENT_FEE_PER_MONTH / 100) * validInstallments;
+      totalFees += installmentFee;
+    }
+    
+    const valueWithFees = Math.round((originalValue + totalFees) * 100) / 100;
+    
+    console.log(`Original value: R$ ${originalValue}, Installments: ${validInstallments}, Fees: R$ ${totalFees.toFixed(2)}, Total with fees: R$ ${valueWithFees}`);
 
     // Create new payment with credit card (value includes fees passed to customer)
-    const paymentPayload = {
+    const paymentPayload: any = {
       customer: paciente.asaas_customer_id,
       billingType: 'CREDIT_CARD',
       value: valueWithFees, // Value with fees passed to customer
       dueDate: dueDate,
-      description: `Consulta médica - MeConsulta (inclui taxa de cartão)`,
+      description: validInstallments > 1 
+        ? `Consulta médica - MeConsulta (${validInstallments}x - inclui taxa de cartão e parcelamento)`
+        : `Consulta médica - MeConsulta (inclui taxa de cartão)`,
       externalReference: consulta_id,
       creditCard: {
         holderName: card.holderName,
@@ -173,6 +188,11 @@ serve(async (req) => {
         addressNumber: undefined,
       },
     };
+
+    // Add installment count if more than 1
+    if (validInstallments > 1) {
+      paymentPayload.installmentCount = validInstallments;
+    }
 
     console.log('Payment payload (card masked):', JSON.stringify({
       ...paymentPayload,

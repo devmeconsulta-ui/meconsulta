@@ -42,12 +42,39 @@ const PAYMENT_TIMEOUT = 15 * 60 * 1000; // 15 minutes
 // Credit card fee constants (same as edge function)
 const CARD_FEE_PERCENTAGE = 2.99; // 2.99%
 const CARD_FEE_FIXED = 0.49; // R$ 0.49
+const INSTALLMENT_FEE_PER_MONTH = 1.99; // 1.99% per installment month
 
-const calculateCardFees = (originalValue: number) => {
+// Installment options
+const INSTALLMENT_OPTIONS = [
+  { value: 1, label: 'À vista' },
+  { value: 2, label: '2x' },
+  { value: 3, label: '3x' },
+  { value: 4, label: '4x' },
+  { value: 5, label: '5x' },
+  { value: 6, label: '6x' },
+  { value: 7, label: '7x' },
+  { value: 8, label: '8x' },
+  { value: 9, label: '9x' },
+  { value: 10, label: '10x' },
+  { value: 11, label: '11x' },
+  { value: 12, label: '12x' },
+];
+
+const calculateCardFees = (originalValue: number, installments: number = 1) => {
+  // Base fees
   const percentageFee = originalValue * (CARD_FEE_PERCENTAGE / 100);
-  const totalFees = percentageFee + CARD_FEE_FIXED;
+  let totalFees = percentageFee + CARD_FEE_FIXED;
+  
+  // Add installment fees if more than 1 installment
+  if (installments > 1) {
+    const installmentFee = originalValue * (INSTALLMENT_FEE_PER_MONTH / 100) * installments;
+    totalFees += installmentFee;
+  }
+  
   const totalWithFees = Math.round((originalValue + totalFees) * 100) / 100;
-  return { totalFees, totalWithFees };
+  const installmentValue = Math.round((totalWithFees / installments) * 100) / 100;
+  
+  return { totalFees, totalWithFees, installmentValue };
 };
 
 const Pagamento = () => {
@@ -67,6 +94,7 @@ const Pagamento = () => {
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvv, setCardCvv] = useState("");
   const [cardLoading, setCardLoading] = useState(false);
+  const [installments, setInstallments] = useState(1);
   
   // Timer state
   const [timeLeft, setTimeLeft] = useState(PAYMENT_TIMEOUT);
@@ -280,6 +308,7 @@ const Pagamento = () => {
             expiryYear: `20${year}`,
             ccv: cardCvv,
           },
+          installments: installments,
         },
       });
 
@@ -487,6 +516,39 @@ const Pagamento = () => {
                         </div>
                       </div>
 
+                      {/* Installments Selector */}
+                      <div className="space-y-2">
+                        <Label>Parcelas</Label>
+                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                          {INSTALLMENT_OPTIONS.map((option) => {
+                            const { installmentValue, totalWithFees } = calculateCardFees(consulta.valor_consulta, option.value);
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setInstallments(option.value)}
+                                className={`p-2 rounded-lg border text-center transition-all ${
+                                  installments === option.value
+                                    ? 'border-primary bg-primary/10 ring-2 ring-primary/20'
+                                    : 'border-border hover:border-primary/50'
+                                }`}
+                              >
+                                <div className="text-sm font-medium">{option.label}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  R$ {installmentValue.toFixed(2).replace(".", ",")}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {installments > 1 && (
+                          <p className="text-xs text-muted-foreground">
+                            {installments}x de R$ {calculateCardFees(consulta.valor_consulta, installments).installmentValue.toFixed(2).replace(".", ",")} 
+                            {" "}= R$ {calculateCardFees(consulta.valor_consulta, installments).totalWithFees.toFixed(2).replace(".", ",")} (taxa de {(CARD_FEE_PERCENTAGE + INSTALLMENT_FEE_PER_MONTH * installments).toFixed(2)}% + R$ 0,49)
+                          </p>
+                        )}
+                      </div>
+
                       {/* Card Fee Notice */}
                       <div className="bg-muted/50 border rounded-lg p-4 space-y-2">
                         <div className="flex justify-between text-sm">
@@ -494,12 +556,22 @@ const Pagamento = () => {
                           <span>R$ {consulta.valor_consulta.toFixed(2).replace(".", ",")}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Taxa do cartão (2,99% + R$ 0,49)</span>
-                          <span>R$ {calculateCardFees(consulta.valor_consulta).totalFees.toFixed(2).replace(".", ",")}</span>
+                          <span className="text-muted-foreground">
+                            {installments === 1 
+                              ? "Taxa do cartão (2,99% + R$ 0,49)"
+                              : `Taxa do cartão + parcelamento (${(CARD_FEE_PERCENTAGE + INSTALLMENT_FEE_PER_MONTH * installments).toFixed(2)}% + R$ 0,49)`
+                            }
+                          </span>
+                          <span>R$ {calculateCardFees(consulta.valor_consulta, installments).totalFees.toFixed(2).replace(".", ",")}</span>
                         </div>
                         <div className="border-t pt-2 flex justify-between font-semibold">
                           <span>Total a pagar</span>
-                          <span className="text-primary">R$ {calculateCardFees(consulta.valor_consulta).totalWithFees.toFixed(2).replace(".", ",")}</span>
+                          <span className="text-primary">
+                            {installments > 1 
+                              ? `${installments}x R$ ${calculateCardFees(consulta.valor_consulta, installments).installmentValue.toFixed(2).replace(".", ",")}`
+                              : `R$ ${calculateCardFees(consulta.valor_consulta, installments).totalWithFees.toFixed(2).replace(".", ",")}`
+                            }
+                          </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">
                           💡 Pague via PIX para não pagar taxa!
@@ -518,8 +590,10 @@ const Pagamento = () => {
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                             Processando...
                           </>
+                        ) : installments > 1 ? (
+                          `Pagar ${installments}x de R$ ${calculateCardFees(consulta.valor_consulta, installments).installmentValue.toFixed(2).replace(".", ",")}`
                         ) : (
-                          `Pagar R$ ${calculateCardFees(consulta.valor_consulta).totalWithFees.toFixed(2).replace(".", ",")}`
+                          `Pagar R$ ${calculateCardFees(consulta.valor_consulta, installments).totalWithFees.toFixed(2).replace(".", ",")}`
                         )}
                       </Button>
 
@@ -599,19 +673,34 @@ const Pagamento = () => {
                   </div>
                   {paymentMethod === 'card' && (
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Taxa do cartão</span>
                       <span className="text-muted-foreground">
-                        + R$ {calculateCardFees(consulta.valor_consulta).totalFees.toFixed(2).replace(".", ",")}
+                        {installments > 1 ? 'Taxa + parcelamento' : 'Taxa do cartão'}
+                      </span>
+                      <span className="text-muted-foreground">
+                        + R$ {calculateCardFees(consulta.valor_consulta, installments).totalFees.toFixed(2).replace(".", ",")}
                       </span>
                     </div>
                   )}
                   <div className="border-t pt-2 flex justify-between items-center">
                     <span className="text-lg font-semibold">Total</span>
-                    <span className="text-2xl font-bold text-primary">
-                      R$ {paymentMethod === 'card' 
-                        ? calculateCardFees(consulta.valor_consulta).totalWithFees.toFixed(2).replace(".", ",")
-                        : consulta.valor_consulta.toFixed(2).replace(".", ",")}
-                    </span>
+                    <div className="text-right">
+                      {paymentMethod === 'card' && installments > 1 ? (
+                        <>
+                          <span className="text-2xl font-bold text-primary">
+                            {installments}x R$ {calculateCardFees(consulta.valor_consulta, installments).installmentValue.toFixed(2).replace(".", ",")}
+                          </span>
+                          <div className="text-xs text-muted-foreground">
+                            Total: R$ {calculateCardFees(consulta.valor_consulta, installments).totalWithFees.toFixed(2).replace(".", ",")}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-2xl font-bold text-primary">
+                          R$ {paymentMethod === 'card' 
+                            ? calculateCardFees(consulta.valor_consulta, installments).totalWithFees.toFixed(2).replace(".", ",")
+                            : consulta.valor_consulta.toFixed(2).replace(".", ",")}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </CardContent>
