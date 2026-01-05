@@ -89,6 +89,31 @@ export default function MemedPrescricao({
       existingScript.remove();
     }
 
+    // Add CSS to ensure Memed modal appears on top
+    const existingStyle = document.getElementById('memed-styles');
+    if (!existingStyle) {
+      const style = document.createElement('style');
+      style.id = 'memed-styles';
+      style.textContent = `
+        .memed-modal, 
+        [class*="memed"], 
+        iframe[src*="memed"],
+        .md-modal,
+        .md-backdrop {
+          z-index: 999999 !important;
+        }
+        .md-backdrop {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          background: rgba(0,0,0,0.5) !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
     console.log('Loading Memed script...');
     const script = document.createElement('script');
     script.src = scriptUrl;
