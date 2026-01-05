@@ -26,6 +26,12 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     if (action === 'get-token') {
+      // Log keys being used (masked for security)
+      const apiKeySource = Deno.env.get('MEMED_API_KEY') ? 'ENV' : 'FALLBACK';
+      const secretKeySource = Deno.env.get('MEMED_SECRET_KEY') ? 'ENV' : 'FALLBACK';
+      console.log(`Using API Key from: ${apiKeySource}, Secret Key from: ${secretKeySource}`);
+      console.log(`API Key starts with: ${MEMED_API_KEY.substring(0, 8)}...`);
+      console.log(`Secret Key starts with: ${MEMED_SECRET_KEY.substring(0, 8)}...`);
       // Get doctor data from database
       const { data: medico, error: medicoError } = await supabase
         .from('medicos')
