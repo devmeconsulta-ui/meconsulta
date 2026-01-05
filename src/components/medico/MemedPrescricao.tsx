@@ -154,87 +154,102 @@ export default function MemedPrescricao({
   useEffect(() => {
     if (!scriptLoaded) return;
 
-    const checkMemed = () => {
-      if (window.MdSinapsePrescricao) {
-        console.log('MdSinapsePrescricao available, setting up events...');
-        
-        // Listen for module initialization
-        window.MdSinapsePrescricao.event.add('core:moduleInit', (module: any) => {
-          console.log('Memed module initialized:', module.name);
-          
-          if (module.name === 'plataforma.prescricao') {
-            setMemedReady(true);
-            
-            // Set patient data
-            if (window.MdHub) {
-              window.MdHub.command.send('plataforma.prescricao', 'setPaciente', {
-                nome: pacienteNome,
-                cpf: pacienteCpf?.replace(/\D/g, '') || undefined,
-              });
-            }
-          }
-        });
+    let attempts = 0;
+    const maxAttempts = 20; // 10 seconds max
 
-        // Listen for prescription completion
-        window.MdSinapsePrescricao.event.add('core:moduleHide', (module: any) => {
-          if (module.moduleName === 'plataforma.prescricao') {
-            console.log('Memed prescription module closed');
-          }
+    const checkMemed = () => {
+      attempts++;
+      console.log(`Checking Memed availability (attempt ${attempts})...`);
+      
+      // Check if MdHub or MdSinapsePrescricao is available
+      if (window.MdHub || window.MdSinapsePrescricao) {
+        console.log('Memed SDK available!', {
+          MdHub: !!window.MdHub,
+          MdSinapsePrescricao: !!window.MdSinapsePrescricao
         });
+        
+        setMemedReady(true);
+        
+        // Set up events if available
+        if (window.MdSinapsePrescricao?.event) {
+          window.MdSinapsePrescricao.event.add('core:moduleInit', (module: any) => {
+            console.log('Memed module initialized:', module.name);
+          });
+          
+          window.MdSinapsePrescricao.event.add('core:moduleHide', (module: any) => {
+            console.log('Memed module hidden:', module.moduleName);
+          });
+        }
 
         // Listen for prescription printed event
-        if (window.MdHub) {
+        if (window.MdHub?.event) {
           window.MdHub.event.add('prescricaoImpressa', (prescricao: any) => {
             console.log('Prescription printed:', prescricao);
             toast.success('Prescrição emitida com sucesso!');
             onPrescricaoConcluida?.(prescricao);
           });
         }
-      } else {
+      } else if (attempts < maxAttempts) {
         // Retry after a short delay
         setTimeout(checkMemed, 500);
+      } else {
+        console.error('Memed SDK not available after max attempts');
+        setError('Memed não carregou corretamente. Tente novamente.');
       }
     };
 
-    checkMemed();
-  }, [scriptLoaded, pacienteNome, pacienteCpf, onPrescricaoConcluida]);
+    // Start checking after a brief delay
+    setTimeout(checkMemed, 500);
+  }, [scriptLoaded, onPrescricaoConcluida]);
 
   // Open Memed prescription interface
   const openPrescricao = () => {
     console.log('Opening Memed prescription...');
     
-    // Try multiple methods to open Memed
-    if (window.MdHub) {
-      try {
-        // Method 1: Using module.show (recommended by Memed docs)
-        if (window.MdHub.module && window.MdHub.module.show) {
+    if (!window.MdHub && !window.MdSinapsePrescricao) {
+      toast.error('Memed não foi carregado');
+      return;
+    }
+
+    try {
+      // First set patient data
+      if (window.MdHub?.command) {
+        console.log('Setting patient data:', { nome: pacienteNome, cpf: pacienteCpf });
+        window.MdHub.command.send('plataforma.prescricao', 'setPaciente', {
+          nome: pacienteNome,
+          cpf: pacienteCpf?.replace(/\D/g, '') || undefined,
+        });
+      }
+
+      // Try to open using MdHub
+      if (window.MdHub) {
+        // Method 1: Using module.show
+        if (window.MdHub.module?.show) {
           console.log('Using MdHub.module.show');
           window.MdHub.module.show('plataforma.prescricao');
           return;
         }
         
-        // Method 2: Using command.send with 'abrir'
-        console.log('Using MdHub.command.send with abrir');
-        window.MdHub.command.send('plataforma.prescricao', 'abrir');
-      } catch (e) {
-        console.error('Error opening Memed:', e);
-        toast.error('Erro ao abrir prescrição Memed');
-      }
-    } else if (window.MdSinapsePrescricao) {
-      try {
-        // Alternative: Click the Memed prescription link if it exists
-        const memedLink = document.getElementById('memed-prescricao');
-        if (memedLink) {
-          console.log('Clicking memed-prescricao element');
-          memedLink.click();
+        // Method 2: Using command.send
+        if (window.MdHub.command?.send) {
+          console.log('Using MdHub.command.send');
+          window.MdHub.command.send('plataforma.prescricao', 'open');
           return;
         }
-      } catch (e) {
-        console.error('Error with alternative Memed open:', e);
       }
-      toast.error('Memed ainda não está pronto');
-    } else {
-      toast.error('Memed não foi carregado');
+      
+      // Fallback: Try clicking the anchor element
+      const memedLink = document.getElementById('memed-prescricao');
+      if (memedLink) {
+        console.log('Clicking memed-prescricao element');
+        memedLink.click();
+        return;
+      }
+      
+      toast.error('Não foi possível abrir o Memed');
+    } catch (e) {
+      console.error('Error opening Memed:', e);
+      toast.error('Erro ao abrir prescrição Memed');
     }
   };
 
