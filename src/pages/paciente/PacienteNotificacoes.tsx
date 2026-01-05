@@ -245,6 +245,7 @@ function NotificationList({
   onMarkAsRead: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const navigate = useNavigate();
   if (notifications.length === 0) {
     return (
       <Card className="card-shadow">
