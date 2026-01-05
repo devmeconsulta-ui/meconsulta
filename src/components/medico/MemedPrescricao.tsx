@@ -201,11 +201,40 @@ export default function MemedPrescricao({
 
   // Open Memed prescription interface
   const openPrescricao = () => {
+    console.log('Opening Memed prescription...');
+    
+    // Try multiple methods to open Memed
     if (window.MdHub) {
-      console.log('Opening Memed prescription...');
-      window.MdHub.command.send('plataforma.prescricao', 'open');
-    } else {
+      try {
+        // Method 1: Using module.show (recommended by Memed docs)
+        if (window.MdHub.module && window.MdHub.module.show) {
+          console.log('Using MdHub.module.show');
+          window.MdHub.module.show('plataforma.prescricao');
+          return;
+        }
+        
+        // Method 2: Using command.send with 'abrir'
+        console.log('Using MdHub.command.send with abrir');
+        window.MdHub.command.send('plataforma.prescricao', 'abrir');
+      } catch (e) {
+        console.error('Error opening Memed:', e);
+        toast.error('Erro ao abrir prescrição Memed');
+      }
+    } else if (window.MdSinapsePrescricao) {
+      try {
+        // Alternative: Click the Memed prescription link if it exists
+        const memedLink = document.getElementById('memed-prescricao');
+        if (memedLink) {
+          console.log('Clicking memed-prescricao element');
+          memedLink.click();
+          return;
+        }
+      } catch (e) {
+        console.error('Error with alternative Memed open:', e);
+      }
       toast.error('Memed ainda não está pronto');
+    } else {
+      toast.error('Memed não foi carregado');
     }
   };
 
@@ -319,6 +348,16 @@ export default function MemedPrescricao({
           </div>
         </div>
 
+        {/* Hidden anchor element for Memed integration */}
+        <a 
+          href="#" 
+          id="memed-prescricao" 
+          style={{ display: 'none' }}
+          onClick={(e) => e.preventDefault()}
+        >
+          Prescrever
+        </a>
+
         <Button 
           onClick={openPrescricao} 
           disabled={!memedReady}
@@ -329,7 +368,7 @@ export default function MemedPrescricao({
         </Button>
 
         <p className="text-xs text-muted-foreground text-center">
-          🔒 Ambiente de homologação (sandbox)
+          🔒 Ambiente de produção
         </p>
       </CardContent>
     </Card>
