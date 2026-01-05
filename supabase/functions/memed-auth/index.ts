@@ -116,6 +116,9 @@ serve(async (req) => {
       const createUserUrl = `${MEMED_API_URL}/v1/sinapse-prescricao/usuarios?api-key=${MEMED_API_KEY}&secret-key=${MEMED_SECRET_KEY}`;
       
       // Using the format from official documentation
+      // Generate a valid test CPF for development - in production, use real doctor CPF
+      const testCpf = "529.982.247-25"; // Valid CPF format for testing
+      
       const payload = {
         data: {
           type: "usuarios",
@@ -124,7 +127,7 @@ serve(async (req) => {
             nome: firstName,
             sobrenome: lastName,
             data_nascimento: "01/01/1980", // Default date - required by Memed
-            cpf: "000.000.000-00", // Placeholder CPF - will be updated by doctor
+            cpf: testCpf,
             email: usuario?.email || `medico_${medico.id}@meconsulta.com`,
             uf: crmState,
             sexo: "M", // Default
