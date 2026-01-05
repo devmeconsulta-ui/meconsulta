@@ -10,9 +10,9 @@ const corsHeaders = {
 const MEMED_API_KEY = Deno.env.get('MEMED_API_KEY') || "";
 const MEMED_SECRET_KEY = Deno.env.get('MEMED_SECRET_KEY') || "";
 
-// Memed Sandbox URLs (for testing with sandbox keys)
-const MEMED_API_URL = "https://sandbox.api.memed.com.br";
-const MEMED_SCRIPT_URL = "https://sandbox.memed.com.br/modulos/plataforma.sinapse-prescricao/build/sinapse-prescricao.min.js";
+// Memed Production URLs - using the official API URL
+const MEMED_API_URL = "https://api.memed.com.br";
+const MEMED_SCRIPT_URL = "https://memed.com.br/modulos/plataforma.sinapse-prescricao/build/sinapse-prescricao.min.js";
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -34,10 +34,12 @@ serve(async (req) => {
       console.log(`Using API Key from: ${apiKeySource}, Secret Key from: ${secretKeySource}`);
       console.log(`API Key starts with: ${MEMED_API_KEY.substring(0, 8)}...`);
       console.log(`Secret Key starts with: ${MEMED_SECRET_KEY.substring(0, 8)}...`);
+      console.log(`Using API URL: ${MEMED_API_URL}`);
+      
       // Get doctor data from database
       const { data: medico, error: medicoError } = await supabase
         .from('medicos')
-        .select('id, nome, crm, usuario_id')
+        .select('id, nome, crm, especialidade, usuario_id')
         .eq('id', medico_id)
         .single();
 
@@ -72,10 +74,17 @@ serve(async (req) => {
         crmNumber = crmNumber.replace(/\D/g, '');
       }
 
+      console.log(`CRM extracted: ${crmNumber}, State: ${crmState}`);
+
+      // Parse doctor name
+      const nameParts = medico.nome.split(' ');
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ') || 'Doctor';
+
       // First try to get existing user token
-      const getUserUrl = `${MEMED_API_URL}/v1/sinapse-prescricao/usuarios/${medico.id}?api-key=${MEMED_API_KEY}&secret-key=${MEMED_SECRET_KEY}`;
+      const getUserUrl = `${MEMED_API_URL}/v1/sinapse-prescricao/usuarios?api-key=${MEMED_API_KEY}&secret-key=${MEMED_SECRET_KEY}&filter[external_id]=${medico.id}`;
       
-      console.log('Trying to get existing Memed user...');
+      console.log('Trying to get existing Memed user by external_id...');
       const getUserResponse = await fetch(getUserUrl, {
         method: 'GET',
         headers: {
@@ -84,13 +93,16 @@ serve(async (req) => {
         },
       });
 
-      if (getUserResponse.ok) {
-        const userData = await getUserResponse.json();
-        console.log('Existing Memed user found:', userData);
+      const getUserData = await getUserResponse.json();
+      console.log('Get user response:', JSON.stringify(getUserData));
+
+      if (getUserResponse.ok && getUserData.data && Array.isArray(getUserData.data) && getUserData.data.length > 0) {
+        const existingUser = getUserData.data[0];
+        console.log('Existing Memed user found:', existingUser);
         
         return new Response(JSON.stringify({
           success: true,
-          token: userData.data?.attributes?.token,
+          token: existingUser.attributes?.token,
           scriptUrl: MEMED_SCRIPT_URL,
           medicoNome: medico.nome,
         }), {
@@ -101,12 +113,9 @@ serve(async (req) => {
       // User doesn't exist, create new one
       console.log('Creating new Memed user...');
       
-      const nameParts = medico.nome.split(' ');
-      const firstName = nameParts[0];
-      const lastName = nameParts.slice(1).join(' ') || 'Doctor';
-
       const createUserUrl = `${MEMED_API_URL}/v1/sinapse-prescricao/usuarios?api-key=${MEMED_API_KEY}&secret-key=${MEMED_SECRET_KEY}`;
       
+      // Using the format from official documentation
       const payload = {
         data: {
           type: "usuarios",
@@ -114,13 +123,21 @@ serve(async (req) => {
             external_id: medico.id,
             nome: firstName,
             sobrenome: lastName,
+            data_nascimento: "01/01/1980", // Default date - required by Memed
+            cpf: "000.000.000-00", // Placeholder CPF - will be updated by doctor
             email: usuario?.email || `medico_${medico.id}@meconsulta.com`,
-            board: {
-              board_code: "CRM",
-              board_number: crmNumber || "123456",
-              board_state: crmState,
-            },
+            uf: crmState,
+            sexo: "M", // Default
+            crm: crmNumber,
           },
+          relationships: {
+            cidade: {
+              data: { type: "cidades", id: "5213" } // São Paulo default
+            },
+            especialidade: {
+              data: { type: "especialidades", id: "50" } // Clínica Geral default
+            }
+          }
         },
       };
 
@@ -131,11 +148,13 @@ serve(async (req) => {
         headers: {
           'Accept': 'application/vnd.api+json',
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
         },
         body: JSON.stringify(payload),
       });
 
       const createData = await createResponse.json();
+      console.log('Memed create response status:', createResponse.status);
       console.log('Memed create response:', JSON.stringify(createData));
 
       if (!createResponse.ok) {
