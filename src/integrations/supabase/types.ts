@@ -187,6 +187,41 @@ export type Database = {
           },
         ]
       }
+      centros_custo: {
+        Row: {
+          ativo: boolean | null
+          clinica_id: string
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          clinica_id: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          ativo?: boolean | null
+          clinica_id?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "centros_custo_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinicas: {
         Row: {
           agencia: string | null
@@ -610,6 +645,110 @@ export type Database = {
           },
         ]
       }
+      contas_pagar: {
+        Row: {
+          centro_custo_id: string | null
+          clinica_id: string
+          created_at: string
+          data_pagamento: string | null
+          data_vencimento: string
+          descricao: string
+          fornecedor: string | null
+          id: string
+          observacoes: string | null
+          status: string | null
+          valor: number
+        }
+        Insert: {
+          centro_custo_id?: string | null
+          clinica_id: string
+          created_at?: string
+          data_pagamento?: string | null
+          data_vencimento: string
+          descricao: string
+          fornecedor?: string | null
+          id?: string
+          observacoes?: string | null
+          status?: string | null
+          valor: number
+        }
+        Update: {
+          centro_custo_id?: string | null
+          clinica_id?: string
+          created_at?: string
+          data_pagamento?: string | null
+          data_vencimento?: string
+          descricao?: string
+          fornecedor?: string | null
+          id?: string
+          observacoes?: string | null
+          status?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contas_pagar_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contas_pagar_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contas_receber: {
+        Row: {
+          cliente: string | null
+          clinica_id: string
+          created_at: string
+          data_recebimento: string | null
+          data_vencimento: string
+          descricao: string
+          id: string
+          observacoes: string | null
+          status: string | null
+          valor: number
+        }
+        Insert: {
+          cliente?: string | null
+          clinica_id: string
+          created_at?: string
+          data_recebimento?: string | null
+          data_vencimento: string
+          descricao: string
+          id?: string
+          observacoes?: string | null
+          status?: string | null
+          valor: number
+        }
+        Update: {
+          cliente?: string | null
+          clinica_id?: string
+          created_at?: string
+          data_recebimento?: string | null
+          data_vencimento?: string
+          descricao?: string
+          id?: string
+          observacoes?: string | null
+          status?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contas_receber_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       historico_medico_paciente: {
         Row: {
           ativo: boolean | null
@@ -748,6 +887,57 @@ export type Database = {
             columns: ["paciente_id"]
             isOneToOne: false
             referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      medico_repasse_config: {
+        Row: {
+          ativo: boolean | null
+          clinica_id: string
+          created_at: string
+          id: string
+          medico_id: string
+          percentual_repasse: number | null
+          tipo_repasse: string | null
+          updated_at: string
+          valor_fixo_repasse: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          clinica_id: string
+          created_at?: string
+          id?: string
+          medico_id: string
+          percentual_repasse?: number | null
+          tipo_repasse?: string | null
+          updated_at?: string
+          valor_fixo_repasse?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          clinica_id?: string
+          created_at?: string
+          id?: string
+          medico_id?: string
+          percentual_repasse?: number | null
+          tipo_repasse?: string | null
+          updated_at?: string
+          valor_fixo_repasse?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medico_repasse_config_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medico_repasse_config_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
             referencedColumns: ["id"]
           },
         ]

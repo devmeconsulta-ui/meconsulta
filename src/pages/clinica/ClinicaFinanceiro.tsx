@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
-import { format, subDays, parseISO } from "date-fns";
+import { format, subDays, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -28,6 +29,15 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -37,6 +47,12 @@ import {
   PieChart,
   Pie,
   Cell,
+  LineChart,
+  Line,
+  CartesianGrid,
+  Legend,
+  Area,
+  AreaChart,
 } from "recharts";
 import {
   Clock,
@@ -46,7 +62,22 @@ import {
   Filter,
   ChevronDown,
   Search,
+  BarChart3,
+  Globe,
+  ArrowLeftRight,
+  Wallet,
+  Plus,
+  Edit,
+  Trash2,
+  Calendar,
+  CreditCard,
+  Building,
+  Users,
+  Percent,
+  Settings,
+  FileText,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface ClinicaContext {
   clinicaData: any;
@@ -67,17 +98,74 @@ interface Consulta {
   medico: { nome: string; especialidade: string } | null;
   local: { nome_local: string } | null;
   nome_paciente_consulta: string | null;
+  finalizado_medico: boolean;
+}
+
+interface Repasse {
+  id: string;
+  medico_id: string;
+  valor_total: number;
+  periodo_inicio: string;
+  periodo_fim: string;
+  data_prevista_pagamento: string | null;
+  data_pagamento: string | null;
+  status: string;
+  medico?: { nome: string };
+}
+
+interface CentroCusto {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  ativo: boolean;
+}
+
+interface ContaPagar {
+  id: string;
+  descricao: string;
+  valor: number;
+  data_vencimento: string;
+  data_pagamento: string | null;
+  status: string;
+  centro_custo_id: string | null;
+  fornecedor: string | null;
+  centro_custo?: { nome: string };
+}
+
+interface ContaReceber {
+  id: string;
+  descricao: string;
+  valor: number;
+  data_vencimento: string;
+  data_recebimento: string | null;
+  status: string;
+  cliente: string | null;
+}
+
+interface MedicoRepasseConfig {
+  id: string;
+  medico_id: string;
+  percentual_repasse: number;
+  valor_fixo_repasse: number | null;
+  tipo_repasse: string;
+  medico?: { nome: string };
 }
 
 type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d";
 
-const COLORS = ["#22c55e", "#eab308", "#ef4444", "#3b82f6"];
+const COLORS = ["#22c55e", "#3b82f6", "#eab308", "#ef4444", "#8b5cf6", "#ec4899"];
 
 export default function ClinicaFinanceiro() {
   const { clinicaData } = useOutletContext<ClinicaContext>();
+  const [activeTab, setActiveTab] = useState("visao-geral");
   const [consultas, setConsultas] = useState<Consulta[]>([]);
+  const [repasses, setRepasses] = useState<Repasse[]>([]);
   const [medicos, setMedicos] = useState<Array<{ id: string; nome: string }>>([]);
   const [locais, setLocais] = useState<Array<{ id: string; nome_local: string }>>([]);
+  const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
+  const [contasPagar, setContasPagar] = useState<ContaPagar[]>([]);
+  const [contasReceber, setContasReceber] = useState<ContaReceber[]>([]);
+  const [medicoRepasseConfigs, setMedicoRepasseConfigs] = useState<MedicoRepasseConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   
@@ -89,10 +177,41 @@ export default function ClinicaFinanceiro() {
   const [localFilter, setLocalFilter] = useState("todos");
   const [searchPaciente, setSearchPaciente] = useState("");
 
+  // Modals
+  const [showCentroCustoModal, setShowCentroCustoModal] = useState(false);
+  const [showContaPagarModal, setShowContaPagarModal] = useState(false);
+  const [showContaReceberModal, setShowContaReceberModal] = useState(false);
+  const [showRepasseConfigModal, setShowRepasseConfigModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+
+  // Form states
+  const [formCentroCusto, setFormCentroCusto] = useState({ nome: "", descricao: "" });
+  const [formContaPagar, setFormContaPagar] = useState({
+    descricao: "",
+    valor: "",
+    data_vencimento: "",
+    fornecedor: "",
+    centro_custo_id: "",
+    observacoes: "",
+  });
+  const [formContaReceber, setFormContaReceber] = useState({
+    descricao: "",
+    valor: "",
+    data_vencimento: "",
+    cliente: "",
+    observacoes: "",
+  });
+  const [formRepasseConfig, setFormRepasseConfig] = useState({
+    medico_id: "",
+    tipo_repasse: "percentual",
+    percentual_repasse: "70",
+    valor_fixo_repasse: "",
+  });
+
   const dateRange = useMemo(() => {
     const now = new Date();
     const future = new Date();
-    future.setDate(future.getDate() + 90); // 3 months ahead
+    future.setDate(future.getDate() + 90);
     
     switch (periodFilter) {
       case "7d":
@@ -114,13 +233,24 @@ export default function ClinicaFinanceiro() {
 
   useEffect(() => {
     if (clinicaData?.id) {
-      fetchData();
+      fetchAllData();
     }
   }, [clinicaData?.id, dateRange]);
 
-  async function fetchData() {
+  async function fetchAllData() {
     setLoading(true);
+    await Promise.all([
+      fetchConsultas(),
+      fetchRepasses(),
+      fetchCentrosCusto(),
+      fetchContasPagar(),
+      fetchContasReceber(),
+      fetchMedicoRepasseConfigs(),
+    ]);
+    setLoading(false);
+  }
 
+  async function fetchConsultas() {
     // Busca médicos vinculados
     const { data: vinculosData } = await supabase
       .from("clinicas_medicos")
@@ -133,13 +263,11 @@ export default function ClinicaFinanceiro() {
 
     if (medicosVinculados.length === 0) {
       setConsultas([]);
-      setLoading(false);
       return;
     }
 
     const medicoIds = medicosVinculados.map((m: any) => m.id);
 
-    // Busca apenas locais desta clínica
     const { data: locaisData } = await supabase
       .from("locais_atendimento")
       .select("id, nome_local")
@@ -148,7 +276,6 @@ export default function ClinicaFinanceiro() {
 
     setLocais(locaisData || []);
 
-    // IMPORTANTE: Filtrar por clinica_id para isolar dados entre clínicas
     const { data, error } = await supabase
       .from("consultas")
       .select(`
@@ -163,6 +290,7 @@ export default function ClinicaFinanceiro() {
         medico_id,
         local_id,
         nome_paciente_consulta,
+        finalizado_medico,
         paciente:pacientes!consultas_paciente_id_fkey(nome),
         medico:medicos!consultas_medico_id_fkey(nome, especialidade),
         local:locais_atendimento!consultas_local_id_fkey(nome_local)
@@ -176,7 +304,71 @@ export default function ClinicaFinanceiro() {
     if (!error) {
       setConsultas(data || []);
     }
-    setLoading(false);
+  }
+
+  async function fetchRepasses() {
+    const { data: vinculosData } = await supabase
+      .from("clinicas_medicos")
+      .select("medico_id")
+      .eq("clinica_id", clinicaData.id)
+      .eq("ativo", true);
+
+    if (!vinculosData?.length) {
+      setRepasses([]);
+      return;
+    }
+
+    const medicoIds = vinculosData.map((v) => v.medico_id);
+
+    const { data } = await supabase
+      .from("repasses_medico")
+      .select(`*, medico:medicos(nome)`)
+      .in("medico_id", medicoIds)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    setRepasses(data || []);
+  }
+
+  async function fetchCentrosCusto() {
+    const { data } = await supabase
+      .from("centros_custo")
+      .select("*")
+      .eq("clinica_id", clinicaData.id)
+      .eq("ativo", true)
+      .order("nome");
+
+    setCentrosCusto(data || []);
+  }
+
+  async function fetchContasPagar() {
+    const { data } = await supabase
+      .from("contas_pagar")
+      .select(`*, centro_custo:centros_custo(nome)`)
+      .eq("clinica_id", clinicaData.id)
+      .order("data_vencimento", { ascending: true });
+
+    setContasPagar(data || []);
+  }
+
+  async function fetchContasReceber() {
+    const { data } = await supabase
+      .from("contas_receber")
+      .select("*")
+      .eq("clinica_id", clinicaData.id)
+      .order("data_vencimento", { ascending: true });
+
+    setContasReceber(data || []);
+  }
+
+  async function fetchMedicoRepasseConfigs() {
+    const { data } = await supabase
+      .from("medico_repasse_config")
+      .select(`*, medico:medicos(nome)`)
+      .eq("clinica_id", clinicaData.id)
+      .eq("ativo", true);
+
+    setMedicoRepasseConfigs(data || []);
   }
 
   const filteredConsultas = useMemo(() => {
@@ -196,7 +388,6 @@ export default function ClinicaFinanceiro() {
   }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter, searchPaciente]);
 
   const metrics = useMemo(() => {
-    // Only online appointments count for revenue
     const onlineConsultas = filteredConsultas.filter((c) => c.origem === "online");
     
     const pago = onlineConsultas
@@ -217,19 +408,41 @@ export default function ClinicaFinanceiro() {
     return { pago, pendente, cancelado, total, pagos };
   }, [filteredConsultas]);
 
-  const chartData = useMemo(() => {
-    const data: { [key: string]: number } = {};
+  const originChartData = useMemo(() => {
+    const online = filteredConsultas.filter((c) => c.origem === "online");
+    const interna = filteredConsultas.filter((c) => c.origem === "interna");
+    
+    return [
+      { name: "Online", value: online.length, receita: online.filter(c => c.status_pagamento === "pago").reduce((s, c) => s + c.valor_consulta, 0) },
+      { name: "Interna", value: interna.length, receita: interna.filter(c => c.status_pagamento === "pago").reduce((s, c) => s + c.valor_consulta, 0) },
+    ];
+  }, [filteredConsultas]);
+
+  const cashFlowData = useMemo(() => {
+    const data: { [key: string]: { entradas: number; saidas: number } } = {};
+    
+    // Entradas das consultas pagas
     filteredConsultas
       .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
       .forEach((c) => {
         const date = format(parseISO(c.data_hora), "dd/MM");
-        data[date] = (data[date] || 0) + c.valor_consulta;
+        if (!data[date]) data[date] = { entradas: 0, saidas: 0 };
+        data[date].entradas += c.valor_consulta;
+      });
+
+    // Saídas das contas pagas
+    contasPagar
+      .filter((c) => c.status === "pago" && c.data_pagamento)
+      .forEach((c) => {
+        const date = format(parseISO(c.data_pagamento!), "dd/MM");
+        if (!data[date]) data[date] = { entradas: 0, saidas: 0 };
+        data[date].saidas += Number(c.valor);
       });
 
     return Object.entries(data)
-      .map(([date, value]) => ({ date, value }))
+      .map(([date, values]) => ({ date, ...values, saldo: values.entradas - values.saidas }))
       .slice(-15);
-  }, [filteredConsultas]);
+  }, [filteredConsultas, contasPagar]);
 
   const medicoChartData = useMemo(() => {
     const data: { [key: string]: number } = {};
@@ -246,6 +459,23 @@ export default function ClinicaFinanceiro() {
       .slice(0, 5);
   }, [filteredConsultas]);
 
+  const repassesPorMedico = useMemo(() => {
+    const data: { [key: string]: { pendente: number; pago: number } } = {};
+    
+    filteredConsultas
+      .filter((c) => c.status_pagamento === "pago" && c.finalizado_medico)
+      .forEach((c) => {
+        const medicoNome = c.medico?.nome || "Desconhecido";
+        if (!data[medicoNome]) data[medicoNome] = { pendente: 0, pago: 0 };
+        data[medicoNome].pendente += c.valor_medico;
+      });
+
+    return Object.entries(data).map(([nome, valores]) => ({
+      nome,
+      ...valores,
+    }));
+  }, [filteredConsultas]);
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -257,6 +487,209 @@ export default function ClinicaFinanceiro() {
     return consulta.nome_paciente_consulta || consulta.paciente?.nome || "Não informado";
   };
 
+  // CRUD handlers
+  const handleSaveCentroCusto = async () => {
+    if (!formCentroCusto.nome.trim()) {
+      toast.error("Nome é obrigatório");
+      return;
+    }
+
+    if (editingItem) {
+      const { error } = await supabase
+        .from("centros_custo")
+        .update({ nome: formCentroCusto.nome, descricao: formCentroCusto.descricao })
+        .eq("id", editingItem.id);
+
+      if (error) {
+        toast.error("Erro ao atualizar");
+        return;
+      }
+      toast.success("Centro de custo atualizado");
+    } else {
+      const { error } = await supabase
+        .from("centros_custo")
+        .insert({
+          clinica_id: clinicaData.id,
+          nome: formCentroCusto.nome,
+          descricao: formCentroCusto.descricao,
+        });
+
+      if (error) {
+        toast.error("Erro ao criar");
+        return;
+      }
+      toast.success("Centro de custo criado");
+    }
+
+    setShowCentroCustoModal(false);
+    setEditingItem(null);
+    setFormCentroCusto({ nome: "", descricao: "" });
+    fetchCentrosCusto();
+  };
+
+  const handleSaveContaPagar = async () => {
+    if (!formContaPagar.descricao.trim() || !formContaPagar.valor || !formContaPagar.data_vencimento) {
+      toast.error("Preencha os campos obrigatórios");
+      return;
+    }
+
+    const payload = {
+      clinica_id: clinicaData.id,
+      descricao: formContaPagar.descricao,
+      valor: parseFloat(formContaPagar.valor),
+      data_vencimento: formContaPagar.data_vencimento,
+      fornecedor: formContaPagar.fornecedor || null,
+      centro_custo_id: formContaPagar.centro_custo_id || null,
+      observacoes: formContaPagar.observacoes || null,
+    };
+
+    if (editingItem) {
+      const { error } = await supabase
+        .from("contas_pagar")
+        .update(payload)
+        .eq("id", editingItem.id);
+
+      if (error) {
+        toast.error("Erro ao atualizar");
+        return;
+      }
+      toast.success("Conta atualizada");
+    } else {
+      const { error } = await supabase
+        .from("contas_pagar")
+        .insert(payload);
+
+      if (error) {
+        toast.error("Erro ao criar");
+        return;
+      }
+      toast.success("Conta criada");
+    }
+
+    setShowContaPagarModal(false);
+    setEditingItem(null);
+    setFormContaPagar({ descricao: "", valor: "", data_vencimento: "", fornecedor: "", centro_custo_id: "", observacoes: "" });
+    fetchContasPagar();
+  };
+
+  const handleSaveContaReceber = async () => {
+    if (!formContaReceber.descricao.trim() || !formContaReceber.valor || !formContaReceber.data_vencimento) {
+      toast.error("Preencha os campos obrigatórios");
+      return;
+    }
+
+    const payload = {
+      clinica_id: clinicaData.id,
+      descricao: formContaReceber.descricao,
+      valor: parseFloat(formContaReceber.valor),
+      data_vencimento: formContaReceber.data_vencimento,
+      cliente: formContaReceber.cliente || null,
+      observacoes: formContaReceber.observacoes || null,
+    };
+
+    if (editingItem) {
+      const { error } = await supabase
+        .from("contas_receber")
+        .update(payload)
+        .eq("id", editingItem.id);
+
+      if (error) {
+        toast.error("Erro ao atualizar");
+        return;
+      }
+      toast.success("Conta atualizada");
+    } else {
+      const { error } = await supabase
+        .from("contas_receber")
+        .insert(payload);
+
+      if (error) {
+        toast.error("Erro ao criar");
+        return;
+      }
+      toast.success("Conta criada");
+    }
+
+    setShowContaReceberModal(false);
+    setEditingItem(null);
+    setFormContaReceber({ descricao: "", valor: "", data_vencimento: "", cliente: "", observacoes: "" });
+    fetchContasReceber();
+  };
+
+  const handleSaveRepasseConfig = async () => {
+    if (!formRepasseConfig.medico_id) {
+      toast.error("Selecione um médico");
+      return;
+    }
+
+    const payload = {
+      clinica_id: clinicaData.id,
+      medico_id: formRepasseConfig.medico_id,
+      tipo_repasse: formRepasseConfig.tipo_repasse,
+      percentual_repasse: parseFloat(formRepasseConfig.percentual_repasse) || 70,
+      valor_fixo_repasse: formRepasseConfig.valor_fixo_repasse ? parseFloat(formRepasseConfig.valor_fixo_repasse) : null,
+    };
+
+    if (editingItem) {
+      const { error } = await supabase
+        .from("medico_repasse_config")
+        .update(payload)
+        .eq("id", editingItem.id);
+
+      if (error) {
+        toast.error("Erro ao atualizar");
+        return;
+      }
+      toast.success("Configuração atualizada");
+    } else {
+      const { error } = await supabase
+        .from("medico_repasse_config")
+        .insert(payload);
+
+      if (error) {
+        if (error.code === "23505") {
+          toast.error("Já existe configuração para este médico");
+        } else {
+          toast.error("Erro ao criar");
+        }
+        return;
+      }
+      toast.success("Configuração criada");
+    }
+
+    setShowRepasseConfigModal(false);
+    setEditingItem(null);
+    setFormRepasseConfig({ medico_id: "", tipo_repasse: "percentual", percentual_repasse: "70", valor_fixo_repasse: "" });
+    fetchMedicoRepasseConfigs();
+  };
+
+  const handleMarkAsPaid = async (type: "pagar" | "receber", id: string) => {
+    const table = type === "pagar" ? "contas_pagar" : "contas_receber";
+    const dateField = type === "pagar" ? "data_pagamento" : "data_recebimento";
+
+    const { error } = await supabase
+      .from(table)
+      .update({ status: "pago", [dateField]: new Date().toISOString().split("T")[0] })
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Erro ao atualizar");
+      return;
+    }
+    toast.success("Marcado como pago");
+    type === "pagar" ? fetchContasPagar() : fetchContasReceber();
+  };
+
+  const handleDeleteItem = async (table: "centros_custo" | "contas_pagar" | "contas_receber" | "medico_repasse_config", id: string) => {
+    const { error } = await supabase.from(table).delete().eq("id", id);
+    if (error) {
+      toast.error("Erro ao excluir");
+      return;
+    }
+    toast.success("Excluído com sucesso");
+    fetchAllData();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -265,12 +698,32 @@ export default function ClinicaFinanceiro() {
     );
   }
 
+  const getPeriodLabel = () => {
+    switch (periodFilter) {
+      case "7d": return "Últimos 7 dias";
+      case "30d": return "Últimos 30 dias";
+      case "60d": return "Últimos 60 dias";
+      case "90d": return "Últimos 90 dias";
+      case "180d": return "Últimos 180 dias";
+      case "365d": return "Último ano";
+      default: return "Últimos 30 dias";
+    }
+  };
+
+  const totalContasPagar = contasPagar.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor), 0);
+  const totalContasReceber = contasReceber.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor), 0);
+  const totalRepassesPendentes = repasses.filter(r => r.status === "pendente").reduce((s, r) => s + r.valor_total, 0);
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Financeiro</h2>
-          <p className="text-muted-foreground">Acompanhe o faturamento da clínica</p>
+          <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <DollarSign className="h-7 w-7 text-primary" />
+            Financeiro
+          </h2>
+          <p className="text-muted-foreground">Acompanhe seus ganhos e movimentações - {getPeriodLabel()}</p>
         </div>
 
         <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
@@ -310,16 +763,14 @@ export default function ClinicaFinanceiro() {
                     <SelectContent>
                       <SelectItem value="todos">Todos</SelectItem>
                       {medicos.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          Dr(a). {m.nome}
-                        </SelectItem>
+                        <SelectItem key={m.id} value={m.id}>Dr(a). {m.nome}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Status Pagamento</label>
+                  <label className="text-sm font-medium">Status</label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todos" />
@@ -356,9 +807,7 @@ export default function ClinicaFinanceiro() {
                     <SelectContent>
                       <SelectItem value="todos">Todos</SelectItem>
                       {locais.map((l) => (
-                        <SelectItem key={l.id} value={l.id}>
-                          {l.nome_local}
-                        </SelectItem>
+                        <SelectItem key={l.id} value={l.id}>{l.nome_local}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -382,203 +831,748 @@ export default function ClinicaFinanceiro() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="card-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 sm:p-3 rounded-xl bg-green-500/10 shrink-0">
-                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-muted-foreground">Faturamento</p>
-                <p className="text-lg sm:text-2xl font-bold text-green-500 truncate">{formatCurrency(metrics.pago)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full max-w-4xl grid-cols-3 sm:grid-cols-6">
+          <TabsTrigger value="visao-geral" className="gap-1 text-xs sm:text-sm">
+            <BarChart3 className="h-4 w-4 hidden sm:block" />
+            <span>Visão Geral</span>
+          </TabsTrigger>
+          <TabsTrigger value="origem" className="gap-1 text-xs sm:text-sm">
+            <Globe className="h-4 w-4 hidden sm:block" />
+            <span>Origem</span>
+          </TabsTrigger>
+          <TabsTrigger value="fluxo" className="gap-1 text-xs sm:text-sm">
+            <ArrowLeftRight className="h-4 w-4 hidden sm:block" />
+            <span>Fluxo</span>
+          </TabsTrigger>
+          <TabsTrigger value="repasses" className="gap-1 text-xs sm:text-sm">
+            <Wallet className="h-4 w-4 hidden sm:block" />
+            <span>Repasses</span>
+          </TabsTrigger>
+          <TabsTrigger value="contas" className="gap-1 text-xs sm:text-sm">
+            <CreditCard className="h-4 w-4 hidden sm:block" />
+            <span>Contas</span>
+          </TabsTrigger>
+          <TabsTrigger value="config" className="gap-1 text-xs sm:text-sm">
+            <Settings className="h-4 w-4 hidden sm:block" />
+            <span>Config</span>
+          </TabsTrigger>
+        </TabsList>
 
-        <Card className="card-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 sm:p-3 rounded-xl bg-yellow-500/10 shrink-0">
-                <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-muted-foreground">Pendente</p>
-                <p className="text-lg sm:text-2xl font-bold text-yellow-500 truncate">{formatCurrency(metrics.pendente)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Tab: Visão Geral */}
+        <TabsContent value="visao-geral" className="mt-6 space-y-6">
+          {/* Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="card-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-green-500/10">
+                    <DollarSign className="w-6 h-6 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Faturamento</p>
+                    <p className="text-2xl font-bold text-green-500">{formatCurrency(metrics.pago)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="card-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 sm:p-3 rounded-xl bg-red-500/10 shrink-0">
-                <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-muted-foreground">Cancelado</p>
-                <p className="text-lg sm:text-2xl font-bold text-red-500 truncate">{formatCurrency(metrics.cancelado)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            <Card className="card-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-yellow-500/10">
+                    <Clock className="w-6 h-6 text-yellow-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">A Receber</p>
+                    <p className="text-2xl font-bold text-yellow-500">{formatCurrency(metrics.pendente)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="card-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 sm:p-3 rounded-xl bg-primary/10 shrink-0">
-                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-muted-foreground">Consultas Pagas</p>
-                <p className="text-lg sm:text-2xl font-bold truncate">{metrics.pagos} / {metrics.total}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Card className="card-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-red-500/10">
+                    <XCircle className="w-6 h-6 text-red-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">A Pagar</p>
+                    <p className="text-2xl font-bold text-red-500">{formatCurrency(totalContasPagar)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="card-shadow">
-          <CardHeader>
-            <CardTitle>Faturamento Diário</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {chartData.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Nenhum dado disponível para o período
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={chartData}>
-                  <XAxis dataKey="date" fontSize={12} />
-                  <YAxis tickFormatter={(v) => `R$${v}`} fontSize={12} />
-                  <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
-                    labelFormatter={(label) => `Data: ${label}`}
-                  />
-                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+            <Card className="card-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-primary/10">
+                    <TrendingUp className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Consultas Pagas</p>
+                    <p className="text-2xl font-bold">{metrics.pagos} / {metrics.total}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-        <Card className="card-shadow">
-          <CardHeader>
-            <CardTitle>Faturamento por Médico</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {medicoChartData.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Nenhum dado disponível
-              </div>
-            ) : (
-              <div className="flex items-center gap-4">
-                <ResponsiveContainer width="50%" height={200}>
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="card-shadow">
+              <CardHeader>
+                <CardTitle>Faturamento por Médico</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {medicoChartData.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">Nenhum dado disponível</div>
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <ResponsiveContainer width="50%" height={200}>
+                      <PieChart>
+                        <Pie data={medicoChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={80}>
+                          {medicoChartData.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex-1 space-y-2">
+                      {medicoChartData.map((item, index) => (
+                        <div key={item.name} className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                          <span className="text-sm truncate flex-1">{item.name}</span>
+                          <span className="text-sm font-medium">{formatCurrency(item.value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="card-shadow">
+              <CardHeader>
+                <CardTitle>Consultas do Período ({filteredConsultas.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {filteredConsultas.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">Nenhuma consulta no período</div>
+                ) : (
+                  <div className="overflow-x-auto max-h-[250px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Médico</TableHead>
+                          <TableHead>Valor</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredConsultas.slice(0, 5).map((c) => (
+                          <TableRow key={c.id}>
+                            <TableCell>{format(parseISO(c.data_hora), "dd/MM HH:mm")}</TableCell>
+                            <TableCell className="truncate max-w-[100px]">{c.medico?.nome || "N/A"}</TableCell>
+                            <TableCell>{formatCurrency(c.valor_consulta)}</TableCell>
+                            <TableCell>
+                              <Badge variant={c.status_pagamento === "pago" ? "default" : "secondary"}>
+                                {c.status_pagamento === "pago" ? "Pago" : "Pendente"}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Tab: Origem & Canais */}
+        <TabsContent value="origem" className="mt-6 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="card-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Globe className="h-5 w-5" />
+                  Consultas por Origem
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
-                    <Pie
-                      data={medicoChartData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={80}
-                    >
-                      {medicoChartData.map((_, index) => (
+                    <Pie data={originChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                      {originChartData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    <Tooltip />
+                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="flex-1 space-y-2">
-                  {medicoChartData.map((item, index) => (
-                    <div key={item.name} className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full shrink-0"
-                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                      />
-                      <span className="text-sm truncate flex-1">{item.name}</span>
-                      <span className="text-sm font-medium">{formatCurrency(item.value)}</span>
-                    </div>
-                  ))}
+              </CardContent>
+            </Card>
+
+            <Card className="card-shadow">
+              <CardHeader>
+                <CardTitle>Receita por Canal</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={originChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis tickFormatter={(v) => `R$${v}`} />
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    <Bar dataKey="receita" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="card-shadow">
+            <CardHeader>
+              <CardTitle>Detalhamento por Origem</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {originChartData.map((item) => (
+                  <Card key={item.name} className="bg-muted/50">
+                    <CardContent className="pt-6">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="text-lg font-bold">{item.name}</p>
+                          <p className="text-sm text-muted-foreground">{item.value} consultas</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-green-500">{formatCurrency(item.receita)}</p>
+                          <p className="text-sm text-muted-foreground">receita</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab: Fluxo de Caixa */}
+        <TabsContent value="fluxo" className="mt-6 space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className="border-l-4 border-l-green-500">
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">Entradas</p>
+                <p className="text-2xl font-bold text-green-500">{formatCurrency(metrics.pago + totalContasReceber)}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-red-500">
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">Saídas</p>
+                <p className="text-2xl font-bold text-red-500">{formatCurrency(totalContasPagar)}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-primary">
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">Saldo Previsto</p>
+                <p className="text-2xl font-bold text-primary">
+                  {formatCurrency((metrics.pago + totalContasReceber) - totalContasPagar)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="card-shadow">
+            <CardHeader>
+              <CardTitle>Fluxo de Caixa Diário</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {cashFlowData.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Nenhum dado disponível</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={cashFlowData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis tickFormatter={(v) => `R$${v}`} />
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    <Legend />
+                    <Area type="monotone" dataKey="entradas" stackId="1" stroke="#22c55e" fill="#22c55e" fillOpacity={0.6} name="Entradas" />
+                    <Area type="monotone" dataKey="saidas" stackId="2" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="Saídas" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab: Repasses */}
+        <TabsContent value="repasses" className="mt-6 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border-l-4 border-l-yellow-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Próximo Repasse
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-yellow-500">{formatCurrency(totalRepassesPendentes)}</p>
+                <Badge className="mt-2 bg-yellow-500">Pendente</Badge>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-green-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Wallet className="h-5 w-5" />
+                  Total Repassado
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-green-500">
+                  {formatCurrency(repasses.filter(r => r.status === "pago").reduce((s, r) => s + r.valor_total, 0))}
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {repasses.filter(r => r.status === "pago").length} repasses realizados
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="card-shadow">
+            <CardHeader>
+              <CardTitle>Repasses por Médico</CardTitle>
+              <CardDescription>Valores pendentes de repasse por consulta</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {repassesPorMedico.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Nenhum repasse pendente</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Médico</TableHead>
+                      <TableHead className="text-right">Valor Pendente</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {repassesPorMedico.map((item) => (
+                      <TableRow key={item.nome}>
+                        <TableCell className="font-medium">Dr(a). {item.nome}</TableCell>
+                        <TableCell className="text-right text-yellow-600 font-bold">{formatCurrency(item.pendente)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="card-shadow">
+            <CardHeader>
+              <CardTitle>Histórico de Repasses</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {repasses.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Nenhum repasse registrado</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Médico</TableHead>
+                      <TableHead>Período</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {repasses.slice(0, 10).map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell>Dr(a). {r.medico?.nome || "N/A"}</TableCell>
+                        <TableCell>{format(parseISO(r.periodo_inicio), "dd/MM")} - {format(parseISO(r.periodo_fim), "dd/MM/yy")}</TableCell>
+                        <TableCell className="font-bold">{formatCurrency(r.valor_total)}</TableCell>
+                        <TableCell>
+                          <Badge variant={r.status === "pago" ? "default" : "secondary"}>
+                            {r.status === "pago" ? "Pago" : "Pendente"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab: Contas a Pagar/Receber */}
+        <TabsContent value="contas" className="mt-6 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Contas a Pagar */}
+            <Card className="card-shadow">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-red-500">
+                    <CreditCard className="h-5 w-5" />
+                    Contas a Pagar
+                  </CardTitle>
+                  <CardDescription>Total pendente: {formatCurrency(totalContasPagar)}</CardDescription>
                 </div>
+                <Button size="sm" onClick={() => { setEditingItem(null); setFormContaPagar({ descricao: "", valor: "", data_vencimento: "", fornecedor: "", centro_custo_id: "", observacoes: "" }); setShowContaPagarModal(true); }}>
+                  <Plus className="h-4 w-4 mr-1" /> Nova
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {contasPagar.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">Nenhuma conta cadastrada</div>
+                ) : (
+                  <div className="space-y-2 max-h-[300px] overflow-auto">
+                    {contasPagar.map((conta) => (
+                      <div key={conta.id} className={`p-3 rounded-lg border ${conta.status === "pago" ? "bg-green-50 border-green-200" : "bg-card"}`}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium">{conta.descricao}</p>
+                            <p className="text-sm text-muted-foreground">{conta.fornecedor || "Sem fornecedor"}</p>
+                            {conta.centro_custo && <Badge variant="outline" className="text-xs mt-1">{conta.centro_custo.nome}</Badge>}
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-red-500">{formatCurrency(Number(conta.valor))}</p>
+                            <p className="text-xs text-muted-foreground">Venc: {format(parseISO(conta.data_vencimento), "dd/MM/yy")}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          {conta.status !== "pago" && (
+                            <Button size="sm" variant="outline" onClick={() => handleMarkAsPaid("pagar", conta.id)}>
+                              Marcar Pago
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" onClick={() => handleDeleteItem("contas_pagar", conta.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Contas a Receber */}
+            <Card className="card-shadow">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-green-500">
+                    <DollarSign className="h-5 w-5" />
+                    Contas a Receber
+                  </CardTitle>
+                  <CardDescription>Total pendente: {formatCurrency(totalContasReceber)}</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => { setEditingItem(null); setFormContaReceber({ descricao: "", valor: "", data_vencimento: "", cliente: "", observacoes: "" }); setShowContaReceberModal(true); }}>
+                  <Plus className="h-4 w-4 mr-1" /> Nova
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {contasReceber.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">Nenhuma conta cadastrada</div>
+                ) : (
+                  <div className="space-y-2 max-h-[300px] overflow-auto">
+                    {contasReceber.map((conta) => (
+                      <div key={conta.id} className={`p-3 rounded-lg border ${conta.status === "pago" ? "bg-green-50 border-green-200" : "bg-card"}`}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium">{conta.descricao}</p>
+                            <p className="text-sm text-muted-foreground">{conta.cliente || "Sem cliente"}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-green-500">{formatCurrency(Number(conta.valor))}</p>
+                            <p className="text-xs text-muted-foreground">Venc: {format(parseISO(conta.data_vencimento), "dd/MM/yy")}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          {conta.status !== "pago" && (
+                            <Button size="sm" variant="outline" onClick={() => handleMarkAsPaid("receber", conta.id)}>
+                              Marcar Recebido
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" onClick={() => handleDeleteItem("contas_receber", conta.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Tab: Configurações */}
+        <TabsContent value="config" className="mt-6 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Centros de Custo */}
+            <Card className="card-shadow">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building className="h-5 w-5" />
+                    Centros de Custo
+                  </CardTitle>
+                  <CardDescription>Categorize suas despesas</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => { setEditingItem(null); setFormCentroCusto({ nome: "", descricao: "" }); setShowCentroCustoModal(true); }}>
+                  <Plus className="h-4 w-4 mr-1" /> Novo
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {centrosCusto.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">Nenhum centro de custo</div>
+                ) : (
+                  <div className="space-y-2">
+                    {centrosCusto.map((cc) => (
+                      <div key={cc.id} className="flex justify-between items-center p-3 rounded-lg border">
+                        <div>
+                          <p className="font-medium">{cc.nome}</p>
+                          {cc.descricao && <p className="text-sm text-muted-foreground">{cc.descricao}</p>}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            setEditingItem(cc);
+                            setFormCentroCusto({ nome: cc.nome, descricao: cc.descricao || "" });
+                            setShowCentroCustoModal(true);
+                          }}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDeleteItem("centros_custo", cc.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Configuração de Repasse por Médico */}
+            <Card className="card-shadow">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Percent className="h-5 w-5" />
+                    Repasse por Médico
+                  </CardTitle>
+                  <CardDescription>Configure % ou valor fixo por consulta</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => { setEditingItem(null); setFormRepasseConfig({ medico_id: "", tipo_repasse: "percentual", percentual_repasse: "70", valor_fixo_repasse: "" }); setShowRepasseConfigModal(true); }}>
+                  <Plus className="h-4 w-4 mr-1" /> Novo
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {medicoRepasseConfigs.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">Nenhuma configuração</div>
+                ) : (
+                  <div className="space-y-2">
+                    {medicoRepasseConfigs.map((config) => (
+                      <div key={config.id} className="flex justify-between items-center p-3 rounded-lg border">
+                        <div>
+                          <p className="font-medium">Dr(a). {config.medico?.nome || "N/A"}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {config.tipo_repasse === "percentual" 
+                              ? `${config.percentual_repasse}% do valor da consulta`
+                              : `R$ ${config.valor_fixo_repasse} por consulta`}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            setEditingItem(config);
+                            setFormRepasseConfig({
+                              medico_id: config.medico_id,
+                              tipo_repasse: config.tipo_repasse,
+                              percentual_repasse: String(config.percentual_repasse),
+                              valor_fixo_repasse: config.valor_fixo_repasse ? String(config.valor_fixo_repasse) : "",
+                            });
+                            setShowRepasseConfigModal(true);
+                          }}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDeleteItem("medico_repasse_config", config.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Modals */}
+      {/* Centro de Custo Modal */}
+      <Dialog open={showCentroCustoModal} onOpenChange={setShowCentroCustoModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Editar" : "Novo"} Centro de Custo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Nome *</Label>
+              <Input value={formCentroCusto.nome} onChange={(e) => setFormCentroCusto({ ...formCentroCusto, nome: e.target.value })} />
+            </div>
+            <div>
+              <Label>Descrição</Label>
+              <Textarea value={formCentroCusto.descricao} onChange={(e) => setFormCentroCusto({ ...formCentroCusto, descricao: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCentroCustoModal(false)}>Cancelar</Button>
+            <Button onClick={handleSaveCentroCusto}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Conta a Pagar Modal */}
+      <Dialog open={showContaPagarModal} onOpenChange={setShowContaPagarModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Editar" : "Nova"} Conta a Pagar</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Descrição *</Label>
+              <Input value={formContaPagar.descricao} onChange={(e) => setFormContaPagar({ ...formContaPagar, descricao: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Valor *</Label>
+                <Input type="number" step="0.01" value={formContaPagar.valor} onChange={(e) => setFormContaPagar({ ...formContaPagar, valor: e.target.value })} />
+              </div>
+              <div>
+                <Label>Vencimento *</Label>
+                <Input type="date" value={formContaPagar.data_vencimento} onChange={(e) => setFormContaPagar({ ...formContaPagar, data_vencimento: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label>Fornecedor</Label>
+              <Input value={formContaPagar.fornecedor} onChange={(e) => setFormContaPagar({ ...formContaPagar, fornecedor: e.target.value })} />
+            </div>
+            <div>
+              <Label>Centro de Custo</Label>
+              <Select value={formContaPagar.centro_custo_id || ""} onValueChange={(v) => setFormContaPagar({ ...formContaPagar, centro_custo_id: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {centrosCusto.map((cc) => (
+                    <SelectItem key={cc.id} value={cc.id}>{cc.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowContaPagarModal(false)}>Cancelar</Button>
+            <Button onClick={handleSaveContaPagar}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Conta a Receber Modal */}
+      <Dialog open={showContaReceberModal} onOpenChange={setShowContaReceberModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Editar" : "Nova"} Conta a Receber</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Descrição *</Label>
+              <Input value={formContaReceber.descricao} onChange={(e) => setFormContaReceber({ ...formContaReceber, descricao: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Valor *</Label>
+                <Input type="number" step="0.01" value={formContaReceber.valor} onChange={(e) => setFormContaReceber({ ...formContaReceber, valor: e.target.value })} />
+              </div>
+              <div>
+                <Label>Vencimento *</Label>
+                <Input type="date" value={formContaReceber.data_vencimento} onChange={(e) => setFormContaReceber({ ...formContaReceber, data_vencimento: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label>Cliente</Label>
+              <Input value={formContaReceber.cliente} onChange={(e) => setFormContaReceber({ ...formContaReceber, cliente: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowContaReceberModal(false)}>Cancelar</Button>
+            <Button onClick={handleSaveContaReceber}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Repasse Config Modal */}
+      <Dialog open={showRepasseConfigModal} onOpenChange={setShowRepasseConfigModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Editar" : "Nova"} Configuração de Repasse</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Médico *</Label>
+              <Select value={formRepasseConfig.medico_id} onValueChange={(v) => setFormRepasseConfig({ ...formRepasseConfig, medico_id: v })} disabled={!!editingItem}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {medicos.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>Dr(a). {m.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Tipo de Repasse</Label>
+              <Select value={formRepasseConfig.tipo_repasse} onValueChange={(v) => setFormRepasseConfig({ ...formRepasseConfig, tipo_repasse: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentual">Percentual (%)</SelectItem>
+                  <SelectItem value="fixo">Valor Fixo (R$)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {formRepasseConfig.tipo_repasse === "percentual" ? (
+              <div>
+                <Label>Percentual de Repasse (%)</Label>
+                <Input type="number" step="0.01" value={formRepasseConfig.percentual_repasse} onChange={(e) => setFormRepasseConfig({ ...formRepasseConfig, percentual_repasse: e.target.value })} />
+              </div>
+            ) : (
+              <div>
+                <Label>Valor Fixo por Consulta (R$)</Label>
+                <Input type="number" step="0.01" value={formRepasseConfig.valor_fixo_repasse} onChange={(e) => setFormRepasseConfig({ ...formRepasseConfig, valor_fixo_repasse: e.target.value })} />
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Table */}
-      <Card className="card-shadow">
-        <CardHeader>
-          <CardTitle>Consultas do Período ({filteredConsultas.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredConsultas.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhuma consulta no período selecionado
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Médico</TableHead>
-                    <TableHead>Paciente</TableHead>
-                    <TableHead>Origem</TableHead>
-                    <TableHead>Local</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredConsultas.slice(0, 30).map((consulta) => (
-                    <TableRow key={consulta.id}>
-                      <TableCell className="whitespace-nowrap">
-                        {format(parseISO(consulta.data_hora), "dd/MM/yyyy HH:mm")}
-                      </TableCell>
-                      <TableCell>Dr(a). {consulta.medico?.nome || "N/A"}</TableCell>
-                      <TableCell>{getPatientName(consulta)}</TableCell>
-                      <TableCell>
-                        <Badge variant={consulta.origem === "online" ? "default" : "secondary"}>
-                          {consulta.origem === "online" ? "Online" : "Interna"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{consulta.local?.nome_local || "-"}</TableCell>
-                      <TableCell>{formatCurrency(consulta.valor_consulta)}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            consulta.status_pagamento === "pago"
-                              ? "default"
-                              : consulta.status_consulta === "cancelada"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                        >
-                          {consulta.status_pagamento === "pago"
-                            ? "Pago"
-                            : consulta.status_consulta === "cancelada"
-                            ? "Cancelada"
-                            : "Pendente"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRepasseConfigModal(false)}>Cancelar</Button>
+            <Button onClick={handleSaveRepasseConfig}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
