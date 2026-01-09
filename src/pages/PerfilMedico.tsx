@@ -8,6 +8,7 @@ import { Star, MapPin, GraduationCap, Stethoscope, Calendar, Clock, ChevronLeft,
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, parseISO, isBefore } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { AvaliacoesModal } from "@/components/AvaliacoesModal";
 interface Medico {
   id: string;
   nome: string;
@@ -62,6 +63,7 @@ const PerfilMedico = () => {
   const [selectedLocal, setSelectedLocal] = useState<string | null>(null);
   const [weekStart, setWeekStart] = useState(0);
   const [mediaAvaliacao, setMediaAvaliacao] = useState(0);
+  const [avaliacoesModalOpen, setAvaliacoesModalOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -257,13 +259,16 @@ const PerfilMedico = () => {
                     {medico.crm && <p className="text-muted-foreground mb-3">CRM: {medico.crm}</p>}
                     
                     {avaliacoes.length > 0 && (
-                      <div className="flex items-center justify-center md:justify-start gap-2 mb-3">
-                        <div className="flex items-center gap-1 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-1 rounded-full">
+                      <button
+                        onClick={() => setAvaliacoesModalOpen(true)}
+                        className="flex items-center justify-center md:justify-start gap-2 mb-3 hover:opacity-80 transition-opacity cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-1 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-1 rounded-full group-hover:bg-yellow-100 dark:group-hover:bg-yellow-900/30 transition-colors">
                           <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                           <span className="font-semibold text-foreground">{mediaAvaliacao.toFixed(1)}</span>
                         </div>
-                        <span className="text-muted-foreground text-sm">({avaliacoes.length} avaliações)</span>
-                      </div>
+                        <span className="text-muted-foreground text-sm underline-offset-2 group-hover:underline">({avaliacoes.length} avaliações)</span>
+                      </button>
                     )}
 
                     {localPrincipal && (
@@ -598,6 +603,18 @@ const PerfilMedico = () => {
       </main>
 
       <Footer />
+
+      {/* Modal de Avaliações */}
+      {medico && (
+        <AvaliacoesModal
+          open={avaliacoesModalOpen}
+          onOpenChange={setAvaliacoesModalOpen}
+          medicoId={medico.id}
+          medicoNome={medico.nome}
+          mediaAvaliacao={mediaAvaliacao}
+          totalAvaliacoes={avaliacoes.length}
+        />
+      )}
     </div>
   );
 };
