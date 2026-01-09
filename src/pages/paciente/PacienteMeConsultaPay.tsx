@@ -46,6 +46,7 @@ import {
   Area,
 } from "recharts";
 import logo from "@/assets/logo.avif";
+import PartnersCarousel from "@/components/PartnersCarousel";
 
 // Empty data - will be populated with real data later
 const creditRequestData = [
@@ -269,6 +270,13 @@ export default function PacienteMeConsultaPay() {
 
   return (
     <div className="space-y-6">
+      {/* Partners Banner - Banks Only */}
+      <PartnersCarousel 
+        title="Bancos Parceiros" 
+        compact 
+        filter="bank" 
+      />
+
       {/* Motivational Banner */}
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-secondary/20 to-primary/10 p-4 border border-secondary/30">
         <div className="flex items-center gap-3">
