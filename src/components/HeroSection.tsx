@@ -58,6 +58,11 @@ const HeroSection = () => {
   const [medicos, setMedicos] = useState<Medico[]>([]);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [locationDetected, setLocationDetected] = useState(false);
+  const [apenasComAgenda, setApenasComAgenda] = useState(false);
+
+  const medicosFiltrados = apenasComAgenda 
+    ? medicos.filter(m => m.slots_disponiveis && m.slots_disponiveis > 0)
+    : medicos;
 
   const cities = selectedState ? citiesByState[selectedState] || [] : [];
 
@@ -389,24 +394,39 @@ const HeroSection = () => {
         <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-center">
-              {medicos.length > 0 
-                ? `${medicos.length} especialista${medicos.length > 1 ? 's' : ''} encontrado${medicos.length > 1 ? 's' : ''}`
+              {medicosFiltrados.length > 0 
+                ? `${medicosFiltrados.length} especialista${medicosFiltrados.length > 1 ? 's' : ''} encontrado${medicosFiltrados.length > 1 ? 's' : ''}`
                 : "Nenhum resultado"
               }
             </DialogTitle>
           </DialogHeader>
 
-          {medicos.length > 0 ? (
+          {/* Filtro de agenda disponível */}
+          {medicos.length > 0 && (
+            <div className="flex items-center justify-center gap-2 px-4">
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <input
+                  type="checkbox"
+                  checked={apenasComAgenda}
+                  onChange={(e) => setApenasComAgenda(e.target.checked)}
+                  className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                />
+                Apenas com agenda disponível
+              </label>
+            </div>
+          )}
+
+          {medicosFiltrados.length > 0 ? (
             <div className="px-8 py-4">
               <Carousel
                 opts={{
                   align: "start",
-                  loop: medicos.length > 1,
+                  loop: medicosFiltrados.length > 1,
                 }}
                 className="w-full"
               >
                 <CarouselContent className="-ml-2 md:-ml-4">
-                  {medicos.map((medico) => (
+                  {medicosFiltrados.map((medico) => (
                     <CarouselItem key={medico.id} className="pl-2 md:pl-4 md:basis-1/2 lg:basis-1/3">
                       <Card className="overflow-hidden h-full border-border/50 hover:border-primary/50 transition-colors">
                         <CardContent className="p-0">
@@ -480,7 +500,7 @@ const HeroSection = () => {
                     </CarouselItem>
                   ))}
                 </CarouselContent>
-                {medicos.length > 1 && (
+                {medicosFiltrados.length > 1 && (
                   <>
                     <CarouselPrevious className="-left-4" />
                     <CarouselNext className="-right-4" />
