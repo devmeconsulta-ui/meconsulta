@@ -41,6 +41,13 @@ export default function MemedPrescricao({
   const [error, setError] = useState<string | null>(null);
   const scriptRef = useRef<HTMLScriptElement | null>(null);
   const initializingRef = useRef(false);
+  const onPrescricaoConcluidaRef = useRef(onPrescricaoConcluida);
+  const memedInitializedRef = useRef(false);
+  
+  // Keep callback ref updated without causing re-renders
+  useEffect(() => {
+    onPrescricaoConcluidaRef.current = onPrescricaoConcluida;
+  }, [onPrescricaoConcluida]);
 
   // Get Memed token for the doctor
   const getMemedToken = useCallback(async () => {
@@ -150,12 +157,14 @@ export default function MemedPrescricao({
     };
   }, [token, scriptUrl, scriptLoaded]);
 
-  // Initialize Memed when script is loaded
+  // Initialize Memed when script is loaded - run only once
   useEffect(() => {
-    if (!scriptLoaded) return;
+    if (!scriptLoaded || memedInitializedRef.current) return;
+    memedInitializedRef.current = true;
 
     let attempts = 0;
     const maxAttempts = 20; // 10 seconds max
+    let timeoutId: NodeJS.Timeout;
 
     const checkMemed = () => {
       attempts++;
@@ -186,12 +195,12 @@ export default function MemedPrescricao({
           window.MdHub.event.add('prescricaoImpressa', (prescricao: any) => {
             console.log('Prescription printed:', prescricao);
             toast.success('Prescrição emitida com sucesso!');
-            onPrescricaoConcluida?.(prescricao);
+            onPrescricaoConcluidaRef.current?.(prescricao);
           });
         }
       } else if (attempts < maxAttempts) {
         // Retry after a short delay
-        setTimeout(checkMemed, 500);
+        timeoutId = setTimeout(checkMemed, 500);
       } else {
         console.error('Memed SDK not available after max attempts');
         setError('Memed não carregou corretamente. Tente novamente.');
@@ -199,8 +208,12 @@ export default function MemedPrescricao({
     };
 
     // Start checking after a brief delay
-    setTimeout(checkMemed, 500);
-  }, [scriptLoaded, onPrescricaoConcluida]);
+    timeoutId = setTimeout(checkMemed, 500);
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [scriptLoaded]);
 
   // Open Memed prescription interface
   const openPrescricao = () => {
