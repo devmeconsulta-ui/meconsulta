@@ -184,22 +184,24 @@ export default function PacienteDashboard() {
       {stats.pagamentosPendentes > 0 && (
         <Card className="border-red-400/50 dark:border-red-400/30 bg-red-50 dark:bg-red-950/30">
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-red-700 dark:text-red-300">
-                  Você tem {stats.pagamentosPendentes} pagamento(s) pendente(s)
-                </p>
-                <p className="text-sm text-red-600/80 dark:text-red-400/80">
-                  Finalize seus pagamentos para confirmar as consultas
-                </p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-3 flex-1">
+                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-full flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-red-700 dark:text-red-300">
+                    Você tem {stats.pagamentosPendentes} pagamento(s) pendente(s)
+                  </p>
+                  <p className="text-sm text-red-600/80 dark:text-red-400/80">
+                    Finalize seus pagamentos para confirmar as consultas
+                  </p>
+                </div>
               </div>
               <Button
                 variant="destructive"
                 size="sm"
-                className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500"
+                className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500 w-full sm:w-auto shrink-0"
                 onClick={() => navigate("/paciente/consultas")}
               >
                 Ver consultas
@@ -281,50 +283,56 @@ export default function PacienteDashboard() {
           </CardHeader>
           <CardContent>
             {stats.proximaConsulta ? (
-              <div className="flex items-start gap-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {stats.proximaConsulta.medicos?.foto_url ? (
-                    <img
-                      src={stats.proximaConsulta.medicos.foto_url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <User className="w-8 h-8 text-primary" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-lg">
-                    Dr(a). {stats.proximaConsulta.medicos?.nome}
-                  </p>
-                  <p className="text-muted-foreground">
-                    {stats.proximaConsulta.medicos?.especialidade}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-4 mt-3">
-                    <div className="flex items-center gap-2 text-primary font-medium">
-                      <Calendar className="w-4 h-4" />
-                      {format(new Date(stats.proximaConsulta.data_hora), "dd/MM/yyyy", { locale: ptBR })}
-                    </div>
-                    <div className="flex items-center gap-2 text-primary font-medium">
-                      <Clock className="w-4 h-4" />
-                      {format(new Date(stats.proximaConsulta.data_hora), "HH:mm")}
-                    </div>
-                    {stats.proximaConsulta.local && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <MapPin className="w-4 h-4" />
-                        {stats.proximaConsulta.local.nome_local}
-                        {stats.proximaConsulta.local.cidade && ` - ${stats.proximaConsulta.local.cidade}`}
-                      </div>
+              <div className="flex flex-col sm:flex-row sm:items-start gap-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {stats.proximaConsulta.medicos?.foto_url ? (
+                      <img
+                        src={stats.proximaConsulta.medicos.foto_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
                     )}
                   </div>
-                  {stats.proximaConsulta.status_pagamento === "pendente" && (
-                    <Badge variant="destructive" className="mt-3">
-                      Pagamento pendente
-                    </Badge>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-base sm:text-lg truncate">
+                      Dr(a). {stats.proximaConsulta.medicos?.nome}
+                    </p>
+                    <p className="text-muted-foreground text-sm truncate">
+                      {stats.proximaConsulta.medicos?.especialidade}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 sm:mt-3">
+                      <div className="flex items-center gap-1.5 text-primary font-medium text-sm">
+                        <Calendar className="w-4 h-4" />
+                        {format(new Date(stats.proximaConsulta.data_hora), "dd/MM/yyyy", { locale: ptBR })}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-primary font-medium text-sm">
+                        <Clock className="w-4 h-4" />
+                        {format(new Date(stats.proximaConsulta.data_hora), "HH:mm")}
+                      </div>
+                    </div>
+                    {stats.proximaConsulta.local && (
+                      <div className="flex items-center gap-1.5 text-muted-foreground text-xs sm:text-sm mt-1.5">
+                        <MapPin className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">
+                          {stats.proximaConsulta.local.nome_local}
+                          {stats.proximaConsulta.local.cidade && ` - ${stats.proximaConsulta.local.cidade}`}
+                        </span>
+                      </div>
+                    )}
+                    {stats.proximaConsulta.status_pagamento === "pendente" && (
+                      <Badge variant="destructive" className="mt-2 sm:mt-3">
+                        Pagamento pendente
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <Button
                   variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto shrink-0"
                   onClick={() => navigate("/paciente/consultas")}
                 >
                   Ver detalhes
@@ -394,12 +402,12 @@ export default function PacienteDashboard() {
       {/* Lista de Consultas */}
       {proximasConsultas.length > 0 && (
         <Card className="card-shadow">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <CardTitle>Próximas Consultas</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">Próximas Consultas</CardTitle>
               <CardDescription>Suas consultas agendadas</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/paciente/consultas")}>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/paciente/consultas")} className="self-start sm:self-auto">
               Ver todas
               <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
@@ -409,48 +417,53 @@ export default function PacienteDashboard() {
               {proximasConsultas.map((consulta) => (
                 <div
                   key={consulta.id}
-                  className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl hover:bg-muted/80 transition-colors cursor-pointer"
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 bg-muted/50 rounded-xl hover:bg-muted/80 transition-colors cursor-pointer"
                   onClick={() => navigate("/paciente/consultas")}
                 >
-                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {consulta.medicos?.foto_url ? (
-                      <img
-                        src={consulta.medicos.foto_url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <User className="w-6 h-6 text-primary" />
-                    )}
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {consulta.medicos?.foto_url ? (
+                        <img
+                          src={consulta.medicos.foto_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm sm:text-base truncate">
+                        Dr(a). {consulta.medicos?.nome}
+                      </p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                        {consulta.medicos?.especialidade}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">
-                      Dr(a). {consulta.medicos?.nome}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {consulta.medicos?.especialidade}
-                    </p>
+                  <div className="flex items-center justify-between sm:justify-end gap-3 pl-13 sm:pl-0">
                     {consulta.local && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                        <MapPin className="w-3 h-3" />
-                        {consulta.local.nome_local}
-                        {consulta.local.cidade && ` - ${consulta.local.cidade}`}
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 truncate max-w-[120px] sm:hidden">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{consulta.local.nome_local}</span>
                       </p>
                     )}
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="text-right shrink-0">
+                        <p className="font-medium text-primary text-sm">
+                          {formatConsultaDate(consulta.data_hora)}
+                        </p>
+                        <p className="text-xs sm:text-sm text-muted-foreground">
+                          {format(new Date(consulta.data_hora), "HH:mm")}
+                        </p>
+                      </div>
+                      {consulta.status_pagamento === "pendente" && (
+                        <Badge variant="destructive" className="shrink-0 text-xs">
+                          Pendente
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-primary">
-                      {formatConsultaDate(consulta.data_hora)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(consulta.data_hora), "HH:mm")}
-                    </p>
-                  </div>
-                  {consulta.status_pagamento === "pendente" && (
-                    <Badge variant="destructive" className="shrink-0">
-                      Pendente
-                    </Badge>
-                  )}
                 </div>
               ))}
             </div>
