@@ -44,6 +44,7 @@ interface Medico {
     cidade: string | null;
     estado: string | null;
   }[];
+  slots_disponiveis?: number;
 }
 
 const HeroSection = () => {
@@ -191,29 +192,37 @@ const HeroSection = () => {
         });
       }
 
-      // Buscar médicos que têm agenda aberta (slots disponíveis no futuro)
+      // Buscar quantidade de slots disponíveis por médico
       const now = new Date();
       const medicoIds = filteredData.map(m => m.id);
+      
+      let slotsCountMap: Record<string, number> = {};
       
       if (medicoIds.length > 0) {
         const { data: slotsData } = await supabase
           .from("agenda_slots")
-          .select("medico_id, data_hora, disponivel")
+          .select("medico_id")
           .in("medico_id", medicoIds)
           .eq("disponivel", true)
           .gte("data_hora", now.toISOString());
 
-        // Filtrar apenas médicos com pelo menos um slot disponível
-        const medicosComAgenda = new Set(slotsData?.map(s => s.medico_id) || []);
-        
-        filteredData = filteredData.filter(m => medicosComAgenda.has(m.id));
+        // Contar slots por médico
+        slotsData?.forEach(slot => {
+          slotsCountMap[slot.medico_id] = (slotsCountMap[slot.medico_id] || 0) + 1;
+        });
       }
 
-      setMedicos(filteredData);
+      // Adicionar contagem de slots e ordenar (com agenda primeiro)
+      const medicosComSlots = filteredData.map(m => ({
+        ...m,
+        slots_disponiveis: slotsCountMap[m.id] || 0
+      })).sort((a, b) => b.slots_disponiveis - a.slots_disponiveis);
+
+      setMedicos(medicosComSlots);
       setShowResults(true);
 
-      if (filteredData.length === 0) {
-        toast.info("Nenhum médico encontrado com agenda disponível");
+      if (medicosComSlots.length === 0) {
+        toast.info("Nenhum médico encontrado na região");
       }
     } catch (error) {
       console.error("Erro ao buscar médicos:", error);
@@ -414,6 +423,17 @@ const HeroSection = () => {
                                 <User className="w-12 h-12 text-muted-foreground/50" />
                               </div>
                             )}
+                            {/* Badge de disponibilidade */}
+                            <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${
+                              medico.slots_disponiveis && medico.slots_disponiveis > 0
+                                ? 'bg-green-500 text-white'
+                                : 'bg-muted-foreground/80 text-white'
+                            }`}>
+                              {medico.slots_disponiveis && medico.slots_disponiveis > 0
+                                ? `${medico.slots_disponiveis} horário${medico.slots_disponiveis > 1 ? 's' : ''}`
+                                : 'Sem agenda'
+                              }
+                            </div>
                           </div>
 
                           {/* Doctor Info */}
