@@ -39,7 +39,10 @@ import {
   ChevronDown, 
   Calendar,
   CalendarIcon,
-  Lock
+  Lock,
+  Plus,
+  Percent,
+  DollarSign
 } from "lucide-react";
 import { maskPhone } from "@/lib/maskUtils";
 
@@ -61,6 +64,17 @@ interface LocalAtendimento {
   nome_local: string;
 }
 
+interface Convenio {
+  id: string;
+  nome: string;
+}
+
+interface Medico {
+  id: string;
+  nome: string;
+  especialidade: string | null;
+}
+
 interface AgendaInternaModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -73,6 +87,8 @@ interface AgendaInternaModalProps {
   percentualRepasse: number;
   usuariosClinica: UsuarioClinica[];
   locais: LocalAtendimento[];
+  medicos?: Medico[];
+  clinicaId?: string;
   onSuccess: () => void;
 }
 
@@ -88,6 +104,8 @@ export function AgendaInternaModal({
   percentualRepasse,
   usuariosClinica,
   locais,
+  medicos = [],
+  clinicaId,
   onSuccess,
 }: AgendaInternaModalProps) {
   const isManualBooking = slotId.startsWith('manual-');
@@ -101,6 +119,11 @@ export function AgendaInternaModal({
   const [historicoConsultas, setHistoricoConsultas] = useState<any[]>([]);
   const [useCpf, setUseCpf] = useState(true);
   const [hasDesconto, setHasDesconto] = useState(false);
+  const [descontoTipo, setDescontoTipo] = useState<"valor" | "porcentagem">("valor");
+  const [descontoValor, setDescontoValor] = useState(0);
+  const [convenios, setConvenios] = useState<Convenio[]>([]);
+  const [showNovoConvenio, setShowNovoConvenio] = useState(false);
+  const [novoConvenioNome, setNovoConvenioNome] = useState("");
   
   // For manual booking date/time selection
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
@@ -115,7 +138,9 @@ export function AgendaInternaModal({
     telefone: "",
     cpf: "",
     localSelecionado: localId || (locais.length > 0 ? locais[0].id : ""),
-    tipoAtendimento: "presencial",
+    tipoAtendimento: "particular",
+    convenioId: "",
+    medicoSelecionado: medicoId,
     status: "agendado",
     procedimento: "consulta",
     usuarioClinicaId: "",
@@ -140,6 +165,7 @@ export function AgendaInternaModal({
         setSelectedDate(new Date());
         setSelectedTime("08:00");
       }
+      fetchConvenios();
     }
   }, [open, localId, valorConsulta, locais, slotDataHora]);
 
@@ -159,6 +185,45 @@ export function AgendaInternaModal({
       .limit(5);
     
     setHistoricoConsultas(data || []);
+  }
+
+  async function fetchConvenios() {
+    if (!clinicaId) return;
+    const { data } = await supabase
+      .from("convenios")
+      .select("id, nome")
+      .eq("clinica_id", clinicaId)
+      .eq("ativo", true)
+      .order("nome");
+    setConvenios(data || []);
+  }
+
+  async function handleSaveConvenio() {
+    if (!novoConvenioNome.trim() || !clinicaId) {
+      toast.error("Nome do convênio é obrigatório");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("convenios")
+      .insert({
+        nome: novoConvenioNome.trim(),
+        clinica_id: clinicaId,
+        ativo: true,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error("Erro ao cadastrar convênio");
+      return;
+    }
+
+    toast.success("Convênio cadastrado!");
+    setConvenios([...convenios, data]);
+    setFormData({ ...formData, convenioId: data.id });
+    setNovoConvenioNome("");
+    setShowNovoConvenio(false);
   }
 
   async function searchPacientes(term: string) {
@@ -208,7 +273,9 @@ export function AgendaInternaModal({
       telefone: "",
       cpf: "",
       localSelecionado: localId || (locais.length > 0 ? locais[0].id : ""),
-      tipoAtendimento: "presencial",
+      tipoAtendimento: "particular",
+      convenioId: "",
+      medicoSelecionado: medicoId,
       status: "agendado",
       procedimento: "consulta",
       usuarioClinicaId: "",
@@ -220,6 +287,7 @@ export function AgendaInternaModal({
     setSearchTerm("");
     setHistoricoConsultas([]);
     setHasDesconto(false);
+    setDescontoValor(0);
   }
 
   async function handleSubmit() {
@@ -632,7 +700,7 @@ export function AgendaInternaModal({
             </div>
           </div>
 
-          {/* Row 4: Service Type + Value + Discount */}
+          {/* Row 4: Service Type + Convenio + Medico */}
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-4">
               <div className="flex items-center gap-1 mb-1.5">
@@ -641,18 +709,80 @@ export function AgendaInternaModal({
               </div>
               <Select
                 value={formData.tipoAtendimento}
-                onValueChange={(v) => setFormData({ ...formData, tipoAtendimento: v })}
+                onValueChange={(v) => {
+                  setFormData({ ...formData, tipoAtendimento: v, convenioId: "" });
+                }}
               >
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="presencial">Presencial</SelectItem>
-                  <SelectItem value="telemedicina">Telemedicina</SelectItem>
+                  <SelectItem value="particular">Particular</SelectItem>
+                  <SelectItem value="convenio">Convênio</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
+            {formData.tipoAtendimento === "convenio" && (
+              <div className="col-span-4">
+                <Label className="text-sm mb-1.5 block">Tipo de convênio</Label>
+                <div className="flex gap-1">
+                  <Select
+                    value={formData.convenioId}
+                    onValueChange={(v) => setFormData({ ...formData, convenioId: v })}
+                  >
+                    <SelectTrigger className="h-9 text-sm flex-1">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {convenios.map((conv) => (
+                        <SelectItem key={conv.id} value={conv.id}>
+                          {conv.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    onClick={() => setShowNovoConvenio(true)}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className={cn(
+              formData.tipoAtendimento === "convenio" ? "col-span-4" : "col-span-8"
+            )}>
+              <Label className="text-sm mb-1.5 block">Médico</Label>
+              <Select
+                value={formData.medicoSelecionado}
+                onValueChange={(v) => setFormData({ ...formData, medicoSelecionado: v })}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {medicos.length > 0 ? (
+                    medicos.map((med) => (
+                      <SelectItem key={med.id} value={med.id}>
+                        {med.nome} {med.especialidade ? `- ${med.especialidade}` : ""}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value={medicoId}>Médico atual</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Row 5: Value + Discount */}
+          <div className="grid grid-cols-12 gap-4">
             <div className="col-span-4">
               <Label className="text-sm mb-1.5 block">Valor</Label>
               <Input
@@ -666,14 +796,90 @@ export function AgendaInternaModal({
               />
             </div>
 
-            <div className="col-span-4 flex flex-col items-center justify-end">
+            <div className="col-span-2 flex flex-col items-center justify-end">
               <Label className="text-sm mb-1.5">Desconto</Label>
               <Switch 
                 checked={hasDesconto} 
-                onCheckedChange={setHasDesconto}
+                onCheckedChange={(checked) => {
+                  setHasDesconto(checked);
+                  if (!checked) setDescontoValor(0);
+                }}
               />
             </div>
+
+            {hasDesconto && (
+              <>
+                <div className="col-span-3">
+                  <Label className="text-sm mb-1.5 block">Tipo</Label>
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      variant={descontoTipo === "valor" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 h-9"
+                      onClick={() => setDescontoTipo("valor")}
+                    >
+                      <DollarSign className="w-3 h-3 mr-1" />
+                      R$
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={descontoTipo === "porcentagem" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 h-9"
+                      onClick={() => setDescontoTipo("porcentagem")}
+                    >
+                      <Percent className="w-3 h-3 mr-1" />
+                      %
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="col-span-3">
+                  <Label className="text-sm mb-1.5 block">
+                    {descontoTipo === "valor" ? "Valor do desconto" : "% do desconto"}
+                  </Label>
+                  <Input
+                    type="number"
+                    value={descontoValor || ""}
+                    onChange={(e) => setDescontoValor(parseFloat(e.target.value) || 0)}
+                    placeholder={descontoTipo === "valor" ? "0,00" : "0"}
+                    className="h-9 text-sm"
+                    min={0}
+                    max={descontoTipo === "porcentagem" ? 100 : formData.valor}
+                  />
+                </div>
+              </>
+            )}
           </div>
+
+          {/* Modal Novo Convênio */}
+          <Dialog open={showNovoConvenio} onOpenChange={setShowNovoConvenio}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Cadastrar Convênio</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm mb-1.5 block">Nome do Convênio</Label>
+                  <Input
+                    value={novoConvenioNome}
+                    onChange={(e) => setNovoConvenioNome(e.target.value)}
+                    placeholder="Ex: Unimed, Bradesco Saúde..."
+                    className="h-9"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowNovoConvenio(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSaveConvenio}>
+                    Salvar
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Row 5: CPF + Phone (for new patient) */}
           {(showNewPatient || !selectedPaciente) && (selectedPaciente === null || showNewPatient) && (
