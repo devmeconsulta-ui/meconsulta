@@ -7,6 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -29,6 +35,10 @@ import {
   Target,
   Heart,
   ChevronRight,
+  FileSearch,
+  FileCheck,
+  Ban,
+  PartyPopper,
 } from "lucide-react";
 import {
   BarChart,
@@ -102,7 +112,7 @@ export default function PacienteMeConsultaPay() {
 
   const [currentPhrase, setCurrentPhrase] = useState(0);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-
+  const [selectedSolicitacao, setSelectedSolicitacao] = useState<any>(null);
   const toggleCategory = (categoryName: string) => {
     setSelectedCategories(prev => 
       prev.includes(categoryName) 
@@ -266,6 +276,42 @@ export default function PacienteMeConsultaPay() {
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
+  };
+
+  // Stages configuration
+  const getStages = (status: string) => {
+    const stages = [
+      {
+        id: "enviada",
+        label: "Solicitação Enviada",
+        description: "Sua solicitação foi recebida com sucesso",
+        icon: Send,
+        completed: true,
+      },
+      {
+        id: "analise",
+        label: "Em Análise",
+        description: "Nossa equipe está analisando seus dados",
+        icon: FileSearch,
+        completed: status === "em_analise" || status === "aprovado" || status === "reprovado",
+        active: status === "em_analise",
+      },
+      {
+        id: "resultado",
+        label: status === "reprovado" ? "Solicitação Negada" : "Crédito Aprovado",
+        description: status === "reprovado" 
+          ? "Infelizmente não foi possível aprovar seu crédito" 
+          : status === "aprovado" 
+            ? "Parabéns! Seu crédito foi aprovado!" 
+            : "Aguardando resultado da análise",
+        icon: status === "reprovado" ? Ban : status === "aprovado" ? PartyPopper : FileCheck,
+        completed: status === "aprovado" || status === "reprovado",
+        active: status === "aprovado" || status === "reprovado",
+        isSuccess: status === "aprovado",
+        isError: status === "reprovado",
+      },
+    ];
+    return stages;
   };
 
   return (
@@ -716,7 +762,8 @@ export default function PacienteMeConsultaPay() {
               {solicitacoes.map((solicitacao) => (
                 <div
                   key={solicitacao.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  onClick={() => setSelectedSolicitacao(solicitacao)}
+                  className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -731,7 +778,10 @@ export default function PacienteMeConsultaPay() {
                       </p>
                     </div>
                   </div>
-                  {getStatusBadge(solicitacao.status)}
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(solicitacao.status)}
+                    <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
                 </div>
               ))}
             </div>
@@ -750,6 +800,116 @@ export default function PacienteMeConsultaPay() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Estágios da Solicitação */}
+      <Dialog open={!!selectedSolicitacao} onOpenChange={() => setSelectedSolicitacao(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-primary" />
+              Acompanhar Solicitação
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedSolicitacao && (
+            <div className="space-y-6">
+              {/* Info da Solicitação */}
+              <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Solicitante:</span>
+                  <span className="font-medium">{selectedSolicitacao.nome_completo}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Data:</span>
+                  <span className="font-medium">
+                    {format(new Date(selectedSolicitacao.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  </span>
+                </div>
+                {selectedSolicitacao.valor_pretendido && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Valor solicitado:</span>
+                    <span className="font-medium text-primary">
+                      R$ {Number(selectedSolicitacao.valor_pretendido).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Timeline de Estágios */}
+              <div className="relative">
+                {getStages(selectedSolicitacao.status).map((stage, index, arr) => {
+                  const Icon = stage.icon;
+                  const isLast = index === arr.length - 1;
+                  
+                  return (
+                    <div key={stage.id} className="flex gap-4 pb-6 last:pb-0">
+                      {/* Linha vertical */}
+                      {!isLast && (
+                        <div 
+                          className={`absolute left-[19px] mt-10 w-0.5 h-[calc(100%-80px)] ${
+                            stage.completed ? 'bg-primary' : 'bg-muted-foreground/20'
+                          }`}
+                          style={{ top: `${index * 80}px`, height: '60px' }}
+                        />
+                      )}
+                      
+                      {/* Ícone */}
+                      <div className={`
+                        w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 z-10
+                        ${stage.isSuccess ? 'bg-green-500 text-white' : ''}
+                        ${stage.isError ? 'bg-red-500 text-white' : ''}
+                        ${!stage.isSuccess && !stage.isError && stage.completed ? 'bg-primary text-primary-foreground' : ''}
+                        ${!stage.isSuccess && !stage.isError && stage.active && !stage.completed ? 'bg-yellow-500 text-yellow-950' : ''}
+                        ${!stage.completed && !stage.active ? 'bg-muted text-muted-foreground' : ''}
+                        ${stage.active && !stage.isSuccess && !stage.isError ? 'animate-pulse' : ''}
+                      `}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      
+                      {/* Conteúdo */}
+                      <div className="flex-1 pt-1">
+                        <p className={`font-semibold ${
+                          stage.isSuccess ? 'text-green-600' : 
+                          stage.isError ? 'text-red-600' : 
+                          stage.completed || stage.active ? 'text-foreground' : 'text-muted-foreground'
+                        }`}>
+                          {stage.label}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          {stage.description}
+                        </p>
+                        {stage.active && stage.isSuccess && (
+                          <div className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                            <p className="text-sm text-green-700 dark:text-green-400 font-medium">
+                              🎉 Parabéns! Entre em contato conosco para liberar seu crédito.
+                            </p>
+                          </div>
+                        )}
+                        {stage.active && stage.isError && (
+                          <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                            <p className="text-sm text-red-700 dark:text-red-400">
+                              Você pode tentar novamente em 30 dias ou entrar em contato para mais informações.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Botão de Fechar */}
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={() => setSelectedSolicitacao(null)}
+              >
+                Fechar
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
