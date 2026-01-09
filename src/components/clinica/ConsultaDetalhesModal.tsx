@@ -98,14 +98,19 @@ export function ConsultaDetalhesModal({
             </div>
 
             {/* Status e Origem */}
-            <div className="flex items-center justify-between">
-              <div className="flex gap-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Badge className={statusColors[consulta.status_consulta] || "bg-gray-500"}>
                   {statusLabels[consulta.status_consulta] || consulta.status_consulta}
                 </Badge>
                 <Badge className={paymentStatusColors[consulta.status_pagamento] || "bg-gray-500"}>
                   {paymentStatusLabels[consulta.status_pagamento] || consulta.status_pagamento}
                 </Badge>
+                {consulta.tipo_atendimento === "convenio" && consulta.convenio?.nome && (
+                  <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">
+                    {consulta.convenio.nome}
+                  </Badge>
+                )}
               </div>
               <Badge variant={consulta.origem === "online" ? "default" : "secondary"} className="gap-1">
                 {consulta.origem === "online" ? (
