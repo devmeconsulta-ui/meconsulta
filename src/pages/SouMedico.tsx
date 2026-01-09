@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import doctorImage from "@/assets/doctor-sou-medico.png";
 
 const SouMedico = () => {
   const [consultations, setConsultations] = useState(15);
@@ -217,7 +218,7 @@ const SouMedico = () => {
                 </div>
                 
                 <img 
-                  src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=500&h=600&fit=crop"
+                  src={doctorImage}
                   alt="Médica profissional usando o MeConsulta"
                   className="rounded-3xl shadow-2xl max-w-xs lg:max-w-sm border-4 border-white/20"
                 />
