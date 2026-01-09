@@ -148,6 +148,21 @@ export function AgendaInternaModal({
     observacoes: "",
   });
 
+  // Calculate final value with discount
+  const calcularValorFinal = () => {
+    if (!hasDesconto || descontoValor <= 0) return formData.valor;
+    
+    if (descontoTipo === "valor") {
+      return Math.max(0, formData.valor - descontoValor);
+    } else {
+      const desconto = (formData.valor * descontoValor) / 100;
+      return Math.max(0, formData.valor - desconto);
+    }
+  };
+
+  const valorFinal = calcularValorFinal();
+  const valorDesconto = formData.valor - valorFinal;
+
   useEffect(() => {
     if (open) {
       searchPacientes("");
@@ -331,10 +346,10 @@ export function AgendaInternaModal({
         pacienteId = newPaciente.id;
       }
 
-      // Calculate values
-      const valorFinal = formData.valor;
-      const valorMedico = (valorFinal * percentualRepasse) / 100;
-      const valorPlataforma = valorFinal - valorMedico;
+      // Calculate values using the discounted final value
+      const valorFinalConsulta = calcularValorFinal();
+      const valorMedico = (valorFinalConsulta * percentualRepasse) / 100;
+      const valorPlataforma = valorFinalConsulta - valorMedico;
 
       // Get the final date/time
       let finalDataHora: string;
@@ -392,7 +407,7 @@ export function AgendaInternaModal({
         origem: "interna",
         status_consulta: formData.status === "agendado" ? "confirmada" : formData.status,
         status_pagamento: "pendente",
-        valor_consulta: valorFinal,
+        valor_consulta: valorFinalConsulta,
         valor_medico: valorMedico,
         valor_plataforma: valorPlataforma,
         agenda_slot_id: finalSlotId,
@@ -853,6 +868,31 @@ export function AgendaInternaModal({
               </>
             )}
           </div>
+
+          {/* Display final value with discount */}
+          {hasDesconto && descontoValor > 0 && (
+            <div className="bg-muted/50 rounded-lg p-3 border">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex items-center gap-4">
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Valor original:</span>
+                    <span className="ml-2 line-through text-muted-foreground">
+                      R$ {formData.valor.toFixed(2).replace(".", ",")}
+                    </span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Desconto:</span>
+                    <span className="ml-2 text-destructive font-medium">
+                      - R$ {valorDesconto.toFixed(2).replace(".", ",")}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-sm sm:text-base font-semibold text-primary">
+                  Valor final: R$ {valorFinal.toFixed(2).replace(".", ",")}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Modal Novo Convênio */}
           <Dialog open={showNovoConvenio} onOpenChange={setShowNovoConvenio}>
