@@ -58,11 +58,8 @@ const HeroSection = () => {
   const [medicos, setMedicos] = useState<Medico[]>([]);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [locationDetected, setLocationDetected] = useState(false);
-  const [apenasComAgenda, setApenasComAgenda] = useState(false);
-
-  const medicosFiltrados = apenasComAgenda 
-    ? medicos.filter(m => m.slots_disponiveis && m.slots_disponiveis > 0)
-    : medicos;
+  // Sempre mostrar apenas médicos com agenda disponível
+  const medicosFiltrados = medicos.filter(m => m.slots_disponiveis && m.slots_disponiveis > 0);
 
   const cities = selectedState ? citiesByState[selectedState] || [] : [];
 
@@ -402,20 +399,6 @@ const HeroSection = () => {
               </DialogTitle>
             </DialogHeader>
 
-            {/* Filtro de agenda disponível */}
-            {medicos.length > 0 && (
-              <div className="flex items-center justify-center gap-2 mt-3">
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={apenasComAgenda}
-                    onChange={(e) => setApenasComAgenda(e.target.checked)}
-                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-                  />
-                  Apenas com agenda disponível
-                </label>
-              </div>
-            )}
           </div>
 
           <div className="overflow-y-auto max-h-[calc(85vh-120px)] p-4 sm:p-6">
