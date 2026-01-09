@@ -22,6 +22,7 @@ import {
 import { format, startOfMonth, endOfMonth, isToday, isTomorrow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PendingConfirmationsAlert } from "@/components/paciente/PendingConfirmationsAlert";
+import PartnersCarousel from "@/components/PartnersCarousel";
 
 interface PacienteContext {
   pacienteData: any;
@@ -449,6 +450,13 @@ export default function PacienteDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Partners Section */}
+      <PartnersCarousel 
+        title="Parceiros" 
+        subtitle="Empresas que confiam em nós"
+        compact 
+      />
     </div>
   );
 }
