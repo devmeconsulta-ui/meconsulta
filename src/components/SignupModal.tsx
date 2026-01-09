@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,18 +14,26 @@ import { User, ArrowLeft, Building2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
+type Step = "choose" | "paciente" | "clinica";
+
 interface SignupModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialStep?: Step;
 }
 
-type Step = "choose" | "paciente" | "clinica";
-
-export function SignupModal({ open, onOpenChange }: SignupModalProps) {
+export function SignupModal({ open, onOpenChange, initialStep = "choose" }: SignupModalProps) {
   const navigate = useNavigate();
   const { setCurrentUser } = useAuth();
-  const [step, setStep] = useState<Step>("choose");
+  const [step, setStep] = useState<Step>(initialStep);
   const [loading, setLoading] = useState(false);
+
+  // Update step when initialStep changes
+  useEffect(() => {
+    if (open) {
+      setStep(initialStep);
+    }
+  }, [open, initialStep]);
 
   const [pacienteData, setPacienteData] = useState({
     nome: "",
