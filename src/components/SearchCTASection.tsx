@@ -111,7 +111,7 @@ const SearchCTASection = () => {
 
       {/* Results Modal */}
       <Dialog open={showResults} onOpenChange={setShowResults}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[90vw] sm:max-w-lg md:max-w-2xl lg:max-w-4xl max-h-[80vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-center">
               {medicos.length > 0 
@@ -122,7 +122,7 @@ const SearchCTASection = () => {
           </DialogHeader>
 
           {medicos.length > 0 ? (
-            <div className="px-8 py-4">
+            <div className="px-2 sm:px-8 py-4">
               <Carousel
                 opts={{
                   align: "start",
@@ -132,7 +132,7 @@ const SearchCTASection = () => {
               >
                 <CarouselContent className="-ml-2 md:-ml-4">
                   {medicos.map((medico) => (
-                    <CarouselItem key={medico.id} className="pl-2 md:pl-4 basis-full sm:basis-1/2 lg:basis-1/3">
+                    <CarouselItem key={medico.id} className="pl-2 md:pl-4 basis-full md:basis-1/2 lg:basis-1/3">
                       <Card className="overflow-hidden h-full border-border/50 hover:border-primary/50 transition-colors">
                         <CardContent className="p-0">
                           {/* Doctor Image */}
