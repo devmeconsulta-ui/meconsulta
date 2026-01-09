@@ -10,6 +10,7 @@ import ContactSection from "@/components/ContactSection";
 import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import CookieConsent from "@/components/CookieConsent";
+import PartnersCarousel from "@/components/PartnersCarousel";
 
 const Index = () => {
   return (
@@ -18,6 +19,7 @@ const Index = () => {
       <main>
         <HeroSection />
         <FeaturesSection />
+        <PartnersCarousel />
         <SpecialtiesSection />
         <AboutSection />
         <ProfessionalCTASection />
