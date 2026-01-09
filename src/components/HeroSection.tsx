@@ -391,130 +391,116 @@ const HeroSection = () => {
 
       {/* Results Modal */}
       <Dialog open={showResults} onOpenChange={setShowResults}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-center">
-              {medicosFiltrados.length > 0 
-                ? `${medicosFiltrados.length} especialista${medicosFiltrados.length > 1 ? 's' : ''} encontrado${medicosFiltrados.length > 1 ? 's' : ''}`
-                : "Nenhum resultado"
-              }
-            </DialogTitle>
-          </DialogHeader>
+        <DialogContent className="w-[95vw] max-w-4xl max-h-[85vh] p-0 overflow-hidden">
+          <div className="p-4 sm:p-6 border-b">
+            <DialogHeader>
+              <DialogTitle className="text-lg sm:text-xl font-bold text-center">
+                {medicosFiltrados.length > 0 
+                  ? `${medicosFiltrados.length} especialista${medicosFiltrados.length > 1 ? 's' : ''} encontrado${medicosFiltrados.length > 1 ? 's' : ''}`
+                  : "Nenhum resultado"
+                }
+              </DialogTitle>
+            </DialogHeader>
 
-          {/* Filtro de agenda disponível */}
-          {medicos.length > 0 && (
-            <div className="flex items-center justify-center gap-2 px-4">
-              <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <input
-                  type="checkbox"
-                  checked={apenasComAgenda}
-                  onChange={(e) => setApenasComAgenda(e.target.checked)}
-                  className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-                />
-                Apenas com agenda disponível
-              </label>
-            </div>
-          )}
+            {/* Filtro de agenda disponível */}
+            {medicos.length > 0 && (
+              <div className="flex items-center justify-center gap-2 mt-3">
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={apenasComAgenda}
+                    onChange={(e) => setApenasComAgenda(e.target.checked)}
+                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  Apenas com agenda disponível
+                </label>
+              </div>
+            )}
+          </div>
 
-          {medicosFiltrados.length > 0 ? (
-            <div className="px-8 py-4">
-              <Carousel
-                opts={{
-                  align: "start",
-                  loop: medicosFiltrados.length > 1,
-                }}
-                className="w-full"
-              >
-                <CarouselContent className="-ml-2 md:-ml-4">
-                  {medicosFiltrados.map((medico) => (
-                    <CarouselItem key={medico.id} className="pl-2 md:pl-4 md:basis-1/2 lg:basis-1/3">
-                      <Card className="overflow-hidden h-full border-border/50 hover:border-primary/50 transition-colors">
-                        <CardContent className="p-0">
-                          {/* Doctor Image */}
-                          <div className="h-32 relative bg-muted">
-                            {medico.foto_url ? (
-                              <img
-                                src={medico.foto_url}
-                                alt={medico.nome}
-                                className="w-full h-full object-cover object-top"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <User className="w-12 h-12 text-muted-foreground/50" />
-                              </div>
-                            )}
-                            {/* Badge de disponibilidade */}
-                            <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${
-                              medico.slots_disponiveis && medico.slots_disponiveis > 0
-                                ? 'bg-green-500 text-white'
-                                : 'bg-muted-foreground/80 text-white'
-                            }`}>
-                              {medico.slots_disponiveis && medico.slots_disponiveis > 0
-                                ? `${medico.slots_disponiveis} horário${medico.slots_disponiveis > 1 ? 's' : ''}`
-                                : 'Sem agenda'
-                              }
-                            </div>
+          <div className="overflow-y-auto max-h-[calc(85vh-120px)] p-4 sm:p-6">
+            {medicosFiltrados.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {medicosFiltrados.map((medico) => (
+                  <Card key={medico.id} className="overflow-hidden border-border/50 hover:border-primary/50 transition-colors">
+                    <CardContent className="p-0">
+                      {/* Doctor Image */}
+                      <div className="h-28 sm:h-32 relative bg-muted">
+                        {medico.foto_url ? (
+                          <img
+                            src={medico.foto_url}
+                            alt={medico.nome}
+                            className="w-full h-full object-cover object-top"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <User className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground/50" />
                           </div>
+                        )}
+                        {/* Badge de disponibilidade */}
+                        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${
+                          medico.slots_disponiveis && medico.slots_disponiveis > 0
+                            ? 'bg-green-500 text-white'
+                            : 'bg-muted-foreground/80 text-white'
+                        }`}>
+                          {medico.slots_disponiveis && medico.slots_disponiveis > 0
+                            ? `${medico.slots_disponiveis} horário${medico.slots_disponiveis > 1 ? 's' : ''}`
+                            : 'Sem agenda'
+                          }
+                        </div>
+                      </div>
 
-                          {/* Doctor Info */}
-                          <div className="p-4 space-y-2">
-                            <h3 className="font-semibold text-foreground line-clamp-1">
-                              {medico.nome}
-                            </h3>
-                            
-                            {medico.especialidade && (
-                              <p className="text-sm text-primary font-medium">
-                                {medico.especialidade}
-                              </p>
-                            )}
+                      {/* Doctor Info */}
+                      <div className="p-3 sm:p-4 space-y-1.5 sm:space-y-2">
+                        <h3 className="font-semibold text-foreground line-clamp-1 text-sm sm:text-base">
+                          {medico.nome}
+                        </h3>
+                        
+                        {medico.especialidade && (
+                          <p className="text-xs sm:text-sm text-primary font-medium">
+                            {medico.especialidade}
+                          </p>
+                        )}
 
-                            {medico.crm && (
-                              <p className="text-xs text-muted-foreground">
-                                CRM: {medico.crm}
-                              </p>
-                            )}
+                        {medico.crm && (
+                          <p className="text-xs text-muted-foreground">
+                            CRM: {medico.crm}
+                          </p>
+                        )}
 
-                            {medico.locais_atendimento && medico.locais_atendimento.length > 0 && (
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <MapPin className="w-3 h-3" />
-                                {medico.locais_atendimento[0].cidade}, {medico.locais_atendimento[0].estado}
-                              </p>
-                            )}
+                        {medico.locais_atendimento && medico.locais_atendimento.length > 0 && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <MapPin className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{medico.locais_atendimento[0].cidade}, {medico.locais_atendimento[0].estado}</span>
+                          </p>
+                        )}
 
-                            <div className="pt-2 flex items-center justify-between">
-                              <span className="text-lg font-bold text-primary">
-                                R$ {medico.valor_consulta.toFixed(2).replace(".", ",")}
-                              </span>
-                            </div>
+                        <div className="pt-1 sm:pt-2 flex items-center justify-between">
+                          <span className="text-base sm:text-lg font-bold text-primary">
+                            R$ {medico.valor_consulta.toFixed(2).replace(".", ",")}
+                          </span>
+                        </div>
 
-                            <Button 
-                              className="w-full mt-2"
-                              onClick={() => handleViewProfile(medico.id)}
-                            >
-                              <Calendar className="w-4 h-4 mr-2" />
-                              Ver Perfil
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </CarouselItem>
-                  ))}
-                </CarouselContent>
-                {medicosFiltrados.length > 1 && (
-                  <>
-                    <CarouselPrevious className="-left-4" />
-                    <CarouselNext className="-right-4" />
-                  </>
-                )}
-              </Carousel>
-            </div>
-          ) : (
-            <div className="py-12 text-center text-muted-foreground">
-              <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhum médico encontrado com os critérios informados.</p>
-              <p className="text-sm mt-2">Tente buscar com outros filtros.</p>
-            </div>
-          )}
+                        <Button 
+                          className="w-full mt-2 h-9 sm:h-10 text-sm"
+                          onClick={() => handleViewProfile(medico.id)}
+                        >
+                          <Calendar className="w-4 h-4 mr-2" />
+                          Ver Perfil
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="py-12 text-center text-muted-foreground">
+                <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum médico encontrado com os critérios informados.</p>
+                <p className="text-sm mt-2">Tente buscar com outros filtros.</p>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </>
