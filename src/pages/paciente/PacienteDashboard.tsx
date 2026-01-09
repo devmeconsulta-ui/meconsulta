@@ -170,6 +170,13 @@ export default function PacienteDashboard() {
         </Button>
       </div>
 
+      {/* Partners Section */}
+      <PartnersCarousel 
+        title="Parceiros" 
+        subtitle="Empresas que confiam em nós"
+        compact 
+      />
+
       {/* Alert for pending confirmations */}
       <PendingConfirmationsAlert pacienteId={pacienteData?.id} />
 
@@ -451,12 +458,6 @@ export default function PacienteDashboard() {
         </Card>
       )}
 
-      {/* Partners Section */}
-      <PartnersCarousel 
-        title="Parceiros" 
-        subtitle="Empresas que confiam em nós"
-        compact 
-      />
     </div>
   );
 }
