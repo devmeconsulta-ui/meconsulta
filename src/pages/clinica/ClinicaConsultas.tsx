@@ -177,9 +177,12 @@ export default function ClinicaConsultas() {
           motivo_consulta,
           sintomas,
           observacoes_paciente,
+          tipo_atendimento,
+          convenio_id,
           medico:medicos!consultas_medico_id_fkey(nome, especialidade),
           paciente:pacientes(nome, cpf, telefone),
-          local:locais_atendimento(nome_local, clinica_id)
+          local:locais_atendimento(nome_local, clinica_id),
+          convenio:convenios(id, nome)
         `)
         .in("medico_id", medicoIds)
         .gte("data_hora", dateRange.start.toISOString())
@@ -508,6 +511,11 @@ export default function ClinicaConsultas() {
                               </>
                             )}
                           </Badge>
+                          {consulta.tipo_atendimento === "convenio" && consulta.convenio?.nome && (
+                            <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">
+                              {consulta.convenio.nome}
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">
                           Dr(a). {consulta.medico?.nome} • {consulta.medico?.especialidade}

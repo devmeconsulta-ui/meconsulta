@@ -92,6 +92,8 @@ interface Consulta {
   elegivel_repasse: boolean | null;
   medico_id: string | null;
   local_id: string | null;
+  tipo_atendimento: string | null;
+  convenio_id: string | null;
   paciente: {
     id: string;
     nome: string;
@@ -113,6 +115,10 @@ interface Consulta {
     cidade: string | null;
     estado: string | null;
     tipo_atendimento: string;
+  } | null;
+  convenio: {
+    id: string;
+    nome: string;
   } | null;
 }
 
@@ -180,9 +186,12 @@ export default function MedicoConsultas() {
         elegivel_repasse,
         medico_id,
         local_id,
+        tipo_atendimento,
+        convenio_id,
         paciente:pacientes!consultas_paciente_id_fkey(id, nome, cpf, data_nascimento, cidade, estado, bairro),
         dependente:paciente_dependentes(id, nome, parentesco),
-        local:locais_atendimento(id, nome_local, endereco, cidade, estado, tipo_atendimento)
+        local:locais_atendimento(id, nome_local, endereco, cidade, estado, tipo_atendimento),
+        convenio:convenios(id, nome)
       `)
       .eq("medico_id", currentUser.medicoId)
       .order("data_hora", { ascending: false });
@@ -402,6 +411,11 @@ export default function MedicoConsultas() {
                       ) : (
                         <Badge className="bg-muted text-muted-foreground">
                           -
+                        </Badge>
+                      )}
+                      {consulta.tipo_atendimento === "convenio" && consulta.convenio?.nome && (
+                        <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">
+                          {consulta.convenio.nome}
                         </Badge>
                       )}
                       <Badge className={statusColors[consulta.status_consulta] || "bg-muted"}>
