@@ -445,20 +445,20 @@ export function AgendaInternaModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="bg-primary/10 -mx-6 -mt-6 px-6 py-4 rounded-t-lg">
-          <DialogTitle className="text-primary flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-auto">
+        <DialogHeader className="bg-primary/10 -mx-6 -mt-6 px-6 py-3 sm:py-4 rounded-t-lg">
+          <DialogTitle className="text-primary flex items-center gap-2 text-sm sm:text-base">
+            <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
             {isManualBooking ? "Novo Agendamento" : `Novo agendamento para ${dataFormatada}`}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5 pt-4">
+        <div className="space-y-4 sm:space-y-5 pt-3 sm:pt-4">
           {/* Row 1: Patient search + Local */}
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-6">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4">
+            <div className="sm:col-span-6">
               <div className="flex items-center gap-2 mb-1.5">
-                <Label className="text-sm">Paciente</Label>
+                <Label className="text-xs sm:text-sm">Paciente</Label>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <input 
                     type="checkbox" 
@@ -538,8 +538,8 @@ export function AgendaInternaModal({
               )}
             </div>
 
-            <div className="col-span-6">
-              <Label className="text-sm mb-1.5 block">Local</Label>
+            <div className="sm:col-span-6">
+              <Label className="text-xs sm:text-sm mb-1.5 block">Local</Label>
               <Select
                 value={formData.localSelecionado}
                 onValueChange={(v) => setFormData({ ...formData, localSelecionado: v })}
@@ -559,11 +559,11 @@ export function AgendaInternaModal({
           </div>
 
           {/* Row 2: Date + Times (for manual booking) or Professional + Times */}
-          <div className="grid grid-cols-12 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-12 gap-3 sm:gap-4">
             {isManualBooking ? (
               <>
-                <div className="col-span-5">
-                  <Label className="text-sm mb-1.5 block">Data</Label>
+                <div className="col-span-2 sm:col-span-5">
+                  <Label className="text-xs sm:text-sm mb-1.5 block">Data</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -590,8 +590,8 @@ export function AgendaInternaModal({
                   </Popover>
                 </div>
 
-                <div className="col-span-3">
-                  <Label className="text-sm mb-1.5 block">Hora</Label>
+                <div className="col-span-1 sm:col-span-3">
+                  <Label className="text-xs sm:text-sm mb-1.5 block">Hora</Label>
                   <Select value={selectedTime} onValueChange={setSelectedTime}>
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue />
@@ -606,8 +606,8 @@ export function AgendaInternaModal({
                   </Select>
                 </div>
 
-                <div className="col-span-4">
-                  <Label className="text-sm mb-1.5 block">Agendado por</Label>
+                <div className="col-span-1 sm:col-span-4">
+                  <Label className="text-xs sm:text-sm mb-1.5 block">Agendado por</Label>
                   <Select
                     value={formData.usuarioClinicaId}
                     onValueChange={(v) => setFormData({ ...formData, usuarioClinicaId: v })}
@@ -627,8 +627,8 @@ export function AgendaInternaModal({
               </>
             ) : (
               <>
-                <div className="col-span-5">
-                  <Label className="text-sm mb-1.5 block">Agendado por</Label>
+                <div className="col-span-2 sm:col-span-5">
+                  <Label className="text-xs sm:text-sm mb-1.5 block">Agendado por</Label>
                   <Select
                     value={formData.usuarioClinicaId}
                     onValueChange={(v) => setFormData({ ...formData, usuarioClinicaId: v })}
@@ -646,16 +646,16 @@ export function AgendaInternaModal({
                   </Select>
                 </div>
 
-                <div className="col-span-3">
-                  <Label className="text-sm mb-1.5 block">Hora inicial</Label>
-                  <div className="bg-primary text-primary-foreground rounded-md h-9 flex items-center justify-center text-sm font-medium">
+                <div className="col-span-1 sm:col-span-3">
+                  <Label className="text-xs sm:text-sm mb-1.5 block">Hora inicial</Label>
+                  <div className="bg-primary text-primary-foreground rounded-md h-9 flex items-center justify-center text-xs sm:text-sm font-medium">
                     {horaInicial}
                   </div>
                 </div>
 
-                <div className="col-span-4">
-                  <Label className="text-sm mb-1.5 block">Hora final</Label>
-                  <div className="bg-primary text-primary-foreground rounded-md h-9 flex items-center justify-center text-sm font-medium">
+                <div className="col-span-1 sm:col-span-4">
+                  <Label className="text-xs sm:text-sm mb-1.5 block">Hora final</Label>
+                  <div className="bg-primary text-primary-foreground rounded-md h-9 flex items-center justify-center text-xs sm:text-sm font-medium">
                     {slotDataHora ? format(new Date(new Date(slotDataHora).getTime() + 30 * 60000), "HH:mm") : ""}
                   </div>
                 </div>
@@ -664,9 +664,9 @@ export function AgendaInternaModal({
           </div>
 
           {/* Row 3: Status + Procedure */}
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-5">
-              <Label className="text-sm mb-1.5 block">Status</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-12 gap-3 sm:gap-4">
+            <div className="col-span-1 sm:col-span-5">
+              <Label className="text-xs sm:text-sm mb-1.5 block">Status</Label>
               <Select
                 value={formData.status}
                 onValueChange={(v) => setFormData({ ...formData, status: v })}
@@ -682,8 +682,8 @@ export function AgendaInternaModal({
               </Select>
             </div>
 
-            <div className="col-span-7">
-              <Label className="text-sm mb-1.5 block">Procedimento</Label>
+            <div className="col-span-1 sm:col-span-7">
+              <Label className="text-xs sm:text-sm mb-1.5 block">Procedimento</Label>
               <Select
                 value={formData.procedimento}
                 onValueChange={(v) => setFormData({ ...formData, procedimento: v })}
@@ -702,10 +702,10 @@ export function AgendaInternaModal({
           </div>
 
           {/* Row 4: Service Type + Convenio + Medico */}
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-4">
+          <div className="grid grid-cols-2 sm:grid-cols-12 gap-3 sm:gap-4">
+            <div className="col-span-1 sm:col-span-4">
               <div className="flex items-center gap-1 mb-1.5">
-                <Label className="text-sm">Tipo de atendimento</Label>
+                <Label className="text-xs sm:text-sm">Tipo de atend.</Label>
                 <span className="text-destructive">*</span>
               </div>
               <Select
@@ -725,8 +725,8 @@ export function AgendaInternaModal({
             </div>
 
             {formData.tipoAtendimento === "convenio" && (
-              <div className="col-span-4">
-                <Label className="text-sm mb-1.5 block">Tipo de convênio</Label>
+              <div className="col-span-1 sm:col-span-4">
+                <Label className="text-xs sm:text-sm mb-1.5 block">Tipo de convênio</Label>
                 <div className="flex gap-1">
                   <Select
                     value={formData.convenioId}
@@ -757,9 +757,9 @@ export function AgendaInternaModal({
             )}
 
             <div className={cn(
-              formData.tipoAtendimento === "convenio" ? "col-span-4" : "col-span-8"
+              formData.tipoAtendimento === "convenio" ? "col-span-2 sm:col-span-4" : "col-span-1 sm:col-span-8"
             )}>
-              <Label className="text-sm mb-1.5 block">Médico</Label>
+              <Label className="text-xs sm:text-sm mb-1.5 block">Médico</Label>
               <Select
                 value={formData.medicoSelecionado}
                 onValueChange={(v) => setFormData({ ...formData, medicoSelecionado: v })}
@@ -783,9 +783,9 @@ export function AgendaInternaModal({
           </div>
 
           {/* Row 5: Value + Discount */}
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-4">
-              <Label className="text-sm mb-1.5 block">Valor</Label>
+          <div className="grid grid-cols-12 gap-3 sm:gap-4">
+            <div className="col-span-5 sm:col-span-4">
+              <Label className="text-xs sm:text-sm mb-1.5 block">Valor</Label>
               <Input
                 type="text"
                 value={`R$ ${formData.valor.toFixed(2).replace(".", ",")}`}
@@ -797,8 +797,8 @@ export function AgendaInternaModal({
               />
             </div>
 
-            <div className="col-span-2 flex flex-col items-center justify-end">
-              <Label className="text-sm mb-1.5">Desconto</Label>
+            <div className="col-span-3 sm:col-span-2 flex flex-col items-center justify-end">
+              <Label className="text-xs sm:text-sm mb-1.5">Desconto</Label>
               <Switch 
                 checked={hasDesconto} 
                 onCheckedChange={(checked) => {
@@ -810,35 +810,35 @@ export function AgendaInternaModal({
 
             {hasDesconto && (
               <>
-                <div className="col-span-3">
-                  <Label className="text-sm mb-1.5 block">Tipo</Label>
+                <div className="col-span-4 sm:col-span-3">
+                  <Label className="text-xs sm:text-sm mb-1.5 block">Tipo</Label>
                   <div className="flex gap-1">
                     <Button
                       type="button"
                       variant={descontoTipo === "valor" ? "default" : "outline"}
                       size="sm"
-                      className="flex-1 h-9"
+                      className="flex-1 h-9 px-2"
                       onClick={() => setDescontoTipo("valor")}
                     >
-                      <DollarSign className="w-3 h-3 mr-1" />
-                      R$
+                      <DollarSign className="w-3 h-3" />
+                      <span className="hidden sm:inline ml-1">R$</span>
                     </Button>
                     <Button
                       type="button"
                       variant={descontoTipo === "porcentagem" ? "default" : "outline"}
                       size="sm"
-                      className="flex-1 h-9"
+                      className="flex-1 h-9 px-2"
                       onClick={() => setDescontoTipo("porcentagem")}
                     >
-                      <Percent className="w-3 h-3 mr-1" />
-                      %
+                      <Percent className="w-3 h-3" />
+                      <span className="hidden sm:inline ml-1">%</span>
                     </Button>
                   </div>
                 </div>
 
-                <div className="col-span-3">
-                  <Label className="text-sm mb-1.5 block">
-                    {descontoTipo === "valor" ? "Valor do desconto" : "% do desconto"}
+                <div className="col-span-8 sm:col-span-3">
+                  <Label className="text-xs sm:text-sm mb-1.5 block">
+                    {descontoTipo === "valor" ? "Valor desc." : "% do desc."}
                   </Label>
                   <Input
                     type="number"
@@ -884,17 +884,17 @@ export function AgendaInternaModal({
 
           {/* Row 5: CPF + Phone (for new patient) */}
           {(showNewPatient || !selectedPaciente) && (selectedPaciente === null || showNewPatient) && (
-            <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-2 flex flex-col">
-                <Label className="text-sm mb-1.5">Sem CPF?</Label>
+            <div className="grid grid-cols-12 gap-3 sm:gap-4">
+              <div className="col-span-3 sm:col-span-2 flex flex-col">
+                <Label className="text-xs sm:text-sm mb-1.5">Sem CPF?</Label>
                 <Switch 
                   checked={!useCpf}
                   onCheckedChange={(v) => setUseCpf(!v)}
                 />
               </div>
 
-              <div className="col-span-4">
-                <Label className="text-sm mb-1.5 block">CPF</Label>
+              <div className="col-span-9 sm:col-span-4">
+                <Label className="text-xs sm:text-sm mb-1.5 block">CPF</Label>
                 <Input
                   value={formData.cpf}
                   onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
@@ -904,8 +904,8 @@ export function AgendaInternaModal({
                 />
               </div>
 
-              <div className="col-span-6">
-                <Label className="text-sm mb-1.5 block">Telefone Celular *</Label>
+              <div className="col-span-12 sm:col-span-6">
+                <Label className="text-xs sm:text-sm mb-1.5 block">Telefone Celular *</Label>
                 <div className="flex gap-2">
                   <Select defaultValue="+55">
                     <SelectTrigger className="h-9 text-sm w-20">
@@ -928,7 +928,7 @@ export function AgendaInternaModal({
 
           {/* Observations */}
           <div>
-            <Label className="text-sm mb-1.5 block">Observações do Agendamento</Label>
+            <Label className="text-xs sm:text-sm mb-1.5 block">Observações do Agendamento</Label>
             <Textarea
               value={formData.observacoes}
               onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
