@@ -20,6 +20,63 @@ interface ProcessCardRequest {
   installments?: number;
 }
 
+// Luhn algorithm to validate credit card number
+function isValidCardNumber(cardNumber: string): boolean {
+  const cleaned = cardNumber.replace(/\D/g, '');
+  if (cleaned.length < 13 || cleaned.length > 19) return false;
+  
+  let sum = 0;
+  let isEven = false;
+  
+  for (let i = cleaned.length - 1; i >= 0; i--) {
+    let digit = parseInt(cleaned[i], 10);
+    
+    if (isEven) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    
+    sum += digit;
+    isEven = !isEven;
+  }
+  
+  return sum % 10 === 0;
+}
+
+// Validate card expiry
+function isValidExpiry(month: string, year: string): boolean {
+  const m = parseInt(month, 10);
+  const y = parseInt(year, 10);
+  
+  if (isNaN(m) || isNaN(y)) return false;
+  if (m < 1 || m > 12) return false;
+  
+  const now = new Date();
+  const currentYear = now.getFullYear() % 100; // Get last 2 digits
+  const currentMonth = now.getMonth() + 1;
+  
+  // Year can be 2 or 4 digits
+  const fullYear = y < 100 ? y : y % 100;
+  
+  if (fullYear < currentYear) return false;
+  if (fullYear === currentYear && m < currentMonth) return false;
+  
+  return true;
+}
+
+// Validate CVV
+function isValidCVV(cvv: string): boolean {
+  const cleaned = cvv.replace(/\D/g, '');
+  return cleaned.length >= 3 && cleaned.length <= 4;
+}
+
+// Validate holder name
+function isValidHolderName(name: string): boolean {
+  const trimmed = name.trim();
+  // Name should have at least 3 characters and contain only letters, spaces, and common accents
+  return trimmed.length >= 3 && /^[a-zA-ZÀ-ÿ\s]+$/.test(trimmed);
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -29,6 +86,7 @@ serve(async (req) => {
   try {
     const { consulta_id, card, installments = 1 } = await req.json() as ProcessCardRequest;
     
+    // Basic required field validation
     if (!consulta_id || !card) {
       return new Response(
         JSON.stringify({ error: 'consulta_id e card são obrigatórios' }),
@@ -36,9 +94,59 @@ serve(async (req) => {
       );
     }
 
+    // Validate UUID format for consulta_id
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(consulta_id)) {
+      return new Response(
+        JSON.stringify({ error: 'consulta_id inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate card data
+    if (!card.number || !card.holderName || !card.expiryMonth || !card.expiryYear || !card.ccv) {
+      return new Response(
+        JSON.stringify({ error: 'Todos os dados do cartão são obrigatórios' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate card number with Luhn algorithm
+    if (!isValidCardNumber(card.number)) {
+      return new Response(
+        JSON.stringify({ error: 'Número do cartão inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate expiry date
+    if (!isValidExpiry(card.expiryMonth, card.expiryYear)) {
+      return new Response(
+        JSON.stringify({ error: 'Data de validade inválida ou cartão expirado' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate CVV
+    if (!isValidCVV(card.ccv)) {
+      return new Response(
+        JSON.stringify({ error: 'CVV inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate holder name
+    if (!isValidHolderName(card.holderName)) {
+      return new Response(
+        JSON.stringify({ error: 'Nome do titular inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Validate installments (1-12)
     const validInstallments = Math.min(Math.max(1, installments), 12);
 
+    // Log only non-sensitive info
     console.log(`Processing card payment for consulta: ${consulta_id}, installments: ${validInstallments}`);
 
     // Initialize Supabase client
@@ -54,7 +162,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (configError || !asaasConfig) {
-      console.error('Asaas config error:', configError);
+      console.error('Asaas config error');
       return new Response(
         JSON.stringify({ error: 'Configuração do Asaas não encontrada' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -82,7 +190,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (consultaError || !consulta) {
-      console.error('Consulta error:', consultaError);
+      console.error('Consulta not found');
       return new Response(
         JSON.stringify({ error: 'Consulta não encontrada' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -111,7 +219,7 @@ serve(async (req) => {
       }
     }
 
-    // Clean CPF
+    // Clean CPF and phone (only digits)
     const cpfClean = paciente.cpf?.replace(/\D/g, '') || '';
     const phoneClean = paciente.telefone?.replace(/\D/g, '') || '';
 
@@ -119,7 +227,7 @@ serve(async (req) => {
 
     // If there's an existing PIX payment, cancel it first
     if (consulta.asaas_payment_id) {
-      console.log(`Cancelling existing PIX payment: ${consulta.asaas_payment_id}`);
+      console.log('Cancelling existing payment...');
       try {
         const cancelResponse = await fetch(
           `${asaasConfig.base_url}/payments/${consulta.asaas_payment_id}`,
@@ -130,10 +238,9 @@ serve(async (req) => {
             },
           }
         );
-        const cancelResult = await cancelResponse.text();
-        console.log(`Cancel PIX response: ${cancelResponse.status} - ${cancelResult}`);
+        console.log(`Cancel payment response: ${cancelResponse.status}`);
       } catch (cancelError) {
-        console.log('Could not cancel existing payment, proceeding anyway:', cancelError);
+        console.log('Could not cancel existing payment, proceeding anyway');
       }
     }
 
@@ -141,8 +248,6 @@ serve(async (req) => {
     const dueDate = new Date().toISOString().split('T')[0];
 
     // Calculate credit card fees to pass to customer
-    // Base fee: 2.99% + R$ 0.49
-    // Installment fee: 1.99% per month if more than 1 installment
     const CARD_FEE_PERCENTAGE = 2.99;
     const CARD_FEE_FIXED = 0.49;
     const INSTALLMENT_FEE_PER_MONTH = 1.99;
@@ -151,7 +256,6 @@ serve(async (req) => {
     const percentageFee = originalValue * (CARD_FEE_PERCENTAGE / 100);
     let totalFees = percentageFee + CARD_FEE_FIXED;
     
-    // Add installment fees if more than 1 installment
     if (validInstallments > 1) {
       const installmentFee = originalValue * (INSTALLMENT_FEE_PER_MONTH / 100) * validInstallments;
       totalFees += installmentFee;
@@ -159,24 +263,28 @@ serve(async (req) => {
     
     const valueWithFees = Math.round((originalValue + totalFees) * 100) / 100;
     
-    console.log(`Original value: R$ ${originalValue}, Installments: ${validInstallments}, Fees: R$ ${totalFees.toFixed(2)}, Total with fees: R$ ${valueWithFees}`);
+    // Log only non-sensitive financial info
+    console.log(`Value: R$ ${originalValue}, Fees: R$ ${totalFees.toFixed(2)}, Total: R$ ${valueWithFees}`);
 
-    // Create new payment with credit card (value includes fees passed to customer)
+    // Clean card number (only digits)
+    const cardNumberClean = card.number.replace(/\D/g, '');
+
+    // Create payment payload - card data sent directly to Asaas, never stored
     const paymentPayload: any = {
       customer: paciente.asaas_customer_id,
       billingType: 'CREDIT_CARD',
-      value: valueWithFees, // Value with fees passed to customer
+      value: valueWithFees,
       dueDate: dueDate,
       description: validInstallments > 1 
-        ? `Consulta médica - MeConsulta (${validInstallments}x - inclui taxa de cartão e parcelamento)`
-        : `Consulta médica - MeConsulta (inclui taxa de cartão)`,
+        ? `Consulta médica - MeConsulta (${validInstallments}x)`
+        : `Consulta médica - MeConsulta`,
       externalReference: consulta_id,
       creditCard: {
-        holderName: card.holderName,
-        number: card.number,
-        expiryMonth: card.expiryMonth,
-        expiryYear: card.expiryYear,
-        ccv: card.ccv,
+        holderName: card.holderName.trim().toUpperCase(),
+        number: cardNumberClean,
+        expiryMonth: card.expiryMonth.padStart(2, '0'),
+        expiryYear: card.expiryYear.length === 2 ? card.expiryYear : card.expiryYear.slice(-2),
+        ccv: card.ccv.replace(/\D/g, ''),
       },
       creditCardHolderInfo: {
         name: paciente.nome,
@@ -184,20 +292,15 @@ serve(async (req) => {
         cpfCnpj: cpfClean,
         phone: phoneClean || undefined,
         mobilePhone: phoneClean || undefined,
-        postalCode: undefined,
-        addressNumber: undefined,
       },
     };
 
-    // Add installment count if more than 1
     if (validInstallments > 1) {
       paymentPayload.installmentCount = validInstallments;
     }
 
-    console.log('Payment payload (card masked):', JSON.stringify({
-      ...paymentPayload,
-      creditCard: { ...paymentPayload.creditCard, number: '****', ccv: '***' }
-    }));
+    // SECURITY: Log only that we're making the request, no sensitive data
+    console.log('Sending payment request to Asaas...');
 
     const paymentResponse = await fetch(`${asaasConfig.base_url}/payments`, {
       method: 'POST',
@@ -209,13 +312,15 @@ serve(async (req) => {
     });
 
     const paymentResult = await paymentResponse.json();
-    console.log('Payment response:', JSON.stringify(paymentResult));
+    
+    // Log only payment ID and status, no sensitive data
+    console.log(`Payment response: ${paymentResult.id || 'error'}, status: ${paymentResult.status || 'failed'}`);
 
     if (!paymentResponse.ok) {
       const errorDesc = paymentResult?.errors?.[0]?.description || 'Erro ao processar pagamento';
-      console.error('Payment failed:', paymentResult);
+      console.error('Payment failed:', errorDesc);
       return new Response(
-        JSON.stringify({ error: errorDesc, details: paymentResult }),
+        JSON.stringify({ error: errorDesc }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -239,18 +344,18 @@ serve(async (req) => {
       .eq('id', consulta_id);
 
     if (updateError) {
-      console.error('Error updating consulta:', updateError);
+      console.error('Error updating consulta');
     }
 
-    // Log event
+    // Log event (no sensitive data)
     await supabase.from('consultas_eventos').insert({
       consulta_id: consulta_id,
       tipo_evento: isConfirmed ? 'pagamento_cartao_confirmado' : 'pagamento_cartao_pendente',
       usuario_tipo: 'sistema',
-      descricao: `Pagamento via cartão de crédito ${isConfirmed ? 'confirmado' : 'pendente'}: ${paymentResult.id}`,
+      descricao: `Pagamento via cartão ${isConfirmed ? 'confirmado' : 'pendente'}`,
     });
 
-    console.log(`Card payment ${isConfirmed ? 'confirmed' : 'pending'}: ${paymentResult.id}`);
+    console.log(`Payment ${isConfirmed ? 'confirmed' : 'pending'}`);
 
     return new Response(
       JSON.stringify({
@@ -263,10 +368,9 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in process-card-payment:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error in process-card-payment');
     return new Response(
-      JSON.stringify({ error: 'Erro interno do servidor', details: errorMessage }),
+      JSON.stringify({ error: 'Erro interno do servidor' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
