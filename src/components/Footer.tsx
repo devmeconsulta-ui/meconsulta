@@ -1,4 +1,5 @@
 import { Grid3X3, MessageSquare, Search } from "lucide-react";
+import { Link } from "react-router-dom";
 import logo from "@/assets/logo.avif";
 
 const Footer = () => {
@@ -56,12 +57,12 @@ const Footer = () => {
           <div>
             <h4 className="font-semibold mb-4 text-foreground">Privacidade</h4>
             <nav className="space-y-3">
-              <a href="#" className="block text-sm hover:text-primary transition-colors" style={{ color: 'hsl(214, 25%, 35%)' }}>
-                Termos e Condições
-              </a>
-              <a href="#" className="block text-sm hover:text-primary transition-colors" style={{ color: 'hsl(214, 25%, 35%)' }}>
+              <Link to="/termos-uso" className="block text-sm hover:text-primary transition-colors" style={{ color: 'hsl(214, 25%, 35%)' }}>
+                Termos de Uso
+              </Link>
+              <Link to="/politica-privacidade" className="block text-sm hover:text-primary transition-colors" style={{ color: 'hsl(214, 25%, 35%)' }}>
                 Política de Privacidade
-              </a>
+              </Link>
             </nav>
           </div>
 

@@ -13,6 +13,8 @@ import Checkout from "./pages/Checkout";
 import Pagamento from "./pages/Pagamento";
 import Entrar from "./pages/Entrar";
 import NotFound from "./pages/NotFound";
+import PoliticaPrivacidade from "./pages/PoliticaPrivacidade";
+import TermosUso from "./pages/TermosUso";
 
 // Admin pages
 import { AdminLayout } from "./components/admin/AdminLayout";
@@ -85,7 +87,8 @@ const App = () => (
             <Route path="/checkout/:id" element={<Checkout />} />
             <Route path="/pagamento/:consultaId" element={<Pagamento />} />
             <Route path="/entrar" element={<Entrar />} />
-
+            <Route path="/politica-privacidade" element={<PoliticaPrivacidade />} />
+            <Route path="/termos-uso" element={<TermosUso />} />
             {/* Paciente routes */}
             <Route path="/paciente" element={<PacienteLayout />}>
               <Route index element={<PacienteDashboard />} />
