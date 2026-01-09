@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -24,12 +25,24 @@ import Footer from "@/components/Footer";
 import doctorImage from "@/assets/doctor-sou-medico.png";
 
 const SouMedico = () => {
+  const navigate = useNavigate();
   const [consultations, setConsultations] = useState(15);
   const consultationValue = 160;
   const doctorEarning = 120;
   
   const totalEarning = consultations * doctorEarning;
   const monthlyEarning = totalEarning * 4;
+
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleCTA = () => {
+    window.open('https://wa.me/5511999999999?text=Olá! Sou médico e tenho interesse em ser parceiro MeConsulta.', '_blank');
+  };
 
   const stats = [
     { number: "500+", label: "Médicos Parceiros" },
@@ -158,6 +171,7 @@ const SouMedico = () => {
                   <Button 
                     size="lg" 
                     className="bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-full px-8 py-6 text-lg font-semibold shadow-lg hover:shadow-xl transition-all hover:scale-105"
+                    onClick={handleCTA}
                   >
                     Quero Aumentar Meus Ganhos
                     <ArrowRight className="ml-2 w-5 h-5" />
@@ -167,6 +181,7 @@ const SouMedico = () => {
                     size="lg" 
                     variant="outline"
                     className="bg-white/10 border-white/30 text-white hover:bg-white/20 rounded-full px-8 py-6 text-lg"
+                    onClick={() => scrollToSection('como-funciona')}
                   >
                     <Play className="mr-2 w-5 h-5" />
                     Ver Como Funciona
@@ -379,6 +394,7 @@ const SouMedico = () => {
                   <Button 
                     size="lg" 
                     className="w-full mt-6 bg-primary hover:bg-primary/90 rounded-full py-6 text-lg font-semibold"
+                    onClick={handleCTA}
                   >
                     Começar a Ganhar Agora
                     <ArrowRight className="ml-2 w-5 h-5" />
@@ -390,7 +406,7 @@ const SouMedico = () => {
         </section>
 
         {/* How it Works */}
-        <section className="py-16 lg:py-24 bg-muted/30">
+        <section id="como-funciona" className="py-16 lg:py-24 bg-muted/30">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12">
               <span className="inline-block bg-primary/10 text-primary text-sm font-medium px-4 py-1 rounded-full mb-4">
@@ -485,8 +501,9 @@ const SouMedico = () => {
                 <Button 
                   size="lg" 
                   className="bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-full px-10 py-6 text-lg font-semibold shadow-lg hover:shadow-xl transition-all hover:scale-105"
+                  onClick={handleCTA}
                 >
-                  Criar Minha Conta Grátis
+                  Falar com Especialista
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
               </div>
