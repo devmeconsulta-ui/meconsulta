@@ -9,16 +9,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bell, ChevronDown, LogOut, Settings, User } from "lucide-react";
+import { ChevronDown, LogOut, Settings, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
+import PacienteNotificacoesDropdown from "./PacienteNotificacoesDropdown";
 
 interface PacienteHeaderProps {
   pacienteData: any;
-  notificacoesCount?: number;
 }
 
-export function PacienteHeader({ pacienteData, notificacoesCount = 0 }: PacienteHeaderProps) {
+export function PacienteHeader({ pacienteData }: PacienteHeaderProps) {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -54,23 +53,10 @@ export function PacienteHeader({ pacienteData, notificacoesCount = 0 }: Paciente
 
         {/* Right side actions */}
         <div className="flex items-center gap-3">
-          {/* Notifications */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative"
-            onClick={() => navigate("/paciente/notificacoes")}
-          >
-            <Bell className="w-5 h-5" />
-            {notificacoesCount > 0 && (
-              <Badge
-                className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
-                variant="destructive"
-              >
-                {notificacoesCount > 9 ? "9+" : notificacoesCount}
-              </Badge>
-            )}
-          </Button>
+          {/* Notifications Dropdown */}
+          {pacienteData?.id && (
+            <PacienteNotificacoesDropdown pacienteId={pacienteData.id} />
+          )}
 
           {/* User Menu */}
           <DropdownMenu>

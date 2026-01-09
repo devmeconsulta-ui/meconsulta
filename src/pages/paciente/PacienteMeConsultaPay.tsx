@@ -57,6 +57,7 @@ import {
 } from "recharts";
 import logo from "@/assets/logo.avif";
 import PartnersCarousel from "@/components/PartnersCarousel";
+import CreditoAprovadoModal from "@/components/paciente/CreditoAprovadoModal";
 
 // Empty data - will be populated with real data later
 const creditRequestData = [
@@ -113,6 +114,7 @@ export default function PacienteMeConsultaPay() {
   const [currentPhrase, setCurrentPhrase] = useState(0);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSolicitacao, setSelectedSolicitacao] = useState<any>(null);
+  const [showCreditoAprovado, setShowCreditoAprovado] = useState(false);
   const toggleCategory = (categoryName: string) => {
     setSelectedCategories(prev => 
       prev.includes(categoryName) 
@@ -879,10 +881,21 @@ export default function PacienteMeConsultaPay() {
                           {stage.description}
                         </p>
                         {stage.active && stage.isSuccess && (
-                          <div className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                            <p className="text-sm text-green-700 dark:text-green-400 font-medium">
-                              🎉 Parabéns! Entre em contato conosco para liberar seu crédito.
-                            </p>
+                          <div className="mt-3 space-y-2">
+                            <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                              <p className="text-sm text-green-700 dark:text-green-400 font-medium">
+                                🎉 Parabéns! Seu crédito foi aprovado.
+                              </p>
+                            </div>
+                            <Button 
+                              size="sm"
+                              className="w-full bg-green-600 hover:bg-green-700"
+                              onClick={() => {
+                                setShowCreditoAprovado(true);
+                              }}
+                            >
+                              Ver detalhes do crédito
+                            </Button>
                           </div>
                         )}
                         {stage.active && stage.isError && (
@@ -910,6 +923,13 @@ export default function PacienteMeConsultaPay() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Crédito Aprovado */}
+      <CreditoAprovadoModal 
+        open={showCreditoAprovado}
+        onOpenChange={setShowCreditoAprovado}
+        solicitacao={selectedSolicitacao}
+      />
     </div>
   );
 }
