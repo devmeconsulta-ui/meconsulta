@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Cookie, X } from "lucide-react";
 
@@ -41,9 +42,9 @@ export default function CookieConsent() {
               <p className="text-sm text-muted-foreground">
                 Usamos cookies para melhorar sua experiência de navegação, personalizar conteúdo e analisar nosso tráfego. 
                 Ao clicar em "Aceitar", você concorda com o uso de cookies conforme nossa{" "}
-                <a href="#" className="text-primary hover:underline">
+                <Link to="/politica-privacidade" className="text-primary hover:underline">
                   Política de Privacidade
-                </a>.
+                </Link>.
               </p>
             </div>
           </div>
