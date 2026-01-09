@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +30,8 @@ interface AvaliacoesModalProps {
   totalAvaliacoes: number;
 }
 
+const PAGE_SIZE = 10;
+
 export function AvaliacoesModal({
   open,
   onOpenChange,
@@ -40,15 +42,31 @@ export function AvaliacoesModal({
 }: AvaliacoesModalProps) {
   const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open && medicoId) {
-      fetchAvaliacoes();
+      // Reset state when modal opens
+      setAvaliacoes([]);
+      setPage(0);
+      setHasMore(true);
+      fetchAvaliacoes(0, true);
     }
   }, [open, medicoId]);
 
-  async function fetchAvaliacoes() {
-    setLoading(true);
+  async function fetchAvaliacoes(pageNum: number, isInitial: boolean = false) {
+    if (isInitial) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+
+    const from = pageNum * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
     const { data, error } = await supabase
       .from("avaliacoes_medico")
       .select(`
@@ -60,15 +78,39 @@ export function AvaliacoesModal({
       `)
       .eq("medico_id", medicoId)
       .eq("aprovada_admin", true)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
     if (error) {
       console.error("Erro ao buscar avaliações:", error);
     } else {
-      setAvaliacoes(data || []);
+      const newData = data || [];
+      
+      if (isInitial) {
+        setAvaliacoes(newData);
+      } else {
+        setAvaliacoes(prev => [...prev, ...newData]);
+      }
+      
+      // Check if there are more items to load
+      setHasMore(newData.length === PAGE_SIZE);
     }
+
     setLoading(false);
+    setLoadingMore(false);
   }
+
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    const { scrollTop, scrollHeight, clientHeight } = target;
+    
+    // Load more when user scrolls to bottom (with 100px threshold)
+    if (scrollHeight - scrollTop - clientHeight < 100 && !loadingMore && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchAvaliacoes(nextPage, false);
+    }
+  }, [loadingMore, hasMore, page, medicoId]);
 
   const renderStars = (nota: number) => {
     return (
@@ -117,8 +159,12 @@ export function AvaliacoesModal({
           </div>
         </div>
 
-        {/* Reviews List */}
-        <ScrollArea className="max-h-[50vh] pr-4">
+        {/* Reviews List with Infinite Scroll */}
+        <div 
+          ref={scrollRef}
+          className="max-h-[50vh] overflow-y-auto pr-2"
+          onScroll={handleScroll}
+        >
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -158,9 +204,24 @@ export function AvaliacoesModal({
                   </div>
                 </div>
               ))}
+              
+              {/* Loading more indicator */}
+              {loadingMore && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  <span className="ml-2 text-sm text-muted-foreground">Carregando mais...</span>
+                </div>
+              )}
+              
+              {/* End of list indicator */}
+              {!hasMore && avaliacoes.length > 0 && (
+                <p className="text-center text-sm text-muted-foreground py-4">
+                  Todas as avaliações foram carregadas
+                </p>
+              )}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
