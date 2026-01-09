@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -8,20 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, ChevronLeft, CreditCard, User, FileText, Users, ExternalLink, Loader2, Mail, Lock, Phone, Clock, CheckCircle, AlertTriangle } from "lucide-react";
+import { Calendar, MapPin, ChevronLeft, CreditCard, User, FileText, Users, Loader2, Mail, Lock, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { useAuth, CurrentUser } from "@/contexts/AuthContext";
 
-interface PaymentData {
-  paymentId: string;
-  invoiceUrl: string;
-  dueDate: string;
-  value: number;
-  createdAt?: number; // timestamp when payment was created
-}
 
 interface Medico {
   id: string;
@@ -70,12 +63,6 @@ const Checkout = () => {
   const [dependentes, setDependentes] = useState<Dependente[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
-  const [showPayment, setShowPayment] = useState(false);
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  
-  // Payment countdown timer (15 minutes)
-  const PAYMENT_TIMEOUT = 15 * 60 * 1000;
   
   // Combined form state
   const [formData, setFormData] = useState({
@@ -112,46 +99,6 @@ const Checkout = () => {
     }
   }, [currentUser?.pacienteId]);
 
-  // Scroll to top when payment screen shows
-  useEffect(() => {
-    if (showPayment) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [showPayment]);
-
-  // Payment countdown timer effect
-  useEffect(() => {
-    if (showPayment && paymentData?.createdAt) {
-      const calculateTimeLeft = () => {
-        const elapsed = Date.now() - paymentData.createdAt!;
-        const remaining = Math.max(0, PAYMENT_TIMEOUT - elapsed);
-        return remaining;
-      };
-      
-      setTimeLeft(calculateTimeLeft());
-      
-      const timer = setInterval(() => {
-        const remaining = calculateTimeLeft();
-        setTimeLeft(remaining);
-        
-        if (remaining <= 0) {
-          clearInterval(timer);
-        }
-      }, 1000);
-      
-      return () => clearInterval(timer);
-    }
-  }, [showPayment, paymentData?.createdAt, PAYMENT_TIMEOUT]);
-
-  const formatTime = useCallback((ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  }, []);
-  
-  const isTimeExpired = timeLeft !== null && timeLeft <= 0;
-  const isTimeWarning = timeLeft !== null && timeLeft <= 3 * 60 * 1000;
 
   async function fetchDependentes() {
     if (!currentUser?.pacienteId) return;
@@ -537,111 +484,6 @@ const Checkout = () => {
     ? format(parseISO(selectedDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
     : "";
 
-
-  // Payment success screen
-  if (showPayment && paymentData) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <Header />
-        
-        <main className="flex-1 py-8 sm:py-12 flex items-start justify-center">
-          <div className="container mx-auto px-4 max-w-md w-full">
-            <div className="bg-card rounded-2xl p-6 sm:p-8 shadow-md text-center">
-              {/* Icon */}
-              <div className={`w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 rounded-full flex items-center justify-center ${
-                isTimeExpired ? 'bg-destructive/10' : 'bg-green-100'
-              }`}>
-                {isTimeExpired ? (
-                  <AlertTriangle className="w-7 h-7 sm:w-8 sm:h-8 text-destructive" />
-                ) : (
-                  <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8 text-green-600" />
-                )}
-              </div>
-              
-              {/* Title */}
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">
-                {isTimeExpired ? 'Tempo Expirado!' : 'Consulta Agendada!'}
-              </h1>
-              <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">
-                {isTimeExpired 
-                  ? 'O tempo para pagamento expirou. Você ainda pode pagar acessando suas consultas.'
-                  : 'Pague via PIX ou cartão de crédito para confirmar sua consulta'
-                }
-              </p>
-
-              {/* Countdown Timer */}
-              {timeLeft !== null && !isTimeExpired && (
-                <div className={`mb-4 sm:mb-6 p-4 sm:p-5 rounded-xl border-2 ${
-                  isTimeWarning 
-                    ? 'bg-destructive/5 border-destructive/30' 
-                    : 'bg-primary/5 border-primary/20'
-                }`}>
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <Clock className={`w-5 h-5 ${isTimeWarning ? 'text-destructive' : 'text-primary'}`} />
-                    <span className={`text-sm font-medium ${isTimeWarning ? 'text-destructive' : 'text-primary'}`}>
-                      Tempo restante para pagar
-                    </span>
-                  </div>
-                  <div className={`text-3xl sm:text-4xl font-bold tabular-nums ${
-                    isTimeWarning ? 'text-destructive' : 'text-foreground'
-                  }`}>
-                    {formatTime(timeLeft)}
-                  </div>
-                  {isTimeWarning && (
-                    <p className="text-xs text-destructive mt-2">
-                      Finalize o pagamento antes que o tempo expire!
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Value */}
-              <div className="p-3 sm:p-4 bg-muted/50 border border-border rounded-lg mb-4 sm:mb-6">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm sm:text-base text-foreground">Valor a pagar:</span>
-                  <span className="text-lg sm:text-xl font-bold text-foreground">
-                    R$ {paymentData.value.toFixed(2).replace(".", ",")}
-                  </span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col gap-3">
-                {paymentData.invoiceUrl && !isTimeExpired && (
-                  <Button 
-                    size="lg"
-                    onClick={() => window.open(paymentData.invoiceUrl, '_blank')}
-                    className="w-full text-base"
-                  >
-                    <CreditCard className="w-5 h-5 mr-2" />
-                    Pagar Agora
-                  </Button>
-                )}
-                <Button 
-                  variant={isTimeExpired ? "default" : "outline"}
-                  onClick={() => navigate("/paciente/consultas")}
-                  className="w-full"
-                >
-                  {isTimeExpired ? 'Ver minhas consultas' : 'Acessar minhas consultas'}
-                </Button>
-              </div>
-
-              {/* Info */}
-              {!isTimeExpired && (
-                <p className="text-xs text-muted-foreground mt-4 sm:mt-6">
-                  Após o pagamento, sua consulta será confirmada automaticamente.
-                  <br />
-                  Você pode pagar via PIX ou cartão de crédito.
-                </p>
-              )}
-            </div>
-          </div>
-        </main>
-
-        <Footer />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">
