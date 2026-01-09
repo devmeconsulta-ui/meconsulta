@@ -190,12 +190,12 @@ export function AgendaInternaModal({
   async function fetchConvenios() {
     if (!clinicaId) return;
     const { data } = await supabase
-      .from("convenios")
+      .from("convenios" as any)
       .select("id, nome")
       .eq("clinica_id", clinicaId)
       .eq("ativo", true)
       .order("nome");
-    setConvenios(data || []);
+    setConvenios((data as unknown as Convenio[]) || []);
   }
 
   async function handleSaveConvenio() {
@@ -205,7 +205,7 @@ export function AgendaInternaModal({
     }
 
     const { data, error } = await supabase
-      .from("convenios")
+      .from("convenios" as any)
       .insert({
         nome: novoConvenioNome.trim(),
         clinica_id: clinicaId,
@@ -219,9 +219,10 @@ export function AgendaInternaModal({
       return;
     }
 
+    const newConvenio = data as unknown as Convenio;
     toast.success("Convênio cadastrado!");
-    setConvenios([...convenios, data]);
-    setFormData({ ...formData, convenioId: data.id });
+    setConvenios([...convenios, newConvenio]);
+    setFormData({ ...formData, convenioId: newConvenio.id });
     setNovoConvenioNome("");
     setShowNovoConvenio(false);
   }
