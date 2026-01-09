@@ -6,28 +6,36 @@ import uberLogo from "@/assets/partners/uber.png";
 interface Partner {
   name: string;
   logo: string;
+  category: "bank" | "service";
 }
 
 const partners: Partner[] = [
-  { name: "Sicoob", logo: sicoobLogo },
-  { name: "Santander", logo: santanderLogo },
-  { name: "Bradesco", logo: bradescoLogo },
-  { name: "Uber", logo: uberLogo },
+  { name: "Sicoob", logo: sicoobLogo, category: "bank" },
+  { name: "Santander", logo: santanderLogo, category: "bank" },
+  { name: "Bradesco", logo: bradescoLogo, category: "bank" },
+  { name: "Uber", logo: uberLogo, category: "service" },
 ];
 
 interface PartnersCarouselProps {
   title?: string;
   subtitle?: string;
   compact?: boolean;
+  filter?: "all" | "bank" | "service";
 }
 
 export default function PartnersCarousel({ 
   title = "Nossos Parceiros", 
   subtitle = "Empresas que confiam na MeConsulta",
-  compact = false
+  compact = false,
+  filter = "all"
 }: PartnersCarouselProps) {
+  // Filter partners based on category
+  const filteredPartners = filter === "all" 
+    ? partners 
+    : partners.filter(p => p.category === filter);
+  
   // Duplicate for seamless infinite scroll
-  const duplicatedPartners = [...partners, ...partners, ...partners];
+  const duplicatedPartners = [...filteredPartners, ...filteredPartners, ...filteredPartners];
 
   return (
     <section className={compact ? "py-4 sm:py-6" : "py-8 sm:py-12 lg:py-16"}>
