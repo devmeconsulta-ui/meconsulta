@@ -31,6 +31,7 @@ interface Medico {
     cidade: string | null;
     estado: string | null;
   }[];
+  slots_disponiveis?: number;
 }
 
 const SearchCTASection = () => {
@@ -39,10 +40,14 @@ const SearchCTASection = () => {
   const [showResults, setShowResults] = useState(false);
   const [medicos, setMedicos] = useState<Medico[]>([]);
 
+  // Filtrar apenas médicos com agenda disponível
+  const medicosFiltrados = medicos.filter(m => m.slots_disponiveis && m.slots_disponiveis > 0);
+
   const handleSearch = async () => {
     setIsSearching(true);
     try {
-      const { data, error } = await supabase
+      // Buscar médicos ativos
+      const { data: medicosData, error } = await supabase
         .from("medicos")
         .select(`
           id,
@@ -61,11 +66,40 @@ const SearchCTASection = () => {
 
       if (error) throw error;
 
-      setMedicos(data || []);
+      const filteredData = medicosData || [];
+
+      // Buscar quantidade de slots disponíveis por médico
+      const now = new Date();
+      const medicoIds = filteredData.map(m => m.id);
+      
+      let slotsCountMap: Record<string, number> = {};
+      
+      if (medicoIds.length > 0) {
+        const { data: slotsData } = await supabase
+          .from("agenda_slots")
+          .select("medico_id")
+          .in("medico_id", medicoIds)
+          .eq("disponivel", true)
+          .gte("data_hora", now.toISOString());
+
+        // Contar slots por médico
+        slotsData?.forEach(slot => {
+          slotsCountMap[slot.medico_id] = (slotsCountMap[slot.medico_id] || 0) + 1;
+        });
+      }
+
+      // Adicionar contagem de slots e ordenar (com agenda primeiro)
+      const medicosComSlots = filteredData.map(m => ({
+        ...m,
+        slots_disponiveis: slotsCountMap[m.id] || 0
+      })).sort((a, b) => b.slots_disponiveis - a.slots_disponiveis);
+
+      setMedicos(medicosComSlots);
       setShowResults(true);
 
-      if (!data || data.length === 0) {
-        toast.info("Nenhum médico encontrado no momento");
+      const medicosComAgenda = medicosComSlots.filter(m => m.slots_disponiveis > 0);
+      if (medicosComAgenda.length === 0) {
+        toast.info("Nenhum médico com agenda disponível no momento");
       }
     } catch (error) {
       console.error("Erro ao buscar médicos:", error);
@@ -114,24 +148,24 @@ const SearchCTASection = () => {
         <DialogContent className="w-[calc(100vw-2rem)] max-w-md sm:max-w-lg max-h-[85vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-center">
-              {medicos.length > 0 
-                ? `${medicos.length} especialista${medicos.length > 1 ? 's' : ''} disponíve${medicos.length > 1 ? 'is' : 'l'}`
+              {medicosFiltrados.length > 0 
+                ? `${medicosFiltrados.length} especialista${medicosFiltrados.length > 1 ? 's' : ''} disponíve${medicosFiltrados.length > 1 ? 'is' : 'l'}`
                 : "Nenhum resultado"
               }
             </DialogTitle>
           </DialogHeader>
 
-          {medicos.length > 0 ? (
+          {medicosFiltrados.length > 0 ? (
             <div className="py-2">
               <Carousel
                 opts={{
                   align: "center",
-                  loop: medicos.length > 1,
+                  loop: medicosFiltrados.length > 1,
                 }}
                 className="w-full mx-auto max-w-[280px] sm:max-w-sm"
               >
                 <CarouselContent>
-                  {medicos.map((medico) => (
+                  {medicosFiltrados.map((medico) => (
                     <CarouselItem key={medico.id} className="basis-full">
                       <Card className="overflow-hidden border-border/50">
                         <CardContent className="p-0">
@@ -148,6 +182,10 @@ const SearchCTASection = () => {
                                 <User className="w-10 h-10 text-muted-foreground/50" />
                               </div>
                             )}
+                            {/* Badge de disponibilidade */}
+                            <div className="absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium bg-green-500 text-white">
+                              {medico.slots_disponiveis} horário{medico.slots_disponiveis && medico.slots_disponiveis > 1 ? 's' : ''}
+                            </div>
                           </div>
 
                           {/* Doctor Info */}
@@ -195,7 +233,7 @@ const SearchCTASection = () => {
                     </CarouselItem>
                   ))}
                 </CarouselContent>
-                {medicos.length > 1 && (
+                {medicosFiltrados.length > 1 && (
                   <>
                     <CarouselPrevious className="-left-3 h-8 w-8" />
                     <CarouselNext className="-right-3 h-8 w-8" />
@@ -206,7 +244,7 @@ const SearchCTASection = () => {
           ) : (
             <div className="py-12 text-center text-muted-foreground">
               <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhum médico disponível no momento.</p>
+              <p>Nenhum médico com agenda disponível.</p>
               <p className="text-sm mt-2">Por favor, tente novamente mais tarde.</p>
             </div>
           )}
