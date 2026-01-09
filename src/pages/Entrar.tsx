@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,11 +12,24 @@ import { SignupModal } from "@/components/SignupModal";
 import { TrocarSenhaModal } from "@/components/TrocarSenhaModal";
 
 export default function Entrar() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [signupOpen, setSignupOpen] = useState(false);
+  const [signupInitialStep, setSignupInitialStep] = useState<"choose" | "paciente" | "clinica">("choose");
+
+  // Check for cadastro parameter on mount
+  useEffect(() => {
+    if (searchParams.get("cadastro") === "true") {
+      setSignupInitialStep("clinica");
+      setSignupOpen(true);
+      // Remove the parameter from URL
+      searchParams.delete("cadastro");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [trocarSenhaModal, setTrocarSenhaModal] = useState<{
     open: boolean;
     userId: string;
@@ -258,7 +271,14 @@ export default function Entrar() {
         </CardContent>
       </Card>
 
-      <SignupModal open={signupOpen} onOpenChange={setSignupOpen} />
+      <SignupModal 
+        open={signupOpen} 
+        onOpenChange={(open) => {
+          setSignupOpen(open);
+          if (!open) setSignupInitialStep("choose");
+        }}
+        initialStep={signupInitialStep}
+      />
       
       <TrocarSenhaModal
         open={trocarSenhaModal.open}
