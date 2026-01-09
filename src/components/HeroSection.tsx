@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Search, Briefcase, MapPin, Star, ChevronLeft, ChevronRight, X, Calendar, User } from "lucide-react";
+import { Search, Briefcase, MapPin, Star, ChevronLeft, ChevronRight, X, Calendar, User, Locate, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -30,6 +30,7 @@ import { specialties, brazilStates, citiesByState } from "@/data/brazilData";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { parseISO, isAfter } from "date-fns";
 
 interface Medico {
   id: string;
@@ -54,22 +55,96 @@ const HeroSection = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [medicos, setMedicos] = useState<Medico[]>([]);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [locationDetected, setLocationDetected] = useState(false);
 
   const cities = selectedState ? citiesByState[selectedState] || [] : [];
+
+  // Pedir geolocalização ao carregar
+  useEffect(() => {
+    requestGeolocation();
+  }, []);
+
+  const requestGeolocation = async () => {
+    if (!navigator.geolocation) {
+      console.log("Geolocalização não suportada");
+      return;
+    }
+
+    setIsGettingLocation(true);
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          
+          // Usar API de geocoding reverso para obter cidade/estado
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            const address = data.address;
+            
+            // Mapear o estado para sigla
+            const stateMapping: Record<string, string> = {
+              "Acre": "AC", "Alagoas": "AL", "Amapá": "AP", "Amazonas": "AM",
+              "Bahia": "BA", "Ceará": "CE", "Distrito Federal": "DF", "Espírito Santo": "ES",
+              "Goiás": "GO", "Maranhão": "MA", "Mato Grosso": "MT", "Mato Grosso do Sul": "MS",
+              "Minas Gerais": "MG", "Pará": "PA", "Paraíba": "PB", "Paraná": "PR",
+              "Pernambuco": "PE", "Piauí": "PI", "Rio de Janeiro": "RJ", "Rio Grande do Norte": "RN",
+              "Rio Grande do Sul": "RS", "Rondônia": "RO", "Roraima": "RR", "Santa Catarina": "SC",
+              "São Paulo": "SP", "Sergipe": "SE", "Tocantins": "TO"
+            };
+            
+            const stateName = address.state;
+            const cityName = address.city || address.town || address.municipality;
+            
+            if (stateName && stateMapping[stateName]) {
+              setSelectedState(stateMapping[stateName]);
+              setLocationDetected(true);
+              
+              // Verificar se a cidade está na lista
+              const stateAbbr = stateMapping[stateName];
+              const availableCities = citiesByState[stateAbbr] || [];
+              
+              if (cityName) {
+                const matchedCity = availableCities.find(
+                  c => c.toLowerCase() === cityName.toLowerCase()
+                );
+                if (matchedCity) {
+                  setSelectedCity(matchedCity.toLowerCase());
+                }
+              }
+              
+              toast.success(`Localização detectada: ${cityName || stateName}`);
+            }
+          }
+        } catch (error) {
+          console.error("Erro ao obter localização:", error);
+        } finally {
+          setIsGettingLocation(false);
+        }
+      },
+      (error) => {
+        console.log("Usuário negou geolocalização ou erro:", error.message);
+        setIsGettingLocation(false);
+      },
+      { timeout: 10000, enableHighAccuracy: false }
+    );
+  };
 
   const handleStateChange = (value: string) => {
     setSelectedState(value);
     setSelectedCity("");
+    setLocationDetected(false);
   };
 
   const handleSearch = async () => {
-    if (!searchTerm && !selectedSpecialty && !selectedState && !selectedCity) {
-      toast.error("Informe pelo menos um critério de busca");
-      return;
-    }
-
     setIsSearching(true);
     try {
+      // Buscar médicos ativos
       let query = supabase
         .from("medicos")
         .select(`
@@ -81,6 +156,7 @@ const HeroSection = () => {
           valor_consulta,
           crm,
           locais_atendimento (
+            id,
             cidade,
             estado
           )
@@ -95,13 +171,13 @@ const HeroSection = () => {
         query = query.ilike("especialidade", `%${selectedSpecialty}%`);
       }
 
-      const { data, error } = await query;
+      const { data: medicosData, error } = await query;
 
       if (error) throw error;
 
-      // Filtrar por estado/cidade se selecionados
-      let filteredData = data || [];
+      let filteredData = medicosData || [];
       
+      // Filtrar por estado/cidade se selecionados
       if (selectedState || selectedCity) {
         filteredData = filteredData.filter((medico) => {
           if (!medico.locais_atendimento || medico.locais_atendimento.length === 0) {
@@ -115,11 +191,29 @@ const HeroSection = () => {
         });
       }
 
+      // Buscar médicos que têm agenda aberta (slots disponíveis no futuro)
+      const now = new Date();
+      const medicoIds = filteredData.map(m => m.id);
+      
+      if (medicoIds.length > 0) {
+        const { data: slotsData } = await supabase
+          .from("agenda_slots")
+          .select("medico_id, data_hora, disponivel")
+          .in("medico_id", medicoIds)
+          .eq("disponivel", true)
+          .gte("data_hora", now.toISOString());
+
+        // Filtrar apenas médicos com pelo menos um slot disponível
+        const medicosComAgenda = new Set(slotsData?.map(s => s.medico_id) || []);
+        
+        filteredData = filteredData.filter(m => medicosComAgenda.has(m.id));
+      }
+
       setMedicos(filteredData);
       setShowResults(true);
 
       if (filteredData.length === 0) {
-        toast.info("Nenhum médico encontrado com os critérios informados");
+        toast.info("Nenhum médico encontrado com agenda disponível");
       }
     } catch (error) {
       console.error("Erro ao buscar médicos:", error);
@@ -185,29 +279,46 @@ const HeroSection = () => {
                   </div>
 
                   {/* Location Selects */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="relative">
-                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground z-10" />
-                      <Select value={selectedState} onValueChange={handleStateChange}>
-                        <SelectTrigger className="pl-10 h-11 rounded-lg border-border bg-muted/30 text-sm">
-                          <SelectValue placeholder="Estado" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-60">
-                          {brazilStates.map((state) => (
-                            <SelectItem key={state.sigla} value={state.sigla}>
-                              {state.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground z-10" />
+                        <Select value={selectedState} onValueChange={handleStateChange}>
+                          <SelectTrigger className={`pl-10 h-11 rounded-lg border-border bg-muted/30 text-sm ${locationDetected ? 'border-green-500' : ''}`}>
+                            <SelectValue placeholder="Estado" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60 bg-background z-50">
+                            {brazilStates.map((state) => (
+                              <SelectItem key={state.sigla} value={state.sigla}>
+                                {state.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className={`h-11 w-11 shrink-0 ${locationDetected ? 'border-green-500 text-green-600' : ''}`}
+                        onClick={requestGeolocation}
+                        disabled={isGettingLocation}
+                        title="Usar minha localização"
+                      >
+                        {isGettingLocation ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Locate className="w-5 h-5" />
+                        )}
+                      </Button>
                     </div>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground z-10" />
                       <Select value={selectedCity} onValueChange={setSelectedCity} disabled={!selectedState}>
-                        <SelectTrigger className="pl-10 h-11 rounded-lg border-border bg-muted/30 text-sm">
+                        <SelectTrigger className={`pl-10 h-11 rounded-lg border-border bg-muted/30 text-sm ${locationDetected && selectedCity ? 'border-green-500' : ''}`}>
                           <SelectValue placeholder="Cidade" />
                         </SelectTrigger>
-                        <SelectContent className="max-h-60">
+                        <SelectContent className="max-h-60 bg-background z-50">
                           {cities.map((city) => (
                             <SelectItem key={city} value={city.toLowerCase()}>
                               {city}
