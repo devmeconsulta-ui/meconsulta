@@ -401,7 +401,7 @@ export function AgendaInternaModal({
 
       // Create consultation
       const { error: consultaError } = await supabase.from("consultas").insert({
-        medico_id: medicoId,
+        medico_id: formData.medicoSelecionado || medicoId,
         paciente_id: pacienteId,
         data_hora: finalDataHora,
         origem: "interna",
@@ -416,7 +416,9 @@ export function AgendaInternaModal({
         nome_paciente_consulta: formData.nome,
         tipo_servico: formData.procedimento,
         observacoes_paciente: formData.observacoes || null,
-      });
+        tipo_atendimento: formData.tipoAtendimento,
+        convenio_id: formData.tipoAtendimento === "convenio" && formData.convenioId ? formData.convenioId : null,
+      } as any);
 
       if (consultaError) {
         throw new Error("Erro ao criar consulta");
