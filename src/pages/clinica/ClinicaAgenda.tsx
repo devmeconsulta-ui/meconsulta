@@ -113,7 +113,7 @@ export default function ClinicaAgenda() {
   const { clinicaData } = useOutletContext<ClinicaContext>();
   const [slots, setSlots] = useState<Slot[]>([]);
   const [medicos, setMedicos] = useState<Array<{ id: string; nome: string }>>([]);
-  const [medicosCompletos, setMedicosCompletos] = useState<Array<{ id: string; nome: string; valor_consulta: number; percentual_repasse: number }>>([]);
+  const [medicosCompletos, setMedicosCompletos] = useState<Array<{ id: string; nome: string; valor_consulta: number; percentual_repasse: number; especialidade: string | null }>>([]);
   const [locais, setLocais] = useState<Local[]>([]);
   const [usuariosClinica, setUsuariosClinica] = useState<UsuarioClinica[]>([]);
   const [loading, setLoading] = useState(true);
@@ -210,7 +210,7 @@ export default function ClinicaAgenda() {
     // Busca médicos vinculados
     const { data: vinculosData } = await supabase
       .from("clinicas_medicos")
-      .select("medico_id, medicos(id, nome, valor_consulta, percentual_repasse)")
+      .select("medico_id, medicos(id, nome, valor_consulta, percentual_repasse, especialidade)")
       .eq("clinica_id", clinicaData.id)
       .eq("ativo", true);
 
@@ -1429,6 +1429,8 @@ export default function ClinicaAgenda() {
             percentualRepasse={medicoInfo?.percentual_repasse || 70}
             usuariosClinica={usuariosClinica}
             locais={slotLocais}
+            medicos={medicosCompletos.map(m => ({ id: m.id, nome: m.nome, especialidade: m.especialidade }))}
+            clinicaId={clinicaData?.id}
             onSuccess={() => {
               fetchData();
               setAgendaModalOpen(false);
