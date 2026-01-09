@@ -448,6 +448,7 @@ export type Database = {
           asaas_invoice_url: string | null
           asaas_payment_id: string | null
           clinica_id: string | null
+          convenio_id: string | null
           created_at: string | null
           data_hora: string
           data_hora_finalizacao_medico: string | null
@@ -472,6 +473,7 @@ export type Database = {
           status_consulta: string
           status_pagamento: string
           status_repasse: string
+          tipo_atendimento: string | null
           tipo_servico: string | null
           usuario_clinica_id: string | null
           valor_consulta: number
@@ -483,6 +485,7 @@ export type Database = {
           asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
           clinica_id?: string | null
+          convenio_id?: string | null
           created_at?: string | null
           data_hora: string
           data_hora_finalizacao_medico?: string | null
@@ -507,6 +510,7 @@ export type Database = {
           status_consulta?: string
           status_pagamento?: string
           status_repasse?: string
+          tipo_atendimento?: string | null
           tipo_servico?: string | null
           usuario_clinica_id?: string | null
           valor_consulta: number
@@ -518,6 +522,7 @@ export type Database = {
           asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
           clinica_id?: string | null
+          convenio_id?: string | null
           created_at?: string | null
           data_hora?: string
           data_hora_finalizacao_medico?: string | null
@@ -542,6 +547,7 @@ export type Database = {
           status_consulta?: string
           status_pagamento?: string
           status_repasse?: string
+          tipo_atendimento?: string | null
           tipo_servico?: string | null
           usuario_clinica_id?: string | null
           valor_consulta?: number
@@ -561,6 +567,13 @@ export type Database = {
             columns: ["clinica_id"]
             isOneToOne: false
             referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultas_convenio_id_fkey"
+            columns: ["convenio_id"]
+            isOneToOne: false
+            referencedRelation: "convenios"
             referencedColumns: ["id"]
           },
           {
