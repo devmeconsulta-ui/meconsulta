@@ -41,7 +41,7 @@ const SouMedico = () => {
   };
 
   const handleCTA = () => {
-    window.open('https://wa.me/5511999999999?text=Olá! Sou médico e tenho interesse em ser parceiro MeConsulta.', '_blank');
+    navigate('/entrar?cadastro=true');
   };
 
   const stats = [
