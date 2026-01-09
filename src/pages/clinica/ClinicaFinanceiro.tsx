@@ -1,8 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
-import { format, subDays, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { format, subDays, parseISO, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +72,7 @@ import {
   Plus,
   Edit,
   Trash2,
-  Calendar,
+  Calendar as CalendarIcon,
   CreditCard,
   Building,
   Building2,
@@ -178,6 +181,10 @@ export default function ClinicaFinanceiro() {
   const [origemFilter, setOrigemFilter] = useState("todos");
   const [localFilter, setLocalFilter] = useState("todos");
   const [searchPaciente, setSearchPaciente] = useState("");
+  
+  // Filtros customizados para aba Origem
+  const [origemDateStart, setOrigemDateStart] = useState<Date | undefined>(subDays(new Date(), 30));
+  const [origemDateEnd, setOrigemDateEnd] = useState<Date | undefined>(new Date());
 
   // Modals
   const [showCentroCustoModal, setShowCentroCustoModal] = useState(false);
@@ -410,15 +417,28 @@ export default function ClinicaFinanceiro() {
     return { pago, pendente, cancelado, total, pagos };
   }, [filteredConsultas]);
 
+  // Dados filtrados para aba Origem com datas customizáveis
+  const origemFilteredConsultas = useMemo(() => {
+    if (!origemDateStart || !origemDateEnd) return filteredConsultas;
+    
+    return filteredConsultas.filter((c) => {
+      const consultaDate = parseISO(c.data_hora);
+      return isWithinInterval(consultaDate, {
+        start: origemDateStart,
+        end: new Date(origemDateEnd.getTime() + 24 * 60 * 60 * 1000 - 1), // Include end date fully
+      });
+    });
+  }, [filteredConsultas, origemDateStart, origemDateEnd]);
+
   const originChartData = useMemo(() => {
-    const online = filteredConsultas.filter((c) => c.origem === "online");
-    const interna = filteredConsultas.filter((c) => c.origem === "interna");
+    const online = origemFilteredConsultas.filter((c) => c.origem === "online");
+    const interna = origemFilteredConsultas.filter((c) => c.origem === "interna");
     
     return [
       { name: "Online", value: online.length, receita: online.filter(c => c.status_pagamento === "pago").reduce((s, c) => s + c.valor_consulta, 0) },
       { name: "Interna", value: interna.length, receita: interna.filter(c => c.status_pagamento === "pago").reduce((s, c) => s + c.valor_consulta, 0) },
     ];
-  }, [filteredConsultas]);
+  }, [origemFilteredConsultas]);
 
   const cashFlowData = useMemo(() => {
     const data: { [key: string]: { entradas: number; saidas: number } } = {};
@@ -1000,6 +1020,105 @@ export default function ClinicaFinanceiro() {
 
         {/* Tab: Origem & Canais */}
         <TabsContent value="origem" className="mt-6 space-y-6">
+          {/* Filtros de Data */}
+          <Card className="card-shadow">
+            <CardContent className="pt-6">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Período:</span>
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-[150px] justify-start text-left font-normal",
+                          !origemDateStart && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {origemDateStart ? format(origemDateStart, "dd/MM/yyyy") : "Data início"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={origemDateStart}
+                        onSelect={setOrigemDateStart}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  
+                  <span className="text-muted-foreground">até</span>
+                  
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-[150px] justify-start text-left font-normal",
+                          !origemDateEnd && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {origemDateEnd ? format(origemDateEnd, "dd/MM/yyyy") : "Data fim"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={origemDateEnd}
+                        onSelect={setOrigemDateEnd}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="flex gap-2 ml-auto">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setOrigemDateStart(subDays(new Date(), 7));
+                      setOrigemDateEnd(new Date());
+                    }}
+                  >
+                    7 dias
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setOrigemDateStart(subDays(new Date(), 30));
+                      setOrigemDateEnd(new Date());
+                    }}
+                  >
+                    30 dias
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setOrigemDateStart(subDays(new Date(), 90));
+                      setOrigemDateEnd(new Date());
+                    }}
+                  >
+                    90 dias
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Métricas por Origem - Cards grandes */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Card Online */}
