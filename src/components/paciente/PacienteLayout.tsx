@@ -9,7 +9,6 @@ export function PacienteLayout() {
   const { currentUser, isLoading } = useAuth();
   const navigate = useNavigate();
   const [pacienteData, setPacienteData] = useState<any>(null);
-  const [notificacoesCount, setNotificacoesCount] = useState(0);
 
   useEffect(() => {
     if (!isLoading && (!currentUser || currentUser.tipo !== "paciente")) {
@@ -26,16 +25,6 @@ export function PacienteLayout() {
           .eq("usuario_id", currentUser.id)
           .maybeSingle();
         setPacienteData(data);
-
-        // Contar consultas com pagamento pendente como "notificações"
-        if (data?.id) {
-          const { count } = await supabase
-            .from("consultas")
-            .select("*", { count: "exact", head: true })
-            .eq("paciente_id", data.id)
-            .eq("status_pagamento", "pendente");
-          setNotificacoesCount(count || 0);
-        }
       }
     }
     fetchPacienteData();
@@ -53,7 +42,7 @@ export function PacienteLayout() {
     <div className="min-h-screen bg-background">
       <PacienteSidebar pacienteId={pacienteData?.id} />
       <div className="lg:pl-64">
-        <PacienteHeader pacienteData={pacienteData} notificacoesCount={notificacoesCount} />
+        <PacienteHeader pacienteData={pacienteData} />
         <main className="p-6 lg:p-8">
           <Outlet context={{ pacienteData, setPacienteData }} />
         </main>

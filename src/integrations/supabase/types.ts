@@ -896,34 +896,49 @@ export type Database = {
         Row: {
           cpf: string
           created_at: string
+          data_aprovacao: string | null
           data_nascimento: string
           id: string
           nome_completo: string
           nome_mae: string
+          observacoes_analise: string | null
           paciente_id: string
+          quantidade_parcelas: number | null
           status: string
+          taxa_juros_mensal: number | null
+          valor_aprovado: number | null
           valor_pretendido: number | null
         }
         Insert: {
           cpf: string
           created_at?: string
+          data_aprovacao?: string | null
           data_nascimento: string
           id?: string
           nome_completo: string
           nome_mae: string
+          observacoes_analise?: string | null
           paciente_id: string
+          quantidade_parcelas?: number | null
           status?: string
+          taxa_juros_mensal?: number | null
+          valor_aprovado?: number | null
           valor_pretendido?: number | null
         }
         Update: {
           cpf?: string
           created_at?: string
+          data_aprovacao?: string | null
           data_nascimento?: string
           id?: string
           nome_completo?: string
           nome_mae?: string
+          observacoes_analise?: string | null
           paciente_id?: string
+          quantidade_parcelas?: number | null
           status?: string
+          taxa_juros_mensal?: number | null
+          valor_aprovado?: number | null
           valor_pretendido?: number | null
         }
         Relationships: [
@@ -1178,6 +1193,50 @@ export type Database = {
           },
           {
             foreignKeyName: "paciente_favoritos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      paciente_notificacoes: {
+        Row: {
+          categoria: string
+          created_at: string
+          id: string
+          lida: boolean
+          mensagem: string
+          paciente_id: string
+          referencia_id: string | null
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          categoria?: string
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem: string
+          paciente_id: string
+          referencia_id?: string | null
+          tipo?: string
+          titulo: string
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem?: string
+          paciente_id?: string
+          referencia_id?: string | null
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paciente_notificacoes_paciente_id_fkey"
             columns: ["paciente_id"]
             isOneToOne: false
             referencedRelation: "pacientes"
