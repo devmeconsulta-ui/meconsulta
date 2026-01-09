@@ -72,10 +72,12 @@ import {
   Calendar,
   CreditCard,
   Building,
+  Building2,
   Users,
   Percent,
   Settings,
   FileText,
+  PieChart as PieChartIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -998,69 +1000,225 @@ export default function ClinicaFinanceiro() {
 
         {/* Tab: Origem & Canais */}
         <TabsContent value="origem" className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="card-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5" />
-                  Consultas por Origem
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie data={originChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                      {originChartData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+          {/* Métricas por Origem - Cards grandes */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Card Online */}
+            <Card className="bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent border-emerald-500/30 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-16 -mt-16" />
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    <Globe className="h-7 w-7 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-foreground">Online</h3>
+                    <p className="text-sm text-muted-foreground">Agendamentos pela plataforma</p>
+                  </div>
+                </div>
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                  <div className="bg-background/60 backdrop-blur-sm rounded-xl p-4">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Consultas</p>
+                    <p className="text-3xl font-bold text-emerald-600 mt-1">
+                      {originChartData.find(o => o.name === 'Online')?.value || 0}
+                    </p>
+                  </div>
+                  <div className="bg-background/60 backdrop-blur-sm rounded-xl p-4">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Receita</p>
+                    <p className="text-2xl font-bold text-emerald-600 mt-1">
+                      {formatCurrency(originChartData.find(o => o.name === 'Online')?.receita || 0)}
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
+            {/* Card Interna */}
+            <Card className="bg-gradient-to-br from-blue-500/15 via-blue-500/5 to-transparent border-blue-500/30 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full -mr-16 -mt-16" />
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <Building2 className="h-7 w-7 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-foreground">Interna</h3>
+                    <p className="text-sm text-muted-foreground">Agendamentos diretos</p>
+                  </div>
+                </div>
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                  <div className="bg-background/60 backdrop-blur-sm rounded-xl p-4">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Consultas</p>
+                    <p className="text-3xl font-bold text-blue-600 mt-1">
+                      {originChartData.find(o => o.name === 'Interna')?.value || 0}
+                    </p>
+                  </div>
+                  <div className="bg-background/60 backdrop-blur-sm rounded-xl p-4">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Receita</p>
+                    <p className="text-2xl font-bold text-blue-600 mt-1">
+                      {formatCurrency(originChartData.find(o => o.name === 'Interna')?.receita || 0)}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Charts lado a lado */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Distribuição em Donut Chart */}
             <Card className="card-shadow">
-              <CardHeader>
-                <CardTitle>Receita por Canal</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <PieChartIcon className="h-5 w-5 text-primary" />
+                  Distribuição de Consultas
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={originChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis tickFormatter={(v) => `R$${v}`} />
-                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                    <Bar dataKey="receita" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <div className="flex items-center gap-4">
+                  <ResponsiveContainer width="50%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={originChartData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        strokeWidth={3}
+                        stroke="hsl(var(--background))"
+                      >
+                        <Cell fill="#10B981" />
+                        <Cell fill="#3B82F6" />
+                      </Pie>
+                      <Tooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload?.[0]) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-background/95 backdrop-blur-sm border rounded-lg p-3 shadow-lg">
+                                <p className="font-medium">{data.name}</p>
+                                <p className="text-sm text-muted-foreground">{data.value} consultas</p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex-1 space-y-4">
+                    {originChartData.map((item, index) => {
+                      const total = originChartData.reduce((acc, o) => acc + o.value, 0) || 1;
+                      const percent = Math.round((item.value / total) * 100);
+                      const color = index === 0 ? "#10B981" : "#3B82F6";
+                      return (
+                        <div key={item.name} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                              <span className="font-medium">{item.name}</span>
+                            </div>
+                            <span className="text-lg font-bold">{percent}%</span>
+                          </div>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${percent}%`, backgroundColor: color }}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">{item.value} consultas</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Receita por Canal - Bar Chart melhorado */}
+            <Card className="card-shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  Receita por Canal
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={originChartData} barCategoryGap="30%">
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      tickFormatter={(v) => `R$${v}`}
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => [formatCurrency(value), "Receita"]}
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--background))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Bar dataKey="receita" radius={[8, 8, 0, 0]}>
+                      <Cell fill="url(#gradientOnline)" />
+                      <Cell fill="url(#gradientInterna)" />
+                    </Bar>
+                    <defs>
+                      <linearGradient id="gradientOnline" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
+                      </linearGradient>
+                      <linearGradient id="gradientInterna" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3B82F6" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#2563EB" stopOpacity={0.8} />
+                      </linearGradient>
+                    </defs>
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
 
+          {/* Comparativo resumido */}
           <Card className="card-shadow">
-            <CardHeader>
-              <CardTitle>Detalhamento por Origem</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Comparativo de Canais</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {originChartData.map((item) => (
-                  <Card key={item.name} className="bg-muted/50">
-                    <CardContent className="pt-6">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="text-lg font-bold">{item.name}</p>
-                          <p className="text-sm text-muted-foreground">{item.value} consultas</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-green-500">{formatCurrency(item.receita)}</p>
-                          <p className="text-sm text-muted-foreground">receita</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-muted/30 rounded-xl">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Consultas</p>
+                  <p className="text-2xl font-bold mt-1">{originChartData.reduce((acc, o) => acc + o.value, 0)}</p>
+                </div>
+                <div className="text-center p-4 bg-emerald-500/10 rounded-xl">
+                  <p className="text-xs text-emerald-600 uppercase tracking-wide">% Online</p>
+                  <p className="text-2xl font-bold text-emerald-600 mt-1">
+                    {originChartData.reduce((acc, o) => acc + o.value, 0) > 0 
+                      ? Math.round(((originChartData.find(o => o.name === 'Online')?.value || 0) / originChartData.reduce((acc, o) => acc + o.value, 0)) * 100)
+                      : 0}%
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-blue-500/10 rounded-xl">
+                  <p className="text-xs text-blue-600 uppercase tracking-wide">% Interna</p>
+                  <p className="text-2xl font-bold text-blue-600 mt-1">
+                    {originChartData.reduce((acc, o) => acc + o.value, 0) > 0 
+                      ? Math.round(((originChartData.find(o => o.name === 'Interna')?.value || 0) / originChartData.reduce((acc, o) => acc + o.value, 0)) * 100)
+                      : 0}%
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-muted/30 rounded-xl">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Receita Total</p>
+                  <p className="text-xl font-bold mt-1">{formatCurrency(originChartData.reduce((acc, o) => acc + o.receita, 0))}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
