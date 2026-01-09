@@ -504,10 +504,10 @@ export default function PacienteConsultas() {
     return (
       <Card key={consulta.id} className={`card-shadow overflow-hidden ${isPendingPayment ? 'ring-2 ring-yellow-500/50' : ''}`}>
         <CardContent className="p-0">
-          <div className="flex flex-col lg:flex-row">
+          <div className="flex flex-col">
             {/* Doctor Info */}
-            <div className="flex items-start gap-4 p-4 lg:p-6 flex-1">
-              <div className="w-16 h-16 lg:w-20 lg:h-20 bg-primary/10 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
+            <div className="flex items-start gap-3 p-3 sm:p-4 lg:p-6 flex-1">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 bg-primary/10 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
                 {consulta.medicos?.foto_url ? (
                   <img
                     src={consulta.medicos.foto_url}
@@ -515,49 +515,50 @@ export default function PacienteConsultas() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <User className="w-8 h-8 text-primary" />
+                  <User className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-lg truncate">
+                <p className="font-semibold text-sm sm:text-base lg:text-lg truncate">
                   Dr(a). {consulta.medicos?.nome}
                 </p>
-                <p className="text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   {consulta.medicos?.especialidade}
                 </p>
                 {consulta.medicos?.crm && (
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
                     CRM: {consulta.medicos.crm}
                   </p>
                 )}
                 
-                <div className="flex flex-wrap gap-2 mt-3">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2 sm:mt-3">
                   <Badge 
                     variant="outline" 
-                    className={statusColors[status] || ""}
+                    className={`text-[10px] sm:text-xs ${statusColors[status] || ""}`}
                   >
                     {statusIcons[status]}
                     <span className="ml-1">{statusLabels[status] || status}</span>
                   </Badge>
                   
                   {isPendingPayment && (
-                    <Badge variant="destructive" className="gap-1 animate-pulse">
+                    <Badge variant="destructive" className="gap-1 animate-pulse text-[10px] sm:text-xs">
                       <AlertTriangle className="w-3 h-3" />
-                      Pagamento pendente
+                      <span className="hidden sm:inline">Pagamento pendente</span>
+                      <span className="sm:hidden">Pendente</span>
                     </Badge>
                   )}
 
                   {consulta.status_pagamento === "pago" && (
-                    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 gap-1">
+                    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 gap-1 text-[10px] sm:text-xs">
                       <CheckCircle className="w-3 h-3" />
                       Pago
                     </Badge>
                   )}
 
                   {consulta.finalizado_paciente && (
-                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 gap-1">
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 gap-1 text-[10px] sm:text-xs">
                       <ThumbsUp className="w-3 h-3" />
-                      Confirmado
+                      <span className="hidden sm:inline">Confirmado</span>
                     </Badge>
                   )}
                 </div>
@@ -565,54 +566,54 @@ export default function PacienteConsultas() {
             </div>
 
             {/* Date/Time & Actions */}
-            <div className="border-t lg:border-t-0 lg:border-l border-border p-4 lg:p-6 bg-muted/30 flex flex-col justify-between gap-4 lg:w-72">
-              <div>
-                <div className="flex items-center gap-2 text-primary font-semibold">
-                  <Calendar className="w-4 h-4" />
-                  {format(parseISO(consulta.data_hora), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+            <div className="border-t border-border p-3 sm:p-4 lg:p-6 bg-muted/30 flex flex-col gap-3 sm:gap-4">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:gap-x-6">
+                <div className="flex items-center gap-1.5 sm:gap-2 text-primary font-semibold text-xs sm:text-sm">
+                  <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  {format(parseISO(consulta.data_hora), "dd/MM/yyyy", { locale: ptBR })}
                 </div>
-                <div className="flex items-center gap-2 text-muted-foreground mt-1">
-                  <Clock className="w-4 h-4" />
+                <div className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground text-xs sm:text-sm">
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   {format(parseISO(consulta.data_hora), "HH:mm")}
                 </div>
-                
-                {/* Local de atendimento */}
-                {consulta.local && (
-                  <div className="flex items-start gap-2 mt-2 text-sm">
-                    <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-foreground">{consulta.local.nome_local}</p>
-                      {consulta.local.cidade && (
-                        <p className="text-muted-foreground text-xs">
-                          {consulta.local.cidade}{consulta.local.estado ? `, ${consulta.local.estado}` : ''}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                <p className="text-lg font-bold text-foreground mt-2">
+                <p className="text-sm sm:text-base font-bold text-foreground">
                   R$ {Number(consulta.valor_consulta || 0).toFixed(2)}
                 </p>
               </div>
+              
+              {/* Local de atendimento */}
+              {consulta.local && (
+                <div className="flex items-start gap-1.5 sm:gap-2 text-xs sm:text-sm">
+                  <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground truncate">{consulta.local.nome_local}</p>
+                    {consulta.local.cidade && (
+                      <p className="text-muted-foreground text-[10px] sm:text-xs truncate">
+                        {consulta.local.cidade}{consulta.local.estado ? `, ${consulta.local.estado}` : ''}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
-              <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                 {/* Highlighted Payment Button for pending */}
                 {isPendingPayment && (
                   <Button 
                     size="sm"
                     disabled={processandoPagamento === consulta.id}
                     onClick={() => handleFinalizarPagamento(consulta)}
-                    className="gap-1 bg-yellow-500 hover:bg-yellow-600 text-yellow-950 font-semibold animate-pulse"
+                    className="gap-1 bg-yellow-500 hover:bg-yellow-600 text-yellow-950 font-semibold animate-pulse col-span-2 text-xs sm:text-sm"
                   >
                     {processandoPagamento === consulta.id ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Processando...
+                        <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+                        <span className="hidden sm:inline">Processando...</span>
+                        <span className="sm:hidden">Aguarde...</span>
                       </>
                     ) : (
                       <>
-                        <CreditCard className="w-4 h-4" />
+                        <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         Pagar Agora
                       </>
                     )}
@@ -623,6 +624,7 @@ export default function PacienteConsultas() {
                   variant="outline"
                   size="sm"
                   onClick={() => setDetalhesModal(consulta)}
+                  className="text-xs sm:text-sm"
                 >
                   Ver detalhes
                 </Button>
@@ -631,11 +633,12 @@ export default function PacienteConsultas() {
                 {showConfirmButton && (
                   <Button 
                     size="sm"
-                    className="gap-1 bg-emerald-600 hover:bg-emerald-700"
+                    className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs sm:text-sm"
                     onClick={() => setConfirmarAtendimentoModal(consulta)}
                   >
-                    <ThumbsUp className="w-4 h-4" />
-                    Confirmar atendimento
+                    <ThumbsUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Confirmar atendimento</span>
+                    <span className="sm:hidden">Confirmar</span>
                   </Button>
                 )}
                 
@@ -644,19 +647,19 @@ export default function PacienteConsultas() {
                     <Button
                       variant="secondary"
                       size="sm"
-                      className="gap-1"
+                      className="gap-1 text-xs sm:text-sm"
                       onClick={() => navigate(`/paciente/marcar?remarcar=${consulta.id}&medico=${consulta.medico_id}`)}
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       Remarcar
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10 text-xs sm:text-sm"
                       onClick={() => setCancelarModal(consulta)}
                     >
-                      Cancelar consulta
+                      Cancelar
                     </Button>
                   </>
                 )}
@@ -666,11 +669,11 @@ export default function PacienteConsultas() {
                   <Button
                     size="sm"
                     variant="secondary"
-                    className="gap-1"
+                    className="gap-1 text-xs sm:text-sm"
                     onClick={() => setAvaliarModal(consulta)}
                   >
-                    <Star className="w-4 h-4" />
-                    Avaliar médico
+                    <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    Avaliar
                   </Button>
                 )}
               </div>
@@ -724,11 +727,11 @@ export default function PacienteConsultas() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold">Minhas Consultas</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Minhas Consultas</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Gerencie suas consultas agendadas e histórico
           </p>
         </div>
@@ -737,84 +740,86 @@ export default function PacienteConsultas() {
           size="sm" 
           onClick={handleRefresh}
           disabled={sincronizando || loading}
-          className="gap-2"
+          className="gap-2 w-full sm:w-auto"
         >
           <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />
-          {sincronizando ? 'Atualizando...' : 'Atualizar'}
+          <span className="sm:inline">{sincronizando ? 'Atualizando...' : 'Atualizar'}</span>
         </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3">
         <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => { setStatusFilter("todos"); setPaymentFilter("todos"); }}>
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold">{stats.total}</p>
-            <p className="text-xs text-muted-foreground">Total</p>
+          <CardContent className="p-2 sm:p-3 text-center">
+            <p className="text-lg sm:text-2xl font-bold">{stats.total}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Total</p>
           </CardContent>
         </Card>
         <Card className={`cursor-pointer hover:bg-muted/50 transition-colors ${stats.pendentes > 0 ? 'ring-2 ring-yellow-500/50' : ''}`} onClick={() => { setStatusFilter("todos"); setPaymentFilter("pendente"); }}>
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-yellow-600">{stats.pendentes}</p>
-            <p className="text-xs text-muted-foreground">Pag. Pendente</p>
+          <CardContent className="p-2 sm:p-3 text-center">
+            <p className="text-lg sm:text-2xl font-bold text-yellow-600">{stats.pendentes}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Pendente</p>
           </CardContent>
         </Card>
         <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => { setStatusFilter("confirmada"); setPaymentFilter("todos"); }}>
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-green-600">{stats.confirmadas}</p>
-            <p className="text-xs text-muted-foreground">Confirmadas</p>
+          <CardContent className="p-2 sm:p-3 text-center">
+            <p className="text-lg sm:text-2xl font-bold text-green-600">{stats.confirmadas}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Confirmadas</p>
           </CardContent>
         </Card>
-        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => { setStatusFilter("concluida"); setPaymentFilter("todos"); }}>
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-emerald-600">{stats.concluidas}</p>
-            <p className="text-xs text-muted-foreground">Concluídas</p>
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors hidden sm:block" onClick={() => { setStatusFilter("concluida"); setPaymentFilter("todos"); }}>
+          <CardContent className="p-2 sm:p-3 text-center">
+            <p className="text-lg sm:text-2xl font-bold text-emerald-600">{stats.concluidas}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Concluídas</p>
           </CardContent>
         </Card>
-        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => { setStatusFilter("cancelada"); setPaymentFilter("todos"); }}>
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-red-600">{stats.canceladas}</p>
-            <p className="text-xs text-muted-foreground">Canceladas</p>
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors hidden sm:block" onClick={() => { setStatusFilter("cancelada"); setPaymentFilter("todos"); }}>
+          <CardContent className="p-2 sm:p-3 text-center">
+            <p className="text-lg sm:text-2xl font-bold text-red-600">{stats.canceladas}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Canceladas</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
       <Card className="card-shadow">
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex flex-col gap-3">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input
-                placeholder="Buscar por médico ou especialidade..."
+                placeholder="Buscar médico..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 text-sm"
               />
             </div>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-              <SelectTrigger className="w-full md:w-[200px]">
-                <SelectValue placeholder="Status da consulta" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os status</SelectItem>
-                <SelectItem value="aguardando_pagamento">Aguardando Pagamento</SelectItem>
-                <SelectItem value="confirmada">Confirmada</SelectItem>
-                <SelectItem value="atendida_medico">Atendida</SelectItem>
-                <SelectItem value="concluida">Concluída</SelectItem>
-                <SelectItem value="cancelada">Cancelada</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={paymentFilter} onValueChange={(v) => setPaymentFilter(v as PaymentFilter)}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Status pagamento" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos pagamentos</SelectItem>
-                <SelectItem value="pago">Pago</SelectItem>
-                <SelectItem value="pendente">Pendente</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+                <SelectTrigger className="flex-1 text-xs sm:text-sm">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos status</SelectItem>
+                  <SelectItem value="aguardando_pagamento">Aguardando</SelectItem>
+                  <SelectItem value="confirmada">Confirmada</SelectItem>
+                  <SelectItem value="atendida_medico">Atendida</SelectItem>
+                  <SelectItem value="concluida">Concluída</SelectItem>
+                  <SelectItem value="cancelada">Cancelada</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={paymentFilter} onValueChange={(v) => setPaymentFilter(v as PaymentFilter)}>
+                <SelectTrigger className="flex-1 text-xs sm:text-sm">
+                  <SelectValue placeholder="Pagamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="pago">Pago</SelectItem>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
