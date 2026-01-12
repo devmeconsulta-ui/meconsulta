@@ -190,6 +190,12 @@ export default function ClinicaFinanceiro() {
   const [origemDateStart, setOrigemDateStart] = useState<Date | undefined>(subDays(new Date(), 30));
   const [origemDateEnd, setOrigemDateEnd] = useState<Date | undefined>(new Date());
 
+  // Filtros para aba Repasses
+  const [repasseDateStart, setRepasseDateStart] = useState<Date | undefined>(subDays(new Date(), 90));
+  const [repasseDateEnd, setRepasseDateEnd] = useState<Date | undefined>(new Date());
+  const [repasseStatusFilter, setRepasseStatusFilter] = useState<"todos" | "pendente" | "pago">("todos");
+  const [repasseMedicoFilter, setRepasseMedicoFilter] = useState("todos");
+
   // Modals
   const [showCentroCustoModal, setShowCentroCustoModal] = useState(false);
   const [showContaPagarModal, setShowContaPagarModal] = useState(false);
@@ -488,7 +494,19 @@ export default function ClinicaFinanceiro() {
   const repassesPorMedico = useMemo(() => {
     const data: { [key: string]: { pendente: number; pago: number } } = {};
     
-    filteredConsultas
+    // Filter consultas based on repasse date range
+    const filteredByDate = filteredConsultas.filter((c) => {
+      if (!repasseDateStart || !repasseDateEnd) return true;
+      const consultaDate = parseISO(c.data_hora);
+      return isWithinInterval(consultaDate, { start: repasseDateStart, end: repasseDateEnd });
+    });
+
+    // Filter by medico if selected
+    const filteredByMedico = repasseMedicoFilter === "todos" 
+      ? filteredByDate 
+      : filteredByDate.filter(c => c.medico_id === repasseMedicoFilter);
+    
+    filteredByMedico
       .filter((c) => c.status_pagamento === "pago" && c.finalizado_medico)
       .forEach((c) => {
         const medicoNome = c.medico?.nome || "Desconhecido";
@@ -500,7 +518,42 @@ export default function ClinicaFinanceiro() {
       nome,
       ...valores,
     }));
-  }, [filteredConsultas]);
+  }, [filteredConsultas, repasseDateStart, repasseDateEnd, repasseMedicoFilter]);
+
+  // Filtered repasses for display and export
+  const filteredRepasses = useMemo(() => {
+    return repasses.filter((r) => {
+      // Date filter
+      if (repasseDateStart && repasseDateEnd) {
+        const periodoInicio = parseISO(r.periodo_inicio);
+        const periodoFim = parseISO(r.periodo_fim);
+        // Check if repasse period overlaps with filter range
+        if (periodoFim < repasseDateStart || periodoInicio > repasseDateEnd) {
+          return false;
+        }
+      }
+      
+      // Status filter
+      if (repasseStatusFilter !== "todos" && r.status !== repasseStatusFilter) {
+        return false;
+      }
+      
+      // Medico filter
+      if (repasseMedicoFilter !== "todos" && r.medico_id !== repasseMedicoFilter) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [repasses, repasseDateStart, repasseDateEnd, repasseStatusFilter, repasseMedicoFilter]);
+
+  const totalRepassesPendentesFiltered = useMemo(() => {
+    return filteredRepasses.filter(r => r.status === "pendente").reduce((s, r) => s + r.valor_total, 0);
+  }, [filteredRepasses]);
+
+  const totalRepassadoFiltered = useMemo(() => {
+    return filteredRepasses.filter(r => r.status === "pago").reduce((s, r) => s + r.valor_total, 0);
+  }, [filteredRepasses]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -528,25 +581,30 @@ export default function ClinicaFinanceiro() {
     doc.text(`${clinicaData?.nome_fantasia || "Clínica"}`, pageWidth / 2, 28, { align: "center" });
     doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, pageWidth / 2, 34, { align: "center" });
     
+    // Period info
+    if (repasseDateStart && repasseDateEnd) {
+      doc.text(`Período: ${format(repasseDateStart, "dd/MM/yyyy")} a ${format(repasseDateEnd, "dd/MM/yyyy")}`, pageWidth / 2, 40, { align: "center" });
+    }
+    
     // Summary
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
-    doc.text("Resumo", 14, 48);
+    doc.text("Resumo", 14, 52);
     
     doc.setFontSize(10);
-    const totalPendente = totalRepassesPendentes;
-    const totalPago = repasses.filter(r => r.status === "pago").reduce((s, r) => s + r.valor_total, 0);
-    const totalRepasses = repasses.length;
+    const totalPendente = totalRepassesPendentesFiltered;
+    const totalPago = totalRepassadoFiltered;
+    const totalRepassesCount = filteredRepasses.length;
     
-    doc.text(`Total Pendente: ${formatCurrency(totalPendente)}`, 14, 56);
-    doc.text(`Total Repassado: ${formatCurrency(totalPago)}`, 14, 62);
-    doc.text(`Quantidade de Repasses: ${totalRepasses}`, 14, 68);
+    doc.text(`Total Pendente: ${formatCurrency(totalPendente)}`, 14, 60);
+    doc.text(`Total Repassado: ${formatCurrency(totalPago)}`, 14, 66);
+    doc.text(`Quantidade de Repasses: ${totalRepassesCount}`, 14, 72);
     
     // Repasses por Médico
     doc.setFontSize(12);
-    doc.text("Repasses Pendentes por Médico", 14, 82);
+    doc.text("Repasses Pendentes por Médico", 14, 86);
     
-    let yPos = 90;
+    let yPos = 94;
     doc.setFontSize(9);
     
     if (repassesPorMedico.length > 0) {
@@ -583,7 +641,7 @@ export default function ClinicaFinanceiro() {
     yPos += 10;
     
     doc.setFontSize(9);
-    if (repasses.length > 0) {
+    if (filteredRepasses.length > 0) {
       doc.setFillColor(240, 240, 240);
       doc.rect(14, yPos - 4, pageWidth - 28, 8, "F");
       doc.text("Médico", 16, yPos);
@@ -592,7 +650,7 @@ export default function ClinicaFinanceiro() {
       doc.text("Status", 170, yPos);
       yPos += 10;
       
-      repasses.slice(0, 20).forEach((r) => {
+      filteredRepasses.slice(0, 50).forEach((r) => {
         if (yPos > 270) {
           doc.addPage();
           yPos = 20;
@@ -607,7 +665,10 @@ export default function ClinicaFinanceiro() {
       doc.text("Nenhum repasse registrado", 14, yPos);
     }
     
-    doc.save(`repasses_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+    const dateStr = repasseDateStart && repasseDateEnd 
+      ? `${format(repasseDateStart, "yyyy-MM-dd")}_a_${format(repasseDateEnd, "yyyy-MM-dd")}`
+      : format(new Date(), "yyyy-MM-dd");
+    doc.save(`repasses_${dateStr}.pdf`);
     toast.success("Relatório PDF exportado com sucesso!");
   };
 
@@ -618,8 +679,8 @@ export default function ClinicaFinanceiro() {
       "Valor Pendente": item.pendente,
     }));
     
-    // Preparar dados do histórico de repasses
-    const historicoData = repasses.map(r => ({
+    // Preparar dados do histórico de repasses (filtered)
+    const historicoData = filteredRepasses.map(r => ({
       "Médico": `Dr(a). ${r.medico?.nome || "N/A"}`,
       "Período Início": format(parseISO(r.periodo_inicio), "dd/MM/yyyy"),
       "Período Fim": format(parseISO(r.periodo_fim), "dd/MM/yyyy"),
@@ -630,14 +691,19 @@ export default function ClinicaFinanceiro() {
     
     // Preparar resumo
     const resumoData = [{
+      "Métrica": "Período",
+      "Valor": repasseDateStart && repasseDateEnd 
+        ? `${format(repasseDateStart, "dd/MM/yyyy")} a ${format(repasseDateEnd, "dd/MM/yyyy")}`
+        : "Todos",
+    }, {
       "Métrica": "Total Pendente",
-      "Valor": totalRepassesPendentes,
+      "Valor": totalRepassesPendentesFiltered,
     }, {
       "Métrica": "Total Repassado",
-      "Valor": repasses.filter(r => r.status === "pago").reduce((s, r) => s + r.valor_total, 0),
+      "Valor": totalRepassadoFiltered,
     }, {
       "Métrica": "Quantidade de Repasses",
-      "Valor": repasses.length,
+      "Valor": filteredRepasses.length,
     }];
     
     const wb = XLSX.utils.book_new();
@@ -658,7 +724,10 @@ export default function ClinicaFinanceiro() {
       XLSX.utils.book_append_sheet(wb, wsHistorico, "Histórico");
     }
     
-    XLSX.writeFile(wb, `repasses_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    const dateStr = repasseDateStart && repasseDateEnd 
+      ? `${format(repasseDateStart, "yyyy-MM-dd")}_a_${format(repasseDateEnd, "yyyy-MM-dd")}`
+      : format(new Date(), "yyyy-MM-dd");
+    XLSX.writeFile(wb, `repasses_${dateStr}.xlsx`);
     toast.success("Relatório Excel exportado com sucesso!");
   };
 
@@ -1547,29 +1616,180 @@ export default function ClinicaFinanceiro() {
 
         {/* Tab: Repasses */}
         <TabsContent value="repasses" className="mt-6 space-y-6">
-          {/* Export buttons */}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={exportRepassesToExcel}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Exportar Excel
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportRepassesToPDF}>
-              <Download className="h-4 w-4 mr-2" />
-              Exportar PDF
-            </Button>
-          </div>
+          {/* Filtros e botões de exportação */}
+          <Card className="card-shadow">
+            <CardHeader className="pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Filter className="h-5 w-5" />
+                    Filtros do Relatório
+                  </CardTitle>
+                  <CardDescription>Filtre os dados para exportação</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={exportRepassesToExcel}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Excel
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={exportRepassesToPDF}>
+                    <Download className="h-4 w-4 mr-2" />
+                    PDF
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Data início */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Data Início</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !repasseDateStart && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {repasseDateStart ? format(repasseDateStart, "dd/MM/yyyy") : "Selecione"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={repasseDateStart}
+                        onSelect={setRepasseDateStart}
+                        locale={ptBR}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Data fim */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Data Fim</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !repasseDateEnd && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {repasseDateEnd ? format(repasseDateEnd, "dd/MM/yyyy") : "Selecione"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={repasseDateEnd}
+                        onSelect={setRepasseDateEnd}
+                        locale={ptBR}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Status */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Status</Label>
+                  <Select value={repasseStatusFilter} onValueChange={(v) => setRepasseStatusFilter(v as "todos" | "pendente" | "pago")}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="pendente">Pendente</SelectItem>
+                      <SelectItem value="pago">Pago</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Médico */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Médico</Label>
+                  <Select value={repasseMedicoFilter} onValueChange={setRepasseMedicoFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Médico" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      {medicos.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          Dr(a). {m.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Quick period buttons */}
+              <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setRepasseDateStart(subDays(new Date(), 30));
+                    setRepasseDateEnd(new Date());
+                  }}
+                >
+                  Últimos 30 dias
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setRepasseDateStart(subDays(new Date(), 90));
+                    setRepasseDateEnd(new Date());
+                  }}
+                >
+                  Últimos 90 dias
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setRepasseDateStart(startOfMonth(new Date()));
+                    setRepasseDateEnd(endOfMonth(new Date()));
+                  }}
+                >
+                  Este mês
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setRepasseDateStart(undefined);
+                    setRepasseDateEnd(undefined);
+                    setRepasseStatusFilter("todos");
+                    setRepasseMedicoFilter("todos");
+                  }}
+                >
+                  Limpar filtros
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className="border-l-4 border-l-yellow-500">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
                   <CalendarIcon className="h-5 w-5" />
-                  Próximo Repasse
+                  Pendente (Filtrado)
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold text-yellow-500">{formatCurrency(totalRepassesPendentes)}</p>
-                <Badge className="mt-2 bg-yellow-500">Pendente</Badge>
+                <p className="text-3xl font-bold text-yellow-500">{formatCurrency(totalRepassesPendentesFiltered)}</p>
+                <Badge className="mt-2 bg-yellow-500">{filteredRepasses.filter(r => r.status === "pendente").length} repasses</Badge>
               </CardContent>
             </Card>
 
@@ -1577,15 +1797,15 @@ export default function ClinicaFinanceiro() {
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
                   <Wallet className="h-5 w-5" />
-                  Total Repassado
+                  Repassado (Filtrado)
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-green-500">
-                  {formatCurrency(repasses.filter(r => r.status === "pago").reduce((s, r) => s + r.valor_total, 0))}
+                  {formatCurrency(totalRepassadoFiltered)}
                 </p>
                 <p className="text-sm text-muted-foreground mt-2">
-                  {repasses.filter(r => r.status === "pago").length} repasses realizados
+                  {filteredRepasses.filter(r => r.status === "pago").length} repasses realizados
                 </p>
               </CardContent>
             </Card>
@@ -1594,11 +1814,11 @@ export default function ClinicaFinanceiro() {
           <Card className="card-shadow">
             <CardHeader>
               <CardTitle>Repasses por Médico</CardTitle>
-              <CardDescription>Valores pendentes de repasse por consulta</CardDescription>
+              <CardDescription>Valores pendentes de repasse por consulta (período filtrado)</CardDescription>
             </CardHeader>
             <CardContent>
               {repassesPorMedico.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">Nenhum repasse pendente</div>
+                <div className="text-center py-8 text-muted-foreground">Nenhum repasse pendente no período</div>
               ) : (
                 <Table>
                   <TableHeader>
@@ -1623,10 +1843,14 @@ export default function ClinicaFinanceiro() {
           <Card className="card-shadow">
             <CardHeader>
               <CardTitle>Histórico de Repasses</CardTitle>
+              <CardDescription>
+                {filteredRepasses.length} repasse(s) encontrado(s)
+                {repasseDateStart && repasseDateEnd && ` de ${format(repasseDateStart, "dd/MM/yyyy")} a ${format(repasseDateEnd, "dd/MM/yyyy")}`}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              {repasses.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">Nenhum repasse registrado</div>
+              {filteredRepasses.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Nenhum repasse encontrado com os filtros aplicados</div>
               ) : (
                 <Table>
                   <TableHeader>
@@ -1638,7 +1862,7 @@ export default function ClinicaFinanceiro() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {repasses.slice(0, 10).map((r) => (
+                    {filteredRepasses.slice(0, 20).map((r) => (
                       <TableRow key={r.id}>
                         <TableCell>Dr(a). {r.medico?.nome || "N/A"}</TableCell>
                         <TableCell>{format(parseISO(r.periodo_inicio), "dd/MM")} - {format(parseISO(r.periodo_fim), "dd/MM/yy")}</TableCell>
