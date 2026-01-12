@@ -1398,7 +1398,7 @@ export default function ClinicaFinanceiro() {
             <Card className="border-l-4 border-l-yellow-500">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
+                  <CalendarIcon className="h-5 w-5" />
                   Próximo Repasse
                 </CardTitle>
               </CardHeader>
