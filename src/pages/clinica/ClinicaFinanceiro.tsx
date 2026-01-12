@@ -4,6 +4,8 @@ import { format, subDays, parseISO, startOfMonth, endOfMonth, isWithinInterval }
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "@/components/ui/calendar";
+import jsPDF from "jspdf";
+import * as XLSX from "xlsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -81,6 +83,8 @@ import {
   Settings,
   FileText,
   PieChart as PieChartIcon,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -507,6 +511,155 @@ export default function ClinicaFinanceiro() {
 
   const getPatientName = (consulta: Consulta) => {
     return consulta.nome_paciente_consulta || consulta.paciente?.nome || "Não informado";
+  };
+
+  // Export functions
+  const exportRepassesToPDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Header
+    doc.setFontSize(18);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Relatório de Repasses", pageWidth / 2, 20, { align: "center" });
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`${clinicaData?.nome_fantasia || "Clínica"}`, pageWidth / 2, 28, { align: "center" });
+    doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, pageWidth / 2, 34, { align: "center" });
+    
+    // Summary
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Resumo", 14, 48);
+    
+    doc.setFontSize(10);
+    const totalPendente = totalRepassesPendentes;
+    const totalPago = repasses.filter(r => r.status === "pago").reduce((s, r) => s + r.valor_total, 0);
+    const totalRepasses = repasses.length;
+    
+    doc.text(`Total Pendente: ${formatCurrency(totalPendente)}`, 14, 56);
+    doc.text(`Total Repassado: ${formatCurrency(totalPago)}`, 14, 62);
+    doc.text(`Quantidade de Repasses: ${totalRepasses}`, 14, 68);
+    
+    // Repasses por Médico
+    doc.setFontSize(12);
+    doc.text("Repasses Pendentes por Médico", 14, 82);
+    
+    let yPos = 90;
+    doc.setFontSize(9);
+    
+    if (repassesPorMedico.length > 0) {
+      doc.setFillColor(240, 240, 240);
+      doc.rect(14, yPos - 4, pageWidth - 28, 8, "F");
+      doc.setTextColor(0, 0, 0);
+      doc.text("Médico", 16, yPos);
+      doc.text("Valor Pendente", pageWidth - 50, yPos);
+      yPos += 10;
+      
+      repassesPorMedico.forEach((item) => {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.text(`Dr(a). ${item.nome}`, 16, yPos);
+        doc.text(formatCurrency(item.pendente), pageWidth - 50, yPos);
+        yPos += 8;
+      });
+    } else {
+      doc.text("Nenhum repasse pendente", 14, yPos);
+      yPos += 10;
+    }
+    
+    // Histórico de Repasses
+    yPos += 10;
+    if (yPos > 250) {
+      doc.addPage();
+      yPos = 20;
+    }
+    
+    doc.setFontSize(12);
+    doc.text("Histórico de Repasses", 14, yPos);
+    yPos += 10;
+    
+    doc.setFontSize(9);
+    if (repasses.length > 0) {
+      doc.setFillColor(240, 240, 240);
+      doc.rect(14, yPos - 4, pageWidth - 28, 8, "F");
+      doc.text("Médico", 16, yPos);
+      doc.text("Período", 70, yPos);
+      doc.text("Valor", 130, yPos);
+      doc.text("Status", 170, yPos);
+      yPos += 10;
+      
+      repasses.slice(0, 20).forEach((r) => {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.text(`Dr(a). ${r.medico?.nome || "N/A"}`.substring(0, 25), 16, yPos);
+        doc.text(`${format(parseISO(r.periodo_inicio), "dd/MM")} - ${format(parseISO(r.periodo_fim), "dd/MM/yy")}`, 70, yPos);
+        doc.text(formatCurrency(r.valor_total), 130, yPos);
+        doc.text(r.status === "pago" ? "Pago" : "Pendente", 170, yPos);
+        yPos += 8;
+      });
+    } else {
+      doc.text("Nenhum repasse registrado", 14, yPos);
+    }
+    
+    doc.save(`repasses_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+    toast.success("Relatório PDF exportado com sucesso!");
+  };
+
+  const exportRepassesToExcel = () => {
+    // Preparar dados de repasses por médico
+    const repassesPorMedicoData = repassesPorMedico.map(item => ({
+      "Médico": `Dr(a). ${item.nome}`,
+      "Valor Pendente": item.pendente,
+    }));
+    
+    // Preparar dados do histórico de repasses
+    const historicoData = repasses.map(r => ({
+      "Médico": `Dr(a). ${r.medico?.nome || "N/A"}`,
+      "Período Início": format(parseISO(r.periodo_inicio), "dd/MM/yyyy"),
+      "Período Fim": format(parseISO(r.periodo_fim), "dd/MM/yyyy"),
+      "Valor": r.valor_total,
+      "Status": r.status === "pago" ? "Pago" : "Pendente",
+      "Data Pagamento": r.data_pagamento ? format(parseISO(r.data_pagamento), "dd/MM/yyyy") : "-",
+    }));
+    
+    // Preparar resumo
+    const resumoData = [{
+      "Métrica": "Total Pendente",
+      "Valor": totalRepassesPendentes,
+    }, {
+      "Métrica": "Total Repassado",
+      "Valor": repasses.filter(r => r.status === "pago").reduce((s, r) => s + r.valor_total, 0),
+    }, {
+      "Métrica": "Quantidade de Repasses",
+      "Valor": repasses.length,
+    }];
+    
+    const wb = XLSX.utils.book_new();
+    
+    // Aba Resumo
+    const wsResumo = XLSX.utils.json_to_sheet(resumoData);
+    XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
+    
+    // Aba Pendentes por Médico
+    if (repassesPorMedicoData.length > 0) {
+      const wsPorMedico = XLSX.utils.json_to_sheet(repassesPorMedicoData);
+      XLSX.utils.book_append_sheet(wb, wsPorMedico, "Pendentes por Médico");
+    }
+    
+    // Aba Histórico
+    if (historicoData.length > 0) {
+      const wsHistorico = XLSX.utils.json_to_sheet(historicoData);
+      XLSX.utils.book_append_sheet(wb, wsHistorico, "Histórico");
+    }
+    
+    XLSX.writeFile(wb, `repasses_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    toast.success("Relatório Excel exportado com sucesso!");
   };
 
   // CRUD handlers
@@ -1394,6 +1547,18 @@ export default function ClinicaFinanceiro() {
 
         {/* Tab: Repasses */}
         <TabsContent value="repasses" className="mt-6 space-y-6">
+          {/* Export buttons */}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={exportRepassesToExcel}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Exportar Excel
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportRepassesToPDF}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar PDF
+            </Button>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className="border-l-4 border-l-yellow-500">
               <CardHeader className="pb-2">
