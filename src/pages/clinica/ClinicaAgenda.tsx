@@ -63,7 +63,9 @@ import {
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AgendaInternaModal } from "@/components/medico/AgendaInternaModal";
+import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
 import { cn } from "@/lib/utils";
+import { Edit } from "lucide-react";
 
 interface ClinicaContext {
   clinicaData: any;
@@ -128,7 +130,9 @@ export default function ClinicaAgenda() {
   // Modals
   const [gerarSlotsModalOpen, setGerarSlotsModalOpen] = useState(false);
   const [agendaModalOpen, setAgendaModalOpen] = useState(false);
+  const [editarModalOpen, setEditarModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+  const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
 
   // Gerar Slots form state
   const [gerarForm, setGerarForm] = useState({
@@ -374,7 +378,34 @@ export default function ClinicaAgenda() {
     if (slotInfo.status === "livre") {
       setSelectedSlot(slot);
       setAgendaModalOpen(true);
+    } else if (slotInfo.status === "reservado" && slot.consultas && slot.consultas.length > 0) {
+      // Abrir modal de edição para consultas existentes
+      handleEditConsulta(slot.consultas[0].id);
     }
+  }
+
+  async function handleEditConsulta(consultaId: string) {
+    // Buscar dados completos da consulta
+    const { data, error } = await supabase
+      .from("consultas")
+      .select(`
+        *,
+        pacientes(id, nome, cpf, telefone),
+        medicos(id, nome, especialidade),
+        locais_atendimento(id, nome_local, tipo_atendimento),
+        convenios(id, nome)
+      `)
+      .eq("id", consultaId)
+      .single();
+
+    if (error) {
+      toast.error("Erro ao carregar consulta");
+      console.error(error);
+      return;
+    }
+
+    setSelectedConsulta(data);
+    setEditarModalOpen(true);
   }
 
   async function handleToggleSlotBlock(slot: Slot, e: React.MouseEvent) {
@@ -531,9 +562,9 @@ export default function ClinicaAgenda() {
       >
         <button
           type="button"
-          onClick={() => isLivre && handleSlotClick(slot)}
-          disabled={!isLivre}
-          className={`w-full text-left ${isLivre ? "cursor-pointer" : "cursor-default"}`}
+          onClick={() => handleSlotClick(slot)}
+          disabled={isBloqueado}
+          className={`w-full text-left ${isBloqueado ? "cursor-default" : "cursor-pointer"}`}
         >
           <div className="flex items-center gap-2">
             {isBloqueado && <Ban className="w-3 h-3 text-red-500" />}
@@ -541,6 +572,10 @@ export default function ClinicaAgenda() {
             <span className={`font-semibold ${isBloqueado ? "text-red-600 dark:text-red-400" : ""}`}>
               {format(parseISO(slot.data_hora), "HH:mm")}
             </span>
+            {/* Ícone de editar para slots com consulta */}
+            {hasConsulta && !compact && (
+              <Edit className="w-3 h-3 text-white/70 ml-auto" />
+            )}
           </div>
           {!compact && slot.medicos && (
             <p className={`text-xs mt-1 ${isLivre ? "text-muted-foreground" : isBloqueado ? "text-red-500" : "text-white/70"}`}>
@@ -787,6 +822,17 @@ export default function ClinicaAgenda() {
                           Marcar
                         </Button>
                       )}
+                      {hasConsulta && slot.consultas && slot.consultas.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEditConsulta(slot.consultas![0].id)}
+                          className="gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50 font-medium"
+                        >
+                          <Edit className="w-4 h-4" />
+                          Editar
+                        </Button>
+                      )}
                       {!hasConsulta && (
                         <Button
                           size="icon"
@@ -1002,6 +1048,17 @@ export default function ClinicaAgenda() {
                           >
                             <Plus className="w-4 h-4" />
                             Marcar
+                          </Button>
+                        )}
+                        {hasConsulta && slot.consultas && slot.consultas.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEditConsulta(slot.consultas![0].id)}
+                            className="gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50 font-medium"
+                          >
+                            <Edit className="w-4 h-4" />
+                            Editar
                           </Button>
                         )}
                         {!hasConsulta && (
@@ -1438,6 +1495,18 @@ export default function ClinicaAgenda() {
           />
         );
       })()}
+
+      {/* Modal de Edição de Consulta */}
+      <EditarConsultaModal
+        open={editarModalOpen}
+        onOpenChange={setEditarModalOpen}
+        consulta={selectedConsulta}
+        onSuccess={() => {
+          fetchData();
+          setEditarModalOpen(false);
+          setSelectedConsulta(null);
+        }}
+      />
     </div>
   );
 }
