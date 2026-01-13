@@ -32,6 +32,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -369,41 +375,40 @@ export default function ClinicaConsultas() {
           </p>
         </div>
 
-        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-          <div className="flex items-center gap-2">
-            <Select value={periodFilter === "custom" ? "custom" : periodFilter} onValueChange={handlePeriodChange}>
-              <SelectTrigger className="w-[200px]">
+        <div className="flex items-center gap-2">
+          <Select value={periodFilter === "custom" ? "custom" : periodFilter} onValueChange={handlePeriodChange}>
+            <SelectTrigger className="w-[200px]">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                <span className="truncate">{getDisplayPeriod()}</span>
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">Últimos 7 dias</SelectItem>
+              <SelectItem value="30d">Últimos 30 dias</SelectItem>
+              <SelectItem value="60d">Últimos 60 dias</SelectItem>
+              <SelectItem value="90d">Últimos 90 dias</SelectItem>
+              <SelectItem value="180d">Últimos 180 dias</SelectItem>
+              <SelectItem value="365d">Último ano</SelectItem>
+              <SelectItem value="custom">
                 <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-muted-foreground" />
-                  <span className="truncate">{getDisplayPeriod()}</span>
+                  <Calendar className="w-4 h-4" />
+                  Período personalizado
                 </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7d">Últimos 7 dias</SelectItem>
-                <SelectItem value="30d">Últimos 30 dias</SelectItem>
-                <SelectItem value="60d">Últimos 60 dias</SelectItem>
-                <SelectItem value="90d">Últimos 90 dias</SelectItem>
-                <SelectItem value="180d">Últimos 180 dias</SelectItem>
-                <SelectItem value="365d">Último ano</SelectItem>
-                <SelectItem value="custom">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    Período personalizado
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <PopoverTrigger asChild>
-            <span className="hidden" />
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end">
-            <div className="p-4 space-y-4">
-              <div className="text-sm font-medium text-center">Selecione o período</div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Dialog open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Selecione o período</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">Data inicial</label>
+                  <label className="text-sm font-medium">Data inicial</label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -417,7 +422,7 @@ export default function ClinicaConsultas() {
                         {customDateStart ? format(customDateStart, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent className="w-auto p-0 z-50" align="start">
                       <CalendarComponent
                         mode="single"
                         selected={customDateStart}
@@ -429,7 +434,7 @@ export default function ClinicaConsultas() {
                   </Popover>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">Data final</label>
+                  <label className="text-sm font-medium">Data final</label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -443,7 +448,7 @@ export default function ClinicaConsultas() {
                         {customDateEnd ? format(customDateEnd, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent className="w-auto p-0 z-50" align="start">
                       <CalendarComponent
                         mode="single"
                         selected={customDateEnd}
@@ -456,10 +461,9 @@ export default function ClinicaConsultas() {
                   </Popover>
                 </div>
               </div>
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-4">
                 <Button 
                   variant="outline" 
-                  size="sm"
                   onClick={() => {
                     setDatePickerOpen(false);
                     setCustomDateStart(undefined);
@@ -469,7 +473,6 @@ export default function ClinicaConsultas() {
                   Cancelar
                 </Button>
                 <Button 
-                  size="sm"
                   onClick={handleCustomDateApply}
                   disabled={!customDateStart || !customDateEnd}
                 >
@@ -477,8 +480,8 @@ export default function ClinicaConsultas() {
                 </Button>
               </div>
             </div>
-          </PopoverContent>
-        </Popover>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Filters and Actions */}
