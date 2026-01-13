@@ -27,14 +27,21 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit, Timer } from "lucide-react";
+import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit, Timer, CalendarIcon } from "lucide-react";
 import { format, subDays, parseISO, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ConsultaDetalhesModal } from "@/components/clinica/ConsultaDetalhesModal";
 import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 // Componente para mostrar tempo (restante ou de espera)
 function TempoEspera({ dataHora }: { dataHora: string }) {
@@ -85,7 +92,7 @@ function TempoEspera({ dataHora }: { dataHora: string }) {
   );
 }
 
-type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d";
+type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d" | "custom";
 
 export default function ClinicaConsultas() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
@@ -104,11 +111,20 @@ export default function ClinicaConsultas() {
   const [medicoFilter, setMedicoFilter] = useState("todos");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [origemFilter, setOrigemFilter] = useState("todos");
+  
+  // Custom date range
+  const [customDateStart, setCustomDateStart] = useState<Date | undefined>(undefined);
+  const [customDateEnd, setCustomDateEnd] = useState<Date | undefined>(undefined);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const dateRange = useMemo(() => {
     const now = new Date();
     const future = new Date();
     future.setDate(future.getDate() + 90);
+    
+    if (periodFilter === "custom" && customDateStart && customDateEnd) {
+      return { start: customDateStart, end: customDateEnd };
+    }
     
     switch (periodFilter) {
       case "7d":
@@ -126,7 +142,39 @@ export default function ClinicaConsultas() {
       default:
         return { start: subDays(now, 30), end: future };
     }
-  }, [periodFilter]);
+  }, [periodFilter, customDateStart, customDateEnd]);
+  
+  const handlePeriodChange = (value: string) => {
+    if (value === "custom") {
+      setDatePickerOpen(true);
+    } else {
+      setPeriodFilter(value as PeriodFilter);
+      setCustomDateStart(undefined);
+      setCustomDateEnd(undefined);
+    }
+  };
+  
+  const handleCustomDateApply = () => {
+    if (customDateStart && customDateEnd) {
+      setPeriodFilter("custom");
+      setDatePickerOpen(false);
+    }
+  };
+  
+  const getDisplayPeriod = () => {
+    if (periodFilter === "custom" && customDateStart && customDateEnd) {
+      return `${format(customDateStart, "dd/MM/yy", { locale: ptBR })} - ${format(customDateEnd, "dd/MM/yy", { locale: ptBR })}`;
+    }
+    const labels: Record<string, string> = {
+      "7d": "Últimos 7 dias",
+      "30d": "Últimos 30 dias",
+      "60d": "Últimos 60 dias",
+      "90d": "Últimos 90 dias",
+      "180d": "Últimos 180 dias",
+      "365d": "Último ano",
+    };
+    return labels[periodFilter] || "Últimos 30 dias";
+  };
 
   // Get linked doctors
   const { data: medicos } = useQuery({
@@ -321,19 +369,116 @@ export default function ClinicaConsultas() {
           </p>
         </div>
 
-        <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">Últimos 7 dias</SelectItem>
-            <SelectItem value="30d">Últimos 30 dias</SelectItem>
-            <SelectItem value="60d">Últimos 60 dias</SelectItem>
-            <SelectItem value="90d">Últimos 90 dias</SelectItem>
-            <SelectItem value="180d">Últimos 180 dias</SelectItem>
-            <SelectItem value="365d">Último ano</SelectItem>
-          </SelectContent>
-        </Select>
+        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <div className="flex items-center gap-2">
+            <Select value={periodFilter === "custom" ? "custom" : periodFilter} onValueChange={handlePeriodChange}>
+              <SelectTrigger className="w-[200px]">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                  <span className="truncate">{getDisplayPeriod()}</span>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7d">Últimos 7 dias</SelectItem>
+                <SelectItem value="30d">Últimos 30 dias</SelectItem>
+                <SelectItem value="60d">Últimos 60 dias</SelectItem>
+                <SelectItem value="90d">Últimos 90 dias</SelectItem>
+                <SelectItem value="180d">Últimos 180 dias</SelectItem>
+                <SelectItem value="365d">Último ano</SelectItem>
+                <SelectItem value="custom">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Período personalizado
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <PopoverTrigger asChild>
+            <span className="hidden" />
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <div className="p-4 space-y-4">
+              <div className="text-sm font-medium text-center">Selecione o período</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">Data inicial</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !customDateStart && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customDateStart ? format(customDateStart, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={customDateStart}
+                        onSelect={setCustomDateStart}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">Data final</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !customDateEnd && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customDateEnd ? format(customDateEnd, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={customDateEnd}
+                        onSelect={setCustomDateEnd}
+                        disabled={(date) => customDateStart ? date < customDateStart : false}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setDatePickerOpen(false);
+                    setCustomDateStart(undefined);
+                    setCustomDateEnd(undefined);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  size="sm"
+                  onClick={handleCustomDateApply}
+                  disabled={!customDateStart || !customDateEnd}
+                >
+                  Aplicar
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Filters and Actions */}
