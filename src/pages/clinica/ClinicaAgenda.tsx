@@ -38,6 +38,7 @@ import {
   User,
   Ban,
   Unlock,
+  RotateCcw,
 } from "lucide-react";
 import {
   format,
@@ -91,7 +92,9 @@ interface Slot {
     nome_paciente_consulta: string | null;
     origem: string;
     status_consulta: string;
+    paciente_id?: string | null;
     pacientes?: { nome: string };
+    isRetorno?: boolean;
   }>;
 }
 
@@ -281,14 +284,52 @@ export default function ClinicaAgenda() {
           origem,
           status_consulta,
           agenda_slot_id,
+          paciente_id,
+          data_hora,
           pacientes(nome)
         `)
         .in("agenda_slot_id", slotIds)
         .neq("status_consulta", "cancelada");
 
+      // Verificar quais pacientes são retorno (já tiveram consultas anteriores)
+      const pacienteIds = consultasData
+        ?.filter(c => c.paciente_id)
+        .map(c => c.paciente_id) || [];
+      
+      const uniquePacienteIds = [...new Set(pacienteIds)];
+      
+      let retornoPacientes = new Set<string>();
+      
+      if (uniquePacienteIds.length > 0) {
+        // Buscar pacientes que têm mais de uma consulta concluída
+        const { data: historicoData } = await supabase
+          .from("consultas")
+          .select("paciente_id")
+          .in("paciente_id", uniquePacienteIds)
+          .in("status_consulta", ["concluida", "atendida_medico"]);
+        
+        // Contar consultas por paciente
+        const contagemPorPaciente: Record<string, number> = {};
+        historicoData?.forEach(h => {
+          if (h.paciente_id) {
+            contagemPorPaciente[h.paciente_id] = (contagemPorPaciente[h.paciente_id] || 0) + 1;
+          }
+        });
+        
+        // Pacientes com pelo menos 1 consulta concluída anterior são retorno
+        Object.entries(contagemPorPaciente).forEach(([pacId, count]) => {
+          if (count >= 1) {
+            retornoPacientes.add(pacId);
+          }
+        });
+      }
+
       const slotsWithConsultas = slotsData.map((slot) => ({
         ...slot,
-        consultas: consultasData?.filter((c) => c.agenda_slot_id === slot.id) || [],
+        consultas: consultasData?.filter((c) => c.agenda_slot_id === slot.id).map(c => ({
+          ...c,
+          isRetorno: c.paciente_id ? retornoPacientes.has(c.paciente_id) : false
+        })) || [],
       }));
 
       setSlots(slotsWithConsultas);
@@ -331,11 +372,12 @@ export default function ClinicaAgenda() {
           status: "reservado",
           origem: consulta.origem || "online",
           pacienteNome: consulta.nome_paciente_consulta || consulta.pacientes?.nome || "Paciente",
+          isRetorno: consulta.isRetorno || false,
         };
       }
-      return { status: "indisponivel", origem: null, pacienteNome: null };
+      return { status: "indisponivel", origem: null, pacienteNome: null, isRetorno: false };
     }
-    return { status: "livre", origem: null, pacienteNome: null };
+    return { status: "livre", origem: null, pacienteNome: null, isRetorno: false };
   }
 
   function getFilteredSlots() {
@@ -589,15 +631,26 @@ export default function ClinicaAgenda() {
           )}
           {!compact && (
             slotInfo.pacienteNome ? (
-              <div className="mt-1 flex items-center gap-1">
-                {isOnline ? (
-                  <Globe className="w-3 h-3 text-white/80" />
-                ) : (
-                  <Building2 className="w-3 h-3 text-white/80" />
+              <div className="mt-1 space-y-1">
+                <div className="flex items-center gap-1">
+                  {isOnline ? (
+                    <Globe className="w-3 h-3 text-white/80" />
+                  ) : (
+                    <Building2 className="w-3 h-3 text-white/80" />
+                  )}
+                  <span className="truncate text-white/90">
+                    {slotInfo.pacienteNome}
+                  </span>
+                </div>
+                {/* Badge de Retorno */}
+                {slotInfo.isRetorno && (
+                  <div className="flex items-center gap-1">
+                    <RotateCcw className="w-2.5 h-2.5 text-amber-300" />
+                    <span className="text-[10px] font-semibold text-amber-300 uppercase tracking-wide">
+                      Retorno
+                    </span>
+                  </div>
                 )}
-                <span className="truncate text-white/90">
-                  {slotInfo.pacienteNome}
-                </span>
               </div>
             ) : isBloqueado ? (
               <p className="mt-1 text-red-500 dark:text-red-400 font-medium">Bloqueado</p>
@@ -793,7 +846,7 @@ export default function ClinicaAgenda() {
                       
                       {/* Badge de Status */}
                       {slotInfo.pacienteNome ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           {isOnline ? (
                             <Badge className="bg-blue-600 text-white text-xs">
                               <Globe className="w-3 h-3 mr-1" />
@@ -806,6 +859,13 @@ export default function ClinicaAgenda() {
                             </Badge>
                           )}
                           <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
+                          {/* Badge de Retorno */}
+                          {slotInfo.isRetorno && (
+                            <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs gap-1">
+                              <RotateCcw className="w-3 h-3" />
+                              Retorno
+                            </Badge>
+                          )}
                         </div>
                       ) : isBloqueado ? (
                         <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1">Bloqueado</Badge>
@@ -1021,7 +1081,7 @@ export default function ClinicaAgenda() {
                         
                         {/* Badge de Status */}
                         {slotInfo.pacienteNome ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             {isOnline ? (
                               <Badge className="bg-blue-600 text-white text-xs">
                                 <Globe className="w-3 h-3 mr-1" />
@@ -1034,6 +1094,13 @@ export default function ClinicaAgenda() {
                               </Badge>
                             )}
                             <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
+                            {/* Badge de Retorno */}
+                            {slotInfo.isRetorno && (
+                              <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs gap-1">
+                                <RotateCcw className="w-3 h-3" />
+                                Retorno
+                              </Badge>
+                            )}
                           </div>
                         ) : isBloqueado ? (
                           <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1">Bloqueado</Badge>
