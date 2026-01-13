@@ -61,12 +61,12 @@ export default function ClinicaPacientes() {
       const medicoIds = vinculos?.map((v) => v.medico_id) || [];
       if (medicoIds.length === 0) return [];
 
-      // Buscar consultas dos médicos vinculados à clínica
-      // Incluindo consultas onde clinica_id é a clínica atual OU consultas dos médicos vinculados
+      // Buscar consultas dos médicos vinculados à clínica com origem
       const { data: consultas, error } = await supabase
         .from("consultas")
         .select(`
           paciente_id,
+          origem,
           paciente:pacientes(
             id,
             nome,
@@ -83,15 +83,32 @@ export default function ClinicaPacientes() {
 
       if (error) throw error;
 
-      // Get unique patients with consultation count
-      const pacienteMap = new Map<string, { paciente: any; consultaCount: number }>();
+      // Get unique patients with consultation count and origin info
+      const pacienteMap = new Map<string, { 
+        paciente: any; 
+        consultaCount: number;
+        isInterno: boolean; // true se TODAS as consultas são internas
+        hasOnline: boolean; // true se tem alguma consulta online
+      }>();
+      
       consultas?.forEach((c: any) => {
         if (c.paciente) {
           const existing = pacienteMap.get(c.paciente.id);
+          const isOnlineConsulta = c.origem === 'online';
+          
           if (existing) {
             existing.consultaCount++;
+            if (isOnlineConsulta) {
+              existing.hasOnline = true;
+              existing.isInterno = false;
+            }
           } else {
-            pacienteMap.set(c.paciente.id, { paciente: c.paciente, consultaCount: 1 });
+            pacienteMap.set(c.paciente.id, { 
+              paciente: c.paciente, 
+              consultaCount: 1,
+              isInterno: !isOnlineConsulta,
+              hasOnline: isOnlineConsulta
+            });
           }
         }
       });
@@ -157,9 +174,12 @@ export default function ClinicaPacientes() {
     return name?.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase() || "??";
   };
 
+  const [selectedIsInterno, setSelectedIsInterno] = useState(false);
+
   const handleOpenDetails = (item: any) => {
     setSelectedPaciente(item.paciente);
     setSelectedConsultaCount(item.consultaCount);
+    setSelectedIsInterno(item.isInterno && !item.hasOnline);
     setModalOpen(true);
   };
 
@@ -414,6 +434,7 @@ export default function ClinicaPacientes() {
         onOpenChange={setModalOpen}
         paciente={selectedPaciente}
         consultaCount={selectedConsultaCount}
+        isInterno={selectedIsInterno}
         onUpdate={() => refetch()}
       />
     </div>
