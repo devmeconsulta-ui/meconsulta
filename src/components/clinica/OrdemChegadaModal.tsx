@@ -168,7 +168,6 @@ export function OrdemChegadaModal({
 
       toast.success(`Chegada registrada! Ordem: ${proximaOrdem}`);
       await fetchConsultasDoDia();
-      onSuccess();
     } catch (error) {
       console.error("Erro ao registrar chegada:", error);
       toast.error("Erro ao registrar chegada");
@@ -189,7 +188,6 @@ export function OrdemChegadaModal({
 
       toast.success("Atendimento iniciado!");
       await fetchConsultasDoDia();
-      onSuccess();
     } catch (error) {
       console.error("Erro ao iniciar atendimento:", error);
       toast.error("Erro ao iniciar atendimento");
@@ -210,7 +208,6 @@ export function OrdemChegadaModal({
 
       toast.success("Atendimento finalizado!");
       await fetchConsultasDoDia();
-      onSuccess();
     } catch (error) {
       console.error("Erro ao finalizar atendimento:", error);
       toast.error("Erro ao finalizar atendimento");
