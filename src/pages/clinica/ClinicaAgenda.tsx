@@ -385,22 +385,27 @@ export default function ClinicaAgenda() {
   }
 
   async function handleEditConsulta(consultaId: string) {
-    // Buscar dados completos da consulta
+    // Buscar dados completos da consulta - usar sintaxe explícita para foreign key
     const { data, error } = await supabase
       .from("consultas")
       .select(`
         *,
         pacientes(id, nome, cpf, telefone),
-        medicos(id, nome, especialidade),
+        medicos!consultas_medico_id_fkey(id, nome, especialidade),
         locais_atendimento(id, nome_local, tipo_atendimento),
         convenios(id, nome)
       `)
       .eq("id", consultaId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       toast.error("Erro ao carregar consulta");
       console.error(error);
+      return;
+    }
+
+    if (!data) {
+      toast.error("Consulta não encontrada");
       return;
     }
 
