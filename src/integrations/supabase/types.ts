@@ -19,25 +19,34 @@ export type Database = {
           created_at: string | null
           data_hora: string
           disponivel: boolean | null
+          hora_chegada: string | null
           id: string
           local_id: string
           medico_id: string
+          ordem_chegada: number | null
+          tipo_slot: string | null
         }
         Insert: {
           created_at?: string | null
           data_hora: string
           disponivel?: boolean | null
+          hora_chegada?: string | null
           id?: string
           local_id: string
           medico_id: string
+          ordem_chegada?: number | null
+          tipo_slot?: string | null
         }
         Update: {
           created_at?: string | null
           data_hora?: string
           disponivel?: boolean | null
+          hora_chegada?: string | null
           id?: string
           local_id?: string
           medico_id?: string
+          ordem_chegada?: number | null
+          tipo_slot?: string | null
         }
         Relationships: [
           {
@@ -828,6 +837,95 @@ export type Database = {
             columns: ["paciente_id"]
             isOneToOne: false
             referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lista_espera: {
+        Row: {
+          clinica_id: string | null
+          created_at: string | null
+          data_atendimento: string | null
+          data_chamada: string | null
+          data_entrada: string | null
+          id: string
+          medico_id: string
+          motivo: string | null
+          observacoes: string | null
+          paciente_cpf: string | null
+          paciente_id: string | null
+          paciente_nome: string
+          paciente_telefone: string | null
+          posicao: number
+          prioridade: number | null
+          status: string | null
+          usuario_clinica_id: string | null
+        }
+        Insert: {
+          clinica_id?: string | null
+          created_at?: string | null
+          data_atendimento?: string | null
+          data_chamada?: string | null
+          data_entrada?: string | null
+          id?: string
+          medico_id: string
+          motivo?: string | null
+          observacoes?: string | null
+          paciente_cpf?: string | null
+          paciente_id?: string | null
+          paciente_nome: string
+          paciente_telefone?: string | null
+          posicao: number
+          prioridade?: number | null
+          status?: string | null
+          usuario_clinica_id?: string | null
+        }
+        Update: {
+          clinica_id?: string | null
+          created_at?: string | null
+          data_atendimento?: string | null
+          data_chamada?: string | null
+          data_entrada?: string | null
+          id?: string
+          medico_id?: string
+          motivo?: string | null
+          observacoes?: string | null
+          paciente_cpf?: string | null
+          paciente_id?: string | null
+          paciente_nome?: string
+          paciente_telefone?: string | null
+          posicao?: number
+          prioridade?: number | null
+          status?: string | null
+          usuario_clinica_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lista_espera_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lista_espera_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lista_espera_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lista_espera_usuario_clinica_id_fkey"
+            columns: ["usuario_clinica_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
             referencedColumns: ["id"]
           },
         ]
