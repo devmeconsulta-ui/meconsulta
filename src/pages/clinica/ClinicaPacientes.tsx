@@ -61,7 +61,8 @@ export default function ClinicaPacientes() {
       const medicoIds = vinculos?.map((v) => v.medico_id) || [];
       if (medicoIds.length === 0) return [];
 
-      // IMPORTANTE: Filtrar por clinica_id para isolar dados entre clínicas
+      // Buscar consultas dos médicos vinculados à clínica
+      // Incluindo consultas onde clinica_id é a clínica atual OU consultas dos médicos vinculados
       const { data: consultas, error } = await supabase
         .from("consultas")
         .select(`
@@ -77,7 +78,6 @@ export default function ClinicaPacientes() {
             data_nascimento
           )
         `)
-        .eq("clinica_id", clinicaData.id)
         .in("medico_id", medicoIds)
         .not("paciente_id", "is", null);
 
