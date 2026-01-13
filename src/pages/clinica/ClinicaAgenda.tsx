@@ -39,6 +39,10 @@ import {
   Ban,
   Unlock,
   RotateCcw,
+  Users,
+  UserPlus,
+  UserCheck,
+  Edit,
 } from "lucide-react";
 import {
   format,
@@ -65,8 +69,10 @@ import {
 import { ptBR } from "date-fns/locale";
 import { AgendaInternaModal } from "@/components/medico/AgendaInternaModal";
 import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
+import { ListaEsperaModal } from "@/components/clinica/ListaEsperaModal";
+import { EncaixeModal } from "@/components/clinica/EncaixeModal";
+import { OrdemChegadaModal } from "@/components/clinica/OrdemChegadaModal";
 import { cn } from "@/lib/utils";
-import { Edit } from "lucide-react";
 
 interface ClinicaContext {
   clinicaData: any;
@@ -134,6 +140,9 @@ export default function ClinicaAgenda() {
   const [gerarSlotsModalOpen, setGerarSlotsModalOpen] = useState(false);
   const [agendaModalOpen, setAgendaModalOpen] = useState(false);
   const [editarModalOpen, setEditarModalOpen] = useState(false);
+  const [listaEsperaModalOpen, setListaEsperaModalOpen] = useState(false);
+  const [encaixeModalOpen, setEncaixeModalOpen] = useState(false);
+  const [ordemChegadaModalOpen, setOrdemChegadaModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
 
@@ -1239,10 +1248,24 @@ export default function ClinicaAgenda() {
           <p className="text-muted-foreground">Gerencie a agenda dos médicos vinculados</p>
         </div>
 
-        <Button onClick={() => setGerarSlotsModalOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Gerar Horários
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setOrdemChegadaModalOpen(true)} className="gap-2">
+            <UserCheck className="h-4 w-4" />
+            Ordem de Chegada
+          </Button>
+          <Button variant="outline" onClick={() => setEncaixeModalOpen(true)} className="gap-2">
+            <UserPlus className="h-4 w-4" />
+            Encaixe
+          </Button>
+          <Button variant="outline" onClick={() => setListaEsperaModalOpen(true)} className="gap-2">
+            <Users className="h-4 w-4" />
+            Lista de Espera
+          </Button>
+          <Button onClick={() => setGerarSlotsModalOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Gerar Horários
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -1578,6 +1601,38 @@ export default function ClinicaAgenda() {
           setEditarModalOpen(false);
           setSelectedConsulta(null);
         }}
+      />
+
+      {/* Modal Lista de Espera */}
+      <ListaEsperaModal
+        open={listaEsperaModalOpen}
+        onOpenChange={setListaEsperaModalOpen}
+        clinicaId={clinicaData?.id || ""}
+        medicos={medicos}
+        onAgendarPaciente={(paciente) => {
+          // Pre-fill and open agenda modal
+          toast.info(`Agende o paciente ${paciente.paciente_nome} em um horário disponível`);
+        }}
+      />
+
+      {/* Modal Encaixe */}
+      <EncaixeModal
+        open={encaixeModalOpen}
+        onOpenChange={setEncaixeModalOpen}
+        clinicaId={clinicaData?.id || ""}
+        medicos={medicosCompletos}
+        locais={locais}
+        onSuccess={fetchData}
+      />
+
+      {/* Modal Ordem de Chegada */}
+      <OrdemChegadaModal
+        open={ordemChegadaModalOpen}
+        onOpenChange={setOrdemChegadaModalOpen}
+        clinicaId={clinicaData?.id || ""}
+        medicos={medicosCompletos}
+        locais={locais}
+        onSuccess={fetchData}
       />
     </div>
   );
