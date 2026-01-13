@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Users, Phone, MapPin, Eye, Download, Filter, X, Lock } from "lucide-react";
+import { Search, Users, Phone, MapPin, Eye, Download, Filter, X, Lock, Upload } from "lucide-react";
 import { maskPhone, maskCPF } from "@/lib/maskUtils";
 import {
   Table,
@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { PacienteDetalhesModal } from "@/components/clinica/PacienteDetalhesModal";
+import { ImportarPacientesModal } from "@/components/clinica/ImportarPacientesModal";
 import { toast } from "sonner";
 import {
   Select,
@@ -40,11 +41,33 @@ export default function ClinicaPacientes() {
   const [selectedConsultaCount, setSelectedConsultaCount] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   
   // Advanced filters
   const [filterCidade, setFilterCidade] = useState<string>("all");
   const [filterEstado, setFilterEstado] = useState<string>("all");
   const [filterMinConsultas, setFilterMinConsultas] = useState<string>("all");
+
+  // Get medico IDs for import modal
+  const medicoIds = useMemo(() => {
+    // We'll fetch this from the query
+    return [];
+  }, []);
+
+  // Fetch medico IDs for import
+  const { data: clinicaMedicoIds } = useQuery({
+    queryKey: ["clinica-medico-ids", clinicaData?.id],
+    queryFn: async () => {
+      if (!clinicaData?.id) return [];
+      const { data: vinculos } = await supabase
+        .from("clinicas_medicos")
+        .select("medico_id")
+        .eq("clinica_id", clinicaData.id)
+        .eq("ativo", true);
+      return vinculos?.map((v) => v.medico_id) || [];
+    },
+    enabled: !!clinicaData?.id,
+  });
 
   const { data: pacientes, isLoading, refetch } = useQuery({
     queryKey: ["clinica-pacientes", clinicaData?.id],
@@ -58,8 +81,8 @@ export default function ClinicaPacientes() {
         .eq("clinica_id", clinicaData.id)
         .eq("ativo", true);
 
-      const medicoIds = vinculos?.map((v) => v.medico_id) || [];
-      if (medicoIds.length === 0) return [];
+      const mIds = vinculos?.map((v) => v.medico_id) || [];
+      if (mIds.length === 0) return [];
 
       // Buscar consultas dos médicos vinculados à clínica com origem
       const { data: consultas, error } = await supabase
@@ -78,7 +101,7 @@ export default function ClinicaPacientes() {
             data_nascimento
           )
         `)
-        .in("medico_id", medicoIds)
+        .in("medico_id", mIds)
         .not("paciente_id", "is", null);
 
       if (error) throw error;
@@ -227,10 +250,16 @@ export default function ClinicaPacientes() {
             Pacientes que já realizaram consultas na clínica.
           </p>
         </div>
-        <Button variant="outline" onClick={handleExportCSV} disabled={!filteredPacientes?.length}>
-          <Download className="h-4 w-4 mr-2" />
-          Exportar CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportModalOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Importar
+          </Button>
+          <Button variant="outline" onClick={handleExportCSV} disabled={!filteredPacientes?.length}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar CSV
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -436,6 +465,13 @@ export default function ClinicaPacientes() {
         consultaCount={selectedConsultaCount}
         isInterno={selectedIsInterno}
         onUpdate={() => refetch()}
+      />
+
+      <ImportarPacientesModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        medicoIds={clinicaMedicoIds || []}
+        onSuccess={() => refetch()}
       />
     </div>
   );
