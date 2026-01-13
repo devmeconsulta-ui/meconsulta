@@ -167,7 +167,7 @@ export function OrdemChegadaModal({
         .eq("id", consulta.id);
 
       toast.success(`Chegada registrada! Ordem: ${proximaOrdem}`);
-      fetchConsultasDoDia();
+      await fetchConsultasDoDia();
       onSuccess();
     } catch (error) {
       console.error("Erro ao registrar chegada:", error);
@@ -188,7 +188,7 @@ export function OrdemChegadaModal({
       if (error) throw error;
 
       toast.success("Atendimento iniciado!");
-      fetchConsultasDoDia();
+      await fetchConsultasDoDia();
       onSuccess();
     } catch (error) {
       console.error("Erro ao iniciar atendimento:", error);
@@ -209,7 +209,7 @@ export function OrdemChegadaModal({
       if (error) throw error;
 
       toast.success("Atendimento finalizado!");
-      fetchConsultasDoDia();
+      await fetchConsultasDoDia();
       onSuccess();
     } catch (error) {
       console.error("Erro ao finalizar atendimento:", error);
@@ -231,31 +231,31 @@ export function OrdemChegadaModal({
       return {
         label: "Atendido",
         color: "bg-purple-600",
-        bgClass: "bg-purple-50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-800",
-        badgeClass: "bg-purple-600"
+        bgClass: "bg-purple-100 border-purple-400 border-2",
+        badgeClass: "bg-purple-600 text-white"
       };
     }
     if (status === "atendendo") {
       return {
         label: "Atendendo",
         color: "bg-blue-600",
-        bgClass: "bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800",
-        badgeClass: "bg-blue-600"
+        bgClass: "bg-blue-100 border-blue-400 border-2",
+        badgeClass: "bg-blue-600 text-white"
       };
     }
     if (chegou || status === "aguardando") {
       return {
         label: "Aguardando",
         color: "bg-green-600",
-        bgClass: "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800",
-        badgeClass: "bg-green-600"
+        bgClass: "bg-green-100 border-green-400 border-2",
+        badgeClass: "bg-green-600 text-white"
       };
     }
     return {
       label: "Não chegou",
-      color: "bg-muted",
-      bgClass: "bg-background border-border",
-      badgeClass: "bg-muted"
+      color: "bg-gray-400",
+      bgClass: "bg-gray-50 border-gray-200 border",
+      badgeClass: "bg-gray-400 text-white"
     };
   };
 
