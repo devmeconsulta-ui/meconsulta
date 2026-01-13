@@ -26,6 +26,7 @@ interface PacienteDetalhesModalProps {
   onOpenChange: (open: boolean) => void;
   paciente: any;
   consultaCount: number;
+  isInterno?: boolean; // Se true, permite edição completa (paciente interno)
   onUpdate: () => void;
 }
 
@@ -48,6 +49,7 @@ export function PacienteDetalhesModal({
   onOpenChange,
   paciente,
   consultaCount,
+  isInterno = false,
   onUpdate,
 }: PacienteDetalhesModalProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -112,15 +114,25 @@ export function PacienteDetalhesModal({
 
     setSaving(true);
     try {
-      // Marketplace: clínicas só podem editar localização, não dados sensíveis
+      // Se for paciente interno, permite edição completa
+      // Se for online, só permite editar localização
+      const updateData: any = {
+        nome: formData.nome,
+        cidade: formData.cidade || null,
+        estado: formData.estado || null,
+        bairro: formData.bairro || null,
+        data_nascimento: formData.data_nascimento || null,
+      };
+
+      // Pacientes internos podem ter telefone e CPF editados
+      if (isInterno) {
+        updateData.telefone = formData.telefone || null;
+        updateData.cpf = formData.cpf || null;
+      }
+
       const { error } = await supabase
         .from("pacientes")
-        .update({
-          nome: formData.nome,
-          cidade: formData.cidade || null,
-          estado: formData.estado || null,
-          bairro: formData.bairro || null,
-        })
+        .update(updateData)
         .eq("id", paciente.id);
 
       if (error) throw error;
@@ -222,13 +234,25 @@ export function PacienteDetalhesModal({
 
           <TabsContent value="dados" className="flex-1 overflow-auto mt-4">
             <div className="grid gap-4">
-              {/* Aviso de privacidade marketplace */}
-              <div className="p-3 bg-muted/50 rounded-lg border border-dashed">
-                <p className="text-xs text-muted-foreground flex items-center gap-2">
-                  <Lock className="h-4 w-4" />
-                  Dados sensíveis de pacientes são protegidos. Como marketplace, exibimos apenas prévia.
-                </p>
-              </div>
+              {/* Aviso de privacidade - só mostra se não for interno */}
+              {!isInterno && (
+                <div className="p-3 bg-muted/50 rounded-lg border border-dashed">
+                  <p className="text-xs text-muted-foreground flex items-center gap-2">
+                    <Lock className="h-4 w-4" />
+                    Paciente de consulta online. Dados sensíveis são protegidos pelo marketplace.
+                  </p>
+                </div>
+              )}
+
+              {/* Aviso para paciente interno */}
+              {isInterno && (
+                <div className="p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
+                  <p className="text-xs text-green-700 dark:text-green-400 flex items-center gap-2">
+                    <Pencil className="h-4 w-4" />
+                    Paciente de consulta interna. Você pode editar todos os dados cadastrais.
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -236,10 +260,24 @@ export function PacienteDetalhesModal({
                     <Phone className="h-4 w-4" />
                     Telefone
                   </Label>
-                  <p className="text-sm flex items-center gap-2">
-                    <Lock className="h-3 w-3 text-muted-foreground" />
-                    {maskPhone(formData.telefone)}
-                  </p>
+                  {isEditing && isInterno ? (
+                    <Input
+                      value={formData.telefone}
+                      onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                      placeholder="(00) 00000-0000"
+                    />
+                  ) : (
+                    <p className="text-sm flex items-center gap-2">
+                      {isInterno ? (
+                        formData.telefone || "Não informado"
+                      ) : (
+                        <>
+                          <Lock className="h-3 w-3 text-muted-foreground" />
+                          {maskPhone(formData.telefone)}
+                        </>
+                      )}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -247,10 +285,25 @@ export function PacienteDetalhesModal({
                     <CreditCard className="h-4 w-4" />
                     CPF
                   </Label>
-                  <p className="text-sm flex items-center gap-2">
-                    <Lock className="h-3 w-3 text-muted-foreground" />
-                    {maskCPF(formData.cpf)}
-                  </p>
+                  {isEditing && isInterno ? (
+                    <Input
+                      value={formData.cpf}
+                      onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+                      placeholder="000.000.000-00"
+                      maxLength={14}
+                    />
+                  ) : (
+                    <p className="text-sm flex items-center gap-2">
+                      {isInterno ? (
+                        formData.cpf || "Não informado"
+                      ) : (
+                        <>
+                          <Lock className="h-3 w-3 text-muted-foreground" />
+                          {maskCPF(formData.cpf)}
+                        </>
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
 
