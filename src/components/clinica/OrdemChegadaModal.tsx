@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { UserCheck, Clock, Users, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
+import { UserCheck, Clock, Users, CheckCircle2, AlertCircle, RefreshCw, Play, Check } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 
@@ -59,7 +59,7 @@ export function OrdemChegadaModal({
   const [localId, setLocalId] = useState("");
   const [consultas, setConsultas] = useState<ConsultaComChegada[]>([]);
   const [loading, setLoading] = useState(false);
-  const [registrando, setRegistrando] = useState<string | null>(null);
+  const [atualizando, setAtualizando] = useState<string | null>(null);
 
   const locaisFiltrados = locais.filter(l => l.medico_id === medicoId);
   const hoje = format(new Date(), "yyyy-MM-dd");
@@ -90,12 +90,11 @@ export function OrdemChegadaModal({
         .eq("local_id", localId)
         .gte("data_hora", inicioDia)
         .lte("data_hora", fimDia)
-        .in("status_consulta", ["confirmada", "aguardando_confirmacao", "em_atendimento", "aguardando"])
+        .in("status_consulta", ["confirmada", "aguardando_confirmacao", "em_atendimento", "aguardando", "atendendo", "concluida", "atendida_medico"])
         .order("data_hora", { ascending: true });
 
       if (consultasError) throw consultasError;
 
-      // Para cada consulta com slot, buscar info de chegada
       const consultasComSlot = await Promise.all(
         (consultasData || []).map(async (consulta) => {
           if (consulta.agenda_slot_id) {
@@ -133,9 +132,8 @@ export function OrdemChegadaModal({
       return;
     }
 
-    setRegistrando(consulta.id);
+    setAtualizando(consulta.id);
     try {
-      // Buscar próximo número de ordem para o médico/local hoje
       const { data: ultimaOrdem } = await supabase
         .from("agenda_slots")
         .select("ordem_chegada")
@@ -151,7 +149,6 @@ export function OrdemChegadaModal({
         ? ultimaOrdem[0].ordem_chegada + 1 
         : 1;
 
-      // Atualizar slot com hora de chegada e ordem
       const { error: updateError } = await supabase
         .from("agenda_slots")
         .update({
@@ -163,6 +160,12 @@ export function OrdemChegadaModal({
 
       if (updateError) throw updateError;
 
+      // Atualizar status da consulta para "aguardando"
+      await supabase
+        .from("consultas")
+        .update({ status_consulta: "aguardando" })
+        .eq("id", consulta.id);
+
       toast.success(`Chegada registrada! Ordem: ${proximaOrdem}`);
       fetchConsultasDoDia();
       onSuccess();
@@ -170,34 +173,49 @@ export function OrdemChegadaModal({
       console.error("Erro ao registrar chegada:", error);
       toast.error("Erro ao registrar chegada");
     } finally {
-      setRegistrando(null);
+      setAtualizando(null);
     }
   };
 
-  const desfazerChegada = async (consulta: ConsultaComChegada) => {
-    if (!consulta.agenda_slot_id) return;
-
-    setRegistrando(consulta.id);
+  const iniciarAtendimento = async (consulta: ConsultaComChegada) => {
+    setAtualizando(consulta.id);
     try {
       const { error } = await supabase
-        .from("agenda_slots")
-        .update({
-          hora_chegada: null,
-          ordem_chegada: null,
-          tipo_slot: "normal"
-        })
-        .eq("id", consulta.agenda_slot_id);
+        .from("consultas")
+        .update({ status_consulta: "atendendo" })
+        .eq("id", consulta.id);
 
       if (error) throw error;
 
-      toast.success("Chegada desfeita");
+      toast.success("Atendimento iniciado!");
       fetchConsultasDoDia();
       onSuccess();
     } catch (error) {
-      console.error("Erro ao desfazer chegada:", error);
-      toast.error("Erro ao desfazer chegada");
+      console.error("Erro ao iniciar atendimento:", error);
+      toast.error("Erro ao iniciar atendimento");
     } finally {
-      setRegistrando(null);
+      setAtualizando(null);
+    }
+  };
+
+  const finalizarAtendimento = async (consulta: ConsultaComChegada) => {
+    setAtualizando(consulta.id);
+    try {
+      const { error } = await supabase
+        .from("consultas")
+        .update({ status_consulta: "atendida_medico" })
+        .eq("id", consulta.id);
+
+      if (error) throw error;
+
+      toast.success("Atendimento finalizado!");
+      fetchConsultasDoDia();
+      onSuccess();
+    } catch (error) {
+      console.error("Erro ao finalizar atendimento:", error);
+      toast.error("Erro ao finalizar atendimento");
+    } finally {
+      setAtualizando(null);
     }
   };
 
@@ -205,21 +223,69 @@ export function OrdemChegadaModal({
     return consulta.paciente?.nome || consulta.nome_paciente_consulta || "Paciente não identificado";
   };
 
-  // Ordenar: primeiro quem já chegou (por ordem), depois quem não chegou (por horário)
+  const getStatusInfo = (consulta: ConsultaComChegada) => {
+    const chegou = consulta.slot?.ordem_chegada != null;
+    const status = consulta.status_consulta;
+
+    if (status === "atendida_medico" || status === "concluida") {
+      return {
+        label: "Atendido",
+        color: "bg-purple-600",
+        bgClass: "bg-purple-50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-800",
+        badgeClass: "bg-purple-600"
+      };
+    }
+    if (status === "atendendo") {
+      return {
+        label: "Atendendo",
+        color: "bg-blue-600",
+        bgClass: "bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800",
+        badgeClass: "bg-blue-600"
+      };
+    }
+    if (chegou || status === "aguardando") {
+      return {
+        label: "Aguardando",
+        color: "bg-green-600",
+        bgClass: "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800",
+        badgeClass: "bg-green-600"
+      };
+    }
+    return {
+      label: "Não chegou",
+      color: "bg-muted",
+      bgClass: "bg-background border-border",
+      badgeClass: "bg-muted"
+    };
+  };
+
+  // Ordenar: atendendo primeiro, depois aguardando (por ordem), depois não chegou (por horário), atendidos por último
   const consultasOrdenadas = [...consultas].sort((a, b) => {
+    const statusOrder = (status: string, chegou: boolean) => {
+      if (status === "atendendo") return 0;
+      if (chegou || status === "aguardando") return 1;
+      if (status === "atendida_medico" || status === "concluida") return 3;
+      return 2;
+    };
+
     const aChegou = a.slot?.ordem_chegada != null;
     const bChegou = b.slot?.ordem_chegada != null;
-    
+    const aOrder = statusOrder(a.status_consulta, aChegou);
+    const bOrder = statusOrder(b.status_consulta, bChegou);
+
+    if (aOrder !== bOrder) return aOrder - bOrder;
+
+    // Se ambos aguardando, ordenar por ordem de chegada
     if (aChegou && bChegou) {
       return (a.slot!.ordem_chegada || 0) - (b.slot!.ordem_chegada || 0);
     }
-    if (aChegou && !bChegou) return -1;
-    if (!aChegou && bChegou) return 1;
-    
+
     return new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime();
   });
 
   const totalChegaram = consultas.filter(c => c.slot?.ordem_chegada != null).length;
+  const totalAtendendo = consultas.filter(c => c.status_consulta === "atendendo").length;
+  const totalAtendidos = consultas.filter(c => c.status_consulta === "atendida_medico" || c.status_consulta === "concluida").length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -263,21 +329,25 @@ export function OrdemChegadaModal({
             </div>
           </div>
 
-          {/* Resumo */}
+          {/* Resumo com cores */}
           {medicoId && localId && (
             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Total: <strong>{consultas.length}</strong></span>
+                  <div className="w-3 h-3 rounded-full bg-muted-foreground"></div>
+                  <span className="text-sm">Aguardando chegada: <strong>{consultas.length - totalChegaram}</strong></span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">Chegaram: <strong>{totalChegaram}</strong></span>
+                  <div className="w-3 h-3 rounded-full bg-green-600"></div>
+                  <span className="text-sm">Chegaram: <strong>{totalChegaram - totalAtendendo - totalAtendidos}</strong></span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-orange-500" />
-                  <span className="text-sm">Aguardando: <strong>{consultas.length - totalChegaram}</strong></span>
+                  <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                  <span className="text-sm">Atendendo: <strong>{totalAtendendo}</strong></span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-purple-600"></div>
+                  <span className="text-sm">Atendidos: <strong>{totalAtendidos}</strong></span>
                 </div>
               </div>
               <Button variant="ghost" size="sm" onClick={fetchConsultasDoDia} disabled={loading}>
@@ -306,19 +376,18 @@ export function OrdemChegadaModal({
                 const horaChegada = consulta.slot?.hora_chegada 
                   ? format(new Date(consulta.slot.hora_chegada), "HH:mm")
                   : null;
+                const statusInfo = getStatusInfo(consulta);
+                const isAtendendo = consulta.status_consulta === "atendendo";
+                const isAtendido = consulta.status_consulta === "atendida_medico" || consulta.status_consulta === "concluida";
 
                 return (
                   <div
                     key={consulta.id}
-                    className={`flex items-center justify-between p-3 rounded-lg border ${
-                      chegou 
-                        ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800" 
-                        : "bg-background border-border"
-                    }`}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${statusInfo.bgClass}`}
                   >
                     <div className="flex items-center gap-3">
                       {chegou ? (
-                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-600 text-white font-bold text-lg">
+                        <div className={`flex items-center justify-center w-10 h-10 rounded-full text-white font-bold text-lg ${statusInfo.color}`}>
                           {consulta.slot!.ordem_chegada}
                         </div>
                       ) : (
@@ -342,30 +411,52 @@ export function OrdemChegadaModal({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {chegou ? (
+                      {isAtendido ? (
+                        <Badge className={statusInfo.badgeClass}>
+                          <Check className="h-3 w-3 mr-1" />
+                          Atendido
+                        </Badge>
+                      ) : isAtendendo ? (
                         <div className="flex items-center gap-2">
-                          <Badge variant="default" className="bg-green-600">
+                          <Badge className="bg-blue-600 animate-pulse">
+                            <Play className="h-3 w-3 mr-1" />
+                            Atendendo
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => finalizarAtendimento(consulta)}
+                            disabled={atualizando === consulta.id}
+                            className="bg-purple-600 hover:bg-purple-700"
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            {atualizando === consulta.id ? "..." : "Finalizar"}
+                          </Button>
+                        </div>
+                      ) : chegou ? (
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-green-600">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             #{consulta.slot!.ordem_chegada}
                           </Badge>
                           <Button
                             size="sm"
-                            variant="ghost"
-                            onClick={() => desfazerChegada(consulta)}
-                            disabled={registrando === consulta.id}
-                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => iniciarAtendimento(consulta)}
+                            disabled={atualizando === consulta.id}
+                            className="bg-blue-600 hover:bg-blue-700"
                           >
-                            Desfazer
+                            <Play className="h-4 w-4 mr-1" />
+                            {atualizando === consulta.id ? "..." : "Atender"}
                           </Button>
                         </div>
                       ) : (
                         <Button
                           size="sm"
                           onClick={() => registrarChegada(consulta)}
-                          disabled={registrando === consulta.id}
+                          disabled={atualizando === consulta.id}
                         >
                           <UserCheck className="h-4 w-4 mr-1" />
-                          {registrando === consulta.id ? "..." : "Chegou"}
+                          {atualizando === consulta.id ? "..." : "Chegou"}
                         </Button>
                       )}
                     </div>
