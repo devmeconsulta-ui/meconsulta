@@ -6,9 +6,14 @@ import { ChatInput } from "@/components/clinica/chat/ChatInput";
 import { NovaConversaModal } from "@/components/clinica/chat/NovaConversaModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Hash, Users, Menu, X, MessageCircle, Archive, ArchiveRestore, Trash2, MoreVertical, Pin, PinOff, Search } from "lucide-react";
+import { Hash, Users, Menu, X, MessageCircle, Archive, ArchiveRestore, Trash2, Pin, PinOff, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -174,10 +179,10 @@ export default function MedicoChat() {
         {showSidebarMobile ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </Button>
 
-      {/* Sidebar - Desktop sempre visível, Mobile toggle */}
+      {/* Layout Mobile */}
       <div className={`
         ${showSidebarMobile ? 'fixed inset-0 z-40 bg-background' : 'hidden'} 
-        lg:relative lg:block lg:bg-transparent
+        lg:hidden
       `}>
         <ChatSidebar
           conversas={conversas}
@@ -191,8 +196,35 @@ export default function MedicoChat() {
         />
       </div>
 
-      {/* Área principal do chat */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Layout Desktop com painéis redimensionáveis */}
+      <ResizablePanelGroup 
+        direction="horizontal" 
+        className="hidden lg:flex h-full"
+      >
+        {/* Sidebar redimensionável */}
+        <ResizablePanel 
+          defaultSize={25} 
+          minSize={15} 
+          maxSize={40}
+          className="bg-background"
+        >
+          <ChatSidebar
+            conversas={conversas}
+            conversaAtual={conversaAtual}
+            onSelectConversa={handleSelectConversa}
+            onNovaConversa={() => setShowNovaConversa(true)}
+            onArquivarConversa={arquivarConversa}
+            onExcluirConversa={excluirConversa}
+            onFixarConversa={fixarConversa}
+            loading={loading}
+          />
+        </ResizablePanel>
+
+        <ResizableHandle withHandle className="bg-border hover:bg-primary/20 transition-colors" />
+
+        {/* Área principal do chat redimensionável */}
+        <ResizablePanel defaultSize={75} minSize={50}>
+          <div className="flex-1 flex flex-col min-w-0 h-full">
         {/* Header da conversa */}
         {conversaAtual && (
           <div className="border-b bg-background">
@@ -334,7 +366,9 @@ export default function MedicoChat() {
             participantes={participantesConversa}
           />
         )}
-      </div>
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       {/* Modal nova conversa */}
       <NovaConversaModal
