@@ -14,6 +14,7 @@ export interface Conversa {
   participantes?: Participante[];
   ultima_mensagem?: Mensagem | null;
   mensagens_nao_lidas?: number;
+  arquivada?: boolean;
 }
 
 export interface Participante {
@@ -105,7 +106,8 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
             usuario_clinica_id,
             medico_id,
             tipo_participante,
-            ultima_leitura
+            ultima_leitura,
+            arquivada
           )
         `)
         .eq("clinica_id", clinicaId)
@@ -187,6 +189,9 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
             }
           }
 
+          // Verificar se está arquivada para o usuário atual
+          const estaArquivada = meuParticipante?.arquivada || false;
+
           return {
             ...conversa,
             tipo: conversa.tipo,
@@ -194,6 +199,7 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
             participantes: conversa.chat_participantes,
             ultima_mensagem: ultimaMensagem,
             mensagens_nao_lidas: mensagensNaoLidas,
+            arquivada: estaArquivada,
           } as unknown as Conversa;
         })
       );
@@ -521,6 +527,41 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     }
   };
 
+  // Arquivar conversa (para o usuário atual)
+  const arquivarConversa = async (conversaId: string, arquivar: boolean = true) => {
+    if (!currentUser) return;
+
+    try {
+      let updateQuery = supabase
+        .from("chat_participantes")
+        .update({ arquivada: arquivar })
+        .eq("conversa_id", conversaId);
+
+      if (currentUser.tipo === "clinica") {
+        updateQuery = updateQuery.eq("usuario_id", currentUser.id);
+      } else if (currentUser.medicoId) {
+        updateQuery = updateQuery.eq("medico_id", currentUser.medicoId);
+      } else if (currentUser.clinicaId) {
+        updateQuery = updateQuery.eq("usuario_clinica_id", currentUser.id);
+      }
+
+      const { error } = await updateQuery;
+      if (error) throw error;
+
+      // Limpar conversa atual se for a arquivada
+      if (arquivar && conversaAtual?.id === conversaId) {
+        setConversaAtual(null);
+        setMensagens([]);
+      }
+
+      toast.success(arquivar ? "Conversa arquivada" : "Conversa desarquivada");
+      await fetchConversas();
+    } catch (error) {
+      console.error("Erro ao arquivar conversa:", error);
+      toast.error("Erro ao arquivar conversa");
+    }
+  };
+
   // Excluir conversa
   const excluirConversa = async (conversaId: string) => {
     try {
@@ -819,6 +860,7 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     enviarMensagem,
     criarGrupoClinica,
     criarConversaPrivada,
+    arquivarConversa,
     excluirConversa,
     uploadArquivo,
     usersTyping,

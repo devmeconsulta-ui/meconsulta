@@ -351,6 +351,7 @@ export type Database = {
       }
       chat_participantes: {
         Row: {
+          arquivada: boolean | null
           conversa_id: string
           created_at: string | null
           id: string
@@ -361,6 +362,7 @@ export type Database = {
           usuario_id: string | null
         }
         Insert: {
+          arquivada?: boolean | null
           conversa_id: string
           created_at?: string | null
           id?: string
@@ -371,6 +373,7 @@ export type Database = {
           usuario_id?: string | null
         }
         Update: {
+          arquivada?: boolean | null
           conversa_id?: string
           created_at?: string | null
           id?: string
