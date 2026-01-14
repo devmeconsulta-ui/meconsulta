@@ -58,6 +58,24 @@ export interface TypingUser {
   tipo: "admin_clinica" | "medico" | "funcionario";
 }
 
+// Som de notificação em base64 (short beep)
+const NOTIFICATION_SOUND_URL = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU...";
+
+// Função para tocar som de notificação
+const playNotificationSound = () => {
+  try {
+    const audio = new Audio();
+    // Som simples de notificação
+    audio.src = "https://cdn.freesound.org/previews/536/536420_4921277-lq.mp3";
+    audio.volume = 0.5;
+    audio.play().catch(() => {
+      // Ignorar erro se autoplay for bloqueado
+    });
+  } catch (error) {
+    console.log("Não foi possível tocar som de notificação");
+  }
+};
+
 export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
   const { currentUser } = useAuth();
   const [conversas, setConversas] = useState<Conversa[]>([]);
@@ -632,6 +650,18 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
             .maybeSingle();
 
           if (conversa?.clinica_id === clinicaId) {
+            // Verificar se a mensagem não é do próprio usuário
+            const novaMensagem = payload.new as any;
+            const ehMinhaMsg = 
+              (currentUser?.tipo === "clinica" && novaMensagem.remetente_usuario_id === currentUser.id) ||
+              (currentUser?.medicoId && novaMensagem.remetente_medico_id === currentUser.medicoId) ||
+              (currentUser?.clinicaId && novaMensagem.remetente_usuario_clinica_id === currentUser.id);
+
+            // Tocar som se não for minha mensagem
+            if (!ehMinhaMsg) {
+              playNotificationSound();
+            }
+
             // Se estiver na conversa, atualizar mensagens
             if (conversaAtual?.id === payload.new.conversa_id) {
               fetchMensagens(payload.new.conversa_id);
@@ -646,7 +676,7 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [clinicaId, conversaAtual, fetchMensagens, fetchConversas]);
+  }, [clinicaId, conversaAtual, fetchMensagens, fetchConversas, currentUser]);
 
   // Carregar conversas iniciais
   useEffect(() => {
