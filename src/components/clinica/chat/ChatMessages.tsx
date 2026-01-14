@@ -181,7 +181,11 @@ export function ChatMessages({ conversa, mensagens, loading, usersTyping = [], o
 
   return (
     <>
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <div 
+        ref={scrollRef}
+        className="flex-1 p-4 overflow-y-auto scroll-smooth"
+        style={{ scrollBehavior: 'smooth' }}
+      >
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -280,7 +284,7 @@ export function ChatMessages({ conversa, mensagens, loading, usersTyping = [], o
             )}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       {/* Modal de preview de imagem */}
       {imagePreview && (
