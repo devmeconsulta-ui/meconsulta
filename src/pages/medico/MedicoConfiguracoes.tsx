@@ -19,7 +19,7 @@ interface MedicoContext {
 export default function MedicoConfiguracoes() {
   const { medicoData } = useOutletContext<MedicoContext>();
   const { currentUser } = useAuth();
-  const { settings: chatSettings, saveSettings: saveChatSettings } = useChatSettings();
+  const { settings: chatSettings, saveSettings: saveChatSettings, togglePush, pushPermission } = useChatSettings();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -260,6 +260,25 @@ export default function MedicoConfiguracoes() {
                       onCheckedChange={(checked) =>
                         saveChatSettings({ soundEnabled: checked })
                       }
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between mt-4">
+                    <div>
+                      <p className="font-medium">Notificações Push</p>
+                      <p className="text-sm text-muted-foreground">
+                        Receber notificação do navegador quando chegar nova mensagem
+                        {pushPermission === "denied" && (
+                          <span className="block text-destructive text-xs mt-1">
+                            Notificações bloqueadas no navegador. Altere nas configurações do navegador.
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={chatSettings.pushEnabled}
+                      disabled={pushPermission === "denied"}
+                      onCheckedChange={(checked) => togglePush(checked)}
                     />
                   </div>
                 </div>

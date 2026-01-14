@@ -4,16 +4,19 @@ const CHAT_SETTINGS_KEY = "meconsulta_chat_settings";
 
 export interface ChatSettings {
   soundEnabled: boolean;
+  pushEnabled: boolean;
 }
 
 const defaultSettings: ChatSettings = {
   soundEnabled: true,
+  pushEnabled: false,
 };
 
 export function useChatSettings() {
   const [settings, setSettings] = useState<ChatSettings>(defaultSettings);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>("default");
 
-  // Carregar configurações do localStorage
+  // Carregar configurações do localStorage e verificar permissão
   useEffect(() => {
     try {
       const stored = localStorage.getItem(CHAT_SETTINGS_KEY);
@@ -23,6 +26,11 @@ export function useChatSettings() {
       }
     } catch (error) {
       console.error("Erro ao carregar configurações do chat:", error);
+    }
+
+    // Verificar permissão de notificação
+    if ("Notification" in window) {
+      setPushPermission(Notification.permission);
     }
   }, []);
 
@@ -43,11 +51,50 @@ export function useChatSettings() {
     saveSettings({ soundEnabled: !settings.soundEnabled });
   }, [settings.soundEnabled, saveSettings]);
 
+  // Solicitar permissão para notificações push
+  const requestPushPermission = useCallback(async (): Promise<boolean> => {
+    if (!("Notification" in window)) {
+      console.log("Este navegador não suporta notificações");
+      return false;
+    }
+
+    if (Notification.permission === "granted") {
+      setPushPermission("granted");
+      return true;
+    }
+
+    if (Notification.permission !== "denied") {
+      const permission = await Notification.requestPermission();
+      setPushPermission(permission);
+      return permission === "granted";
+    }
+
+    return false;
+  }, []);
+
+  // Habilitar/desabilitar notificações push
+  const togglePush = useCallback(async (enabled: boolean) => {
+    if (enabled) {
+      const granted = await requestPushPermission();
+      if (granted) {
+        saveSettings({ pushEnabled: true });
+      }
+      return granted;
+    } else {
+      saveSettings({ pushEnabled: false });
+      return true;
+    }
+  }, [requestPushPermission, saveSettings]);
+
   return {
     settings,
     saveSettings,
     toggleSound,
+    togglePush,
     isSoundEnabled: settings.soundEnabled,
+    isPushEnabled: settings.pushEnabled,
+    pushPermission,
+    requestPushPermission,
   };
 }
 
@@ -62,5 +109,46 @@ export function isChatSoundEnabled(): boolean {
     return true; // Default é ativado
   } catch {
     return true;
+  }
+}
+
+// Função utilitária para verificar se push está ativado
+export function isChatPushEnabled(): boolean {
+  try {
+    const stored = localStorage.getItem(CHAT_SETTINGS_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.pushEnabled === true && Notification.permission === "granted";
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// Função para enviar notificação push
+export function sendChatPushNotification(title: string, body: string, onClick?: () => void): void {
+  if (!isChatPushEnabled()) return;
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  try {
+    const notification = new Notification(title, {
+      body,
+      icon: "/favicon.png",
+      badge: "/favicon.png",
+      tag: "chat-message",
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+      onClick?.();
+    };
+
+    // Auto-fechar após 5 segundos
+    setTimeout(() => notification.close(), 5000);
+  } catch (error) {
+    console.error("Erro ao enviar notificação:", error);
   }
 }

@@ -58,7 +58,7 @@ export interface TypingUser {
   tipo: "admin_clinica" | "medico" | "funcionario";
 }
 
-import { isChatSoundEnabled } from "./useChatSettings";
+import { isChatSoundEnabled, sendChatPushNotification } from "./useChatSettings";
 
 // Função para tocar som de notificação
 const playNotificationSound = () => {
@@ -659,9 +659,42 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
               (currentUser?.medicoId && novaMensagem.remetente_medico_id === currentUser.medicoId) ||
               (currentUser?.clinicaId && novaMensagem.remetente_usuario_clinica_id === currentUser.id);
 
-            // Tocar som se não for minha mensagem
+            // Tocar som e enviar push se não for minha mensagem
             if (!ehMinhaMsg) {
               playNotificationSound();
+              
+              // Enviar notificação push (se documento não estiver visível)
+              if (document.hidden) {
+                // Buscar nome do remetente para a notificação
+                let remetenteNome = "Alguém";
+                if (novaMensagem.remetente_medico_id) {
+                  const { data: medico } = await supabase
+                    .from("medicos")
+                    .select("nome")
+                    .eq("id", novaMensagem.remetente_medico_id)
+                    .maybeSingle();
+                  remetenteNome = medico ? `Dr(a). ${medico.nome}` : "Médico";
+                } else if (novaMensagem.remetente_usuario_clinica_id) {
+                  const { data: func } = await supabase
+                    .from("usuarios_clinica")
+                    .select("nome")
+                    .eq("id", novaMensagem.remetente_usuario_clinica_id)
+                    .maybeSingle();
+                  remetenteNome = func?.nome || "Funcionário";
+                } else if (novaMensagem.remetente_usuario_id) {
+                  const { data: user } = await supabase
+                    .from("usuarios")
+                    .select("nome")
+                    .eq("id", novaMensagem.remetente_usuario_id)
+                    .maybeSingle();
+                  remetenteNome = user?.nome || "Administrador";
+                }
+
+                sendChatPushNotification(
+                  `Nova mensagem de ${remetenteNome}`,
+                  novaMensagem.conteudo || "Enviou um arquivo",
+                );
+              }
             }
 
             // Se estiver na conversa, atualizar mensagens
