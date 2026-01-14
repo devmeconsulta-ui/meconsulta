@@ -529,7 +529,11 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
 
   // Arquivar conversa (para o usuário atual)
   const arquivarConversa = async (conversaId: string, arquivar: boolean = true) => {
-    if (!currentUser) return;
+    console.log("arquivarConversa chamado", { conversaId, arquivar, currentUser });
+    if (!currentUser) {
+      console.log("currentUser é null");
+      return;
+    }
 
     try {
       let updateQuery = supabase
@@ -538,14 +542,18 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
         .eq("conversa_id", conversaId);
 
       if (currentUser.tipo === "clinica") {
+        console.log("Filtrando por usuario_id (clinica)", currentUser.id);
         updateQuery = updateQuery.eq("usuario_id", currentUser.id);
       } else if (currentUser.medicoId) {
+        console.log("Filtrando por medico_id", currentUser.medicoId);
         updateQuery = updateQuery.eq("medico_id", currentUser.medicoId);
       } else if (currentUser.clinicaId) {
+        console.log("Filtrando por usuario_clinica_id", currentUser.id);
         updateQuery = updateQuery.eq("usuario_clinica_id", currentUser.id);
       }
 
-      const { error } = await updateQuery;
+      const { error, data, count } = await updateQuery.select();
+      console.log("Resultado do update:", { error, data, count });
       if (error) throw error;
 
       // Limpar conversa atual se for a arquivada
@@ -564,24 +572,28 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
 
   // Excluir conversa
   const excluirConversa = async (conversaId: string) => {
+    console.log("excluirConversa chamado", { conversaId });
     try {
       // Primeiro excluir mensagens
-      await supabase
+      const { error: msgError } = await supabase
         .from("chat_mensagens")
         .delete()
         .eq("conversa_id", conversaId);
+      console.log("Mensagens excluídas:", { msgError });
 
       // Excluir participantes
-      await supabase
+      const { error: partError } = await supabase
         .from("chat_participantes")
         .delete()
         .eq("conversa_id", conversaId);
+      console.log("Participantes excluídos:", { partError });
 
       // Excluir conversa
       const { error } = await supabase
         .from("chat_conversas")
         .delete()
         .eq("id", conversaId);
+      console.log("Conversa excluída:", { error });
 
       if (error) throw error;
 
