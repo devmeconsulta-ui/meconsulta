@@ -18,7 +18,9 @@ import {
   ArchiveRestore,
   Trash2,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Pin,
+  PinOff
 } from "lucide-react";
 import {
   AlertDialog,
@@ -43,6 +45,7 @@ interface ChatSidebarProps {
   onNovaConversa: () => void;
   onArquivarConversa?: (conversaId: string, arquivar: boolean) => void;
   onExcluirConversa?: (conversaId: string) => void;
+  onFixarConversa?: (conversaId: string, fixar: boolean) => void;
   loading: boolean;
 }
 
@@ -53,6 +56,7 @@ export function ChatSidebar({
   onNovaConversa,
   onArquivarConversa,
   onExcluirConversa,
+  onFixarConversa,
   loading,
 }: ChatSidebarProps) {
   const [busca, setBusca] = useState("");
@@ -106,6 +110,14 @@ export function ChatSidebar({
     }
   };
 
+  const handleFixar = (e: React.MouseEvent, conversa: Conversa) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (onFixarConversa) {
+      onFixarConversa(conversa.id, !conversa.fixada);
+    }
+  };
+
   const confirmarExclusao = () => {
     if (conversaParaExcluir && onExcluirConversa) {
       onExcluirConversa(conversaParaExcluir.id);
@@ -120,19 +132,24 @@ export function ChatSidebar({
         conversaAtual?.id === conversa.id
           ? "bg-primary/10 border border-primary/20"
           : "hover:bg-muted"
-      }`}
+      } ${conversa.fixada ? "border-l-2 border-l-primary" : ""}`}
       onClick={() => onSelectConversa(conversa)}
     >
       <div className="flex items-start gap-3">
-        <Avatar className="h-10 w-10">
-          <AvatarFallback className={`${
-            conversa.tipo === "grupo" 
-              ? "bg-primary/20 text-primary" 
-              : "bg-secondary"
-          }`}>
-            {getConversaIcon(conversa)}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative">
+          <Avatar className="h-10 w-10">
+            <AvatarFallback className={`${
+              conversa.tipo === "grupo" 
+                ? "bg-primary/20 text-primary" 
+                : "bg-secondary"
+            }`}>
+              {getConversaIcon(conversa)}
+            </AvatarFallback>
+          </Avatar>
+          {conversa.fixada && (
+            <Pin className="h-3 w-3 text-primary absolute -top-1 -right-1" />
+          )}
+        </div>
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
@@ -164,6 +181,21 @@ export function ChatSidebar({
 
         {/* Botões de ação */}
         <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2">
+          {onFixarConversa && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 hover:bg-secondary"
+              onClick={(e) => handleFixar(e, conversa)}
+              title={conversa.fixada ? "Desafixar" : "Fixar no topo"}
+            >
+              {conversa.fixada ? (
+                <PinOff className="h-3.5 w-3.5" />
+              ) : (
+                <Pin className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          )}
           {onArquivarConversa && (
             <Button
               variant="ghost"

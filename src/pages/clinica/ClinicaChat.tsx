@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
-import { useChatClinica, Conversa } from "@/hooks/useChatClinica";
+import { useChatClinica, Conversa, Mensagem } from "@/hooks/useChatClinica";
 import { ChatSidebar } from "@/components/clinica/chat/ChatSidebar";
 import { ChatMessages } from "@/components/clinica/chat/ChatMessages";
 import { ChatInput } from "@/components/clinica/chat/ChatInput";
 import { NovaConversaModal } from "@/components/clinica/chat/NovaConversaModal";
 import { Button } from "@/components/ui/button";
-import { Hash, Users, Menu, X, Archive, ArchiveRestore, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Hash, Users, Menu, X, Archive, ArchiveRestore, Trash2, Pin, PinOff, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +16,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ClinicaContext {
   clinicaData: any;
@@ -25,6 +36,9 @@ export default function ClinicaChat() {
   const { clinicaData, currentUser } = useOutletContext<ClinicaContext>();
   const [showNovaConversa, setShowNovaConversa] = useState(false);
   const [showSidebarMobile, setShowSidebarMobile] = useState(false);
+  const [buscaMensagem, setBuscaMensagem] = useState("");
+  const [showBuscaMensagem, setShowBuscaMensagem] = useState(false);
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false);
 
   const {
     conversas,
@@ -39,10 +53,19 @@ export default function ClinicaChat() {
     criarConversaPrivada,
     arquivarConversa,
     excluirConversa,
+    fixarConversa,
     uploadArquivo,
     usersTyping,
     sendTypingEvent,
   } = useChatClinica({ clinicaId: clinicaData?.id || null });
+
+  // Filtrar mensagens pela busca
+  const mensagensFiltradas = useMemo(() => {
+    if (!buscaMensagem.trim()) return mensagens;
+    return mensagens.filter((msg) =>
+      msg.conteudo?.toLowerCase().includes(buscaMensagem.toLowerCase())
+    );
+  }, [mensagens, buscaMensagem]);
 
   const handleSelectConversa = (conversa: Conversa) => {
     setConversaAtual(conversa);
@@ -109,6 +132,7 @@ export default function ClinicaChat() {
           onNovaConversa={() => setShowNovaConversa(true)}
           onArquivarConversa={arquivarConversa}
           onExcluirConversa={excluirConversa}
+          onFixarConversa={fixarConversa}
           loading={loading}
         />
       </div>
@@ -117,86 +141,160 @@ export default function ClinicaChat() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header da conversa */}
         {conversaAtual && (
-          <div className="h-16 border-b flex items-center justify-between px-4 bg-background">
-            <div className="flex items-center gap-3 pl-10 lg:pl-0">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                conversaAtual.tipo === "grupo" 
-                  ? "bg-primary/10 text-primary" 
-                  : "bg-secondary"
-              }`}>
-                {conversaAtual.tipo === "grupo" ? (
-                  <Hash className="h-5 w-5" />
-                ) : (
-                  <Users className="h-5 w-5" />
-                )}
+          <div className="border-b bg-background">
+            <div className="h-16 flex items-center justify-between px-4">
+              <div className="flex items-center gap-3 pl-10 lg:pl-0">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  conversaAtual.tipo === "grupo" 
+                    ? "bg-primary/10 text-primary" 
+                    : "bg-secondary"
+                }`}>
+                  {conversaAtual.tipo === "grupo" ? (
+                    <Hash className="h-5 w-5" />
+                  ) : (
+                    <Users className="h-5 w-5" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium">
+                      {conversaAtual.nome || "Conversa privada"}
+                    </h3>
+                    {conversaAtual.fixada && (
+                      <Pin className="h-4 w-4 text-primary" />
+                    )}
+                  </div>
+                  {conversaAtual.tipo === "grupo" && conversaAtual.descricao && (
+                    <p className="text-xs text-muted-foreground truncate max-w-xs">
+                      {conversaAtual.descricao}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div>
-                <h3 className="font-medium">
-                  {conversaAtual.nome || "Conversa privada"}
-                </h3>
-                {conversaAtual.tipo === "grupo" && conversaAtual.descricao && (
-                  <p className="text-xs text-muted-foreground truncate max-w-xs">
-                    {conversaAtual.descricao}
+
+              {/* Botões de ação */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowBuscaMensagem(!showBuscaMensagem)}
+                  title="Buscar mensagens"
+                >
+                  <Search className="h-5 w-5 text-muted-foreground" />
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => fixarConversa(conversaAtual.id, !conversaAtual.fixada)}
+                  title={conversaAtual.fixada ? "Desafixar conversa" : "Fixar conversa"}
+                >
+                  {conversaAtual.fixada ? (
+                    <PinOff className="h-5 w-5 text-primary" />
+                  ) : (
+                    <Pin className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
+                  title={conversaAtual.arquivada ? "Desarquivar conversa" : "Arquivar conversa"}
+                >
+                  {conversaAtual.arquivada ? (
+                    <ArchiveRestore className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <Archive className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </Button>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreVertical className="h-5 w-5 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => fixarConversa(conversaAtual.id, !conversaAtual.fixada)}
+                    >
+                      {conversaAtual.fixada ? (
+                        <>
+                          <PinOff className="h-4 w-4 mr-2" />
+                          Desafixar
+                        </>
+                      ) : (
+                        <>
+                          <Pin className="h-4 w-4 mr-2" />
+                          Fixar no topo
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
+                    >
+                      {conversaAtual.arquivada ? (
+                        <>
+                          <ArchiveRestore className="h-4 w-4 mr-2" />
+                          Desarquivar
+                        </>
+                      ) : (
+                        <>
+                          <Archive className="h-4 w-4 mr-2" />
+                          Arquivar
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => setConfirmarExclusao(true)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir conversa
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+            
+            {/* Barra de busca de mensagens */}
+            {showBuscaMensagem && (
+              <div className="px-4 pb-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar mensagens..."
+                    value={buscaMensagem}
+                    onChange={(e) => setBuscaMensagem(e.target.value)}
+                    className="pl-9 pr-8"
+                  />
+                  {buscaMensagem && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6"
+                      onClick={() => setBuscaMensagem("")}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                {buscaMensagem && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {mensagensFiltradas.length} mensagem(ns) encontrada(s)
                   </p>
                 )}
               </div>
-            </div>
-
-            {/* Botões de ação */}
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
-                title={conversaAtual.arquivada ? "Desarquivar conversa" : "Arquivar conversa"}
-              >
-                {conversaAtual.arquivada ? (
-                  <ArchiveRestore className="h-5 w-5 text-muted-foreground" />
-                ) : (
-                  <Archive className="h-5 w-5 text-muted-foreground" />
-                )}
-              </Button>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <MoreVertical className="h-5 w-5 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem 
-                    onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
-                  >
-                    {conversaAtual.arquivada ? (
-                      <>
-                        <ArchiveRestore className="h-4 w-4 mr-2" />
-                        Desarquivar
-                      </>
-                    ) : (
-                      <>
-                        <Archive className="h-4 w-4 mr-2" />
-                        Arquivar
-                      </>
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => excluirConversa(conversaAtual.id)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Excluir conversa
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            )}
           </div>
         )}
 
         {/* Mensagens */}
         <ChatMessages
           conversa={conversaAtual}
-          mensagens={mensagens}
+          mensagens={mensagensFiltradas}
           loading={loadingMensagens}
           usersTyping={usersTyping}
         />
@@ -220,6 +318,33 @@ export default function ClinicaChat() {
         onCriarGrupo={handleCriarGrupo}
         onCriarPrivada={handleCriarPrivada}
       />
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={confirmarExclusao} onOpenChange={setConfirmarExclusao}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir conversa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a conversa "{conversaAtual?.nome || "esta conversa"}"? 
+              Todas as mensagens serão permanentemente removidas. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (conversaAtual) {
+                  excluirConversa(conversaAtual.id);
+                }
+                setConfirmarExclusao(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

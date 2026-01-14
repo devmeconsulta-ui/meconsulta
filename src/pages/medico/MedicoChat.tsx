@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useChatClinica, Conversa } from "@/hooks/useChatClinica";
 import { ChatSidebar } from "@/components/clinica/chat/ChatSidebar";
 import { ChatMessages } from "@/components/clinica/chat/ChatMessages";
 import { ChatInput } from "@/components/clinica/chat/ChatInput";
 import { NovaConversaModal } from "@/components/clinica/chat/NovaConversaModal";
 import { Button } from "@/components/ui/button";
-import { Hash, Users, Menu, X, MessageCircle, Archive, ArchiveRestore, Trash2, MoreVertical } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Hash, Users, Menu, X, MessageCircle, Archive, ArchiveRestore, Trash2, MoreVertical, Pin, PinOff, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -15,12 +16,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 export default function MedicoChat() {
   const { currentUser } = useAuth();
   const [showNovaConversa, setShowNovaConversa] = useState(false);
   const [showSidebarMobile, setShowSidebarMobile] = useState(false);
   const [clinicaId, setClinicaId] = useState<string | null>(null);
   const [loadingClinica, setLoadingClinica] = useState(true);
+  const [buscaMensagem, setBuscaMensagem] = useState("");
+  const [showBuscaMensagem, setShowBuscaMensagem] = useState(false);
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false);
 
   // Buscar a clínica do médico
   useEffect(() => {
@@ -64,10 +78,19 @@ export default function MedicoChat() {
     criarConversaPrivada,
     arquivarConversa,
     excluirConversa,
+    fixarConversa,
     uploadArquivo,
     usersTyping,
     sendTypingEvent,
   } = useChatClinica({ clinicaId });
+
+  // Filtrar mensagens pela busca
+  const mensagensFiltradas = useMemo(() => {
+    if (!buscaMensagem.trim()) return mensagens;
+    return mensagens.filter((msg) =>
+      msg.conteudo?.toLowerCase().includes(buscaMensagem.toLowerCase())
+    );
+  }, [mensagens, buscaMensagem]);
 
   const handleSelectConversa = (conversa: Conversa) => {
     setConversaAtual(conversa);
@@ -161,6 +184,7 @@ export default function MedicoChat() {
           onNovaConversa={() => setShowNovaConversa(true)}
           onArquivarConversa={arquivarConversa}
           onExcluirConversa={excluirConversa}
+          onFixarConversa={fixarConversa}
           loading={loading}
         />
       </div>
