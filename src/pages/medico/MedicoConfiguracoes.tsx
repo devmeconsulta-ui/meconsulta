@@ -8,8 +8,9 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Settings, User, Bell, Shield, Save } from "lucide-react";
+import { Settings, User, Bell, Shield, Save, MessageCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChatSettings } from "@/hooks/useChatSettings";
 
 interface MedicoContext {
   medicoData: any;
@@ -18,6 +19,7 @@ interface MedicoContext {
 export default function MedicoConfiguracoes() {
   const { medicoData } = useOutletContext<MedicoContext>();
   const { currentUser } = useAuth();
+  const { settings: chatSettings, saveSettings: saveChatSettings } = useChatSettings();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -238,6 +240,28 @@ export default function MedicoConfiguracoes() {
                       setNotifications({ ...notifications, whatsappLembrete: checked })
                     }
                   />
+                </div>
+
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <MessageCircle className="w-4 h-4 text-primary" />
+                    <span className="font-medium">Chat Interno</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Som de Notificação</p>
+                      <p className="text-sm text-muted-foreground">
+                        Tocar som quando receber uma nova mensagem no chat
+                      </p>
+                    </div>
+                    <Switch
+                      checked={chatSettings.soundEnabled}
+                      onCheckedChange={(checked) =>
+                        saveChatSettings({ soundEnabled: checked })
+                      }
+                    />
+                  </div>
                 </div>
               </div>
 

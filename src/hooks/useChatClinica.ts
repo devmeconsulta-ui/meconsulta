@@ -58,11 +58,13 @@ export interface TypingUser {
   tipo: "admin_clinica" | "medico" | "funcionario";
 }
 
-// Som de notificação em base64 (short beep)
-const NOTIFICATION_SOUND_URL = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU...";
+import { isChatSoundEnabled } from "./useChatSettings";
 
 // Função para tocar som de notificação
 const playNotificationSound = () => {
+  // Verificar se o som está ativado nas configurações
+  if (!isChatSoundEnabled()) return;
+
   try {
     const audio = new Audio();
     // Som simples de notificação
