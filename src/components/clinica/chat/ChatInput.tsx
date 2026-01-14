@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -12,12 +12,14 @@ import {
   FileSpreadsheet,
   FileArchive,
   File,
-  Maximize2
+  Maximize2,
+  Upload
 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
   onEnviar: (
@@ -55,9 +57,11 @@ export function ChatInput({ onEnviar, onUpload, onTyping, disabled }: ChatInputP
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showFullPreview, setShowFullPreview] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const dragCounterRef = useRef(0);
 
   const handleEnviar = async () => {
     if ((!mensagem.trim() && !arquivoSelecionado) || enviando) return;
@@ -135,10 +139,86 @@ export function ChatInput({ onEnviar, onUpload, onTyping, disabled }: ChatInputP
     if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
+  const processFile = useCallback((file: File) => {
+    // Validar tamanho (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 10MB.");
+      return;
+    }
+
+    setArquivoSelecionado(file);
+
+    // Preview para imagens
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setPreviewUrl(null);
+    }
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    dragCounterRef.current = 0;
+
+    if (disabled || enviando) return;
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      processFile(files[0]);
+    }
+  }, [disabled, enviando, processFile]);
+
   const isImage = arquivoSelecionado?.type.startsWith("image/");
 
   return (
-    <div className="p-4 border-t bg-background">
+    <div 
+      className={cn(
+        "p-4 border-t bg-background relative transition-colors",
+        isDragOver && "bg-primary/5 border-primary"
+      )}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Overlay de drag and drop */}
+      {isDragOver && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-lg pointer-events-none">
+          <div className="flex flex-col items-center gap-2 text-primary">
+            <Upload className="h-8 w-8" />
+            <span className="text-sm font-medium">Solte o arquivo aqui</span>
+          </div>
+        </div>
+      )}
       {/* Preview do arquivo selecionado */}
       {arquivoSelecionado && (
         <div className="mb-3 p-3 bg-muted rounded-lg border">
