@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, differenceInSeconds, differenceInMinutes, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { UserCheck, Clock, Users, CheckCircle2, AlertCircle, RefreshCw, Play, Check } from "lucide-react";
+import { UserCheck, Clock, Users, CheckCircle2, AlertCircle, RefreshCw, Play, Check, Timer } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 
@@ -47,6 +47,25 @@ interface OrdemChegadaModalProps {
   onSuccess: () => void;
 }
 
+// Função para formatar tempo de espera
+const formatTempoEspera = (horaChegada: string): string => {
+  const chegada = new Date(horaChegada);
+  const agora = new Date();
+  
+  const totalSeconds = differenceInSeconds(agora, chegada);
+  const hours = differenceInHours(agora, chegada);
+  const minutes = differenceInMinutes(agora, chegada) % 60;
+  const seconds = totalSeconds % 60;
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes.toString().padStart(2, '0')}min`;
+  }
+  if (minutes > 0) {
+    return `${minutes}min ${seconds.toString().padStart(2, '0')}s`;
+  }
+  return `${seconds}s`;
+};
+
 export function OrdemChegadaModal({
   open,
   onOpenChange,
@@ -60,6 +79,18 @@ export function OrdemChegadaModal({
   const [consultas, setConsultas] = useState<ConsultaComChegada[]>([]);
   const [loading, setLoading] = useState(false);
   const [atualizando, setAtualizando] = useState<string | null>(null);
+  const [, setTick] = useState(0); // Para forçar re-render do timer
+
+  // Atualizar timer a cada segundo
+  useEffect(() => {
+    if (!open) return;
+    
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [open]);
 
   const locaisFiltrados = locais.filter(l => l.medico_id === medicoId);
   const hoje = format(new Date(), "yyyy-MM-dd");
@@ -404,6 +435,21 @@ export function OrdemChegadaModal({
                             </>
                           )}
                         </div>
+                        {/* Timer de espera */}
+                        {consulta.slot?.hora_chegada && !isAtendido && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <Timer className="h-3 w-3 text-orange-500" />
+                            <span className={`text-sm font-medium ${
+                              differenceInMinutes(new Date(), new Date(consulta.slot.hora_chegada)) > 30
+                                ? 'text-red-600'
+                                : differenceInMinutes(new Date(), new Date(consulta.slot.hora_chegada)) > 15
+                                ? 'text-orange-500'
+                                : 'text-blue-600'
+                            }`}>
+                              Esperando: {formatTempoEspera(consulta.slot.hora_chegada)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
