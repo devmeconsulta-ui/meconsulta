@@ -83,6 +83,7 @@ export default function MedicoChat() {
     usersTyping,
     sendTypingEvent,
     participantesConversa,
+    toggleReacao,
   } = useChatClinica({ clinicaId });
 
   // Filtrar mensagens pela busca
@@ -317,9 +318,10 @@ export default function MedicoChat() {
         {/* Mensagens */}
         <ChatMessages
           conversa={conversaAtual}
-          mensagens={mensagens}
+          mensagens={mensagensFiltradas}
           loading={loadingMensagens}
           usersTyping={usersTyping}
+          onToggleReacao={toggleReacao}
         />
 
         {/* Input */}

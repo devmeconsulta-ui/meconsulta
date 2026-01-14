@@ -48,6 +48,7 @@ export interface Mensagem {
   updated_at: string;
   remetente_nome?: string;
   remetente_foto?: string;
+  reacoes?: Reacao[];
 }
 
 interface UseChatClinicaProps {
@@ -84,6 +85,17 @@ export interface ChatParticipante {
   id: string;
   nome: string;
   tipo: "medico" | "funcionario" | "admin_clinica";
+}
+
+export interface Reacao {
+  id: string;
+  emoji: string;
+  usuario_id?: string;
+  usuario_clinica_id?: string;
+  medico_id?: string;
+  tipo_usuario: "admin_clinica" | "medico" | "funcionario";
+  created_at: string;
+  usuario_nome?: string;
 }
 
 export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
@@ -243,6 +255,32 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
 
       if (error) throw error;
 
+      // Buscar reações de todas as mensagens
+      const mensagemIds = (data || []).map(m => m.id);
+      const { data: reacoesData } = mensagemIds.length > 0 
+        ? await supabase
+            .from("chat_mensagens_reacoes")
+            .select("*")
+            .in("mensagem_id", mensagemIds)
+        : { data: [] };
+
+      // Agrupar reações por mensagem
+      const reacoesPorMensagem: Record<string, Reacao[]> = {};
+      for (const r of reacoesData || []) {
+        if (!reacoesPorMensagem[r.mensagem_id]) {
+          reacoesPorMensagem[r.mensagem_id] = [];
+        }
+        reacoesPorMensagem[r.mensagem_id].push({
+          id: r.id,
+          emoji: r.emoji,
+          usuario_id: r.usuario_id,
+          usuario_clinica_id: r.usuario_clinica_id,
+          medico_id: r.medico_id,
+          tipo_usuario: r.tipo_usuario as "admin_clinica" | "medico" | "funcionario",
+          created_at: r.created_at,
+        });
+      }
+
       // Enriquecer mensagens com nomes dos remetentes
       const mensagensEnriquecidas = await Promise.all(
         (data || []).map(async (msg) => {
@@ -285,6 +323,7 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
             tipo_mensagem: msg.tipo_mensagem as "texto" | "imagem" | "arquivo" | "sistema",
             remetente_nome: remetenteNome,
             remetente_foto: remetenteFoto,
+            reacoes: reacoesPorMensagem[msg.id] || [],
           } as Mensagem;
         })
       );
@@ -444,9 +483,30 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
         .update({ updated_at: new Date().toISOString() })
         .eq("id", conversaId);
 
-      // Recarregar mensagens
+      // Recarregar mensagens (sem recarregar sidebar)
       await fetchMensagens(conversaId);
-      await fetchConversas();
+      
+      // Atualizar apenas a última mensagem da conversa na lista local (sem refetch completo)
+      setConversas(prev => prev.map(c => {
+        if (c.id === conversaId) {
+          return {
+            ...c,
+            updated_at: new Date().toISOString(),
+            ultima_mensagem: {
+              id: '',
+              conversa_id: conversaId,
+              conteudo,
+              tipo_mensagem: tipoMensagem,
+              created_at: new Date().toISOString(),
+            } as any,
+          };
+        }
+        return c;
+      }).sort((a, b) => {
+        if (a.fixada && !b.fixada) return -1;
+        if (!a.fixada && b.fixada) return 1;
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      }));
     } catch (error) {
       console.error("Erro ao enviar mensagem:", error);
       toast.error("Erro ao enviar mensagem");
@@ -916,12 +976,18 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
               (currentUser?.medicoId && novaMensagem.remetente_medico_id === currentUser.medicoId) ||
               (currentUser?.clinicaId && novaMensagem.remetente_usuario_clinica_id === currentUser.id);
 
+            // Verificar se fui mencionado na mensagem
+            const meuNome = currentUser?.nome || "";
+            const foiMencionado = novaMensagem.conteudo && 
+              meuNome && 
+              novaMensagem.conteudo.toLowerCase().includes(`@${meuNome.toLowerCase().split(" ")[0]}`);
+
             // Tocar som e enviar push se não for minha mensagem
             if (!ehMinhaMsg) {
               playNotificationSound();
               
-              // Enviar notificação push (se documento não estiver visível)
-              if (document.hidden) {
+              // Enviar notificação push (se documento não estiver visível OU se foi mencionado)
+              if (document.hidden || foiMencionado) {
                 // Buscar nome do remetente para a notificação
                 let remetenteNome = "Alguém";
                 if (novaMensagem.remetente_medico_id) {
@@ -947,10 +1013,31 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
                   remetenteNome = user?.nome || "Administrador";
                 }
 
-                sendChatPushNotification(
-                  `Nova mensagem de ${remetenteNome}`,
-                  novaMensagem.conteudo || "Enviou um arquivo",
-                );
+                // Notificação especial para menções
+                if (foiMencionado) {
+                  sendChatPushNotification(
+                    `📢 ${remetenteNome} mencionou você!`,
+                    novaMensagem.conteudo || "Você foi mencionado em uma mensagem",
+                  );
+                  // Mostrar toast de menção mesmo se a página estiver visível
+                  if (!document.hidden) {
+                    toast.info(`${remetenteNome} mencionou você no chat!`, {
+                      action: {
+                        label: "Ver",
+                        onClick: () => {
+                          if (payload.new.conversa_id !== conversaAtual?.id) {
+                            fetchMensagens(payload.new.conversa_id);
+                          }
+                        },
+                      },
+                    });
+                  }
+                } else {
+                  sendChatPushNotification(
+                    `Nova mensagem de ${remetenteNome}`,
+                    novaMensagem.conteudo || "Enviou um arquivo",
+                  );
+                }
               }
             }
 
@@ -977,6 +1064,122 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     }
   }, [clinicaId, fetchConversas]);
 
+  // Adicionar reação a uma mensagem
+  const adicionarReacao = async (mensagemId: string, emoji: string) => {
+    if (!currentUser) return;
+
+    try {
+      const novaReacao: any = {
+        mensagem_id: mensagemId,
+        emoji,
+      };
+
+      if (currentUser.tipo === "clinica") {
+        novaReacao.usuario_id = currentUser.id;
+        novaReacao.tipo_usuario = "admin_clinica";
+      } else if (currentUser.medicoId) {
+        novaReacao.medico_id = currentUser.medicoId;
+        novaReacao.tipo_usuario = "medico";
+      } else if (currentUser.clinicaId) {
+        novaReacao.usuario_clinica_id = currentUser.id;
+        novaReacao.tipo_usuario = "funcionario";
+      }
+
+      const { error } = await supabase
+        .from("chat_mensagens_reacoes")
+        .insert(novaReacao);
+
+      if (error) {
+        // Se já existe, ignorar
+        if (error.code === "23505") return;
+        throw error;
+      }
+
+      // Atualizar mensagens localmente
+      setMensagens(prev => prev.map(msg => {
+        if (msg.id === mensagemId) {
+          const novaReacaoObj: Reacao = {
+            id: Date.now().toString(),
+            emoji,
+            usuario_id: novaReacao.usuario_id,
+            usuario_clinica_id: novaReacao.usuario_clinica_id,
+            medico_id: novaReacao.medico_id,
+            tipo_usuario: novaReacao.tipo_usuario,
+            created_at: new Date().toISOString(),
+          };
+          return {
+            ...msg,
+            reacoes: [...(msg.reacoes || []), novaReacaoObj],
+          };
+        }
+        return msg;
+      }));
+    } catch (error) {
+      console.error("Erro ao adicionar reação:", error);
+    }
+  };
+
+  // Remover reação de uma mensagem
+  const removerReacao = async (mensagemId: string, emoji: string) => {
+    if (!currentUser) return;
+
+    try {
+      let query = supabase
+        .from("chat_mensagens_reacoes")
+        .delete()
+        .eq("mensagem_id", mensagemId)
+        .eq("emoji", emoji);
+
+      if (currentUser.tipo === "clinica") {
+        query = query.eq("usuario_id", currentUser.id);
+      } else if (currentUser.medicoId) {
+        query = query.eq("medico_id", currentUser.medicoId);
+      } else if (currentUser.clinicaId) {
+        query = query.eq("usuario_clinica_id", currentUser.id);
+      }
+
+      const { error } = await query;
+      if (error) throw error;
+
+      // Atualizar mensagens localmente
+      const meuId = currentUser.medicoId || currentUser.id;
+      setMensagens(prev => prev.map(msg => {
+        if (msg.id === mensagemId) {
+          return {
+            ...msg,
+            reacoes: (msg.reacoes || []).filter(r => {
+              const reacaoUserId = r.medico_id || r.usuario_id || r.usuario_clinica_id;
+              return !(r.emoji === emoji && reacaoUserId === meuId);
+            }),
+          };
+        }
+        return msg;
+      }));
+    } catch (error) {
+      console.error("Erro ao remover reação:", error);
+    }
+  };
+
+  // Toggle reação (adicionar se não existe, remover se já existe)
+  const toggleReacao = async (mensagemId: string, emoji: string) => {
+    if (!currentUser) return;
+
+    const mensagem = mensagens.find(m => m.id === mensagemId);
+    if (!mensagem) return;
+
+    const meuId = currentUser.medicoId || currentUser.id;
+    const minhaReacao = (mensagem.reacoes || []).find(r => {
+      const reacaoUserId = r.medico_id || r.usuario_id || r.usuario_clinica_id;
+      return r.emoji === emoji && reacaoUserId === meuId;
+    });
+
+    if (minhaReacao) {
+      await removerReacao(mensagemId, emoji);
+    } else {
+      await adicionarReacao(mensagemId, emoji);
+    }
+  };
+
   return {
     conversas,
     conversaAtual,
@@ -997,5 +1200,6 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     sendTypingEvent,
     stopTyping,
     participantesConversa,
+    toggleReacao,
   };
 }

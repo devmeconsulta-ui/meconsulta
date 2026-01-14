@@ -58,6 +58,7 @@ export default function ClinicaChat() {
     usersTyping,
     sendTypingEvent,
     participantesConversa,
+    toggleReacao,
   } = useChatClinica({ clinicaId: clinicaData?.id || null });
 
   // Filtrar mensagens pela busca
@@ -268,6 +269,7 @@ export default function ClinicaChat() {
           mensagens={mensagensFiltradas}
           loading={loadingMensagens}
           usersTyping={usersTyping}
+          onToggleReacao={toggleReacao}
         />
 
         {/* Input */}

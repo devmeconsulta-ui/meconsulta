@@ -12,15 +12,17 @@ import {
   Hash,
   Users
 } from "lucide-react";
+import { MessageReactions } from "./MessageReactions";
 
 interface ChatMessagesProps {
   conversa: Conversa | null;
   mensagens: Mensagem[];
   loading: boolean;
   usersTyping?: TypingUser[];
+  onToggleReacao?: (mensagemId: string, emoji: string) => void;
 }
 
-export function ChatMessages({ conversa, mensagens, loading, usersTyping = [] }: ChatMessagesProps) {
+export function ChatMessages({ conversa, mensagens, loading, usersTyping = [], onToggleReacao }: ChatMessagesProps) {
   const { currentUser } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -210,7 +212,7 @@ export function ChatMessages({ conversa, mensagens, loading, usersTyping = [] }:
               }
 
               return (
-                <div key={msg.id}>
+                <div key={msg.id} className="group">
                   {renderSeparadorData(msg.created_at, dataAnterior)}
                   <div className={`flex gap-2 ${minha ? "justify-end" : "justify-start"}`}>
                     {!minha && (
@@ -237,6 +239,16 @@ export function ChatMessages({ conversa, mensagens, loading, usersTyping = [] }:
                       >
                         {renderConteudo(msg)}
                       </div>
+                      
+                      {/* Reações */}
+                      {onToggleReacao && (
+                        <MessageReactions
+                          reacoes={msg.reacoes || []}
+                          onToggleReacao={(emoji) => onToggleReacao(msg.id, emoji)}
+                          isMinhaMsg={minha}
+                        />
+                      )}
+                      
                       <span className={`text-xs text-muted-foreground mt-1 block ${minha ? "text-right" : "text-left"} px-1`}>
                         {formatarHora(msg.created_at)}
                       </span>
