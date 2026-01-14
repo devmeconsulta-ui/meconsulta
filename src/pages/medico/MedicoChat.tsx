@@ -82,6 +82,7 @@ export default function MedicoChat() {
     uploadArquivo,
     usersTyping,
     sendTypingEvent,
+    participantesConversa,
   } = useChatClinica({ clinicaId });
 
   // Filtrar mensagens pela busca
@@ -193,79 +194,123 @@ export default function MedicoChat() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header da conversa */}
         {conversaAtual && (
-          <div className="h-16 border-b flex items-center justify-between px-4 bg-background">
-            <div className="flex items-center gap-3 pl-10 lg:pl-0">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                conversaAtual.tipo === "grupo" 
-                  ? "bg-primary/10 text-primary" 
-                  : "bg-secondary"
-              }`}>
-                {conversaAtual.tipo === "grupo" ? (
-                  <Hash className="h-5 w-5" />
-                ) : (
-                  <Users className="h-5 w-5" />
-                )}
+          <div className="border-b bg-background">
+            <div className="h-16 flex items-center justify-between px-4">
+              <div className="flex items-center gap-3 pl-10 lg:pl-0">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  conversaAtual.tipo === "grupo" 
+                    ? "bg-primary/10 text-primary" 
+                    : "bg-secondary"
+                }`}>
+                  {conversaAtual.tipo === "grupo" ? (
+                    <Hash className="h-5 w-5" />
+                  ) : (
+                    <Users className="h-5 w-5" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium">
+                      {conversaAtual.nome || "Conversa privada"}
+                    </h3>
+                    {conversaAtual.fixada && (
+                      <Pin className="h-4 w-4 text-primary" />
+                    )}
+                  </div>
+                  {conversaAtual.tipo === "grupo" && conversaAtual.descricao && (
+                    <p className="text-xs text-muted-foreground truncate max-w-xs">
+                      {conversaAtual.descricao}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div>
-                <h3 className="font-medium">
-                  {conversaAtual.nome || "Conversa privada"}
-                </h3>
-                {conversaAtual.tipo === "grupo" && conversaAtual.descricao && (
-                  <p className="text-xs text-muted-foreground truncate max-w-xs">
-                    {conversaAtual.descricao}
-                  </p>
-                )}
+
+              {/* Botões de ação - mais visíveis */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowBuscaMensagem(!showBuscaMensagem)}
+                  className="gap-1.5 text-muted-foreground hover:text-foreground"
+                  title="Buscar mensagens"
+                >
+                  <Search className="h-4 w-4" />
+                  <span className="hidden sm:inline text-xs">Buscar</span>
+                </Button>
+                
+                <Button
+                  variant={conversaAtual.fixada ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => fixarConversa(conversaAtual.id, !conversaAtual.fixada)}
+                  className={`gap-1.5 ${conversaAtual.fixada ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  title={conversaAtual.fixada ? "Desafixar conversa" : "Fixar conversa"}
+                >
+                  {conversaAtual.fixada ? (
+                    <PinOff className="h-4 w-4" />
+                  ) : (
+                    <Pin className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline text-xs">{conversaAtual.fixada ? "Desafixar" : "Fixar"}</span>
+                </Button>
+                
+                <Button
+                  variant={conversaAtual.arquivada ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
+                  className={`gap-1.5 ${conversaAtual.arquivada ? "text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
+                  title={conversaAtual.arquivada ? "Desarquivar conversa" : "Arquivar conversa"}
+                >
+                  {conversaAtual.arquivada ? (
+                    <ArchiveRestore className="h-4 w-4" />
+                  ) : (
+                    <Archive className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline text-xs">{conversaAtual.arquivada ? "Desarquivar" : "Arquivar"}</span>
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmarExclusao(true)}
+                  className="gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  title="Excluir conversa"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="hidden sm:inline text-xs">Excluir</span>
+                </Button>
               </div>
             </div>
 
-            {/* Botões de ação */}
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
-                title={conversaAtual.arquivada ? "Desarquivar conversa" : "Arquivar conversa"}
-              >
-                {conversaAtual.arquivada ? (
-                  <ArchiveRestore className="h-5 w-5 text-muted-foreground" />
-                ) : (
-                  <Archive className="h-5 w-5 text-muted-foreground" />
+            {/* Barra de busca de mensagens */}
+            {showBuscaMensagem && (
+              <div className="px-4 pb-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar mensagens..."
+                    value={buscaMensagem}
+                    onChange={(e) => setBuscaMensagem(e.target.value)}
+                    className="pl-9 pr-8"
+                    autoFocus
+                  />
+                  {buscaMensagem && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6"
+                      onClick={() => setBuscaMensagem("")}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                {buscaMensagem && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {mensagensFiltradas.length} mensagem(ns) encontrada(s)
+                  </p>
                 )}
-              </Button>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <MoreVertical className="h-5 w-5 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem 
-                    onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
-                  >
-                    {conversaAtual.arquivada ? (
-                      <>
-                        <ArchiveRestore className="h-4 w-4 mr-2" />
-                        Desarquivar
-                      </>
-                    ) : (
-                      <>
-                        <Archive className="h-4 w-4 mr-2" />
-                        Arquivar
-                      </>
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => excluirConversa(conversaAtual.id)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Excluir conversa
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -284,6 +329,7 @@ export default function MedicoChat() {
             onUpload={uploadArquivo}
             onTyping={() => conversaAtual && sendTypingEvent(conversaAtual.id)}
             disabled={!conversaAtual}
+            participantes={participantesConversa}
           />
         )}
       </div>

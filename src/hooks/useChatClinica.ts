@@ -80,6 +80,12 @@ const playNotificationSound = () => {
   }
 };
 
+export interface ChatParticipante {
+  id: string;
+  nome: string;
+  tipo: "medico" | "funcionario" | "admin_clinica";
+}
+
 export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
   const { currentUser } = useAuth();
   const [conversas, setConversas] = useState<Conversa[]>([]);
@@ -88,6 +94,7 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
   const [loading, setLoading] = useState(false);
   const [loadingMensagens, setLoadingMensagens] = useState(false);
   const [usersTyping, setUsersTyping] = useState<TypingUser[]>([]);
+  const [participantesConversa, setParticipantesConversa] = useState<ChatParticipante[]>([]);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -284,6 +291,9 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
 
       setMensagens(mensagensEnriquecidas as Mensagem[]);
 
+      // Buscar participantes da conversa para menções
+      await fetchParticipantesConversa(conversaId);
+
       // Atualizar última leitura
       await atualizarUltimaLeitura(conversaId);
     } catch (error) {
@@ -316,6 +326,75 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
       await updateQuery;
     } catch (error) {
       console.error("Erro ao atualizar última leitura:", error);
+    }
+  };
+
+  // Buscar participantes da conversa para menções
+  const fetchParticipantesConversa = async (conversaId: string) => {
+    try {
+      const { data: participantes } = await supabase
+        .from("chat_participantes")
+        .select("medico_id, usuario_clinica_id, usuario_id, tipo_participante")
+        .eq("conversa_id", conversaId);
+
+      if (!participantes) {
+        setParticipantesConversa([]);
+        return;
+      }
+
+      const listaParticipantes: ChatParticipante[] = [];
+
+      for (const p of participantes) {
+        if (p.medico_id) {
+          const { data: medico } = await supabase
+            .from("medicos")
+            .select("nome")
+            .eq("id", p.medico_id)
+            .maybeSingle();
+          if (medico) {
+            listaParticipantes.push({
+              id: p.medico_id,
+              nome: `Dr(a). ${medico.nome}`,
+              tipo: "medico",
+            });
+          }
+        } else if (p.usuario_clinica_id) {
+          const { data: func } = await supabase
+            .from("usuarios_clinica")
+            .select("nome")
+            .eq("id", p.usuario_clinica_id)
+            .maybeSingle();
+          if (func) {
+            listaParticipantes.push({
+              id: p.usuario_clinica_id,
+              nome: func.nome,
+              tipo: "funcionario",
+            });
+          }
+        } else if (p.usuario_id) {
+          const { data: user } = await supabase
+            .from("usuarios")
+            .select("nome")
+            .eq("id", p.usuario_id)
+            .maybeSingle();
+          if (user) {
+            listaParticipantes.push({
+              id: p.usuario_id,
+              nome: user.nome,
+              tipo: "admin_clinica",
+            });
+          }
+        }
+      }
+
+      // Filtrar para não mostrar o próprio usuário nas sugestões
+      const myId = currentUser?.medicoId || currentUser?.id;
+      const filtrados = listaParticipantes.filter((p) => p.id !== myId);
+      
+      setParticipantesConversa(filtrados);
+    } catch (error) {
+      console.error("Erro ao buscar participantes:", error);
+      setParticipantesConversa([]);
     }
   };
 
@@ -917,5 +996,6 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     usersTyping,
     sendTypingEvent,
     stopTyping,
+    participantesConversa,
   };
 }
