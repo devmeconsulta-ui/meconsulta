@@ -22,6 +22,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useUnreadChatMessages } from "@/hooks/useUnreadChatMessages";
+import { Badge } from "@/components/ui/badge";
 
 interface MenuItem {
   icon: LucideIcon;
@@ -50,6 +52,10 @@ export function ClinicaSidebar() {
   const { logout, currentUser } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  
+  // Obter ID da clínica do usuário atual
+  const clinicaId = currentUser?.clinicaId || null;
+  const { unreadCount } = useUnreadChatMessages({ clinicaId });
 
   const handleLogout = () => {
     logout();
@@ -94,25 +100,37 @@ export function ClinicaSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {visibleMenuItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === "/clinica"}
-            onClick={() => setMobileOpen(false)}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-lg"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )
-            }
-          >
-            <item.icon className="w-5 h-5" />
-            {item.label}
-          </NavLink>
-        ))}
+        {visibleMenuItems.map((item) => {
+          const isChatItem = item.path === "/clinica/chat";
+          
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.path === "/clinica"}
+              onClick={() => setMobileOpen(false)}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-lg"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )
+              }
+            >
+              <item.icon className="w-5 h-5" />
+              {item.label}
+              {isChatItem && unreadCount > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="ml-auto h-5 min-w-[20px] flex items-center justify-center text-xs px-1.5"
+                >
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Badge>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* User info */}
