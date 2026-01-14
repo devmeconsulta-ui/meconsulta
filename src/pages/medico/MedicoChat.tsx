@@ -5,10 +5,16 @@ import { ChatMessages } from "@/components/clinica/chat/ChatMessages";
 import { ChatInput } from "@/components/clinica/chat/ChatInput";
 import { NovaConversaModal } from "@/components/clinica/chat/NovaConversaModal";
 import { Button } from "@/components/ui/button";
-import { Hash, Users, Menu, X, MessageCircle } from "lucide-react";
+import { Hash, Users, Menu, X, MessageCircle, Archive, ArchiveRestore, Trash2, MoreVertical } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 export default function MedicoChat() {
   const { currentUser } = useAuth();
   const [showNovaConversa, setShowNovaConversa] = useState(false);
@@ -186,6 +192,55 @@ export default function MedicoChat() {
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* Botões de ação */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
+                title={conversaAtual.arquivada ? "Desarquivar conversa" : "Arquivar conversa"}
+              >
+                {conversaAtual.arquivada ? (
+                  <ArchiveRestore className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <Archive className="h-5 w-5 text-muted-foreground" />
+                )}
+              </Button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreVertical className="h-5 w-5 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem 
+                    onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
+                  >
+                    {conversaAtual.arquivada ? (
+                      <>
+                        <ArchiveRestore className="h-4 w-4 mr-2" />
+                        Desarquivar
+                      </>
+                    ) : (
+                      <>
+                        <Archive className="h-4 w-4 mr-2" />
+                        Arquivar
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => excluirConversa(conversaAtual.id)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Excluir conversa
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         )}
