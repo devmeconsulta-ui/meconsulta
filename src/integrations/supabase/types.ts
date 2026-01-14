@@ -354,6 +354,7 @@ export type Database = {
           arquivada: boolean | null
           conversa_id: string
           created_at: string | null
+          fixada: boolean | null
           id: string
           medico_id: string | null
           tipo_participante: string
@@ -365,6 +366,7 @@ export type Database = {
           arquivada?: boolean | null
           conversa_id: string
           created_at?: string | null
+          fixada?: boolean | null
           id?: string
           medico_id?: string | null
           tipo_participante: string
@@ -376,6 +378,7 @@ export type Database = {
           arquivada?: boolean | null
           conversa_id?: string
           created_at?: string | null
+          fixada?: boolean | null
           id?: string
           medico_id?: string | null
           tipo_participante?: string

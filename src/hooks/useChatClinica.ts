@@ -15,6 +15,7 @@ export interface Conversa {
   ultima_mensagem?: Mensagem | null;
   mensagens_nao_lidas?: number;
   arquivada?: boolean;
+  fixada?: boolean;
 }
 
 export interface Participante {
@@ -107,7 +108,8 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
             medico_id,
             tipo_participante,
             ultima_leitura,
-            arquivada
+            arquivada,
+            fixada
           )
         `)
         .eq("clinica_id", clinicaId)
@@ -191,6 +193,7 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
 
           // Verificar se está arquivada para o usuário atual
           const estaArquivada = meuParticipante?.arquivada || false;
+          const estaFixada = meuParticipante?.fixada || false;
 
           return {
             ...conversa,
@@ -200,9 +203,17 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
             ultima_mensagem: ultimaMensagem,
             mensagens_nao_lidas: mensagensNaoLidas,
             arquivada: estaArquivada,
+            fixada: estaFixada,
           } as unknown as Conversa;
         })
       );
+
+      // Ordenar: fixadas primeiro, depois por updated_at
+      conversasEnriquecidas.sort((a, b) => {
+        if (a.fixada && !b.fixada) return -1;
+        if (!a.fixada && b.fixada) return 1;
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      });
 
       setConversas(conversasEnriquecidas);
     } catch (error) {
@@ -570,7 +581,34 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     }
   };
 
-  // Excluir conversa
+  // Fixar conversa (para o usuário atual)
+  const fixarConversa = async (conversaId: string, fixar: boolean = true) => {
+    if (!currentUser) return;
+
+    try {
+      let updateQuery = supabase
+        .from("chat_participantes")
+        .update({ fixada: fixar })
+        .eq("conversa_id", conversaId);
+
+      if (currentUser.tipo === "clinica") {
+        updateQuery = updateQuery.eq("usuario_id", currentUser.id);
+      } else if (currentUser.medicoId) {
+        updateQuery = updateQuery.eq("medico_id", currentUser.medicoId);
+      } else if (currentUser.clinicaId) {
+        updateQuery = updateQuery.eq("usuario_clinica_id", currentUser.id);
+      }
+
+      const { error } = await updateQuery;
+      if (error) throw error;
+
+      toast.success(fixar ? "Conversa fixada" : "Conversa desafixada");
+      await fetchConversas();
+    } catch (error) {
+      console.error("Erro ao fixar conversa:", error);
+      toast.error("Erro ao fixar conversa");
+    }
+  };
   const excluirConversa = async (conversaId: string) => {
     console.log("excluirConversa chamado", { conversaId });
     try {
@@ -874,6 +912,7 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     criarConversaPrivada,
     arquivarConversa,
     excluirConversa,
+    fixarConversa,
     uploadArquivo,
     usersTyping,
     sendTypingEvent,
