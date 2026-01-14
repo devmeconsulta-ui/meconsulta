@@ -398,7 +398,57 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     if (!clinicaId || !currentUser) return null;
 
     try {
-      // Criar conversa
+      // Primeiro, verificar se já existe uma conversa privada entre esses dois participantes
+      const { data: conversasExistentes } = await supabase
+        .from("chat_conversas")
+        .select(`
+          id,
+          tipo,
+          chat_participantes (
+            usuario_id,
+            usuario_clinica_id,
+            medico_id
+          )
+        `)
+        .eq("clinica_id", clinicaId)
+        .eq("tipo", "privado");
+
+      // Identificar meus IDs
+      const meuUsuarioId = currentUser.tipo === "clinica" ? currentUser.id : null;
+      const meuMedicoId = currentUser.medicoId || null;
+      const meuUsuarioClinicaId = currentUser.tipo !== "clinica" && !currentUser.medicoId ? currentUser.id : null;
+
+      // Identificar IDs do outro participante
+      const outroUsuarioId = outroParticipante.tipo === "admin_clinica" ? outroParticipante.id : null;
+      const outroMedicoId = outroParticipante.tipo === "medico" ? outroParticipante.id : null;
+      const outroUsuarioClinicaId = outroParticipante.tipo === "funcionario" ? outroParticipante.id : null;
+
+      // Verificar se já existe conversa entre esses dois
+      for (const conversa of conversasExistentes || []) {
+        const participantes = conversa.chat_participantes || [];
+        if (participantes.length !== 2) continue;
+
+        const temEu = participantes.some((p: any) => 
+          (meuUsuarioId && p.usuario_id === meuUsuarioId) ||
+          (meuMedicoId && p.medico_id === meuMedicoId) ||
+          (meuUsuarioClinicaId && p.usuario_clinica_id === meuUsuarioClinicaId)
+        );
+
+        const temOutro = participantes.some((p: any) => 
+          (outroUsuarioId && p.usuario_id === outroUsuarioId) ||
+          (outroMedicoId && p.medico_id === outroMedicoId) ||
+          (outroUsuarioClinicaId && p.usuario_clinica_id === outroUsuarioClinicaId)
+        );
+
+        if (temEu && temOutro) {
+          // Conversa já existe, retornar ela
+          toast.info("Conversa já existe. Abrindo...");
+          await fetchConversas();
+          return conversa;
+        }
+      }
+
+      // Criar nova conversa se não existe
       const { data: conversa, error: conversaError } = await supabase
         .from("chat_conversas")
         .insert({
@@ -468,6 +518,43 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
       console.error("Erro ao criar conversa privada:", error);
       toast.error("Erro ao criar conversa");
       return null;
+    }
+  };
+
+  // Excluir conversa
+  const excluirConversa = async (conversaId: string) => {
+    try {
+      // Primeiro excluir mensagens
+      await supabase
+        .from("chat_mensagens")
+        .delete()
+        .eq("conversa_id", conversaId);
+
+      // Excluir participantes
+      await supabase
+        .from("chat_participantes")
+        .delete()
+        .eq("conversa_id", conversaId);
+
+      // Excluir conversa
+      const { error } = await supabase
+        .from("chat_conversas")
+        .delete()
+        .eq("id", conversaId);
+
+      if (error) throw error;
+
+      // Limpar conversa atual se for a excluída
+      if (conversaAtual?.id === conversaId) {
+        setConversaAtual(null);
+        setMensagens([]);
+      }
+
+      toast.success("Conversa excluída com sucesso");
+      await fetchConversas();
+    } catch (error) {
+      console.error("Erro ao excluir conversa:", error);
+      toast.error("Erro ao excluir conversa");
     }
   };
 
@@ -732,6 +819,7 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     enviarMensagem,
     criarGrupoClinica,
     criarConversaPrivada,
+    excluirConversa,
     uploadArquivo,
     usersTyping,
     sendTypingEvent,
