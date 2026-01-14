@@ -14,7 +14,11 @@ import {
   Search,
   Hash,
   User,
-  Trash2
+  Archive,
+  ArchiveRestore,
+  Trash2,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import {
   AlertDialog,
@@ -26,12 +30,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface ChatSidebarProps {
   conversas: Conversa[];
   conversaAtual: Conversa | null;
   onSelectConversa: (conversa: Conversa) => void;
   onNovaConversa: () => void;
+  onArquivarConversa?: (conversaId: string, arquivar: boolean) => void;
   onExcluirConversa?: (conversaId: string) => void;
   loading: boolean;
 }
@@ -41,16 +51,21 @@ export function ChatSidebar({
   conversaAtual,
   onSelectConversa,
   onNovaConversa,
+  onArquivarConversa,
   onExcluirConversa,
   loading,
 }: ChatSidebarProps) {
   const [busca, setBusca] = useState("");
   const [conversaParaExcluir, setConversaParaExcluir] = useState<Conversa | null>(null);
+  const [arquivadasAberto, setArquivadasAberto] = useState(false);
 
   const conversasFiltradas = conversas.filter((c) =>
     c.nome?.toLowerCase().includes(busca.toLowerCase()) ||
     c.ultima_mensagem?.conteudo?.toLowerCase().includes(busca.toLowerCase())
   );
+
+  const conversasAtivas = conversasFiltradas.filter((c) => !c.arquivada);
+  const conversasArquivadas = conversasFiltradas.filter((c) => c.arquivada);
 
   const formatarData = (dataStr: string) => {
     const data = new Date(dataStr);
@@ -67,7 +82,6 @@ export function ChatSidebar({
     if (conversa.tipo === "grupo") {
       return conversa.nome || "Grupo";
     }
-    // Para conversas privadas, mostrar nome do outro participante
     return conversa.nome || "Conversa privada";
   };
 
@@ -83,12 +97,101 @@ export function ChatSidebar({
     setConversaParaExcluir(conversa);
   };
 
+  const handleArquivar = (e: React.MouseEvent, conversa: Conversa) => {
+    e.stopPropagation();
+    if (onArquivarConversa) {
+      onArquivarConversa(conversa.id, !conversa.arquivada);
+    }
+  };
+
   const confirmarExclusao = () => {
     if (conversaParaExcluir && onExcluirConversa) {
       onExcluirConversa(conversaParaExcluir.id);
     }
     setConversaParaExcluir(null);
   };
+
+  const renderConversaItem = (conversa: Conversa) => (
+    <div
+      key={conversa.id}
+      className={`group relative p-3 rounded-lg transition-colors mb-1 cursor-pointer ${
+        conversaAtual?.id === conversa.id
+          ? "bg-primary/10 border border-primary/20"
+          : "hover:bg-muted"
+      }`}
+      onClick={() => onSelectConversa(conversa)}
+    >
+      <div className="flex items-start gap-3">
+        <Avatar className="h-10 w-10">
+          <AvatarFallback className={`${
+            conversa.tipo === "grupo" 
+              ? "bg-primary/20 text-primary" 
+              : "bg-secondary"
+          }`}>
+            {getConversaIcon(conversa)}
+          </AvatarFallback>
+        </Avatar>
+        
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <span className="font-medium text-sm truncate">
+              {getConversaNome(conversa)}
+            </span>
+            <div className="flex items-center gap-1">
+              {conversa.ultima_mensagem && (
+                <span className="text-xs text-muted-foreground">
+                  {formatarData(conversa.ultima_mensagem.created_at)}
+                </span>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-xs text-muted-foreground truncate max-w-[120px]">
+              {conversa.ultima_mensagem?.conteudo || "Nenhuma mensagem"}
+            </p>
+            <div className="flex items-center gap-1">
+              {conversa.mensagens_nao_lidas && conversa.mensagens_nao_lidas > 0 && (
+                <Badge variant="default" className="h-5 min-w-5 flex items-center justify-center text-xs">
+                  {conversa.mensagens_nao_lidas > 99 ? "99+" : conversa.mensagens_nao_lidas}
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Botões de ação */}
+        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2">
+          {onArquivarConversa && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 hover:bg-secondary"
+              onClick={(e) => handleArquivar(e, conversa)}
+              title={conversa.arquivada ? "Desarquivar" : "Arquivar"}
+            >
+              {conversa.arquivada ? (
+                <ArchiveRestore className="h-3.5 w-3.5" />
+              ) : (
+                <Archive className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          )}
+          {onExcluirConversa && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive"
+              onClick={(e) => handleExcluir(e, conversa)}
+              title="Excluir"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -132,69 +235,37 @@ export function ChatSidebar({
                 <p className="text-xs mt-1">Clique em "Nova" para iniciar</p>
               </div>
             ) : (
-              conversasFiltradas.map((conversa) => (
-                <div
-                  key={conversa.id}
-                  className={`group relative p-3 rounded-lg transition-colors mb-1 cursor-pointer ${
-                    conversaAtual?.id === conversa.id
-                      ? "bg-primary/10 border border-primary/20"
-                      : "hover:bg-muted"
-                  }`}
-                  onClick={() => onSelectConversa(conversa)}
-                >
-                  <div className="flex items-start gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className={`${
-                        conversa.tipo === "grupo" 
-                          ? "bg-primary/20 text-primary" 
-                          : "bg-secondary"
-                      }`}>
-                        {getConversaIcon(conversa)}
-                      </AvatarFallback>
-                    </Avatar>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm truncate">
-                          {getConversaNome(conversa)}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          {conversa.ultima_mensagem && (
-                            <span className="text-xs text-muted-foreground">
-                              {formatarData(conversa.ultima_mensagem.created_at)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-xs text-muted-foreground truncate max-w-[150px]">
-                          {conversa.ultima_mensagem?.conteudo || "Nenhuma mensagem"}
-                        </p>
-                        <div className="flex items-center gap-1">
-                          {conversa.mensagens_nao_lidas && conversa.mensagens_nao_lidas > 0 && (
-                            <Badge variant="default" className="h-5 min-w-5 flex items-center justify-center text-xs">
-                              {conversa.mensagens_nao_lidas > 99 ? "99+" : conversa.mensagens_nao_lidas}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+              <>
+                {/* Conversas ativas */}
+                {conversasAtivas.map(renderConversaItem)}
 
-                    {/* Botão de excluir */}
-                    {onExcluirConversa && (
+                {/* Conversas arquivadas */}
+                {conversasArquivadas.length > 0 && (
+                  <Collapsible
+                    open={arquivadasAberto}
+                    onOpenChange={setArquivadasAberto}
+                    className="mt-4"
+                  >
+                    <CollapsibleTrigger asChild>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2 hover:bg-destructive/10 hover:text-destructive"
-                        onClick={(e) => handleExcluir(e, conversa)}
+                        className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        {arquivadasAberto ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                        <Archive className="h-4 w-4" />
+                        <span className="text-sm">Arquivadas ({conversasArquivadas.length})</span>
                       </Button>
-                    )}
-                  </div>
-                </div>
-              ))
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-2">
+                      {conversasArquivadas.map(renderConversaItem)}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+              </>
             )}
           </div>
         </ScrollArea>

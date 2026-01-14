@@ -56,6 +56,7 @@ export default function MedicoChat() {
     enviarMensagem,
     criarGrupoClinica,
     criarConversaPrivada,
+    arquivarConversa,
     excluirConversa,
     uploadArquivo,
     usersTyping,
@@ -152,6 +153,7 @@ export default function MedicoChat() {
           conversaAtual={conversaAtual}
           onSelectConversa={handleSelectConversa}
           onNovaConversa={() => setShowNovaConversa(true)}
+          onArquivarConversa={arquivarConversa}
           onExcluirConversa={excluirConversa}
           loading={loading}
         />

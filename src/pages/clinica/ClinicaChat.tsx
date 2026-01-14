@@ -29,6 +29,7 @@ export default function ClinicaChat() {
     enviarMensagem,
     criarGrupoClinica,
     criarConversaPrivada,
+    arquivarConversa,
     excluirConversa,
     uploadArquivo,
     usersTyping,
@@ -98,6 +99,7 @@ export default function ClinicaChat() {
           conversaAtual={conversaAtual}
           onSelectConversa={handleSelectConversa}
           onNovaConversa={() => setShowNovaConversa(true)}
+          onArquivarConversa={arquivarConversa}
           onExcluirConversa={excluirConversa}
           loading={loading}
         />
