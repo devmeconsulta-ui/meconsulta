@@ -12,7 +12,7 @@ import { useChatSettings } from "@/hooks/useChatSettings";
 
 export default function ClinicaConfiguracoes() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
-  const { settings: chatSettings, saveSettings: saveChatSettings } = useChatSettings();
+  const { settings: chatSettings, saveSettings: saveChatSettings, togglePush, pushPermission } = useChatSettings();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     nome_fantasia: clinicaData?.nome_fantasia || "",
@@ -138,7 +138,7 @@ export default function ClinicaConfiguracoes() {
             Chat Interno
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">Som de Notificação</p>
@@ -151,6 +151,25 @@ export default function ClinicaConfiguracoes() {
               onCheckedChange={(checked) =>
                 saveChatSettings({ soundEnabled: checked })
               }
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Notificações Push</p>
+              <p className="text-sm text-muted-foreground">
+                Receber notificação do navegador quando chegar nova mensagem
+                {pushPermission === "denied" && (
+                  <span className="block text-destructive text-xs mt-1">
+                    Notificações bloqueadas no navegador. Altere nas configurações do navegador.
+                  </span>
+                )}
+              </p>
+            </div>
+            <Switch
+              checked={chatSettings.pushEnabled}
+              disabled={pushPermission === "denied"}
+              onCheckedChange={(checked) => togglePush(checked)}
             />
           </div>
         </CardContent>
