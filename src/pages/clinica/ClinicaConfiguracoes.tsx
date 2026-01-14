@@ -4,12 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, MessageCircle } from "lucide-react";
+import { useChatSettings } from "@/hooks/useChatSettings";
 
 export default function ClinicaConfiguracoes() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
+  const { settings: chatSettings, saveSettings: saveChatSettings } = useChatSettings();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     nome_fantasia: clinicaData?.nome_fantasia || "",
@@ -124,6 +127,32 @@ export default function ClinicaConfiguracoes() {
               Salvar Alterações
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Configurações do Chat */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-primary" />
+            Chat Interno
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Som de Notificação</p>
+              <p className="text-sm text-muted-foreground">
+                Tocar som quando receber uma nova mensagem no chat
+              </p>
+            </div>
+            <Switch
+              checked={chatSettings.soundEnabled}
+              onCheckedChange={(checked) =>
+                saveChatSettings({ soundEnabled: checked })
+              }
+            />
+          </div>
         </CardContent>
       </Card>
     </div>
