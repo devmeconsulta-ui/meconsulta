@@ -13,14 +13,26 @@ import {
   Plus, 
   Search,
   Hash,
-  User
+  User,
+  Trash2
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ChatSidebarProps {
   conversas: Conversa[];
   conversaAtual: Conversa | null;
   onSelectConversa: (conversa: Conversa) => void;
   onNovaConversa: () => void;
+  onExcluirConversa?: (conversaId: string) => void;
   loading: boolean;
 }
 
@@ -29,9 +41,11 @@ export function ChatSidebar({
   conversaAtual,
   onSelectConversa,
   onNovaConversa,
+  onExcluirConversa,
   loading,
 }: ChatSidebarProps) {
   const [busca, setBusca] = useState("");
+  const [conversaParaExcluir, setConversaParaExcluir] = useState<Conversa | null>(null);
 
   const conversasFiltradas = conversas.filter((c) =>
     c.nome?.toLowerCase().includes(busca.toLowerCase()) ||
@@ -64,97 +78,149 @@ export function ChatSidebar({
     return <User className="h-4 w-4" />;
   };
 
-  return (
-    <div className="w-80 border-r bg-muted/30 flex flex-col h-full">
-      {/* Header */}
-      <div className="p-4 border-b">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold">Chat Interno</h2>
-          </div>
-          <Button size="sm" onClick={onNovaConversa}>
-            <Plus className="h-4 w-4 mr-1" />
-            Nova
-          </Button>
-        </div>
-        
-        {/* Busca */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar conversas..."
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-      </div>
+  const handleExcluir = (e: React.MouseEvent, conversa: Conversa) => {
+    e.stopPropagation();
+    setConversaParaExcluir(conversa);
+  };
 
-      {/* Lista de conversas */}
-      <ScrollArea className="flex-1">
-        <div className="p-2">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+  const confirmarExclusao = () => {
+    if (conversaParaExcluir && onExcluirConversa) {
+      onExcluirConversa(conversaParaExcluir.id);
+    }
+    setConversaParaExcluir(null);
+  };
+
+  return (
+    <>
+      <div className="w-80 border-r bg-muted/30 flex flex-col h-full">
+        {/* Header */}
+        <div className="p-4 border-b">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-primary" />
+              <h2 className="font-semibold">Chat Interno</h2>
             </div>
-          ) : conversasFiltradas.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Nenhuma conversa encontrada</p>
-              <p className="text-xs mt-1">Clique em "Nova" para iniciar</p>
-            </div>
-          ) : (
-            conversasFiltradas.map((conversa) => (
-              <button
-                key={conversa.id}
-                onClick={() => onSelectConversa(conversa)}
-                className={`w-full p-3 rounded-lg text-left transition-colors mb-1 ${
-                  conversaAtual?.id === conversa.id
-                    ? "bg-primary/10 border border-primary/20"
-                    : "hover:bg-muted"
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className={`${
-                      conversa.tipo === "grupo" 
-                        ? "bg-primary/20 text-primary" 
-                        : "bg-secondary"
-                    }`}>
-                      {getConversaIcon(conversa)}
-                    </AvatarFallback>
-                  </Avatar>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm truncate">
-                        {getConversaNome(conversa)}
-                      </span>
-                      {conversa.ultima_mensagem && (
-                        <span className="text-xs text-muted-foreground">
-                          {formatarData(conversa.ultima_mensagem.created_at)}
-                        </span>
-                      )}
-                    </div>
+            <Button size="sm" onClick={onNovaConversa}>
+              <Plus className="h-4 w-4 mr-1" />
+              Nova
+            </Button>
+          </div>
+          
+          {/* Busca */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar conversas..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </div>
+
+        {/* Lista de conversas */}
+        <ScrollArea className="flex-1">
+          <div className="p-2">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              </div>
+            ) : conversasFiltradas.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Nenhuma conversa encontrada</p>
+                <p className="text-xs mt-1">Clique em "Nova" para iniciar</p>
+              </div>
+            ) : (
+              conversasFiltradas.map((conversa) => (
+                <div
+                  key={conversa.id}
+                  className={`group relative p-3 rounded-lg transition-colors mb-1 cursor-pointer ${
+                    conversaAtual?.id === conversa.id
+                      ? "bg-primary/10 border border-primary/20"
+                      : "hover:bg-muted"
+                  }`}
+                  onClick={() => onSelectConversa(conversa)}
+                >
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback className={`${
+                        conversa.tipo === "grupo" 
+                          ? "bg-primary/20 text-primary" 
+                          : "bg-secondary"
+                      }`}>
+                        {getConversaIcon(conversa)}
+                      </AvatarFallback>
+                    </Avatar>
                     
-                    <div className="flex items-center justify-between mt-1">
-                      <p className="text-xs text-muted-foreground truncate max-w-[180px]">
-                        {conversa.ultima_mensagem?.conteudo || "Nenhuma mensagem"}
-                      </p>
-                      {conversa.mensagens_nao_lidas && conversa.mensagens_nao_lidas > 0 && (
-                        <Badge variant="default" className="ml-2 h-5 min-w-5 flex items-center justify-center text-xs">
-                          {conversa.mensagens_nao_lidas > 99 ? "99+" : conversa.mensagens_nao_lidas}
-                        </Badge>
-                      )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm truncate">
+                          {getConversaNome(conversa)}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {conversa.ultima_mensagem && (
+                            <span className="text-xs text-muted-foreground">
+                              {formatarData(conversa.ultima_mensagem.created_at)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-xs text-muted-foreground truncate max-w-[150px]">
+                          {conversa.ultima_mensagem?.conteudo || "Nenhuma mensagem"}
+                        </p>
+                        <div className="flex items-center gap-1">
+                          {conversa.mensagens_nao_lidas && conversa.mensagens_nao_lidas > 0 && (
+                            <Badge variant="default" className="h-5 min-w-5 flex items-center justify-center text-xs">
+                              {conversa.mensagens_nao_lidas > 99 ? "99+" : conversa.mensagens_nao_lidas}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Botão de excluir */}
+                    {onExcluirConversa && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={(e) => handleExcluir(e, conversa)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
-              </button>
-            ))
-          )}
-        </div>
-      </ScrollArea>
-    </div>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={!!conversaParaExcluir} onOpenChange={() => setConversaParaExcluir(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir conversa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a conversa com "{conversaParaExcluir?.nome || "esta pessoa"}"? 
+              Todas as mensagens serão permanentemente removidas. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmarExclusao}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
