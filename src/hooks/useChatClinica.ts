@@ -127,9 +127,50 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
             mensagensNaoLidas = count || 0;
           }
 
+          // Para conversas privadas, buscar nome do outro participante
+          let nomeConversa = conversa.nome;
+          if (conversa.tipo === "privado") {
+            const outroParticipante = conversa.chat_participantes?.find((p: any) => {
+              if (currentUser?.tipo === "clinica") {
+                return p.usuario_id !== currentUser.id;
+              } else if (currentUser?.medicoId) {
+                return p.medico_id !== currentUser.medicoId;
+              } else if (currentUser?.clinicaId) {
+                return p.usuario_clinica_id !== currentUser.id;
+              }
+              return true;
+            });
+
+            if (outroParticipante) {
+              if (outroParticipante.medico_id) {
+                const { data: medico } = await supabase
+                  .from("medicos")
+                  .select("nome")
+                  .eq("id", outroParticipante.medico_id)
+                  .maybeSingle();
+                nomeConversa = medico ? `Dr(a). ${medico.nome}` : "Médico";
+              } else if (outroParticipante.usuario_clinica_id) {
+                const { data: funcionario } = await supabase
+                  .from("usuarios_clinica")
+                  .select("nome")
+                  .eq("id", outroParticipante.usuario_clinica_id)
+                  .maybeSingle();
+                nomeConversa = funcionario?.nome || "Funcionário";
+              } else if (outroParticipante.usuario_id) {
+                const { data: usuario } = await supabase
+                  .from("usuarios")
+                  .select("nome")
+                  .eq("id", outroParticipante.usuario_id)
+                  .maybeSingle();
+                nomeConversa = usuario?.nome || "Administrador";
+              }
+            }
+          }
+
           return {
             ...conversa,
             tipo: conversa.tipo,
+            nome: nomeConversa,
             participantes: conversa.chat_participantes,
             ultima_mensagem: ultimaMensagem,
             mensagens_nao_lidas: mensagensNaoLidas,
