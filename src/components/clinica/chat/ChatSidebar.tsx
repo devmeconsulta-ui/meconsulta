@@ -179,50 +179,6 @@ export function ChatSidebar({
           </div>
         </div>
 
-        {/* Botões de ação */}
-        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2">
-          {onFixarConversa && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 hover:bg-secondary"
-              onClick={(e) => handleFixar(e, conversa)}
-              title={conversa.fixada ? "Desafixar" : "Fixar no topo"}
-            >
-              {conversa.fixada ? (
-                <PinOff className="h-3.5 w-3.5" />
-              ) : (
-                <Pin className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          )}
-          {onArquivarConversa && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 hover:bg-secondary"
-              onClick={(e) => handleArquivar(e, conversa)}
-              title={conversa.arquivada ? "Desarquivar" : "Arquivar"}
-            >
-              {conversa.arquivada ? (
-                <ArchiveRestore className="h-3.5 w-3.5" />
-              ) : (
-                <Archive className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          )}
-          {onExcluirConversa && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive"
-              onClick={(e) => handleExcluir(e, conversa)}
-              title="Excluir"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </div>
       </div>
     </div>
   );
