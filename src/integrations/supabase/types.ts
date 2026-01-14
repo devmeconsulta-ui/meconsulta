@@ -349,6 +349,68 @@ export type Database = {
           },
         ]
       }
+      chat_mensagens_reacoes: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          medico_id: string | null
+          mensagem_id: string
+          tipo_usuario: string
+          usuario_clinica_id: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          medico_id?: string | null
+          mensagem_id: string
+          tipo_usuario: string
+          usuario_clinica_id?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          medico_id?: string | null
+          mensagem_id?: string
+          tipo_usuario?: string
+          usuario_clinica_id?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_mensagens_reacoes_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_mensagens_reacoes_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "chat_mensagens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_mensagens_reacoes_usuario_clinica_id_fkey"
+            columns: ["usuario_clinica_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_mensagens_reacoes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_participantes: {
         Row: {
           arquivada: boolean | null
