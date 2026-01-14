@@ -99,6 +99,8 @@ export function ChatSidebar({
 
   const handleArquivar = (e: React.MouseEvent, conversa: Conversa) => {
     e.stopPropagation();
+    e.preventDefault();
+    console.log("handleArquivar chamado", { conversaId: conversa.id, arquivada: conversa.arquivada, onArquivarConversa: !!onArquivarConversa });
     if (onArquivarConversa) {
       onArquivarConversa(conversa.id, !conversa.arquivada);
     }
