@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   LucideIcon,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ const menuItems: MenuItem[] = [
   { icon: Wallet, label: "Dados Bancários", path: "/clinica/dados-bancarios" },
   { icon: Star, label: "Avaliações", path: "/clinica/avaliacoes" },
   { icon: User, label: "Usuários da Clínica", path: "/clinica/usuarios" },
+  { icon: MessageSquare, label: "Chat Interno", path: "/clinica/chat", permission: "dashboard" },
   { icon: Settings, label: "Configurações", path: "/clinica/configuracoes" },
 ];
 
