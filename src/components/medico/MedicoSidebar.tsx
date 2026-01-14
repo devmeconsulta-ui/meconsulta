@@ -8,6 +8,7 @@ import {
   Stethoscope,
   Menu,
   X,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -19,6 +20,7 @@ const allMenuItems = [
   { icon: Stethoscope, label: "Consultas", path: "/medico/consultas", permKey: "consultas" },
   { icon: Calendar, label: "Agenda", path: "/medico/agenda", permKey: "agenda" },
   { icon: Star, label: "Avaliações", path: "/medico/avaliacoes", permKey: "avaliacoes" },
+  { icon: MessageCircle, label: "Chat Interno", path: "/medico/chat", permKey: "chat" },
 ];
 
 export function MedicoSidebar() {
