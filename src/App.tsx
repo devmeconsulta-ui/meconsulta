@@ -40,6 +40,7 @@ import MedicoPaginaPublica from "./pages/medico/MedicoPaginaPublica";
 import MedicoDadosBancarios from "./pages/medico/MedicoDadosBancarios";
 import MedicoAvaliacoes from "./pages/medico/MedicoAvaliacoes";
 import MedicoConfiguracoes from "./pages/medico/MedicoConfiguracoes";
+import MedicoChat from "./pages/medico/MedicoChat";
 
 // Paciente pages
 import { PacienteLayout } from "./components/paciente/PacienteLayout";
@@ -114,6 +115,7 @@ const App = () => (
               <Route path="pagina-publica" element={<MedicoPaginaPublica />} />
               <Route path="dados-bancarios" element={<MedicoDadosBancarios />} />
               <Route path="avaliacoes" element={<MedicoAvaliacoes />} />
+              <Route path="chat" element={<MedicoChat />} />
               <Route path="configuracoes" element={<MedicoConfiguracoes />} />
             </Route>
 
