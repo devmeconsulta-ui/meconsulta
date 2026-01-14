@@ -73,6 +73,41 @@ export function ChatMessages({ conversa, mensagens, loading, usersTyping = [] }:
     return null;
   };
 
+  // Renderizar conteúdo com menções destacadas
+  const renderTextWithMentions = (text: string) => {
+    // Regex para encontrar menções @Nome Sobrenome
+    const mentionRegex = /@([A-Za-zÀ-ÿ]+(?:\s[A-Za-zÀ-ÿ]+)*)/g;
+    const parts: (string | JSX.Element)[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mentionRegex.exec(text)) !== null) {
+      // Adicionar texto antes da menção
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      
+      // Adicionar menção destacada
+      parts.push(
+        <span 
+          key={match.index} 
+          className="bg-primary/20 text-primary font-medium rounded px-1"
+        >
+          @{match[1]}
+        </span>
+      );
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // Adicionar texto restante
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : text;
+  };
+
   const renderConteudo = (msg: Mensagem) => {
     if (msg.tipo_mensagem === "imagem" && msg.arquivo_url) {
       return (
@@ -84,7 +119,7 @@ export function ChatMessages({ conversa, mensagens, loading, usersTyping = [] }:
             onClick={() => setImagePreview(msg.arquivo_url)}
           />
           {msg.conteudo && (
-            <p className="mt-2 text-sm">{msg.conteudo}</p>
+            <p className="mt-2 text-sm">{renderTextWithMentions(msg.conteudo)}</p>
           )}
         </div>
       );
@@ -107,7 +142,7 @@ export function ChatMessages({ conversa, mensagens, loading, usersTyping = [] }:
             <Download className="h-4 w-4" />
           </a>
           {msg.conteudo && (
-            <p className="mt-2 text-sm">{msg.conteudo}</p>
+            <p className="mt-2 text-sm">{renderTextWithMentions(msg.conteudo)}</p>
           )}
         </div>
       );
@@ -123,7 +158,7 @@ export function ChatMessages({ conversa, mensagens, loading, usersTyping = [] }:
       );
     }
 
-    return <p className="text-sm whitespace-pre-wrap break-words">{msg.conteudo}</p>;
+    return <p className="text-sm whitespace-pre-wrap break-words">{renderTextWithMentions(msg.conteudo || "")}</p>;
   };
 
   if (!conversa) {

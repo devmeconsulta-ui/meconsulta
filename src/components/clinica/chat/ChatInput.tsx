@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { 
   Send, 
@@ -20,6 +19,13 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { MentionInput } from "./MentionInput";
+
+interface Participante {
+  id: string;
+  nome: string;
+  tipo: "medico" | "funcionario" | "admin_clinica";
+}
 
 interface ChatInputProps {
   onEnviar: (
@@ -32,6 +38,7 @@ interface ChatInputProps {
   onUpload: (file: File) => Promise<{ url: string; nome: string; tipo: string } | null>;
   onTyping?: () => void;
   disabled?: boolean;
+  participantes?: Participante[];
 }
 
 const getFileIcon = (fileType: string) => {
@@ -51,7 +58,7 @@ const formatFileSize = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-export function ChatInput({ onEnviar, onUpload, onTyping, disabled }: ChatInputProps) {
+export function ChatInput({ onEnviar, onUpload, onTyping, disabled, participantes = [] }: ChatInputProps) {
   const [mensagem, setMensagem] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
@@ -326,14 +333,13 @@ export function ChatInput({ onEnviar, onUpload, onTyping, disabled }: ChatInputP
           </Button>
         </div>
 
-        {/* Textarea */}
-        <Textarea
-          placeholder="Digite sua mensagem..."
+        {/* Input com suporte a menções */}
+        <MentionInput
           value={mensagem}
-          onChange={(e) => {
-            setMensagem(e.target.value);
+          onChange={(val) => {
+            setMensagem(val);
             // Emitir evento de digitando
-            if (onTyping && e.target.value.length > 0) {
+            if (onTyping && val.length > 0) {
               if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
               }
@@ -344,9 +350,9 @@ export function ChatInput({ onEnviar, onUpload, onTyping, disabled }: ChatInputP
             }
           }}
           onKeyDown={handleKeyDown}
+          participantes={participantes}
           disabled={disabled || enviando}
-          className="min-h-[44px] max-h-32 resize-none"
-          rows={1}
+          placeholder="Digite sua mensagem... Use @ para mencionar"
         />
 
         {/* Botão de enviar */}

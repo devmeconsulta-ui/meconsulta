@@ -57,6 +57,7 @@ export default function ClinicaChat() {
     uploadArquivo,
     usersTyping,
     sendTypingEvent,
+    participantesConversa,
   } = useChatClinica({ clinicaId: clinicaData?.id || null });
 
   // Filtrar mensagens pela busca
@@ -172,93 +173,62 @@ export default function ClinicaChat() {
                 </div>
               </div>
 
-              {/* Botões de ação */}
+              {/* Botões de ação - mais visíveis */}
               <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="sm"
                   onClick={() => setShowBuscaMensagem(!showBuscaMensagem)}
+                  className="gap-1.5 text-muted-foreground hover:text-foreground"
                   title="Buscar mensagens"
                 >
-                  <Search className="h-5 w-5 text-muted-foreground" />
+                  <Search className="h-4 w-4" />
+                  <span className="hidden sm:inline text-xs">Buscar</span>
                 </Button>
                 
                 <Button
-                  variant="ghost"
-                  size="icon"
+                  variant={conversaAtual.fixada ? "secondary" : "ghost"}
+                  size="sm"
                   onClick={() => fixarConversa(conversaAtual.id, !conversaAtual.fixada)}
+                  className={`gap-1.5 ${conversaAtual.fixada ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
                   title={conversaAtual.fixada ? "Desafixar conversa" : "Fixar conversa"}
                 >
                   {conversaAtual.fixada ? (
-                    <PinOff className="h-5 w-5 text-primary" />
+                    <PinOff className="h-4 w-4" />
                   ) : (
-                    <Pin className="h-5 w-5 text-muted-foreground" />
+                    <Pin className="h-4 w-4" />
                   )}
+                  <span className="hidden sm:inline text-xs">{conversaAtual.fixada ? "Desafixar" : "Fixar"}</span>
+                </Button>
+                
+                <Button
+                  variant={conversaAtual.arquivada ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
+                  className={`gap-1.5 ${conversaAtual.arquivada ? "text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
+                  title={conversaAtual.arquivada ? "Desarquivar conversa" : "Arquivar conversa"}
+                >
+                  {conversaAtual.arquivada ? (
+                    <ArchiveRestore className="h-4 w-4" />
+                  ) : (
+                    <Archive className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline text-xs">{conversaAtual.arquivada ? "Desarquivar" : "Arquivar"}</span>
                 </Button>
                 
                 <Button
                   variant="ghost"
-                  size="icon"
-                  onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
-                  title={conversaAtual.arquivada ? "Desarquivar conversa" : "Arquivar conversa"}
+                  size="sm"
+                  onClick={() => setConfirmarExclusao(true)}
+                  className="gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  title="Excluir conversa"
                 >
-                  {conversaAtual.arquivada ? (
-                    <ArchiveRestore className="h-5 w-5 text-muted-foreground" />
-                  ) : (
-                    <Archive className="h-5 w-5 text-muted-foreground" />
-                  )}
+                  <Trash2 className="h-4 w-4" />
+                  <span className="hidden sm:inline text-xs">Excluir</span>
                 </Button>
-                
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="h-5 w-5 text-muted-foreground" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
-                      onClick={() => fixarConversa(conversaAtual.id, !conversaAtual.fixada)}
-                    >
-                      {conversaAtual.fixada ? (
-                        <>
-                          <PinOff className="h-4 w-4 mr-2" />
-                          Desafixar
-                        </>
-                      ) : (
-                        <>
-                          <Pin className="h-4 w-4 mr-2" />
-                          Fixar no topo
-                        </>
-                      )}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => arquivarConversa(conversaAtual.id, !conversaAtual.arquivada)}
-                    >
-                      {conversaAtual.arquivada ? (
-                        <>
-                          <ArchiveRestore className="h-4 w-4 mr-2" />
-                          Desarquivar
-                        </>
-                      ) : (
-                        <>
-                          <Archive className="h-4 w-4 mr-2" />
-                          Arquivar
-                        </>
-                      )}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={() => setConfirmarExclusao(true)}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Excluir conversa
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
             </div>
-            
+
             {/* Barra de busca de mensagens */}
             {showBuscaMensagem && (
               <div className="px-4 pb-3">
@@ -269,6 +239,7 @@ export default function ClinicaChat() {
                     value={buscaMensagem}
                     onChange={(e) => setBuscaMensagem(e.target.value)}
                     className="pl-9 pr-8"
+                    autoFocus
                   />
                   {buscaMensagem && (
                     <Button
@@ -306,6 +277,7 @@ export default function ClinicaChat() {
             onUpload={uploadArquivo}
             onTyping={() => conversaAtual && sendTypingEvent(conversaAtual.id)}
             disabled={!conversaAtual}
+            participantes={participantesConversa}
           />
         )}
       </div>
