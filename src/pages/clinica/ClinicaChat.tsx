@@ -30,6 +30,8 @@ export default function ClinicaChat() {
     criarGrupoClinica,
     criarConversaPrivada,
     uploadArquivo,
+    usersTyping,
+    sendTypingEvent,
   } = useChatClinica({ clinicaId: clinicaData?.id || null });
 
   const handleSelectConversa = (conversa: Conversa) => {
@@ -135,6 +137,7 @@ export default function ClinicaChat() {
           conversa={conversaAtual}
           mensagens={mensagens}
           loading={loadingMensagens}
+          usersTyping={usersTyping}
         />
 
         {/* Input */}
@@ -142,6 +145,7 @@ export default function ClinicaChat() {
           <ChatInput
             onEnviar={handleEnviarMensagem}
             onUpload={uploadArquivo}
+            onTyping={() => conversaAtual && sendTypingEvent(conversaAtual.id)}
             disabled={!conversaAtual}
           />
         )}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -52,6 +52,12 @@ interface UseChatClinicaProps {
   clinicaId: string | null;
 }
 
+export interface TypingUser {
+  id: string;
+  nome: string;
+  tipo: "admin_clinica" | "medico" | "funcionario";
+}
+
 export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
   const { currentUser } = useAuth();
   const [conversas, setConversas] = useState<Conversa[]>([]);
@@ -59,6 +65,9 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMensagens, setLoadingMensagens] = useState(false);
+  const [usersTyping, setUsersTyping] = useState<TypingUser[]>([]);
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Buscar conversas da clínica
   const fetchConversas = useCallback(async () => {
@@ -490,7 +499,77 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     }
   };
 
-  // Configurar realtime
+  // Função para enviar evento de digitando
+  const sendTypingEvent = useCallback((conversaId: string) => {
+    if (!currentUser || !typingChannelRef.current) return;
+
+    const myInfo: TypingUser = {
+      id: currentUser.medicoId || currentUser.id || "",
+      nome: currentUser.nome || "Usuário",
+      tipo: currentUser.medicoId 
+        ? "medico" 
+        : currentUser.tipo === "clinica" 
+          ? "admin_clinica" 
+          : "funcionario",
+    };
+
+    typingChannelRef.current.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { user: myInfo, conversaId },
+    });
+  }, [currentUser]);
+
+  // Função para parar de digitar
+  const stopTyping = useCallback(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Configurar canal de typing para a conversa atual
+  useEffect(() => {
+    if (!conversaAtual?.id || !clinicaId) {
+      setUsersTyping([]);
+      return;
+    }
+
+    const channelName = `typing_${conversaAtual.id}`;
+    const channel = supabase.channel(channelName);
+
+    channel
+      .on("broadcast", { event: "typing" }, (payload) => {
+        const { user, conversaId } = payload.payload as { user: TypingUser; conversaId: string };
+        
+        // Ignorar próprio usuário
+        const myId = currentUser?.medicoId || currentUser?.id;
+        if (user.id === myId || conversaId !== conversaAtual.id) return;
+
+        // Adicionar usuário à lista de digitando
+        setUsersTyping((prev) => {
+          const exists = prev.find((u) => u.id === user.id);
+          if (exists) return prev;
+          return [...prev, user];
+        });
+
+        // Remover após 3 segundos de inatividade
+        setTimeout(() => {
+          setUsersTyping((prev) => prev.filter((u) => u.id !== user.id));
+        }, 3000);
+      })
+      .subscribe();
+
+    typingChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      typingChannelRef.current = null;
+      setUsersTyping([]);
+    };
+  }, [conversaAtual?.id, clinicaId, currentUser]);
+
+  // Configurar realtime para mensagens
   useEffect(() => {
     if (!clinicaId) return;
 
@@ -548,5 +627,8 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     criarGrupoClinica,
     criarConversaPrivada,
     uploadArquivo,
+    usersTyping,
+    sendTypingEvent,
+    stopTyping,
   };
 }
