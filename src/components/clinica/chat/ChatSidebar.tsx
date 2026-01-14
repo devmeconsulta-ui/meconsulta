@@ -166,7 +166,7 @@ export function ChatSidebar({
           </div>
           
           <div className="flex items-center justify-between mt-1">
-            <p className="text-xs text-muted-foreground truncate max-w-[120px]">
+            <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">
               {conversa.ultima_mensagem?.conteudo || "Nenhuma mensagem"}
             </p>
             <div className="flex items-center gap-1">
@@ -185,7 +185,7 @@ export function ChatSidebar({
 
   return (
     <>
-      <div className="w-80 border-r bg-muted/30 flex flex-col h-full">
+      <div className="w-full min-w-0 border-r bg-muted/30 flex flex-col h-full">
         {/* Header */}
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-4">
