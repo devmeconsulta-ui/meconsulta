@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useUnreadChatMessages } from "@/hooks/useUnreadChatMessages";
+import { Badge } from "@/components/ui/badge";
 
 // Menu items for doctor area - simplified to only essential items
 const allMenuItems = [
@@ -27,6 +29,10 @@ export function MedicoSidebar() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  
+  // Obter ID da clínica do médico
+  const clinicaId = currentUser?.clinicaId || null;
+  const { unreadCount } = useUnreadChatMessages({ clinicaId });
 
   // Check if user is atendente (clinic staff)
   const isAtendente = currentUser?.papel === 'atendente';
@@ -66,25 +72,37 @@ export function MedicoSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === "/medico"}
-            onClick={() => setMobileOpen(false)}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-lg"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )
-            }
-          >
-            <item.icon className="w-5 h-5" />
-            {item.label}
-          </NavLink>
-        ))}
+        {menuItems.map((item) => {
+          const isChatItem = item.path === "/medico/chat";
+          
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.path === "/medico"}
+              onClick={() => setMobileOpen(false)}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-lg"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )
+              }
+            >
+              <item.icon className="w-5 h-5" />
+              {item.label}
+              {isChatItem && unreadCount > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="ml-auto h-5 min-w-[20px] flex items-center justify-center text-xs px-1.5"
+                >
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Badge>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Logout */}
