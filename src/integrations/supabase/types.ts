@@ -231,6 +231,186 @@ export type Database = {
           },
         ]
       }
+      chat_conversas: {
+        Row: {
+          clinica_id: string
+          created_at: string | null
+          descricao: string | null
+          id: string
+          nome: string | null
+          tipo: string
+          updated_at: string | null
+        }
+        Insert: {
+          clinica_id: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string | null
+          tipo?: string
+          updated_at?: string | null
+        }
+        Update: {
+          clinica_id?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string | null
+          tipo?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_conversas_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_mensagens: {
+        Row: {
+          arquivo_nome: string | null
+          arquivo_tipo: string | null
+          arquivo_url: string | null
+          conteudo: string | null
+          conversa_id: string
+          created_at: string | null
+          id: string
+          lida: boolean | null
+          remetente_medico_id: string | null
+          remetente_usuario_clinica_id: string | null
+          remetente_usuario_id: string | null
+          tipo_mensagem: string
+          tipo_remetente: string
+          updated_at: string | null
+        }
+        Insert: {
+          arquivo_nome?: string | null
+          arquivo_tipo?: string | null
+          arquivo_url?: string | null
+          conteudo?: string | null
+          conversa_id: string
+          created_at?: string | null
+          id?: string
+          lida?: boolean | null
+          remetente_medico_id?: string | null
+          remetente_usuario_clinica_id?: string | null
+          remetente_usuario_id?: string | null
+          tipo_mensagem?: string
+          tipo_remetente: string
+          updated_at?: string | null
+        }
+        Update: {
+          arquivo_nome?: string | null
+          arquivo_tipo?: string | null
+          arquivo_url?: string | null
+          conteudo?: string | null
+          conversa_id?: string
+          created_at?: string | null
+          id?: string
+          lida?: boolean | null
+          remetente_medico_id?: string | null
+          remetente_usuario_clinica_id?: string | null
+          remetente_usuario_id?: string | null
+          tipo_mensagem?: string
+          tipo_remetente?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_mensagens_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_mensagens_remetente_medico_id_fkey"
+            columns: ["remetente_medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_mensagens_remetente_usuario_clinica_id_fkey"
+            columns: ["remetente_usuario_clinica_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_mensagens_remetente_usuario_id_fkey"
+            columns: ["remetente_usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_participantes: {
+        Row: {
+          conversa_id: string
+          created_at: string | null
+          id: string
+          medico_id: string | null
+          tipo_participante: string
+          ultima_leitura: string | null
+          usuario_clinica_id: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          conversa_id: string
+          created_at?: string | null
+          id?: string
+          medico_id?: string | null
+          tipo_participante: string
+          ultima_leitura?: string | null
+          usuario_clinica_id?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          conversa_id?: string
+          created_at?: string | null
+          id?: string
+          medico_id?: string | null
+          tipo_participante?: string
+          ultima_leitura?: string | null
+          usuario_clinica_id?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_participantes_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_participantes_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_participantes_usuario_clinica_id_fkey"
+            columns: ["usuario_clinica_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_participantes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinicas: {
         Row: {
           agencia: string | null
