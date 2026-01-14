@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Mensagem, Conversa } from "@/hooks/useChatClinica";
+import { Mensagem, Conversa, TypingUser } from "@/hooks/useChatClinica";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, isToday, isYesterday, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -17,9 +17,10 @@ interface ChatMessagesProps {
   conversa: Conversa | null;
   mensagens: Mensagem[];
   loading: boolean;
+  usersTyping?: TypingUser[];
 }
 
-export function ChatMessages({ conversa, mensagens, loading }: ChatMessagesProps) {
+export function ChatMessages({ conversa, mensagens, loading, usersTyping = [] }: ChatMessagesProps) {
   const { currentUser } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -209,6 +210,27 @@ export function ChatMessages({ conversa, mensagens, loading }: ChatMessagesProps
                 </div>
               );
             })}
+            
+            {/* Indicador de digitando */}
+            {usersTyping.length > 0 && (
+              <div className="flex gap-2 justify-start items-center py-2">
+                <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-2xl rounded-bl-md">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                  <span className="text-xs text-muted-foreground italic">
+                    {usersTyping.length === 1 
+                      ? `${usersTyping[0].nome} está digitando...`
+                      : usersTyping.length === 2
+                        ? `${usersTyping[0].nome} e ${usersTyping[1].nome} estão digitando...`
+                        : `${usersTyping.length} pessoas estão digitando...`
+                    }
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>

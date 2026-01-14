@@ -19,16 +19,18 @@ interface ChatInputProps {
     arquivoTipo?: string
   ) => Promise<void>;
   onUpload: (file: File) => Promise<{ url: string; nome: string; tipo: string } | null>;
+  onTyping?: () => void;
   disabled?: boolean;
 }
 
-export function ChatInput({ onEnviar, onUpload, disabled }: ChatInputProps) {
+export function ChatInput({ onEnviar, onUpload, onTyping, disabled }: ChatInputProps) {
   const [mensagem, setMensagem] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleEnviar = async () => {
     if ((!mensagem.trim() && !arquivoSelecionado) || enviando) return;
@@ -171,7 +173,19 @@ export function ChatInput({ onEnviar, onUpload, disabled }: ChatInputProps) {
         <Textarea
           placeholder="Digite sua mensagem..."
           value={mensagem}
-          onChange={(e) => setMensagem(e.target.value)}
+          onChange={(e) => {
+            setMensagem(e.target.value);
+            // Emitir evento de digitando
+            if (onTyping && e.target.value.length > 0) {
+              if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+              }
+              onTyping();
+              typingTimeoutRef.current = setTimeout(() => {
+                typingTimeoutRef.current = null;
+              }, 2000);
+            }
+          }}
           onKeyDown={handleKeyDown}
           disabled={disabled || enviando}
           className="min-h-[44px] max-h-32 resize-none"
