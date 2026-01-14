@@ -12,14 +12,33 @@ import {
   FileArchive,
   File,
   Maximize2,
-  Upload
+  Upload,
+  Smile
 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { MentionInput } from "./MentionInput";
+
+const EMOJIS = [
+  "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂",
+  "🙂", "🙃", "😉", "😊", "😇", "🥰", "😍", "🤩",
+  "😘", "😗", "😚", "😋", "😛", "😜", "🤪", "😝",
+  "🤗", "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑",
+  "😏", "😒", "🙄", "😬", "😮‍💨", "🤤", "😪", "😴",
+  "😷", "🤒", "🤕", "🤢", "🤮", "🤧", "🥵", "🥶",
+  "👍", "👎", "👌", "✌️", "🤞", "🤟", "🤘", "🤙",
+  "👏", "🙌", "👐", "🤲", "🤝", "🙏", "💪", "🦾",
+  "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍",
+  "💯", "💢", "💥", "💫", "💦", "💨", "🔥", "✨"
+];
 
 interface Participante {
   id: string;
@@ -311,7 +330,7 @@ export function ChatInput({ onEnviar, onUpload, onTyping, disabled, participante
           onChange={(e) => handleFileSelect(e, false)}
         />
 
-        {/* Botões de anexo */}
+        {/* Botões de anexo e emoji */}
         <div className="flex gap-1">
           <Button
             variant="ghost"
@@ -331,6 +350,38 @@ export function ChatInput({ onEnviar, onUpload, onTyping, disabled, participante
           >
             <Paperclip className="h-5 w-5" />
           </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={disabled || enviando}
+                title="Inserir emoji"
+              >
+                <Smile className="h-5 w-5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent 
+              className="w-72 p-2" 
+              side="top" 
+              align="start"
+              sideOffset={8}
+            >
+              <div className="grid grid-cols-8 gap-1">
+                {EMOJIS.map((emoji) => (
+                  <Button
+                    key={emoji}
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-lg hover:bg-muted"
+                    onClick={() => setMensagem(prev => prev + emoji)}
+                  >
+                    {emoji}
+                  </Button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Input com suporte a menções */}
