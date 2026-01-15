@@ -957,6 +957,28 @@ export default function ClinicaFinanceiro() {
     fetchAllData();
   };
 
+  // Hook para gerenciar caixa - DEVE ficar ANTES de qualquer early return
+  const caixa = useCaixaClinica(clinicaData?.id);
+
+  // Calcular vencimentos - useMemo hooks também devem ficar antes do early return
+  const vencimentosHoje = useMemo(() => {
+    const hoje = startOfDay(new Date());
+    return contasPagar.filter(c => 
+      c.status === "pendente" && isToday(parseISO(c.data_vencimento))
+    ).length;
+  }, [contasPagar]);
+
+  const vencimentosAtrasados = useMemo(() => {
+    const hoje = startOfDay(new Date());
+    return contasPagar.filter(c => 
+      c.status === "pendente" && isBefore(parseISO(c.data_vencimento), hoje)
+    ).length;
+  }, [contasPagar]);
+
+  const totalContasPagar = contasPagar.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor), 0);
+  const totalContasReceber = contasReceber.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor), 0);
+  const totalRepassesPendentes = repasses.filter(r => r.status === "pendente").reduce((s, r) => s + r.valor_total, 0);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -976,28 +998,6 @@ export default function ClinicaFinanceiro() {
       default: return "Últimos 30 dias";
     }
   };
-
-  const totalContasPagar = contasPagar.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor), 0);
-  const totalContasReceber = contasReceber.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor), 0);
-  const totalRepassesPendentes = repasses.filter(r => r.status === "pendente").reduce((s, r) => s + r.valor_total, 0);
-
-  // Hook para gerenciar caixa
-  const caixa = useCaixaClinica(clinicaData?.id);
-
-  // Calcular vencimentos
-  const vencimentosHoje = useMemo(() => {
-    const hoje = startOfDay(new Date());
-    return contasPagar.filter(c => 
-      c.status === "pendente" && isToday(parseISO(c.data_vencimento))
-    ).length;
-  }, [contasPagar]);
-
-  const vencimentosAtrasados = useMemo(() => {
-    const hoje = startOfDay(new Date());
-    return contasPagar.filter(c => 
-      c.status === "pendente" && isBefore(parseISO(c.data_vencimento), hoje)
-    ).length;
-  }, [contasPagar]);
 
   // Dados para os novos gráficos
   const faturamentoPorMedicoData = useMemo(() => {
