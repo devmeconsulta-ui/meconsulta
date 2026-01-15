@@ -979,29 +979,8 @@ export default function ClinicaFinanceiro() {
   const totalContasReceber = contasReceber.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor), 0);
   const totalRepassesPendentes = repasses.filter(r => r.status === "pendente").reduce((s, r) => s + r.valor_total, 0);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  const getPeriodLabel = () => {
-    switch (periodFilter) {
-      case "7d": return "Últimos 7 dias";
-      case "30d": return "Últimos 30 dias";
-      case "60d": return "Últimos 60 dias";
-      case "90d": return "Últimos 90 dias";
-      case "180d": return "Últimos 180 dias";
-      case "365d": return "Último ano";
-      default: return "Últimos 30 dias";
-    }
-  };
-
-  // Dados para os novos gráficos
+  // Dados para os novos gráficos - DEVE ficar ANTES de qualquer early return
   const faturamentoPorMedicoData = useMemo(() => {
-    // Precisamos de consultas por médico, não só valor
     const data: { [key: string]: { valor: number; consultas: number } } = {};
     
     filteredConsultas
@@ -1031,7 +1010,6 @@ export default function ClinicaFinanceiro() {
 
   // Timeline de vencimentos
   const vencimentosTimeline = useMemo(() => {
-    // Contas a pagar
     const pagar = contasPagar
       .map(c => ({
         id: c.id,
@@ -1043,7 +1021,6 @@ export default function ClinicaFinanceiro() {
         entidade: c.fornecedor || undefined,
       }));
     
-    // Contas a receber
     const receber = contasReceber
       .map(c => ({
         id: c.id,
@@ -1058,6 +1035,26 @@ export default function ClinicaFinanceiro() {
     return [...pagar, ...receber]
       .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
   }, [contasPagar, contasReceber]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  const getPeriodLabel = () => {
+    switch (periodFilter) {
+      case "7d": return "Últimos 7 dias";
+      case "30d": return "Últimos 30 dias";
+      case "60d": return "Últimos 60 dias";
+      case "90d": return "Últimos 90 dias";
+      case "180d": return "Últimos 180 dias";
+      case "365d": return "Último ano";
+      default: return "Últimos 30 dias";
+    }
+  };
 
   return (
     <div className="space-y-6">
