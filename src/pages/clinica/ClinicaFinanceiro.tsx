@@ -103,6 +103,7 @@ interface Consulta {
   origem: string;
   medico_id: string;
   local_id: string | null;
+  clinica_id: string | null;
   paciente: { nome: string } | null;
   medico: { nome: string; especialidade: string } | null;
   local: { nome_local: string } | null;
@@ -295,7 +296,11 @@ export default function ClinicaFinanceiro() {
 
     setLocais(locaisData || []);
 
-    const { data, error } = await supabase
+    // Buscar consultas dos médicos vinculados à clínica
+    // Usamos OR para pegar: consultas com clinica_id da clínica OU consultas dos médicos vinculados em locais da clínica
+    const localIds = locaisData?.map(l => l.id) || [];
+    
+    let query = supabase
       .from("consultas")
       .select(`
         id,
@@ -308,17 +313,26 @@ export default function ClinicaFinanceiro() {
         origem,
         medico_id,
         local_id,
+        clinica_id,
         nome_paciente_consulta,
         finalizado_medico,
         paciente:pacientes!consultas_paciente_id_fkey(nome),
         medico:medicos!consultas_medico_id_fkey(nome, especialidade),
         local:locais_atendimento!consultas_local_id_fkey(nome_local)
       `)
-      .eq("clinica_id", clinicaData.id)
       .in("medico_id", medicoIds)
       .gte("data_hora", dateRange.start.toISOString())
       .lte("data_hora", dateRange.end.toISOString())
       .order("data_hora", { ascending: false });
+
+    // Filtrar para pegar consultas que pertencem à clínica (por clinica_id ou por local da clínica)
+    if (localIds.length > 0) {
+      query = query.or(`clinica_id.eq.${clinicaData.id},local_id.in.(${localIds.join(",")})`);
+    } else {
+      query = query.eq("clinica_id", clinicaData.id);
+    }
+
+    const { data, error } = await query;
 
     if (!error) {
       setConsultas(data || []);
