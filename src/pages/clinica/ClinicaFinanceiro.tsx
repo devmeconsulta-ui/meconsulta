@@ -95,6 +95,7 @@ import { CaixaWidget } from "@/components/clinica/financeiro/CaixaWidget";
 import { VencimentosTimeline } from "@/components/clinica/financeiro/VencimentosTimeline";
 import { FaturamentoChart } from "@/components/clinica/financeiro/FaturamentoChart";
 import { FluxoCaixaChart } from "@/components/clinica/financeiro/FluxoCaixaChart";
+import { MetasFinanceirasWidget } from "@/components/clinica/financeiro/MetasFinanceirasWidget";
 import { useCaixaClinica } from "@/hooks/useCaixaClinica";
 
 interface ClinicaContext {
@@ -1217,7 +1218,7 @@ export default function ClinicaFinanceiro() {
 
         {/* Tab: Visão Geral */}
         <TabsContent value="visao-geral" className="mt-6 space-y-6">
-          {/* Layout em grid: Caixa + Vencimentos + Gráfico */}
+          {/* Layout em grid: Caixa + Metas + Vencimentos */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Controle de Caixa */}
             <CaixaWidget
@@ -1229,6 +1230,17 @@ export default function ClinicaFinanceiro() {
               onAbrirCaixa={caixa.abrirCaixa}
               onFecharCaixa={caixa.fecharCaixa}
               onRegistrarMovimento={caixa.registrarMovimento}
+              nomeClinica={clinicaData?.nome_fantasia || "Clínica"}
+            />
+
+            {/* Metas Financeiras */}
+            <MetasFinanceirasWidget
+              clinicaId={clinicaData?.id}
+              faturamentoAtual={metrics.pago}
+              consultasAtual={filteredConsultas.filter(c => c.status_pagamento === "pago").length}
+              novosPacientesAtual={0}
+              ticketMedioAtual={metrics.pagos > 0 ? metrics.pago / metrics.pagos : 0}
+              formatCurrency={formatCurrency}
             />
 
             {/* Timeline de Vencimentos */}
@@ -1236,20 +1248,23 @@ export default function ClinicaFinanceiro() {
               vencimentos={vencimentosTimeline}
               formatCurrency={formatCurrency}
             />
+          </div>
 
+          {/* Gráficos lado a lado */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Faturamento por Médico */}
             <FaturamentoChart
               medicoData={faturamentoPorMedicoData}
               totalFaturamento={metrics.pago}
               formatCurrency={formatCurrency}
             />
-          </div>
 
-          {/* Gráfico de Fluxo de Caixa */}
-          <FluxoCaixaChart
-            data={fluxoCaixaChartDataFormatted}
-            formatCurrency={formatCurrency}
-          />
+            {/* Gráfico de Fluxo de Caixa */}
+            <FluxoCaixaChart
+              data={fluxoCaixaChartDataFormatted}
+              formatCurrency={formatCurrency}
+            />
+          </div>
 
           {/* Tabela de consultas recentes */}
           <Card className="card-shadow">

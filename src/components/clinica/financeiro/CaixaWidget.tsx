@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import jsPDF from "jspdf";
 import { 
   DollarSign, 
   Plus, 
@@ -13,7 +14,8 @@ import {
   Receipt,
   CreditCard,
   Banknote,
-  QrCode
+  QrCode,
+  Printer
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +60,7 @@ interface CaixaWidgetProps {
   onAbrirCaixa: (saldoInicial: number) => void;
   onFecharCaixa: (observacoes: string) => void;
   onRegistrarMovimento: (movimento: Omit<MovimentoCaixa, "id" | "hora">) => void;
+  nomeClinica?: string;
 }
 
 export function CaixaWidget({
@@ -69,6 +72,7 @@ export function CaixaWidget({
   onAbrirCaixa,
   onFecharCaixa,
   onRegistrarMovimento,
+  nomeClinica = "Clínica",
 }: CaixaWidgetProps) {
   const [showAbrirModal, setShowAbrirModal] = useState(false);
   const [showFecharModal, setShowFecharModal] = useState(false);
@@ -80,6 +84,162 @@ export function CaixaWidget({
   const [descricaoMovimento, setDescricaoMovimento] = useState("");
   const [formaPagamento, setFormaPagamento] = useState("dinheiro");
   const [observacoesFechamento, setObservacoesFechamento] = useState("");
+
+  // Função para gerar PDF do resumo do caixa
+  const gerarPDFResumoCaixa = () => {
+    const doc = new jsPDF();
+    const dataHoje = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
+    const horaAtual = format(new Date(), "HH:mm");
+    
+    // Calcular totais
+    const totalEntradasPDF = movimentos
+      .filter(m => m.tipo === "entrada" || m.tipo === "reforco")
+      .reduce((sum, m) => sum + m.valor, 0);
+    const totalSaidasPDF = movimentos
+      .filter(m => m.tipo === "saida" || m.tipo === "sangria")
+      .reduce((sum, m) => sum + m.valor, 0);
+
+    // Cabeçalho
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("RESUMO DE FECHAMENTO DE CAIXA", 105, 20, { align: "center" });
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text(nomeClinica, 105, 30, { align: "center" });
+    doc.text(`Data: ${dataHoje} - Hora: ${horaAtual}`, 105, 38, { align: "center" });
+    
+    // Linha separadora
+    doc.setDrawColor(200);
+    doc.line(20, 45, 190, 45);
+
+    // Resumo Financeiro
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Resumo Financeiro", 20, 55);
+    
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    let y = 65;
+    
+    doc.text(`Saldo de Abertura:`, 20, y);
+    doc.text(formatCurrency(saldoAbertura), 120, y, { align: "right" });
+    y += 8;
+    
+    doc.setTextColor(34, 197, 94); // Verde
+    doc.text(`Total de Entradas:`, 20, y);
+    doc.text(`+ ${formatCurrency(totalEntradasPDF)}`, 120, y, { align: "right" });
+    y += 8;
+    
+    doc.setTextColor(239, 68, 68); // Vermelho
+    doc.text(`Total de Saídas:`, 20, y);
+    doc.text(`- ${formatCurrency(totalSaidasPDF)}`, 120, y, { align: "right" });
+    y += 8;
+    
+    doc.setTextColor(0);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Saldo Final:`, 20, y);
+    doc.text(formatCurrency(saldoAtual), 120, y, { align: "right" });
+    y += 15;
+
+    // Linha separadora
+    doc.setDrawColor(200);
+    doc.line(20, y, 190, y);
+    y += 10;
+
+    // Movimentações
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Movimentações do Dia (${movimentos.length})`, 20, y);
+    y += 10;
+
+    if (movimentos.length > 0) {
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("Hora", 20, y);
+      doc.text("Tipo", 45, y);
+      doc.text("Descrição", 80, y);
+      doc.text("Valor", 170, y, { align: "right" });
+      y += 6;
+      
+      doc.setDrawColor(200);
+      doc.line(20, y, 190, y);
+      y += 5;
+
+      doc.setFont("helvetica", "normal");
+      movimentos.forEach((mov) => {
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+        
+        const tipoLabel = {
+          entrada: "Entrada",
+          saida: "Saída",
+          sangria: "Sangria",
+          reforco: "Reforço",
+        }[mov.tipo];
+        
+        const isPositivo = mov.tipo === "entrada" || mov.tipo === "reforco";
+        
+        doc.text(mov.hora, 20, y);
+        doc.text(tipoLabel, 45, y);
+        doc.text(mov.descricao.substring(0, 35), 80, y);
+        
+        if (isPositivo) {
+          doc.setTextColor(34, 197, 94);
+          doc.text(`+ ${formatCurrency(mov.valor)}`, 170, y, { align: "right" });
+        } else {
+          doc.setTextColor(239, 68, 68);
+          doc.text(`- ${formatCurrency(mov.valor)}`, 170, y, { align: "right" });
+        }
+        doc.setTextColor(0);
+        y += 7;
+      });
+    } else {
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "italic");
+      doc.text("Nenhuma movimentação registrada", 20, y);
+    }
+
+    // Observações
+    if (observacoesFechamento.trim()) {
+      y += 15;
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Observações:", 20, y);
+      y += 8;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const obsLines = doc.splitTextToSize(observacoesFechamento, 170);
+      doc.text(obsLines, 20, y);
+    }
+
+    // Rodapé
+    const pageCount = doc.internal.pages.length - 1;
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(128);
+      doc.text(`Página ${i} de ${pageCount}`, 105, 290, { align: "center" });
+      doc.text("Gerado automaticamente pelo sistema", 105, 295, { align: "center" });
+    }
+
+    // Salvar PDF
+    doc.save(`fechamento-caixa-${format(new Date(), "yyyy-MM-dd-HHmm")}.pdf`);
+    toast.success("PDF gerado com sucesso!");
+  };
+
+  const handleFecharCaixaComPDF = (imprimirPDF: boolean) => {
+    if (imprimirPDF) {
+      gerarPDFResumoCaixa();
+    }
+    onFecharCaixa(observacoesFechamento);
+    setShowFecharModal(false);
+    setObservacoesFechamento("");
+    toast.success("Caixa fechado com sucesso!");
+  };
 
   const handleAbrirCaixa = () => {
     const valor = parseFloat(saldoInicial);
@@ -385,10 +545,27 @@ export function CaixaWidget({
                 className="mt-2"
               />
             </div>
+
+            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+              <p className="text-sm text-blue-700 flex items-center gap-2">
+                <Printer className="w-4 h-4" />
+                Você pode gerar um PDF com o resumo completo do caixa
+              </p>
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => setShowFecharModal(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={handleFecharCaixa}>Confirmar Fechamento</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => handleFecharCaixaComPDF(true)}
+              className="gap-2"
+            >
+              <Printer className="w-4 h-4" />
+              Fechar e Imprimir PDF
+            </Button>
+            <Button variant="destructive" onClick={() => handleFecharCaixaComPDF(false)}>
+              Confirmar Fechamento
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
