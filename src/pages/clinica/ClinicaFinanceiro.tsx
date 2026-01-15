@@ -305,7 +305,15 @@ export default function ClinicaFinanceiro() {
       .eq("clinica_id", clinicaData.id)
       .eq("ativo", true);
 
-    setLocais(locaisData || []);
+    // Deduplicate locations by nome_local to avoid duplicates in dropdown
+    const locaisUnicos = locaisData?.reduce((acc: { id: string; nome_local: string }[], curr) => {
+      if (!acc.find(l => l.nome_local === curr.nome_local)) {
+        acc.push(curr);
+      }
+      return acc;
+    }, []) || [];
+
+    setLocais(locaisUnicos);
 
     // Buscar consultas dos médicos vinculados à clínica
     // Usamos OR para pegar: consultas com clinica_id da clínica OU consultas dos médicos vinculados em locais da clínica
