@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useChatClinica, Conversa } from "@/hooks/useChatClinica";
 import { ChatSidebar } from "@/components/clinica/chat/ChatSidebar";
 import { ChatMessages } from "@/components/clinica/chat/ChatMessages";
@@ -225,8 +226,17 @@ export default function MedicoChat() {
         {/* Área principal do chat redimensionável */}
         <ResizablePanel defaultSize={75} minSize={50}>
           <div className="flex-1 flex flex-col min-w-0 h-full">
+        <AnimatePresence mode="wait">
         {/* Header da conversa */}
         {conversaAtual && (
+          <motion.div
+            key={conversaAtual.id}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="flex flex-col h-full"
+          >
           <div className="border-b bg-background">
             <div className="h-16 flex items-center justify-between px-4">
               <div className="flex items-center gap-3 pl-10 lg:pl-0">
@@ -357,19 +367,17 @@ export default function MedicoChat() {
               </div>
             )}
           </div>
-        )}
 
-        {/* Mensagens */}
-        <ChatMessages
-          conversa={conversaAtual}
-          mensagens={mensagensFiltradas}
-          loading={loadingMensagens}
-          usersTyping={usersTyping}
-          onToggleReacao={toggleReacao}
-        />
+          {/* Mensagens */}
+          <ChatMessages
+            conversa={conversaAtual}
+            mensagens={mensagensFiltradas}
+            loading={loadingMensagens}
+            usersTyping={usersTyping}
+            onToggleReacao={toggleReacao}
+          />
 
-        {/* Input */}
-        {conversaAtual && (
+          {/* Input */}
           <ChatInput
             onEnviar={handleEnviarMensagem}
             onUpload={uploadArquivo}
@@ -377,6 +385,19 @@ export default function MedicoChat() {
             disabled={!conversaAtual}
             participantes={participantesConversa}
           />
+          </motion.div>
+        )}
+        </AnimatePresence>
+
+        {/* Estado vazio quando não há conversa selecionada */}
+        {!conversaAtual && (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <div className="text-center">
+              <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Selecione uma conversa</p>
+              <p className="text-sm">Escolha uma conversa na lista ou crie uma nova</p>
+            </div>
+          </div>
         )}
           </div>
         </ResizablePanel>
