@@ -104,7 +104,9 @@ export function useCaixaClinica(clinicaId: string | undefined) {
   }, [fetchCaixaStatus]);
 
   const abrirCaixa = async (saldoInicial: number) => {
-    if (!clinicaId) return;
+    if (!clinicaId) {
+      return { data: null, error: { message: "Clínica não identificada" } };
+    }
 
     const { data, error } = await supabase
       .from("caixa_operacoes")
@@ -131,7 +133,9 @@ export function useCaixaClinica(clinicaId: string | undefined) {
   };
 
   const fecharCaixa = async (observacoes: string) => {
-    if (!clinicaId) return;
+    if (!clinicaId) {
+      return { data: null, error: { message: "Clínica não identificada" } };
+    }
 
     const { data, error } = await supabase
       .from("caixa_operacoes")
@@ -161,7 +165,9 @@ export function useCaixaClinica(clinicaId: string | undefined) {
   const registrarMovimento = async (
     movimento: Omit<MovimentoCaixa, "id" | "hora">
   ) => {
-    if (!clinicaId || !state.operacaoAberturaId) return;
+    if (!clinicaId || !state.operacaoAberturaId) {
+      return { data: null, error: { message: "Caixa não está aberto" } };
+    }
 
     const { data, error } = await supabase
       .from("caixa_movimentos")
