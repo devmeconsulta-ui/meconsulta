@@ -1572,6 +1572,53 @@ export type Database = {
           },
         ]
       }
+      metas_financeiras: {
+        Row: {
+          ano: number
+          clinica_id: string
+          created_at: string
+          id: string
+          mes: number
+          meta_consultas: number | null
+          meta_faturamento: number | null
+          meta_novos_pacientes: number | null
+          meta_ticket_medio: number | null
+          updated_at: string
+        }
+        Insert: {
+          ano: number
+          clinica_id: string
+          created_at?: string
+          id?: string
+          mes: number
+          meta_consultas?: number | null
+          meta_faturamento?: number | null
+          meta_novos_pacientes?: number | null
+          meta_ticket_medio?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ano?: number
+          clinica_id?: string
+          created_at?: string
+          id?: string
+          mes?: number
+          meta_consultas?: number | null
+          meta_faturamento?: number | null
+          meta_novos_pacientes?: number | null
+          meta_ticket_medio?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_financeiras_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       paciente_dependentes: {
         Row: {
           ativo: boolean | null
