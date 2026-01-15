@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
-import { format, subDays, parseISO, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
+import { format, subDays, parseISO, startOfMonth, endOfMonth, isWithinInterval, isToday, isBefore, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "@/components/ui/calendar";
@@ -85,8 +85,17 @@ import {
   PieChart as PieChartIcon,
   Download,
   FileSpreadsheet,
+  Banknote,
 } from "lucide-react";
 import { toast } from "sonner";
+
+// Novos componentes do financeiro v2
+import { FinanceiroHeader } from "@/components/clinica/financeiro/FinanceiroHeader";
+import { CaixaWidget } from "@/components/clinica/financeiro/CaixaWidget";
+import { VencimentosTimeline } from "@/components/clinica/financeiro/VencimentosTimeline";
+import { FaturamentoChart } from "@/components/clinica/financeiro/FaturamentoChart";
+import { FluxoCaixaChart } from "@/components/clinica/financeiro/FluxoCaixaChart";
+import { useCaixaClinica } from "@/hooks/useCaixaClinica";
 
 interface ClinicaContext {
   clinicaData: any;
@@ -972,16 +981,94 @@ export default function ClinicaFinanceiro() {
   const totalContasReceber = contasReceber.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor), 0);
   const totalRepassesPendentes = repasses.filter(r => r.status === "pendente").reduce((s, r) => s + r.valor_total, 0);
 
+  // Hook para gerenciar caixa
+  const caixa = useCaixaClinica(clinicaData?.id);
+
+  // Calcular vencimentos
+  const vencimentosHoje = useMemo(() => {
+    const hoje = startOfDay(new Date());
+    return contasPagar.filter(c => 
+      c.status === "pendente" && isToday(parseISO(c.data_vencimento))
+    ).length;
+  }, [contasPagar]);
+
+  const vencimentosAtrasados = useMemo(() => {
+    const hoje = startOfDay(new Date());
+    return contasPagar.filter(c => 
+      c.status === "pendente" && isBefore(parseISO(c.data_vencimento), hoje)
+    ).length;
+  }, [contasPagar]);
+
+  // Dados para os novos gráficos
+  const faturamentoPorMedicoData = useMemo(() => {
+    // Precisamos de consultas por médico, não só valor
+    const data: { [key: string]: { valor: number; consultas: number } } = {};
+    
+    filteredConsultas
+      .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
+      .forEach((c) => {
+        const medicoNome = c.medico?.nome || "Desconhecido";
+        if (!data[medicoNome]) data[medicoNome] = { valor: 0, consultas: 0 };
+        data[medicoNome].valor += c.valor_consulta;
+        data[medicoNome].consultas += 1;
+      });
+
+    return Object.entries(data).map(([nome, values]) => ({
+      nome,
+      valor: values.valor,
+      consultas: values.consultas,
+    })).sort((a, b) => b.valor - a.valor).slice(0, 8);
+  }, [filteredConsultas]);
+
+  const fluxoCaixaChartDataFormatted = useMemo(() => {
+    return cashFlowData.map(item => ({
+      date: item.date,
+      entradas: item.entradas,
+      saidas: item.saidas,
+      saldo: item.saldo,
+    }));
+  }, [cashFlowData]);
+
+  // Timeline de vencimentos
+  const vencimentosTimeline = useMemo(() => {
+    // Contas a pagar
+    const pagar = contasPagar
+      .map(c => ({
+        id: c.id,
+        descricao: c.descricao,
+        valor: Number(c.valor),
+        data_vencimento: c.data_vencimento,
+        tipo: 'pagar' as const,
+        status: c.status,
+        entidade: c.fornecedor || undefined,
+      }));
+    
+    // Contas a receber
+    const receber = contasReceber
+      .map(c => ({
+        id: c.id,
+        descricao: c.descricao,
+        valor: Number(c.valor),
+        data_vencimento: c.data_vencimento,
+        tipo: 'receber' as const,
+        status: c.status,
+        entidade: c.cliente || undefined,
+      }));
+
+    return [...pagar, ...receber]
+      .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
+  }, [contasPagar, contasReceber]);
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header com métricas principais */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
         <div>
           <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <DollarSign className="h-7 w-7 text-primary" />
             Financeiro
           </h2>
-          <p className="text-muted-foreground">Acompanhe seus ganhos e movimentações - {getPeriodLabel()}</p>
+          <p className="text-muted-foreground text-sm">Gestão completa de receitas, despesas e caixa - {getPeriodLabel()}</p>
         </div>
 
         <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
@@ -998,6 +1085,19 @@ export default function ClinicaFinanceiro() {
           </SelectContent>
         </Select>
       </div>
+
+      {/* Header de métricas melhorado */}
+      <FinanceiroHeader
+        faturamento={metrics.pago}
+        aReceber={metrics.pendente + totalContasReceber}
+        aPagar={totalContasPagar}
+        saldoPrevisto={(metrics.pago + totalContasReceber) - totalContasPagar}
+        caixaAberto={caixa.caixaAberto}
+        saldoCaixa={caixa.saldoAtual}
+        vencimentosHoje={vencimentosHoje}
+        vencimentosAtrasados={vencimentosAtrasados}
+        formatCurrency={formatCurrency}
+      />
 
       {/* Filters */}
       <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
@@ -1120,138 +1220,92 @@ export default function ClinicaFinanceiro() {
 
         {/* Tab: Visão Geral */}
         <TabsContent value="visao-geral" className="mt-6 space-y-6">
-          {/* Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="card-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-green-500/10">
-                    <DollarSign className="w-6 h-6 text-green-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Faturamento</p>
-                    <p className="text-2xl font-bold text-green-500">{formatCurrency(metrics.pago)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Layout em grid: Caixa + Vencimentos + Gráfico */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Controle de Caixa */}
+            <CaixaWidget
+              caixaAberto={caixa.caixaAberto}
+              saldoAbertura={caixa.saldoAbertura}
+              saldoAtual={caixa.saldoAtual}
+              movimentos={caixa.movimentos}
+              formatCurrency={formatCurrency}
+              onAbrirCaixa={caixa.abrirCaixa}
+              onFecharCaixa={caixa.fecharCaixa}
+              onRegistrarMovimento={caixa.registrarMovimento}
+            />
 
-            <Card className="card-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-yellow-500/10">
-                    <Clock className="w-6 h-6 text-yellow-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">A Receber</p>
-                    <p className="text-2xl font-bold text-yellow-500">{formatCurrency(metrics.pendente)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Timeline de Vencimentos */}
+            <VencimentosTimeline
+              vencimentos={vencimentosTimeline}
+              formatCurrency={formatCurrency}
+            />
 
-            <Card className="card-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-red-500/10">
-                    <XCircle className="w-6 h-6 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">A Pagar</p>
-                    <p className="text-2xl font-bold text-red-500">{formatCurrency(totalContasPagar)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="card-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-primary/10">
-                    <TrendingUp className="w-6 h-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Consultas Pagas</p>
-                    <p className="text-2xl font-bold">{metrics.pagos} / {metrics.total}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Faturamento por Médico */}
+            <FaturamentoChart
+              medicoData={faturamentoPorMedicoData}
+              totalFaturamento={metrics.pago}
+              formatCurrency={formatCurrency}
+            />
           </div>
 
-          {/* Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="card-shadow">
-              <CardHeader>
-                <CardTitle>Faturamento por Médico</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {medicoChartData.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">Nenhum dado disponível</div>
-                ) : (
-                  <div className="flex items-center gap-4">
-                    <ResponsiveContainer width="50%" height={200}>
-                      <PieChart>
-                        <Pie data={medicoChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={80}>
-                          {medicoChartData.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="flex-1 space-y-2">
-                      {medicoChartData.map((item, index) => (
-                        <div key={item.name} className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                          <span className="text-sm truncate flex-1">{item.name}</span>
-                          <span className="text-sm font-medium">{formatCurrency(item.value)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          {/* Gráfico de Fluxo de Caixa */}
+          <FluxoCaixaChart
+            data={fluxoCaixaChartDataFormatted}
+            formatCurrency={formatCurrency}
+          />
 
-            <Card className="card-shadow">
-              <CardHeader>
-                <CardTitle>Consultas do Período ({filteredConsultas.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {filteredConsultas.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">Nenhuma consulta no período</div>
-                ) : (
-                  <div className="overflow-x-auto max-h-[250px]">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Médico</TableHead>
-                          <TableHead>Valor</TableHead>
-                          <TableHead>Status</TableHead>
+          {/* Tabela de consultas recentes */}
+          <Card className="card-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Consultas Recentes ({filteredConsultas.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {filteredConsultas.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Nenhuma consulta no período</div>
+              ) : (
+                <div className="overflow-x-auto max-h-[300px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Paciente</TableHead>
+                        <TableHead>Médico</TableHead>
+                        <TableHead>Valor</TableHead>
+                        <TableHead>Origem</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredConsultas.slice(0, 10).map((c) => (
+                        <TableRow key={c.id}>
+                          <TableCell className="text-sm">{format(parseISO(c.data_hora), "dd/MM HH:mm")}</TableCell>
+                          <TableCell className="truncate max-w-[120px] text-sm">{getPatientName(c)}</TableCell>
+                          <TableCell className="truncate max-w-[100px] text-sm">{c.medico?.nome || "N/A"}</TableCell>
+                          <TableCell className="font-medium">{formatCurrency(c.valor_consulta)}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={cn(
+                              "text-xs",
+                              c.origem === "online" ? "border-emerald-500 text-emerald-600" : "border-blue-500 text-blue-600"
+                            )}>
+                              {c.origem === "online" ? "Online" : "Interna"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={c.status_pagamento === "pago" ? "default" : "secondary"} className="text-xs">
+                              {c.status_pagamento === "pago" ? "Pago" : "Pendente"}
+                            </Badge>
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredConsultas.slice(0, 5).map((c) => (
-                          <TableRow key={c.id}>
-                            <TableCell>{format(parseISO(c.data_hora), "dd/MM HH:mm")}</TableCell>
-                            <TableCell className="truncate max-w-[100px]">{c.medico?.nome || "N/A"}</TableCell>
-                            <TableCell>{formatCurrency(c.valor_consulta)}</TableCell>
-                            <TableCell>
-                              <Badge variant={c.status_pagamento === "pago" ? "default" : "secondary"}>
-                                {c.status_pagamento === "pago" ? "Pago" : "Pendente"}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Tab: Origem & Canais */}
