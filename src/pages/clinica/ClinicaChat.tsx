@@ -259,6 +259,18 @@ export default function ClinicaChat() {
                   <Trash2 className="h-4 w-4" />
                   <span className="hidden sm:inline text-xs">Excluir</span>
                 </Button>
+                
+                <div className="w-px h-5 bg-border mx-1" />
+                
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setConversaAtual(null)}
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  title="Fechar conversa"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 
