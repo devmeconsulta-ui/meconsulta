@@ -58,9 +58,9 @@ interface CaixaWidgetProps {
   saldoAtual: number;
   movimentos: MovimentoCaixa[];
   formatCurrency: (value: number) => string;
-  onAbrirCaixa: (saldoInicial: number) => void;
-  onFecharCaixa: (observacoes: string) => void;
-  onRegistrarMovimento: (movimento: Omit<MovimentoCaixa, "id" | "hora">) => void;
+  onAbrirCaixa: (saldoInicial: number) => Promise<{ data: any; error: any } | undefined>;
+  onFecharCaixa: (observacoes: string) => Promise<{ data: any; error: any } | undefined>;
+  onRegistrarMovimento: (movimento: Omit<MovimentoCaixa, "id" | "hora">) => Promise<{ data: any; error: any } | undefined>;
   nomeClinica?: string;
 }
 
@@ -232,36 +232,56 @@ export function CaixaWidget({
     toast.success("PDF gerado com sucesso!");
   };
 
-  const handleFecharCaixaComPDF = (imprimirPDF: boolean) => {
+  const handleFecharCaixaComPDF = async (imprimirPDF: boolean) => {
     if (imprimirPDF) {
       gerarPDFResumoCaixa();
     }
-    onFecharCaixa(observacoesFechamento);
+    
+    const result = await onFecharCaixa(observacoesFechamento);
+    
+    if (result?.error) {
+      toast.error("Erro ao fechar caixa: " + result.error.message);
+      return;
+    }
+    
     setShowFecharModal(false);
     setObservacoesFechamento("");
     toast.success("Caixa fechado com sucesso!");
   };
 
-  const handleAbrirCaixa = () => {
+  const handleAbrirCaixa = async () => {
     const valor = parseFloat(saldoInicial);
     if (isNaN(valor) || valor < 0) {
       toast.error("Informe um valor válido");
       return;
     }
-    onAbrirCaixa(valor);
+    
+    const result = await onAbrirCaixa(valor);
+    
+    if (result?.error) {
+      toast.error("Erro ao abrir caixa: " + result.error.message);
+      return;
+    }
+    
     setShowAbrirModal(false);
     setSaldoInicial("");
     toast.success("Caixa aberto com sucesso!");
   };
 
-  const handleFecharCaixa = () => {
-    onFecharCaixa(observacoesFechamento);
+  const handleFecharCaixa = async () => {
+    const result = await onFecharCaixa(observacoesFechamento);
+    
+    if (result?.error) {
+      toast.error("Erro ao fechar caixa: " + result.error.message);
+      return;
+    }
+    
     setShowFecharModal(false);
     setObservacoesFechamento("");
     toast.success("Caixa fechado com sucesso!");
   };
 
-  const handleRegistrarMovimento = () => {
+  const handleRegistrarMovimento = async () => {
     const valor = parseFloat(valorMovimento);
     if (isNaN(valor) || valor <= 0) {
       toast.error("Informe um valor válido");
@@ -272,12 +292,17 @@ export function CaixaWidget({
       return;
     }
     
-    onRegistrarMovimento({
+    const result = await onRegistrarMovimento({
       tipo: tipoMovimento,
       valor,
       descricao: descricaoMovimento,
       forma_pagamento: tipoMovimento === "entrada" ? formaPagamento : undefined,
     });
+    
+    if (result?.error) {
+      toast.error("Erro ao registrar movimento: " + result.error.message);
+      return;
+    }
     
     setShowMovimentoModal(false);
     setValorMovimento("");
