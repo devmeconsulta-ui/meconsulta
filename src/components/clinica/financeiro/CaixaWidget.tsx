@@ -2,6 +2,7 @@ import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   DollarSign, 
   Plus, 
@@ -344,133 +345,193 @@ export function CaixaWidget({
         </CardHeader>
         
         <CardContent className="p-4 space-y-4">
-          {!caixaAberto ? (
-            <div className="text-center py-8">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                <Lock className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <p className="text-muted-foreground mb-4">Caixa fechado</p>
-              <Button onClick={() => setShowAbrirModal(true)} className="gap-2">
-                <Unlock className="w-4 h-4" />
-                Abrir Caixa
-              </Button>
-            </div>
-          ) : (
-            <>
-              {/* Resumo do Caixa */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="text-center p-3 rounded-lg bg-muted/50">
-                  <p className="text-xs text-muted-foreground">Abertura</p>
-                  <p className="font-semibold text-sm">{formatCurrency(saldoAbertura)}</p>
-                </div>
-                <div className="text-center p-3 rounded-lg bg-emerald-500/10">
-                  <p className="text-xs text-emerald-600">Entradas</p>
-                  <p className="font-semibold text-sm text-emerald-600">{formatCurrency(totalEntradas)}</p>
-                </div>
-                <div className="text-center p-3 rounded-lg bg-red-500/10">
-                  <p className="text-xs text-red-600">Saídas</p>
-                  <p className="font-semibold text-sm text-red-600">{formatCurrency(totalSaidas)}</p>
-                </div>
-              </div>
+          <AnimatePresence mode="wait">
+            {!caixaAberto ? (
+              <motion.div 
+                key="caixa-fechado"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3 }}
+                className="text-center py-8"
+              >
+                <motion.div 
+                  className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Lock className="w-8 h-8 text-muted-foreground" />
+                </motion.div>
+                <p className="text-muted-foreground mb-4">Caixa fechado</p>
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Button onClick={() => setShowAbrirModal(true)} className="gap-2">
+                    <Unlock className="w-4 h-4" />
+                    Abrir Caixa
+                  </Button>
+                </motion.div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="caixa-aberto"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="space-y-4"
+              >
+                {/* Resumo do Caixa */}
+                <motion.div 
+                  className="grid grid-cols-3 gap-3"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <div className="text-center p-3 rounded-lg bg-muted/50">
+                    <p className="text-xs text-muted-foreground">Abertura</p>
+                    <p className="font-semibold text-sm">{formatCurrency(saldoAbertura)}</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-emerald-500/10">
+                    <p className="text-xs text-emerald-600">Entradas</p>
+                    <p className="font-semibold text-sm text-emerald-600">{formatCurrency(totalEntradas)}</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-red-500/10">
+                    <p className="text-xs text-red-600">Saídas</p>
+                    <p className="font-semibold text-sm text-red-600">{formatCurrency(totalSaidas)}</p>
+                  </div>
+                </motion.div>
 
-              {/* Saldo Atual */}
-              <div className="p-4 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
-                <p className="text-xs text-muted-foreground mb-1">Saldo Atual</p>
-                <p className="text-3xl font-bold text-primary">{formatCurrency(saldoAtual)}</p>
-              </div>
+                {/* Saldo Atual */}
+                <motion.div 
+                  className="p-4 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <p className="text-xs text-muted-foreground mb-1">Saldo Atual</p>
+                  <motion.p 
+                    className="text-3xl font-bold text-primary"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    {formatCurrency(saldoAtual)}
+                  </motion.p>
+                </motion.div>
 
-              {/* Botões de Ação */}
-              <div className="grid grid-cols-2 gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="gap-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50"
-                  onClick={() => { setTipoMovimento("entrada"); setShowMovimentoModal(true); }}
+                {/* Botões de Ação */}
+                <motion.div 
+                  className="grid grid-cols-2 gap-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
                 >
-                  <Plus className="w-4 h-4" />
-                  Entrada
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                  onClick={() => { setTipoMovimento("saida"); setShowMovimentoModal(true); }}
-                >
-                  <Minus className="w-4 h-4" />
-                  Saída
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => { setTipoMovimento("sangria"); setShowMovimentoModal(true); }}
-                >
-                  <ArrowDownCircle className="w-4 h-4" />
-                  Sangria
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => { setTipoMovimento("reforco"); setShowMovimentoModal(true); }}
-                >
-                  <ArrowUpCircle className="w-4 h-4" />
-                  Reforço
-                </Button>
-              </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="gap-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                    onClick={() => { setTipoMovimento("entrada"); setShowMovimentoModal(true); }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Entrada
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                    onClick={() => { setTipoMovimento("saida"); setShowMovimentoModal(true); }}
+                  >
+                    <Minus className="w-4 h-4" />
+                    Saída
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => { setTipoMovimento("sangria"); setShowMovimentoModal(true); }}
+                  >
+                    <ArrowDownCircle className="w-4 h-4" />
+                    Sangria
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => { setTipoMovimento("reforco"); setShowMovimentoModal(true); }}
+                  >
+                    <ArrowUpCircle className="w-4 h-4" />
+                    Reforço
+                  </Button>
+                </motion.div>
 
-              {/* Movimentações Recentes */}
-              {movimentos.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Movimentações de hoje</p>
-                  <ScrollArea className="h-[150px]">
-                    <div className="space-y-2">
-                      {movimentos.slice(0, 10).map((mov) => (
-                        <div 
-                          key={mov.id} 
-                          className="flex items-center justify-between p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            {getIconeMovimento(mov.tipo)}
-                            <div>
-                              <p className="text-sm font-medium truncate max-w-[150px]">{mov.descricao}</p>
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Clock className="w-3 h-3" />
-                                {mov.hora}
-                                {mov.forma_pagamento && (
-                                  <>
-                                    <span className="mx-1">•</span>
-                                    {getFormaPagamentoIcon(mov.forma_pagamento)}
-                                  </>
-                                )}
+                {/* Movimentações Recentes */}
+                {movimentos.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                  >
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Movimentações de hoje</p>
+                    <ScrollArea className="h-[150px]">
+                      <div className="space-y-2">
+                        {movimentos.slice(0, 10).map((mov, index) => (
+                          <motion.div 
+                            key={mov.id} 
+                            className="flex items-center justify-between p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.05 * index }}
+                          >
+                            <div className="flex items-center gap-2">
+                              {getIconeMovimento(mov.tipo)}
+                              <div>
+                                <p className="text-sm font-medium truncate max-w-[150px]">{mov.descricao}</p>
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Clock className="w-3 h-3" />
+                                  {mov.hora}
+                                  {mov.forma_pagamento && (
+                                    <>
+                                      <span className="mx-1">•</span>
+                                      {getFormaPagamentoIcon(mov.forma_pagamento)}
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <span className={cn(
-                            "text-sm font-semibold",
-                            mov.tipo === "entrada" || mov.tipo === "reforco" ? "text-emerald-600" : "text-red-600"
-                          )}>
-                            {mov.tipo === "entrada" || mov.tipo === "reforco" ? "+" : "-"}
-                            {formatCurrency(mov.valor)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
+                            <span className={cn(
+                              "text-sm font-semibold",
+                              mov.tipo === "entrada" || mov.tipo === "reforco" ? "text-emerald-600" : "text-red-600"
+                            )}>
+                              {mov.tipo === "entrada" || mov.tipo === "reforco" ? "+" : "-"}
+                              {formatCurrency(mov.valor)}
+                            </span>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </motion.div>
+                )}
 
-              {/* Fechar Caixa */}
-              <Button 
-                variant="destructive" 
-                className="w-full gap-2"
-                onClick={() => setShowFecharModal(true)}
-              >
-                <Lock className="w-4 h-4" />
-                Fechar Caixa
-              </Button>
-            </>
-          )}
+                {/* Fechar Caixa */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <Button 
+                    variant="destructive" 
+                    className="w-full gap-2"
+                    onClick={() => setShowFecharModal(true)}
+                  >
+                    <Lock className="w-4 h-4" />
+                    Fechar Caixa
+                  </Button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </CardContent>
       </Card>
 
