@@ -9,6 +9,16 @@ interface MovimentoCaixa {
   descricao: string;
   forma_pagamento?: string;
   hora: string;
+  consulta_id?: string;
+}
+
+interface ConsultaNaoSincronizada {
+  id: string;
+  valor_consulta: number;
+  nome_paciente_consulta: string | null;
+  origem: string;
+  medico?: { nome: string } | null;
+  paciente?: { nome: string } | null;
 }
 
 interface CaixaState {
@@ -17,6 +27,7 @@ interface CaixaState {
   saldoAbertura: number;
   saldoAtual: number;
   movimentos: MovimentoCaixa[];
+  consultasPendentes: ConsultaNaoSincronizada[];
   loading: boolean;
 }
 
@@ -27,8 +38,51 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     saldoAbertura: 0,
     saldoAtual: 0,
     movimentos: [],
+    consultasPendentes: [],
     loading: true,
   });
+
+  // Buscar consultas pagas não sincronizadas do dia
+  const fetchConsultasPendentes = useCallback(async () => {
+    if (!clinicaId) return [];
+
+    const hoje = new Date();
+    
+    // Buscar locais da clínica para pegar consultas por local também
+    const { data: locaisData } = await supabase
+      .from("locais_atendimento")
+      .select("id")
+      .eq("clinica_id", clinicaId)
+      .eq("ativo", true);
+
+    const localIds = locaisData?.map(l => l.id) || [];
+
+    // Buscar consultas pagas de hoje que não foram sincronizadas
+    let query = supabase
+      .from("consultas")
+      .select(`
+        id,
+        valor_consulta,
+        nome_paciente_consulta,
+        origem,
+        medico:medicos!consultas_medico_id_fkey(nome),
+        paciente:pacientes!consultas_paciente_id_fkey(nome)
+      `)
+      .eq("status_pagamento", "pago")
+      .eq("sincronizado_caixa", false)
+      .gte("data_hora", startOfDay(hoje).toISOString())
+      .lte("data_hora", endOfDay(hoje).toISOString());
+
+    // Filtrar por clínica ou local
+    if (localIds.length > 0) {
+      query = query.or(`clinica_id.eq.${clinicaId},local_id.in.(${localIds.join(",")})`);
+    } else {
+      query = query.eq("clinica_id", clinicaId);
+    }
+
+    const { data } = await query;
+    return data || [];
+  }, [clinicaId]);
 
   const fetchCaixaStatus = useCallback(async () => {
     if (!clinicaId) return;
@@ -85,23 +139,54 @@ export function useCaixaClinica(clinicaId: string | undefined) {
         });
       }
 
+      // Buscar consultas pendentes de sincronização
+      const consultasPendentes = caixaAberto ? await fetchConsultasPendentes() : [];
+
       setState({
         caixaAberto,
         operacaoAberturaId,
         saldoAbertura,
         saldoAtual,
         movimentos,
+        consultasPendentes,
         loading: false,
       });
     } catch (error) {
       console.error("Erro ao buscar status do caixa:", error);
       setState((prev) => ({ ...prev, loading: false }));
     }
-  }, [clinicaId]);
+  }, [clinicaId, fetchConsultasPendentes]);
 
   useEffect(() => {
     fetchCaixaStatus();
   }, [fetchCaixaStatus]);
+
+  // Configurar realtime para consultas pagas
+  useEffect(() => {
+    if (!clinicaId || !state.caixaAberto) return;
+
+    const channel = supabase
+      .channel(`caixa-consultas-${clinicaId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "consultas",
+          filter: `status_pagamento=eq.pago`,
+        },
+        async (payload) => {
+          // Quando uma consulta é marcada como paga, atualizar lista de pendentes
+          const consultasPendentes = await fetchConsultasPendentes();
+          setState(prev => ({ ...prev, consultasPendentes }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [clinicaId, state.caixaAberto, fetchConsultasPendentes]);
 
   const abrirCaixa = async (saldoInicial: number) => {
     if (!clinicaId) {
@@ -119,6 +204,9 @@ export function useCaixaClinica(clinicaId: string | undefined) {
       .single();
 
     if (!error && data) {
+      // Buscar consultas pendentes após abrir o caixa
+      const consultasPendentes = await fetchConsultasPendentes();
+      
       setState((prev) => ({
         ...prev,
         caixaAberto: true,
@@ -126,6 +214,7 @@ export function useCaixaClinica(clinicaId: string | undefined) {
         saldoAbertura: saldoInicial,
         saldoAtual: saldoInicial,
         movimentos: [],
+        consultasPendentes,
       }));
     }
 
@@ -156,6 +245,7 @@ export function useCaixaClinica(clinicaId: string | undefined) {
         saldoAbertura: 0,
         saldoAtual: 0,
         movimentos: [],
+        consultasPendentes: [],
       }));
     }
 
@@ -211,11 +301,86 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     return { data, error };
   };
 
+  // Sincronizar uma consulta paga com o caixa
+  const sincronizarConsulta = async (consulta: ConsultaNaoSincronizada, formaPagamento: string) => {
+    if (!clinicaId || !state.operacaoAberturaId) {
+      return { data: null, error: { message: "Caixa não está aberto" } };
+    }
+
+    const nomePaciente = consulta.nome_paciente_consulta || consulta.paciente?.nome || "Paciente";
+    const nomeMedico = consulta.medico?.nome || "";
+    const origemLabel = consulta.origem === "online" ? "Online" : "Interno";
+    const descricao = `Consulta ${origemLabel} - ${nomePaciente}${nomeMedico ? ` (Dr. ${nomeMedico})` : ""}`;
+
+    // Criar movimento no caixa
+    const { data: movimentoData, error: movimentoError } = await supabase
+      .from("caixa_movimentos")
+      .insert({
+        clinica_id: clinicaId,
+        operacao_abertura_id: state.operacaoAberturaId,
+        tipo: "entrada",
+        valor: consulta.valor_consulta,
+        descricao,
+        forma_pagamento: formaPagamento,
+      })
+      .select()
+      .single();
+
+    if (movimentoError) {
+      return { data: null, error: movimentoError };
+    }
+
+    // Marcar consulta como sincronizada
+    const { error: updateError } = await supabase
+      .from("consultas")
+      .update({
+        sincronizado_caixa: true,
+        caixa_movimento_id: movimentoData.id,
+      })
+      .eq("id", consulta.id);
+
+    if (updateError) {
+      return { data: null, error: updateError };
+    }
+
+    // Atualizar estado local
+    const novoMovimento: MovimentoCaixa = {
+      id: movimentoData.id,
+      tipo: "entrada",
+      valor: Number(movimentoData.valor),
+      descricao: movimentoData.descricao,
+      forma_pagamento: movimentoData.forma_pagamento || undefined,
+      hora: format(new Date(movimentoData.created_at), "HH:mm"),
+      consulta_id: consulta.id,
+    };
+
+    setState((prev) => ({
+      ...prev,
+      saldoAtual: prev.saldoAtual + novoMovimento.valor,
+      movimentos: [novoMovimento, ...prev.movimentos],
+      consultasPendentes: prev.consultasPendentes.filter((c) => c.id !== consulta.id),
+    }));
+
+    return { data: movimentoData, error: null };
+  };
+
+  // Sincronizar todas as consultas pendentes de uma vez
+  const sincronizarTodas = async (formaPagamento: string) => {
+    const resultados = [];
+    for (const consulta of state.consultasPendentes) {
+      const resultado = await sincronizarConsulta(consulta, formaPagamento);
+      resultados.push(resultado);
+    }
+    return resultados;
+  };
+
   return {
     ...state,
     abrirCaixa,
     fecharCaixa,
     registrarMovimento,
+    sincronizarConsulta,
+    sincronizarTodas,
     refetch: fetchCaixaStatus,
   };
 }

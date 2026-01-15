@@ -810,6 +810,7 @@ export type Database = {
           agenda_slot_id: string | null
           asaas_invoice_url: string | null
           asaas_payment_id: string | null
+          caixa_movimento_id: string | null
           clinica_id: string | null
           convenio_id: string | null
           created_at: string | null
@@ -832,6 +833,7 @@ export type Database = {
           observacoes_paciente: string | null
           origem: string | null
           paciente_id: string | null
+          sincronizado_caixa: boolean | null
           sintomas: string | null
           status_consulta: string
           status_pagamento: string
@@ -847,6 +849,7 @@ export type Database = {
           agenda_slot_id?: string | null
           asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
+          caixa_movimento_id?: string | null
           clinica_id?: string | null
           convenio_id?: string | null
           created_at?: string | null
@@ -869,6 +872,7 @@ export type Database = {
           observacoes_paciente?: string | null
           origem?: string | null
           paciente_id?: string | null
+          sincronizado_caixa?: boolean | null
           sintomas?: string | null
           status_consulta?: string
           status_pagamento?: string
@@ -884,6 +888,7 @@ export type Database = {
           agenda_slot_id?: string | null
           asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
+          caixa_movimento_id?: string | null
           clinica_id?: string | null
           convenio_id?: string | null
           created_at?: string | null
@@ -906,6 +911,7 @@ export type Database = {
           observacoes_paciente?: string | null
           origem?: string | null
           paciente_id?: string | null
+          sincronizado_caixa?: boolean | null
           sintomas?: string | null
           status_consulta?: string
           status_pagamento?: string
@@ -923,6 +929,13 @@ export type Database = {
             columns: ["agenda_slot_id"]
             isOneToOne: false
             referencedRelation: "agenda_slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultas_caixa_movimento_id_fkey"
+            columns: ["caixa_movimento_id"]
+            isOneToOne: false
+            referencedRelation: "caixa_movimentos"
             referencedColumns: ["id"]
           },
           {
