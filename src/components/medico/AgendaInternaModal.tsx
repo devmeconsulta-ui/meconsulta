@@ -62,6 +62,7 @@ interface Paciente {
 interface LocalAtendimento {
   id: string;
   nome_local: string;
+  clinica_id?: string | null;
 }
 
 interface Convenio {
@@ -399,6 +400,17 @@ export function AgendaInternaModal({
         finalSlotId = slotId;
       }
 
+      // Get clinica_id from the selected local if not provided directly
+      let finalClinicaId = clinicaId || null;
+      if (!finalClinicaId && formData.localSelecionado) {
+        const { data: localData } = await supabase
+          .from("locais_atendimento")
+          .select("clinica_id")
+          .eq("id", formData.localSelecionado)
+          .maybeSingle();
+        finalClinicaId = localData?.clinica_id || null;
+      }
+
       // Create consultation
       const { error: consultaError } = await supabase.from("consultas").insert({
         medico_id: formData.medicoSelecionado || medicoId,
@@ -412,6 +424,7 @@ export function AgendaInternaModal({
         valor_plataforma: valorPlataforma,
         agenda_slot_id: finalSlotId,
         local_id: formData.localSelecionado,
+        clinica_id: finalClinicaId,
         usuario_clinica_id: formData.usuarioClinicaId || null,
         nome_paciente_consulta: formData.nome,
         tipo_servico: formData.procedimento,

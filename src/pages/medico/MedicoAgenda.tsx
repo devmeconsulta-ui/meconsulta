@@ -1163,6 +1163,7 @@ export default function MedicoAgenda() {
           percentualRepasse={medicoData.percentual_repasse || 70}
           usuariosClinica={usuariosClinica}
           locais={locais}
+          clinicaId={locais.find(l => l.id === selectedSlot.local_id)?.clinica_id || undefined}
           onSuccess={fetchData}
         />
       )}
