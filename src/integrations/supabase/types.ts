@@ -196,6 +196,112 @@ export type Database = {
           },
         ]
       }
+      caixa_movimentos: {
+        Row: {
+          clinica_id: string
+          created_at: string
+          descricao: string
+          forma_pagamento: string | null
+          id: string
+          operacao_abertura_id: string | null
+          tipo: string
+          usuario_clinica_id: string | null
+          valor: number
+        }
+        Insert: {
+          clinica_id: string
+          created_at?: string
+          descricao: string
+          forma_pagamento?: string | null
+          id?: string
+          operacao_abertura_id?: string | null
+          tipo: string
+          usuario_clinica_id?: string | null
+          valor: number
+        }
+        Update: {
+          clinica_id?: string
+          created_at?: string
+          descricao?: string
+          forma_pagamento?: string | null
+          id?: string
+          operacao_abertura_id?: string | null
+          tipo?: string
+          usuario_clinica_id?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caixa_movimentos_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caixa_movimentos_operacao_abertura_id_fkey"
+            columns: ["operacao_abertura_id"]
+            isOneToOne: false
+            referencedRelation: "caixa_operacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caixa_movimentos_usuario_clinica_id_fkey"
+            columns: ["usuario_clinica_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      caixa_operacoes: {
+        Row: {
+          clinica_id: string
+          created_at: string
+          id: string
+          observacoes: string | null
+          saldo_final: number | null
+          saldo_inicial: number | null
+          tipo: string
+          usuario_clinica_id: string | null
+        }
+        Insert: {
+          clinica_id: string
+          created_at?: string
+          id?: string
+          observacoes?: string | null
+          saldo_final?: number | null
+          saldo_inicial?: number | null
+          tipo: string
+          usuario_clinica_id?: string | null
+        }
+        Update: {
+          clinica_id?: string
+          created_at?: string
+          id?: string
+          observacoes?: string | null
+          saldo_final?: number | null
+          saldo_inicial?: number | null
+          tipo?: string
+          usuario_clinica_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caixa_operacoes_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caixa_operacoes_usuario_clinica_id_fkey"
+            columns: ["usuario_clinica_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       centros_custo: {
         Row: {
           ativo: boolean | null
