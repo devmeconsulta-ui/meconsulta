@@ -8,7 +8,8 @@ import { ChatInput } from "@/components/clinica/chat/ChatInput";
 import { NovaConversaModal } from "@/components/clinica/chat/NovaConversaModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Hash, Users, Menu, X, Archive, ArchiveRestore, Trash2, Pin, PinOff, Search } from "lucide-react";
+import { Hash, Users, Menu, X, Archive, ArchiveRestore, Trash2, Pin, PinOff, Search, PanelLeftClose, PanelLeft } from "lucide-react";
+import { ImperativePanelHandle } from "react-resizable-panels";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -45,6 +46,8 @@ export default function ClinicaChat() {
   const [buscaMensagem, setBuscaMensagem] = useState("");
   const [showBuscaMensagem, setShowBuscaMensagem] = useState(false);
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const sidebarPanelRef = useState<ImperativePanelHandle | null>(null);
 
   const {
     conversas,
@@ -152,24 +155,61 @@ export default function ClinicaChat() {
       >
         {/* Sidebar redimensionável */}
         <ResizablePanel 
-          defaultSize={25} 
-          minSize={15} 
+          defaultSize={sidebarCollapsed ? 0 : 25} 
+          minSize={0} 
           maxSize={40}
-          className="bg-background"
+          collapsible
+          collapsedSize={0}
+          onCollapse={() => setSidebarCollapsed(true)}
+          onExpand={() => setSidebarCollapsed(false)}
+          className={`bg-background transition-all ${sidebarCollapsed ? 'min-w-0' : ''}`}
+          ref={(ref) => {
+            if (ref && sidebarPanelRef[0] !== ref) {
+              sidebarPanelRef[1](ref);
+            }
+          }}
         >
-          <ChatSidebar
-            conversas={conversas}
-            conversaAtual={conversaAtual}
-            onSelectConversa={handleSelectConversa}
-            onNovaConversa={() => setShowNovaConversa(true)}
-            onArquivarConversa={arquivarConversa}
-            onExcluirConversa={excluirConversa}
-            onFixarConversa={fixarConversa}
-            loading={loading}
-          />
+          <AnimatePresence>
+            {!sidebarCollapsed && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="h-full"
+              >
+                <ChatSidebar
+                  conversas={conversas}
+                  conversaAtual={conversaAtual}
+                  onSelectConversa={handleSelectConversa}
+                  onNovaConversa={() => setShowNovaConversa(true)}
+                  onArquivarConversa={arquivarConversa}
+                  onExcluirConversa={excluirConversa}
+                  onFixarConversa={fixarConversa}
+                  loading={loading}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </ResizablePanel>
 
         <ResizableHandle withHandle className="bg-border hover:bg-primary/20 transition-colors" />
+
+        {/* Botão para expandir sidebar quando colapsada */}
+        {sidebarCollapsed && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setSidebarCollapsed(false);
+              sidebarPanelRef[0]?.expand();
+            }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-8 w-8 bg-background border shadow-sm hover:bg-muted"
+            title="Expandir lista de conversas"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
+        )}
 
         {/* Área principal do chat redimensionável */}
         <ResizablePanel defaultSize={75} minSize={50}>
@@ -218,6 +258,22 @@ export default function ClinicaChat() {
 
               {/* Botões de ação - mais visíveis */}
               <div className="flex items-center gap-1">
+                {/* Botão para colapsar sidebar */}
+                {!sidebarCollapsed && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setSidebarCollapsed(true);
+                      sidebarPanelRef[0]?.collapse();
+                    }}
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    title="Colapsar lista de conversas"
+                  >
+                    <PanelLeftClose className="h-4 w-4" />
+                  </Button>
+                )}
+                
                 <Button
                   variant="ghost"
                   size="sm"
