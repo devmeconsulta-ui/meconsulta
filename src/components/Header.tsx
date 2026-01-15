@@ -20,6 +20,7 @@ const Header = () => {
   const getUserArea = () => {
     if (currentUser?.tipo === "admin") return "/admin";
     if (currentUser?.tipo === "medico") return "/medico";
+    if (currentUser?.tipo === "clinica") return "/clinica";
     return "/paciente";
   };
 
