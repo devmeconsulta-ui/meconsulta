@@ -92,6 +92,7 @@ import { toast } from "sonner";
 // Novos componentes do financeiro v2
 import { FinanceiroHeader } from "@/components/clinica/financeiro/FinanceiroHeader";
 import { CaixaWidget } from "@/components/clinica/financeiro/CaixaWidget";
+import { ConsultasPendentesCaixa } from "@/components/clinica/financeiro/ConsultasPendentesCaixa";
 import { VencimentosTimeline } from "@/components/clinica/financeiro/VencimentosTimeline";
 import { FaturamentoChart } from "@/components/clinica/financeiro/FaturamentoChart";
 import { FluxoCaixaChart } from "@/components/clinica/financeiro/FluxoCaixaChart";
@@ -1218,6 +1219,16 @@ export default function ClinicaFinanceiro() {
 
         {/* Tab: Visão Geral */}
         <TabsContent value="visao-geral" className="mt-6 space-y-6">
+          {/* Consultas Pendentes de Sincronização com Caixa */}
+          <ConsultasPendentesCaixa
+            consultas={caixa.consultasPendentes}
+            formatCurrency={formatCurrency}
+            onSincronizar={caixa.sincronizarConsulta}
+            onSincronizarTodas={caixa.sincronizarTodas}
+            onRefresh={caixa.refetch}
+            caixaAberto={caixa.caixaAberto}
+          />
+
           {/* Layout em grid: Caixa + Metas + Vencimentos */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Controle de Caixa */}
