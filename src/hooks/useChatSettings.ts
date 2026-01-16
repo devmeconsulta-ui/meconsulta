@@ -218,6 +218,7 @@ export interface ChatSettings {
   pushEnabled: boolean;
   selectedSound: SoundId;
   volume: number; // 0 a 1
+  vibrationEnabled: boolean;
 }
 
 const defaultSettings: ChatSettings = {
@@ -225,6 +226,7 @@ const defaultSettings: ChatSettings = {
   pushEnabled: false,
   selectedSound: "default",
   volume: 0.5,
+  vibrationEnabled: true,
 };
 
 export function useChatSettings() {
@@ -365,14 +367,51 @@ export function getChatVolume(): number {
 // Função para tocar o som de notificação (exportada para uso em outros hooks)
 export function playChatNotificationSound(): void {
   console.log("[Chat Sound] playChatNotificationSound chamado");
-  const enabled = isChatSoundEnabled();
-  console.log("[Chat Sound] Som habilitado:", enabled);
-  if (!enabled) return;
+  const soundEnabled = isChatSoundEnabled();
+  console.log("[Chat Sound] Som habilitado:", soundEnabled);
   
-  const soundId = getSelectedSoundId();
-  const volume = getChatVolume();
-  console.log("[Chat Sound] Som selecionado:", soundId, "Volume:", volume);
-  playGeneratedSound(soundId, volume);
+  if (soundEnabled) {
+    const soundId = getSelectedSoundId();
+    const volume = getChatVolume();
+    console.log("[Chat Sound] Som selecionado:", soundId, "Volume:", volume);
+    playGeneratedSound(soundId, volume);
+  }
+  
+  // Sempre tenta vibrar (a função verifica internamente se está habilitado)
+  vibrateChatNotification();
+}
+
+// Função utilitária para verificar se vibração está ativada
+export function isChatVibrationEnabled(): boolean {
+  try {
+    const stored = localStorage.getItem(CHAT_SETTINGS_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.vibrationEnabled !== false;
+    }
+    return true; // Default é ativado
+  } catch {
+    return true;
+  }
+}
+
+// Função para verificar se o dispositivo suporta vibração
+export function isVibrationSupported(): boolean {
+  return typeof navigator !== "undefined" && "vibrate" in navigator;
+}
+
+// Função para vibrar o dispositivo
+export function vibrateChatNotification(): void {
+  if (!isChatVibrationEnabled()) return;
+  if (!isVibrationSupported()) return;
+  
+  try {
+    // Padrão de vibração: curto-pausa-curto (200ms, 100ms pausa, 200ms)
+    navigator.vibrate([200, 100, 200]);
+    console.log("[Chat Vibration] Vibração executada");
+  } catch (error) {
+    console.error("[Chat Vibration] Erro ao vibrar:", error);
+  }
 }
 
 // Função utilitária para verificar se push está ativado
