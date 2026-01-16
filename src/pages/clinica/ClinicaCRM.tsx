@@ -3,7 +3,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCrmClinica, CrmLead, CrmEtapa } from "@/hooks/useCrmClinica";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -24,18 +23,16 @@ import {
   Plus,
   Settings,
   MoreVertical,
-  Calendar,
-  DollarSign,
-  GripVertical,
   Target,
   Users,
+  TrendingUp,
+  DollarSign,
 } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import CrmFunilModal from "@/components/clinica/crm/CrmFunilModal";
 import CrmEtapaModal from "@/components/clinica/crm/CrmEtapaModal";
 import CrmLeadModal from "@/components/clinica/crm/CrmLeadModal";
+import CrmLeadCard from "@/components/clinica/crm/CrmLeadCard";
 
 export default function ClinicaCRM() {
   const { currentUser } = useAuth();
@@ -275,62 +272,19 @@ export default function ClinicaCRM() {
                             index={leadIndex}
                           >
                             {(provided, snapshot) => (
-                              <Card
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                className={cn(
-                                  "p-2.5 md:p-3 cursor-pointer active:scale-[0.98] hover:shadow-md transition-all",
-                                  snapshot.isDragging && "shadow-lg rotate-1"
-                                )}
+                              <CrmLeadCard
+                                lead={lead}
+                                isDragging={snapshot.isDragging}
                                 onClick={() => {
                                   setLeadParaEditar(lead);
                                   setLeadModalOpen(true);
                                 }}
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between mb-1 md:mb-1.5">
-                                    <div className="min-w-0 flex-1">
-                                      {lead.responsavel?.nome && (
-                                        <span className="text-[9px] md:text-[10px] text-muted-foreground block">
-                                          {lead.responsavel.nome}
-                                        </span>
-                                      )}
-                                      <h4 className="font-medium text-xs md:text-sm truncate">
-                                        {lead.nome}
-                                      </h4>
-                                    </div>
-                                    
-                                    {lead.origem === "online" && (
-                                      <Badge variant="default" className="text-[8px] md:text-[9px] px-1 py-0 ml-1.5">
-                                        Online
-                                      </Badge>
-                                    )}
-                                  </div>
-
-                                  <div className="flex items-center justify-between gap-1.5">
-                                    {lead.data_vencimento ? (
-                                      <div className="flex items-center gap-1 text-[9px] md:text-[10px] text-muted-foreground">
-                                        <Calendar className="h-2.5 w-2.5 md:h-3 md:w-3" />
-                                        {format(new Date(lead.data_vencimento), "dd/MM", { locale: ptBR })}
-                                      </div>
-                                    ) : (
-                                      <span className="text-[9px] md:text-[10px] text-muted-foreground">Sem vencimento</span>
-                                    )}
-                                    
-                                    <div className="flex items-center gap-1">
-                                      {lead.valor_estimado > 0 && (
-                                        <Badge variant="outline" className="text-[8px] md:text-[9px] h-4 px-1">
-                                          R$ {lead.valor_estimado.toLocaleString("pt-BR")}
-                                        </Badge>
-                                      )}
-                                      {lead.observacoes && (
-                                        <span className="text-[9px] md:text-[10px]">📝</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </Card>
+                                onQuickGanho={() => marcarGanho.mutate(lead.id)}
+                                onQuickPerdido={() => marcarPerdido.mutate({ id: lead.id })}
+                                innerRef={provided.innerRef}
+                                draggableProps={provided.draggableProps}
+                                dragHandleProps={provided.dragHandleProps}
+                              />
                             )}
                           </Draggable>
                         ))}
