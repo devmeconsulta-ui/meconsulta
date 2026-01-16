@@ -434,12 +434,23 @@ export default function ClinicaFinanceiro() {
 
   const metrics = useMemo(() => {
     const onlineConsultas = filteredConsultas.filter((c) => c.origem === "online");
+    const internaConsultas = filteredConsultas.filter((c) => c.origem === "interna");
     
-    const pago = onlineConsultas
+    // Online
+    const pagoOnline = onlineConsultas
       .filter((c) => c.status_pagamento === "pago")
       .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
 
-    const pendente = onlineConsultas
+    const pendenteOnline = onlineConsultas
+      .filter((c) => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada")
+      .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
+
+    // Interno
+    const pagoInterno = internaConsultas
+      .filter((c) => c.status_pagamento === "pago")
+      .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
+
+    const pendenteInterno = internaConsultas
       .filter((c) => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada")
       .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
 
@@ -450,7 +461,24 @@ export default function ClinicaFinanceiro() {
     const total = filteredConsultas.length;
     const pagos = filteredConsultas.filter((c) => c.status_pagamento === "pago").length;
 
-    return { pago, pendente, cancelado, total, pagos };
+    // Totais combinados
+    const pagoTotal = pagoOnline + pagoInterno;
+    const pendenteTotal = pendenteOnline + pendenteInterno;
+
+    return { 
+      pagoOnline, 
+      pendenteOnline, 
+      pagoInterno, 
+      pendenteInterno,
+      pagoTotal,
+      pendenteTotal,
+      cancelado, 
+      total, 
+      pagos,
+      // Legacy compatibility
+      pago: pagoOnline,
+      pendente: pendenteOnline,
+    };
   }, [filteredConsultas]);
 
   // Dados filtrados para aba Origem com datas customizáveis
@@ -1198,10 +1226,13 @@ export default function ClinicaFinanceiro() {
 
           {/* Header de métricas */}
           <FinanceiroHeader
-            faturamento={metrics.pago}
-            aReceber={metrics.pendente + totalContasReceber}
+            faturamentoOnline={metrics.pagoOnline}
+            saldoPrevistoOnline={(metrics.pagoOnline + metrics.pendenteOnline) - totalContasPagar}
+            faturamentoInterno={metrics.pagoInterno}
+            saldoPrevistoInterno={metrics.pagoInterno + metrics.pendenteInterno}
+            aReceber={metrics.pendenteTotal + totalContasReceber}
             aPagar={totalContasPagar}
-            saldoPrevisto={(metrics.pago + totalContasReceber) - totalContasPagar}
+            saldoPrevistoGeral={(metrics.pagoTotal + metrics.pendenteTotal + totalContasReceber) - totalContasPagar}
             caixaAberto={caixa.caixaAberto}
             saldoCaixa={caixa.saldoAtual}
             vencimentosHoje={vencimentosHoje}
