@@ -57,7 +57,37 @@ export interface CrmLead {
   responsavel?: {
     nome: string;
   };
+  paciente?: {
+    id: string;
+    nome: string;
+    telefone: string | null;
+    cpf: string | null;
+    data_nascimento: string | null;
+  };
+  consulta?: {
+    id: string;
+    data_hora: string;
+    status_consulta: string;
+    valor_consulta: number;
+    medico?: {
+      nome: string;
+      especialidade: string | null;
+    };
+  };
 }
+
+// Status da jornada do paciente mapeados para etapas CRM
+export const ETAPAS_JORNADA_PACIENTE = [
+  { nome: "Lead Captado", cor: "#3b82f6", ordem: 0, pode_criar: true, probabilidade_ganho: 10 },
+  { nome: "Contato Feito", cor: "#06b6d4", ordem: 1, pode_criar: true, probabilidade_ganho: 20 },
+  { nome: "Agendado", cor: "#8b5cf6", ordem: 2, pode_criar: false, probabilidade_ganho: 40 },
+  { nome: "Aguardando Pagamento", cor: "#f59e0b", ordem: 3, pode_criar: false, probabilidade_ganho: 50 },
+  { nome: "Confirmado", cor: "#10b981", ordem: 4, pode_criar: false, probabilidade_ganho: 70 },
+  { nome: "Aguardando Atendimento", cor: "#6366f1", ordem: 5, pode_criar: false, probabilidade_ganho: 85 },
+  { nome: "Em Atendimento", cor: "#ec4899", ordem: 6, pode_criar: false, probabilidade_ganho: 90 },
+  { nome: "Concluído", cor: "#22c55e", ordem: 7, pode_ganhar: true, probabilidade_ganho: 100 },
+  { nome: "Pós-Consulta", cor: "#14b8a6", ordem: 8, pode_criar: false, probabilidade_ganho: 100 },
+];
 
 export function useCrmClinica(clinicaId: string | null) {
   const queryClient = useQueryClient();
@@ -104,7 +134,7 @@ export function useCrmClinica(clinicaId: string | null) {
     enabled: !!funilSelecionado,
   });
 
-  // Buscar leads do funil selecionado
+  // Buscar leads do funil selecionado com dados de paciente e consulta
   const { data: leads = [], isLoading: loadingLeads } = useQuery({
     queryKey: ["crm-leads", funilSelecionado],
     queryFn: async () => {
@@ -113,14 +143,22 @@ export function useCrmClinica(clinicaId: string | null) {
         .from("crm_leads")
         .select(`
           *,
-          responsavel:usuarios_clinica!crm_leads_responsavel_id_fkey(nome)
+          responsavel:usuarios_clinica!crm_leads_responsavel_id_fkey(nome),
+          paciente:pacientes!crm_leads_paciente_id_fkey(id, nome, telefone, cpf, data_nascimento),
+          consulta:consultas!crm_leads_consulta_id_fkey(
+            id, 
+            data_hora, 
+            status_consulta, 
+            valor_consulta,
+            medico:medicos!consultas_medico_id_fkey(nome, especialidade)
+          )
         `)
         .eq("funil_id", funilSelecionado)
         .eq("ganho", false)
         .eq("perdido", false)
         .order("ordem", { ascending: true });
       if (error) throw error;
-      return data as CrmLead[];
+      return data as unknown as CrmLead[];
     },
     enabled: !!funilSelecionado,
   });
@@ -143,18 +181,10 @@ export function useCrmClinica(clinicaId: string | null) {
       
       if (funilError) throw funilError;
 
-      // Criar etapas padrão
-      const etapasPadrao = [
-        { nome: "Novo Lead", cor: "#3b82f6", ordem: 0 },
-        { nome: "Contato Feito", cor: "#f59e0b", ordem: 1 },
-        { nome: "Proposta Enviada", cor: "#8b5cf6", ordem: 2 },
-        { nome: "Negociação", cor: "#f97316", ordem: 3 },
-        { nome: "Fechado", cor: "#22c55e", ordem: 4, pode_ganhar: true },
-      ];
-
+      // Criar etapas baseadas na jornada do paciente
       const { error: etapasError } = await supabase
         .from("crm_etapas")
-        .insert(etapasPadrao.map(e => ({
+        .insert(ETAPAS_JORNADA_PACIENTE.map(e => ({
           funil_id: funil.id,
           ...e,
         })));
