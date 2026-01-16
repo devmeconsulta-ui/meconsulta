@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { 
   Calendar, 
   Search, 
@@ -20,14 +22,17 @@ import {
   HelpCircle,
   MapPin,
   Pencil,
-  Timer
+  Timer,
+  Filter,
+  CalendarRange
 } from "lucide-react";
-import { format, parseISO, differenceInMinutes } from "date-fns";
+import { format, parseISO, differenceInMinutes, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import ConsultaDetalhesModal from "@/components/medico/ConsultaDetalhesModal";
 import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
+import { cn } from "@/lib/utils";
 
 // Componente para mostrar tempo (restante ou de espera)
 function TempoEspera({ dataHora }: { dataHora: string }) {
@@ -144,16 +149,47 @@ const statusColors: Record<string, string> = {
   cancelada: "bg-red-500/10 text-red-600",
 };
 
+type PeriodFilter = "hoje" | "7dias" | "30dias" | "mes_atual" | "mes_anterior" | "custom" | "todos";
+
 export default function MedicoConsultas() {
   const { currentUser } = useAuth();
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
+  const [origemFilter, setOrigemFilter] = useState("todos");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("todos");
+  const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined);
+  const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined);
   const [selectedConsulta, setSelectedConsulta] = useState<Consulta | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [consultaToEdit, setConsultaToEdit] = useState<Consulta | null>(null);
+
+  // Calculate date range based on period filter
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    switch (periodFilter) {
+      case "hoje":
+        return { start: startOfDay(now), end: endOfDay(now) };
+      case "7dias":
+        return { start: startOfDay(subDays(now, 7)), end: endOfDay(now) };
+      case "30dias":
+        return { start: startOfDay(subDays(now, 30)), end: endOfDay(now) };
+      case "mes_atual":
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case "mes_anterior":
+        const lastMonth = subMonths(now, 1);
+        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+      case "custom":
+        if (customStartDate && customEndDate) {
+          return { start: startOfDay(customStartDate), end: endOfDay(customEndDate) };
+        }
+        return null;
+      default:
+        return null;
+    }
+  }, [periodFilter, customStartDate, customEndDate]);
 
   useEffect(() => {
     if (currentUser?.medicoId) {
@@ -205,16 +241,34 @@ export default function MedicoConsultas() {
     setLoading(false);
   }
 
-  const filteredConsultas = consultas.filter((consulta) => {
-    const matchesSearch = 
-      consulta.nome_paciente_consulta?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      consulta.paciente?.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      consulta.dependente?.nome.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "todos" || consulta.status_consulta === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
+  const filteredConsultas = useMemo(() => {
+    return consultas.filter((consulta) => {
+      const matchesSearch = 
+        consulta.nome_paciente_consulta?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        consulta.paciente?.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        consulta.dependente?.nome.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === "todos" || consulta.status_consulta === statusFilter;
+      const matchesOrigem = origemFilter === "todos" || consulta.origem === origemFilter;
+      
+      // Date filter
+      let matchesDate = true;
+      if (dateRange) {
+        const consultaDate = parseISO(consulta.data_hora);
+        matchesDate = isWithinInterval(consultaDate, { start: dateRange.start, end: dateRange.end });
+      }
+      
+      return matchesSearch && matchesStatus && matchesOrigem && matchesDate;
+    });
+  }, [consultas, searchTerm, statusFilter, origemFilter, dateRange]);
+
+  // Stats based on filtered data
+  const stats = useMemo(() => ({
+    confirmadas: filteredConsultas.filter(c => c.status_consulta === "confirmada").length,
+    aguardando: filteredConsultas.filter(c => c.status_consulta === "aguardando_pagamento" || c.status_consulta === "aguardando").length,
+    concluidas: filteredConsultas.filter(c => c.status_consulta === "concluida").length,
+    total: filteredConsultas.length
+  }), [filteredConsultas]);
 
   const handleViewDetails = (consulta: Consulta) => {
     setSelectedConsulta(consulta);
@@ -245,7 +299,8 @@ export default function MedicoConsultas() {
 
       {/* Filters */}
       <Card className="card-shadow">
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-4">
+          {/* First row: search and period */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -256,6 +311,53 @@ export default function MedicoConsultas() {
                 className="pl-10"
               />
             </div>
+            <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <CalendarRange className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todo período</SelectItem>
+                <SelectItem value="hoje">Hoje</SelectItem>
+                <SelectItem value="7dias">Últimos 7 dias</SelectItem>
+                <SelectItem value="30dias">Últimos 30 dias</SelectItem>
+                <SelectItem value="mes_atual">Mês atual</SelectItem>
+                <SelectItem value="mes_anterior">Mês anterior</SelectItem>
+                <SelectItem value="custom">Personalizado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Custom date range */}
+          {periodFilter === "custom" && (
+            <div className="flex flex-wrap gap-4">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customStartDate && "text-muted-foreground")}>
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {customStartDate ? format(customStartDate, "dd/MM/yyyy") : "Data início"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent mode="single" selected={customStartDate} onSelect={setCustomStartDate} initialFocus locale={ptBR} />
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customEndDate && "text-muted-foreground")}>
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {customEndDate ? format(customEndDate, "dd/MM/yyyy") : "Data fim"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent mode="single" selected={customEndDate} onSelect={setCustomEndDate} initialFocus locale={ptBR} />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+
+          {/* Second row: status and origin filters */}
+          <div className="flex flex-wrap gap-4">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[200px]">
                 <SelectValue placeholder="Filtrar por status" />
@@ -272,6 +374,17 @@ export default function MedicoConsultas() {
                 <SelectItem value="cancelada">Cancelada</SelectItem>
               </SelectContent>
             </Select>
+
+            <Select value={origemFilter} onValueChange={setOrigemFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filtrar por origem" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas as origens</SelectItem>
+                <SelectItem value="online">Online</SelectItem>
+                <SelectItem value="interna">Interna</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -285,9 +398,7 @@ export default function MedicoConsultas() {
                 <Calendar className="w-5 h-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">
-                  {consultas.filter(c => c.status_consulta === "confirmada").length}
-                </p>
+                <p className="text-2xl font-bold">{stats.confirmadas}</p>
                 <p className="text-xs text-muted-foreground">Confirmadas</p>
               </div>
             </div>
@@ -301,9 +412,7 @@ export default function MedicoConsultas() {
                 <Clock className="w-5 h-5 text-yellow-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">
-                  {consultas.filter(c => c.status_consulta === "aguardando_pagamento").length}
-                </p>
+                <p className="text-2xl font-bold">{stats.aguardando}</p>
                 <p className="text-xs text-muted-foreground">Aguardando</p>
               </div>
             </div>
@@ -314,13 +423,11 @@ export default function MedicoConsultas() {
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center">
-                <FileText className="w-5 h-5 text-green-500" />
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">
-                  {consultas.filter(c => c.status_consulta === "realizada").length}
-                </p>
-                <p className="text-xs text-muted-foreground">Realizadas</p>
+                <p className="text-2xl font-bold">{stats.concluidas}</p>
+                <p className="text-xs text-muted-foreground">Concluídas</p>
               </div>
             </div>
           </CardContent>
@@ -333,7 +440,7 @@ export default function MedicoConsultas() {
                 <User className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{consultas.length}</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
                 <p className="text-xs text-muted-foreground">Total</p>
               </div>
             </div>
