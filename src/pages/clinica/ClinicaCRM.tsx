@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCrmClinica, CrmLead, CrmEtapa } from "@/hooks/useCrmClinica";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
@@ -25,17 +26,19 @@ import {
   MoreVertical,
   Target,
   Users,
-  TrendingUp,
   DollarSign,
+  CalendarPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CrmFunilModal from "@/components/clinica/crm/CrmFunilModal";
 import CrmEtapaModal from "@/components/clinica/crm/CrmEtapaModal";
 import CrmLeadModal from "@/components/clinica/crm/CrmLeadModal";
 import CrmLeadCard from "@/components/clinica/crm/CrmLeadCard";
+import CrmLeadDetalhesModal from "@/components/clinica/crm/CrmLeadDetalhesModal";
 
 export default function ClinicaCRM() {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const clinicaId = currentUser?.clinicaId || null;
   
   const {
@@ -60,6 +63,8 @@ export default function ClinicaCRM() {
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [leadParaEditar, setLeadParaEditar] = useState<CrmLead | null>(null);
   const [etapaParaNovoLead, setEtapaParaNovoLead] = useState<string | null>(null);
+  const [leadDetalhesOpen, setLeadDetalhesOpen] = useState(false);
+  const [leadParaDetalhes, setLeadParaDetalhes] = useState<CrmLead | null>(null);
   
   // Drag and drop handler
   const handleDragEnd = (result: DropResult) => {
@@ -276,8 +281,8 @@ export default function ClinicaCRM() {
                                 lead={lead}
                                 isDragging={snapshot.isDragging}
                                 onClick={() => {
-                                  setLeadParaEditar(lead);
-                                  setLeadModalOpen(true);
+                                  setLeadParaDetalhes(lead);
+                                  setLeadDetalhesOpen(true);
                                 }}
                                 onQuickGanho={() => marcarGanho.mutate(lead.id)}
                                 onQuickPerdido={() => marcarPerdido.mutate({ id: lead.id })}
@@ -355,6 +360,18 @@ export default function ClinicaCRM() {
         onGanho={(id) => marcarGanho.mutate(id)}
         onPerdido={(id, motivo) => marcarPerdido.mutate({ id, motivo })}
         onExcluir={(id) => excluirLead.mutate(id)}
+      />
+
+      <CrmLeadDetalhesModal
+        open={leadDetalhesOpen}
+        onOpenChange={(open) => {
+          setLeadDetalhesOpen(open);
+          if (!open) setLeadParaDetalhes(null);
+        }}
+        lead={leadParaDetalhes}
+        onGanho={(id) => marcarGanho.mutate(id)}
+        onPerdido={(id) => marcarPerdido.mutate({ id })}
+        onAgendar={() => navigate("/clinica/agenda")}
       />
     </div>
   );

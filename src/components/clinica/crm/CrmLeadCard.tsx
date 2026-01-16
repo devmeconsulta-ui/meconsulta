@@ -2,7 +2,7 @@ import { CrmLead } from "@/hooks/useCrmClinica";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Phone, Calendar, Clock, Check, X } from "lucide-react";
+import { Phone, Calendar, Clock, Check, X, Globe, Building2 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,9 @@ export default function CrmLeadCard({
   innerRef,
   draggableProps,
 }: CrmLeadCardProps) {
+  // Check if is virtual lead
+  const isVirtual = lead.id.startsWith("virtual-");
+  
   // Calcular "Há X dias"
   const diasDesdeCreation = formatDistanceToNow(new Date(lead.created_at), {
     locale: ptBR,
@@ -44,15 +47,15 @@ export default function CrmLeadCard({
   const getStatusConsulta = (status: string | undefined) => {
     if (!status) return null;
     const statusMap: Record<string, { label: string; color: string }> = {
-      agendada: { label: "Agendado", color: "bg-blue-100 text-blue-700" },
-      aguardando_pagamento: { label: "Aguard. Pag.", color: "bg-amber-100 text-amber-700" },
-      confirmada: { label: "Confirmado", color: "bg-green-100 text-green-700" },
-      aguardando: { label: "Aguardando", color: "bg-purple-100 text-purple-700" },
-      atendendo: { label: "Atendendo", color: "bg-pink-100 text-pink-700" },
-      concluida: { label: "Concluído", color: "bg-emerald-100 text-emerald-700" },
-      atendida_medico: { label: "Concluído", color: "bg-emerald-100 text-emerald-700" },
-      cancelada: { label: "Cancelado", color: "bg-red-100 text-red-700" },
-      nao_compareceu: { label: "Faltou", color: "bg-gray-100 text-gray-700" },
+      agendada: { label: "Agendado", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+      aguardando_pagamento: { label: "Aguard. Pag.", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },
+      confirmada: { label: "Confirmado", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
+      aguardando: { label: "Aguardando", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
+      atendendo: { label: "Atendendo", color: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300" },
+      concluida: { label: "Concluído", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
+      atendida_medico: { label: "Concluído", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
+      cancelada: { label: "Cancelado", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" },
+      nao_compareceu: { label: "Faltou", color: "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300" },
     };
     return statusMap[status] || null;
   };
@@ -65,8 +68,9 @@ export default function CrmLeadCard({
       {...draggableProps}
       {...dragHandleProps}
       className={cn(
-        "p-2.5 md:p-3 cursor-pointer active:scale-[0.98] hover:shadow-md transition-all group",
-        isDragging && "shadow-lg rotate-1 ring-2 ring-primary/20"
+        "p-2.5 md:p-3 cursor-pointer active:scale-[0.98] hover:shadow-md transition-all group border-l-[3px]",
+        isDragging && "shadow-lg rotate-1 ring-2 ring-primary/20",
+        lead.origem === "online" ? "border-l-blue-500" : "border-l-gray-300"
       )}
       onClick={onClick}
     >
@@ -87,51 +91,54 @@ export default function CrmLeadCard({
           </h4>
         </div>
         
-        {/* Ações rápidas (aparecem no hover) */}
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1">
-          {onQuickGanho && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 text-green-600 hover:text-green-700 hover:bg-green-50"
-              onClick={(e) => {
-                e.stopPropagation();
-                onQuickGanho();
-              }}
-            >
-              <Check className="h-3 w-3" />
-            </Button>
-          )}
-          {onQuickPerdido && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={(e) => {
-                e.stopPropagation();
-                onQuickPerdido();
-              }}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
+        {/* Ações rápidas (aparecem no hover) - só para leads não virtuais */}
+        {!isVirtual && (
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1">
+            {onQuickGanho && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-green-600 hover:text-green-700 hover:bg-green-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQuickGanho();
+                }}
+              >
+                <Check className="h-3 w-3" />
+              </Button>
+            )}
+            {onQuickPerdido && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQuickPerdido();
+                }}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Origem Badge */}
-      <div className="flex items-center gap-1 mb-1.5">
-        {lead.origem === "online" && (
-          <Badge className="text-[8px] md:text-[9px] px-1 py-0 bg-blue-500 hover:bg-blue-500">
+      <div className="flex items-center gap-1 mb-1.5 flex-wrap">
+        {lead.origem === "online" ? (
+          <Badge className="text-[8px] md:text-[9px] px-1.5 py-0 bg-blue-500 hover:bg-blue-500 gap-0.5">
+            <Globe className="h-2.5 w-2.5" />
             Online
           </Badge>
-        )}
-        {lead.origem === "manual" && (
-          <Badge variant="secondary" className="text-[8px] md:text-[9px] px-1 py-0">
-            Manual
+        ) : (
+          <Badge variant="secondary" className="text-[8px] md:text-[9px] px-1.5 py-0 gap-0.5">
+            <Building2 className="h-2.5 w-2.5" />
+            Interno
           </Badge>
         )}
         {statusInfo && (
-          <Badge className={cn("text-[8px] md:text-[9px] px-1 py-0", statusInfo.color)}>
+          <Badge className={cn("text-[8px] md:text-[9px] px-1.5 py-0", statusInfo.color)}>
             {statusInfo.label}
           </Badge>
         )}
