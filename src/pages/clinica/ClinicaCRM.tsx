@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCrmClinica, CrmLead, CrmEtapa } from "@/hooks/useCrmClinica";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -22,18 +21,11 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
   Plus,
   Settings,
   MoreVertical,
   Calendar,
   DollarSign,
-  ChevronLeft,
-  ChevronRight,
   GripVertical,
   Target,
   Users,
@@ -73,9 +65,10 @@ export default function ClinicaCRM() {
   const [leadParaEditar, setLeadParaEditar] = useState<CrmLead | null>(null);
   const [etapaParaNovoLead, setEtapaParaNovoLead] = useState<string | null>(null);
   
-  // Mobile state - etapa selecionada
+  // Mobile state
   const isMobile = useIsMobile();
-  const [etapaMobileIndex, setEtapaMobileIndex] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [currentEtapaIndex, setCurrentEtapaIndex] = useState(0);
 
   // Drag and drop handler
   const handleDragEnd = (result: DropResult) => {
@@ -101,10 +94,23 @@ export default function ClinicaCRM() {
 
   const funilAtual = funis.find(f => f.id === funilSelecionado);
 
-  // Mobile navigation
-  const etapaMobile = etapas[etapaMobileIndex];
-  const goToPrevEtapa = () => setEtapaMobileIndex(i => Math.max(0, i - 1));
-  const goToNextEtapa = () => setEtapaMobileIndex(i => Math.min(etapas.length - 1, i + 1));
+  // Mobile swipe detection - update dots indicator
+  useEffect(() => {
+    if (!isMobile || !scrollContainerRef.current) return;
+    
+    const container = scrollContainerRef.current;
+    const handleScroll = () => {
+      const scrollLeft = container.scrollLeft;
+      const columnWidth = container.offsetWidth;
+      const newIndex = Math.round(scrollLeft / columnWidth);
+      if (newIndex !== currentEtapaIndex && newIndex >= 0 && newIndex < etapas.length) {
+        setCurrentEtapaIndex(newIndex);
+      }
+    };
+    
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [isMobile, etapas.length, currentEtapaIndex]);
 
   if (isLoading) {
     return (
@@ -206,213 +212,211 @@ export default function ClinicaCRM() {
           </Button>
         </div>
       ) : isMobile ? (
-        /* ===== MOBILE VIEW: Single column with navigation ===== */
+        /* ===== MOBILE VIEW: Horizontal swipe between stages ===== */
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="flex-1 flex flex-col min-h-0">
-            {/* Mobile Tabs Navigation */}
-            <ScrollArea className="w-full mb-3">
-              <div className="flex gap-1 pb-2">
+            {/* Swipeable columns container */}
+            <div 
+              ref={scrollContainerRef}
+              className="flex-1 overflow-x-auto overflow-y-hidden snap-x snap-mandatory scrollbar-hide"
+              style={{ 
+                scrollbarWidth: 'none', 
+                msOverflowStyle: 'none',
+                WebkitOverflowScrolling: 'touch'
+              }}
+            >
+              <div className="flex h-full" style={{ width: `${(etapas.length + 1) * 100}%` }}>
                 {etapas.map((etapa, index) => (
-                  <Button
+                  <div
                     key={etapa.id}
-                    variant={etapaMobileIndex === index ? "default" : "ghost"}
-                    size="sm"
-                    className="flex-shrink-0 h-8 px-3 text-xs gap-1.5"
-                    onClick={() => setEtapaMobileIndex(index)}
-                    style={{
-                      borderBottom: etapaMobileIndex === index ? `2px solid ${etapa.cor}` : 'none'
-                    }}
+                    className="snap-center flex-shrink-0 h-full px-1"
+                    style={{ width: `${100 / (etapas.length + 1)}%` }}
                   >
-                    <div
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: etapa.cor }}
-                    />
-                    {etapa.nome}
-                    <Badge variant="secondary" className="ml-1 text-[10px] h-4 px-1">
-                      {leadsPorEtapa[etapa.id]?.length || 0}
-                    </Badge>
-                  </Button>
-                ))}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex-shrink-0 h-8 px-3 text-xs border-dashed border"
-                  onClick={() => setEtapaModalOpen(true)}
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-
-            {/* Current Stage */}
-            {etapaMobile && (
-              <div className="flex-1 flex flex-col bg-muted/30 rounded-xl min-h-0">
-                {/* Stage Header */}
-                <div
-                  className="p-3 border-b flex items-center justify-between"
-                  style={{ borderTopColor: etapaMobile.cor, borderTopWidth: 3, borderTopLeftRadius: 12, borderTopRightRadius: 12 }}
-                >
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      disabled={etapaMobileIndex === 0}
-                      onClick={goToPrevEtapa}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: etapaMobile.cor }}
-                    />
-                    <h3 className="font-semibold text-sm">{etapaMobile.nome}</h3>
-                    <Badge variant="secondary">
-                      {leadsPorEtapa[etapaMobile.id]?.length || 0}
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      disabled={etapaMobileIndex === etapas.length - 1}
-                      onClick={goToNextEtapa}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  
-                  <div className="flex items-center gap-1">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => {
-                          setEtapaParaEditar(etapaMobile);
-                          setEtapaModalOpen(true);
-                        }}>
-                          <Settings className="h-4 w-4 mr-2" />
-                          Configurar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    
-                    {etapaMobile.pode_criar && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => {
-                          setEtapaParaNovoLead(etapaMobile.id);
-                          setLeadModalOpen(true);
-                        }}
+                    <div className="flex flex-col bg-muted/30 rounded-xl h-full">
+                      {/* Stage Header */}
+                      <div
+                        className="p-3 border-b flex items-center justify-between rounded-t-xl"
+                        style={{ borderTop: `3px solid ${etapa.cor}` }}
                       >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Stage Stats */}
-                <div className="px-3 py-2 text-xs text-muted-foreground border-b">
-                  R$ {(estatisticas.leadsPorEtapa[etapaMobileIndex]?.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                </div>
-
-                {/* Lead Cards */}
-                <Droppable droppableId={etapaMobile.id}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className={cn(
-                        "flex-1 p-2 space-y-2 overflow-y-auto transition-colors",
-                        snapshot.isDraggingOver && "bg-primary/5"
-                      )}
-                    >
-                      {leadsPorEtapa[etapaMobile.id]?.map((lead, leadIndex) => (
-                        <Draggable
-                          key={lead.id}
-                          draggableId={lead.id}
-                          index={leadIndex}
-                        >
-                          {(provided, snapshot) => (
-                            <Card
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              className={cn(
-                                "p-3 cursor-pointer active:scale-[0.98] transition-all",
-                                snapshot.isDragging && "shadow-lg"
-                              )}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: etapa.cor }}
+                          />
+                          <h3 className="font-semibold text-sm truncate">{etapa.nome}</h3>
+                          <Badge variant="secondary" className="flex-shrink-0">
+                            {leadsPorEtapa[etapa.id]?.length || 0}
+                          </Badge>
+                        </div>
+                        
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-background z-50">
+                              <DropdownMenuItem onClick={() => {
+                                setEtapaParaEditar(etapa);
+                                setEtapaModalOpen(true);
+                              }}>
+                                <Settings className="h-4 w-4 mr-2" />
+                                Configurar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          
+                          {etapa.pode_criar && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
                               onClick={() => {
-                                setLeadParaEditar(lead);
+                                setEtapaParaNovoLead(etapa.id);
                                 setLeadModalOpen(true);
                               }}
                             >
-                              <div className="flex items-start gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between mb-1.5">
-                                    <div className="min-w-0 flex-1">
-                                      {lead.responsavel?.nome && (
-                                        <span className="text-[10px] text-muted-foreground">
-                                          {lead.responsavel.nome}
-                                        </span>
-                                      )}
-                                      <h4 className="font-medium text-sm truncate">
-                                        {lead.nome}
-                                      </h4>
-                                    </div>
-                                    
-                                    {lead.origem === "online" && (
-                                      <Badge variant="default" className="text-[9px] px-1 py-0 ml-2">
-                                        Online
-                                      </Badge>
-                                    )}
-                                  </div>
-
-                                  <div className="flex items-center justify-between gap-2">
-                                    {lead.data_vencimento ? (
-                                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                        <Calendar className="h-3 w-3" />
-                                        {format(new Date(lead.data_vencimento), "dd/MM", { locale: ptBR })}
-                                      </div>
-                                    ) : (
-                                      <span className="text-[10px] text-muted-foreground">Sem vencimento</span>
-                                    )}
-                                    
-                                    <div className="flex items-center gap-1">
-                                      {lead.valor_estimado > 0 && (
-                                        <Badge variant="outline" className="text-[9px] h-4 px-1">
-                                          R$ {lead.valor_estimado.toLocaleString("pt-BR")}
-                                        </Badge>
-                                      )}
-                                      {lead.observacoes && (
-                                        <span className="text-[10px]">📝</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </Card>
+                              <Plus className="h-4 w-4" />
+                            </Button>
                           )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                      
-                      {/* Empty state */}
-                      {(!leadsPorEtapa[etapaMobile.id] || leadsPorEtapa[etapaMobile.id].length === 0) && (
-                        <div className="text-center py-8 text-muted-foreground text-sm">
-                          Nenhum lead nesta etapa
                         </div>
-                      )}
+                      </div>
+
+                      {/* Stage Stats */}
+                      <div className="px-3 py-2 text-xs text-muted-foreground border-b">
+                        R$ {(estatisticas.leadsPorEtapa[index]?.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      </div>
+
+                      {/* Lead Cards */}
+                      <Droppable droppableId={etapa.id}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={cn(
+                              "flex-1 p-2 space-y-2 overflow-y-auto transition-colors",
+                              snapshot.isDraggingOver && "bg-primary/5"
+                            )}
+                          >
+                            {leadsPorEtapa[etapa.id]?.map((lead, leadIndex) => (
+                              <Draggable
+                                key={lead.id}
+                                draggableId={lead.id}
+                                index={leadIndex}
+                              >
+                                {(provided, snapshot) => (
+                                  <Card
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={cn(
+                                      "p-3 cursor-pointer active:scale-[0.98] transition-all",
+                                      snapshot.isDragging && "shadow-lg"
+                                    )}
+                                    onClick={() => {
+                                      setLeadParaEditar(lead);
+                                      setLeadModalOpen(true);
+                                    }}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-start justify-between mb-1.5">
+                                          <div className="min-w-0 flex-1">
+                                            {lead.responsavel?.nome && (
+                                              <span className="text-[10px] text-muted-foreground">
+                                                {lead.responsavel.nome}
+                                              </span>
+                                            )}
+                                            <h4 className="font-medium text-sm truncate">
+                                              {lead.nome}
+                                            </h4>
+                                          </div>
+                                          
+                                          {lead.origem === "online" && (
+                                            <Badge variant="default" className="text-[9px] px-1 py-0 ml-2">
+                                              Online
+                                            </Badge>
+                                          )}
+                                        </div>
+
+                                        <div className="flex items-center justify-between gap-2">
+                                          {lead.data_vencimento ? (
+                                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                              <Calendar className="h-3 w-3" />
+                                              {format(new Date(lead.data_vencimento), "dd/MM", { locale: ptBR })}
+                                            </div>
+                                          ) : (
+                                            <span className="text-[10px] text-muted-foreground">Sem vencimento</span>
+                                          )}
+                                          
+                                          <div className="flex items-center gap-1">
+                                            {lead.valor_estimado > 0 && (
+                                              <Badge variant="outline" className="text-[9px] h-4 px-1">
+                                                R$ {lead.valor_estimado.toLocaleString("pt-BR")}
+                                              </Badge>
+                                            )}
+                                            {lead.observacoes && (
+                                              <span className="text-[10px]">📝</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </Card>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+                            
+                            {/* Empty state */}
+                            {(!leadsPorEtapa[etapa.id] || leadsPorEtapa[etapa.id].length === 0) && (
+                              <div className="text-center py-8 text-muted-foreground text-sm">
+                                Nenhum lead
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </Droppable>
                     </div>
-                  )}
-                </Droppable>
+                  </div>
+                ))}
+                
+                {/* Add new stage column */}
+                <div
+                  className="snap-center flex-shrink-0 h-full px-1"
+                  style={{ width: `${100 / (etapas.length + 1)}%` }}
+                >
+                  <div 
+                    className="flex flex-col items-center justify-center bg-muted/20 rounded-xl h-full border-2 border-dashed border-muted-foreground/20 cursor-pointer"
+                    onClick={() => setEtapaModalOpen(true)}
+                  >
+                    <Plus className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                    <span className="text-sm text-muted-foreground">Nova Etapa</span>
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* Dots indicator */}
+            <div className="flex justify-center gap-1.5 py-3">
+              {etapas.map((etapa, index) => (
+                <div
+                  key={etapa.id}
+                  className={cn(
+                    "w-2 h-2 rounded-full transition-all",
+                    currentEtapaIndex === index ? "w-4" : "opacity-40"
+                  )}
+                  style={{ backgroundColor: etapa.cor }}
+                />
+              ))}
+              <div
+                className={cn(
+                  "w-2 h-2 rounded-full bg-muted-foreground transition-all",
+                  currentEtapaIndex === etapas.length ? "w-4" : "opacity-40"
+                )}
+              />
+            </div>
           </div>
         </DragDropContext>
       ) : (
