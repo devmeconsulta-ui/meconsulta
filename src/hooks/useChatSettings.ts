@@ -12,10 +12,36 @@ export const NOTIFICATION_SOUNDS = [
   { id: "ding", name: "Ding" },
 ] as const;
 
+// AudioContext global para evitar criação repetida
+let globalAudioContext: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!globalAudioContext || globalAudioContext.state === "closed") {
+    globalAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
+  return globalAudioContext;
+}
+
 // Função para gerar sons usando Web Audio API
 function playGeneratedSound(soundId: string, volume: number = 0.5) {
   try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const audioContext = getAudioContext();
+    
+    // Resumir contexto se estiver suspenso (requerido por alguns navegadores)
+    if (audioContext.state === "suspended") {
+      audioContext.resume().then(() => {
+        executeSound(audioContext, soundId, volume);
+      });
+    } else {
+      executeSound(audioContext, soundId, volume);
+    }
+  } catch (error) {
+    console.error("Erro ao gerar som:", error);
+  }
+}
+
+function executeSound(audioContext: AudioContext, soundId: string, volume: number) {
+  try {
     const gainNode = audioContext.createGain();
     gainNode.gain.value = volume;
     gainNode.connect(audioContext.destination);
@@ -144,13 +170,8 @@ function playGeneratedSound(soundId: string, volume: number = 0.5) {
         osc.stop(now + 0.15);
       }
     }
-
-    // Limpar contexto após o som
-    setTimeout(() => {
-      audioContext.close();
-    }, 1000);
   } catch (error) {
-    console.error("Erro ao gerar som:", error);
+    console.error("Erro ao executar som:", error);
   }
 }
 
