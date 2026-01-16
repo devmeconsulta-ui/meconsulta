@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCrmClinica, CrmLead, CrmEtapa } from "@/hooks/useCrmClinica";
@@ -27,7 +27,6 @@ import {
   Target,
   Users,
   DollarSign,
-  CalendarPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CrmFunilModal from "@/components/clinica/crm/CrmFunilModal";
@@ -35,6 +34,8 @@ import CrmEtapaModal from "@/components/clinica/crm/CrmEtapaModal";
 import CrmLeadModal from "@/components/clinica/crm/CrmLeadModal";
 import CrmLeadCard from "@/components/clinica/crm/CrmLeadCard";
 import CrmLeadDetalhesModal from "@/components/clinica/crm/CrmLeadDetalhesModal";
+import { AgendaInternaModal } from "@/components/medico/AgendaInternaModal";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function ClinicaCRM() {
   const { currentUser } = useAuth();
@@ -65,6 +66,50 @@ export default function ClinicaCRM() {
   const [etapaParaNovoLead, setEtapaParaNovoLead] = useState<string | null>(null);
   const [leadDetalhesOpen, setLeadDetalhesOpen] = useState(false);
   const [leadParaDetalhes, setLeadParaDetalhes] = useState<CrmLead | null>(null);
+  const [agendaModalOpen, setAgendaModalOpen] = useState(false);
+
+  // Data for AgendaInternaModal
+  const [medicosCompletos, setMedicosCompletos] = useState<any[]>([]);
+  const [locais, setLocais] = useState<any[]>([]);
+  const [usuariosClinica, setUsuariosClinica] = useState<any[]>([]);
+
+  // Fetch data for agenda modal
+  useEffect(() => {
+    if (!clinicaId) return;
+
+    const fetchAgendaData = async () => {
+      // Fetch medicos
+      const { data: medicosData } = await supabase
+        .from("clinicas_medicos")
+        .select("medico_id, medicos(id, nome, especialidade, valor_consulta, percentual_repasse)")
+        .eq("clinica_id", clinicaId)
+        .eq("ativo", true);
+      
+      if (medicosData) {
+        setMedicosCompletos(medicosData.map(m => m.medicos).filter(Boolean));
+      }
+
+      // Fetch locais
+      const { data: locaisData } = await supabase
+        .from("locais_atendimento")
+        .select("*")
+        .eq("clinica_id", clinicaId)
+        .eq("ativo", true);
+      
+      if (locaisData) setLocais(locaisData);
+
+      // Fetch usuarios clinica
+      const { data: usuariosData } = await supabase
+        .from("usuarios_clinica")
+        .select("*")
+        .eq("clinica_id", clinicaId)
+        .eq("ativo", true);
+      
+      if (usuariosData) setUsuariosClinica(usuariosData);
+    };
+
+    fetchAgendaData();
+  }, [clinicaId]);
   
   // Drag and drop handler
   const handleDragEnd = (result: DropResult) => {
@@ -243,7 +288,7 @@ export default function ClinicaCRM() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          onClick={() => navigate("/clinica/agenda")}
+                          onClick={() => setAgendaModalOpen(true)}
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
@@ -369,8 +414,32 @@ export default function ClinicaCRM() {
         lead={leadParaDetalhes}
         onGanho={(id) => marcarGanho.mutate(id)}
         onPerdido={(id) => marcarPerdido.mutate({ id })}
-        onAgendar={() => navigate("/clinica/agenda")}
+        onAgendar={() => setAgendaModalOpen(true)}
       />
+
+      {/* Agenda Interna Modal */}
+      {medicosCompletos.length > 0 && (
+        <AgendaInternaModal
+          open={agendaModalOpen}
+          onOpenChange={setAgendaModalOpen}
+          slotId={`manual-${Date.now()}`}
+          slotDataHora={new Date().toISOString()}
+          localId={locais[0]?.id || ""}
+          localNome={locais[0]?.nome_local || ""}
+          medicoId={medicosCompletos[0]?.id || ""}
+          valorConsulta={medicosCompletos[0]?.valor_consulta || 0}
+          percentualRepasse={medicosCompletos[0]?.percentual_repasse || 70}
+          usuariosClinica={usuariosClinica}
+          locais={locais}
+          medicos={medicosCompletos.map(m => ({ id: m.id, nome: m.nome, especialidade: m.especialidade }))}
+          clinicaId={clinicaId || undefined}
+          onSuccess={() => {
+            setAgendaModalOpen(false);
+            // Refresh CRM data
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 }
