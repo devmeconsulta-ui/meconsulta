@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOutletContext } from "react-router-dom";
 import { useChatClinica, Conversa, Mensagem } from "@/hooks/useChatClinica";
@@ -47,7 +47,7 @@ export default function ClinicaChat() {
   const [showBuscaMensagem, setShowBuscaMensagem] = useState(false);
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const sidebarPanelRef = useState<ImperativePanelHandle | null>(null);
+  const sidebarPanelRef = useRef<ImperativePanelHandle | null>(null);
 
   const {
     conversas,
@@ -163,11 +163,7 @@ export default function ClinicaChat() {
           onCollapse={() => setSidebarCollapsed(true)}
           onExpand={() => setSidebarCollapsed(false)}
           className={`bg-background transition-all ${sidebarCollapsed ? 'min-w-0' : ''}`}
-          ref={(ref) => {
-            if (ref && sidebarPanelRef[0] !== ref) {
-              sidebarPanelRef[1](ref);
-            }
-          }}
+          ref={sidebarPanelRef}
         >
           <AnimatePresence>
             {!sidebarCollapsed && (
@@ -202,7 +198,7 @@ export default function ClinicaChat() {
             size="icon"
             onClick={() => {
               setSidebarCollapsed(false);
-              sidebarPanelRef[0]?.expand();
+              sidebarPanelRef.current?.expand();
             }}
             className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-8 w-8 bg-background border shadow-sm hover:bg-muted"
             title="Expandir lista de conversas"
@@ -265,7 +261,7 @@ export default function ClinicaChat() {
                     size="icon"
                     onClick={() => {
                       setSidebarCollapsed(true);
-                      sidebarPanelRef[0]?.collapse();
+                      sidebarPanelRef.current?.collapse();
                     }}
                     className="h-8 w-8 text-muted-foreground hover:text-foreground"
                     title="Colapsar lista de conversas"
