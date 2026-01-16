@@ -592,7 +592,7 @@ export function CaixaWidget({
 
       {/* Modal Fechar Caixa */}
       <Dialog open={showFecharModal} onOpenChange={setShowFecharModal}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Lock className="w-5 h-5 text-destructive" />
@@ -602,54 +602,73 @@ export function CaixaWidget({
               Confira o resumo e confirme o fechamento
             </DialogDescription>
           </DialogHeader>
+          
           <div className="py-4 space-y-4">
-            <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-muted/50">
-              <div>
-                <p className="text-xs text-muted-foreground">Abertura</p>
-                <p className="font-semibold">{formatCurrency(saldoAbertura)}</p>
+            {/* Resumo Financeiro - Grid 2x2 organizado */}
+            <div className="rounded-xl border bg-muted/30 overflow-hidden">
+              <div className="grid grid-cols-2 divide-x divide-border">
+                {/* Abertura */}
+                <div className="p-4 text-center">
+                  <p className="text-xs text-muted-foreground mb-1">Abertura</p>
+                  <p className="text-lg font-bold">{formatCurrency(saldoAbertura)}</p>
+                </div>
+                {/* Saldo Final */}
+                <div className="p-4 text-center bg-primary/5">
+                  <p className="text-xs text-muted-foreground mb-1">Saldo Final</p>
+                  <p className="text-lg font-bold text-primary">{formatCurrency(saldoAtual)}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Saldo Final</p>
-                <p className="font-semibold text-primary">{formatCurrency(saldoAtual)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Total Entradas</p>
-                <p className="font-semibold text-emerald-600">{formatCurrency(totalEntradas)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Total Saídas</p>
-                <p className="font-semibold text-red-600">{formatCurrency(totalSaidas)}</p>
+              <div className="grid grid-cols-2 divide-x divide-border border-t">
+                {/* Total Entradas */}
+                <div className="p-4 text-center bg-emerald-500/5">
+                  <p className="text-xs text-muted-foreground mb-1">Total Entradas</p>
+                  <p className="text-lg font-bold text-emerald-600">+ {formatCurrency(totalEntradas)}</p>
+                </div>
+                {/* Total Saídas */}
+                <div className="p-4 text-center bg-red-500/5">
+                  <p className="text-xs text-muted-foreground mb-1">Total Saídas</p>
+                  <p className="text-lg font-bold text-red-600">- {formatCurrency(totalSaidas)}</p>
+                </div>
               </div>
             </div>
             
-            <div>
+            {/* Observações */}
+            <div className="space-y-2">
               <Label>Observações (opcional)</Label>
               <Textarea
                 placeholder="Observações sobre o fechamento..."
                 value={observacoesFechamento}
                 onChange={(e) => setObservacoesFechamento(e.target.value)}
-                className="mt-2"
+                rows={3}
               />
             </div>
 
-            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-              <p className="text-sm text-blue-700 flex items-center gap-2">
-                <Printer className="w-4 h-4" />
-                Você pode gerar um PDF com o resumo completo do caixa
+            {/* Dica PDF */}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+              <Printer className="w-5 h-5 text-blue-600 shrink-0" />
+              <p className="text-sm text-blue-700">
+                Gere um PDF com o resumo completo do caixa
               </p>
             </div>
           </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setShowFecharModal(false)}>Cancelar</Button>
+          
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setShowFecharModal(false)} className="sm:order-1">
+              Cancelar
+            </Button>
             <Button 
               variant="outline" 
               onClick={() => handleFecharCaixaComPDF(true)}
-              className="gap-2"
+              className="gap-2 sm:order-2"
             >
               <Printer className="w-4 h-4" />
               Fechar e Imprimir PDF
             </Button>
-            <Button variant="destructive" onClick={() => handleFecharCaixaComPDF(false)}>
+            <Button 
+              variant="destructive" 
+              onClick={() => handleFecharCaixaComPDF(false)}
+              className="sm:order-3"
+            >
               Confirmar Fechamento
             </Button>
           </DialogFooter>
