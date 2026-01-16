@@ -14,12 +14,41 @@ export const NOTIFICATION_SOUNDS = [
 
 // AudioContext global para evitar criação repetida
 let globalAudioContext: AudioContext | null = null;
+let audioContextInitialized = false;
 
 function getAudioContext(): AudioContext {
   if (!globalAudioContext || globalAudioContext.state === "closed") {
     globalAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    console.log("[Chat Sound] Novo AudioContext criado, state:", globalAudioContext.state);
   }
   return globalAudioContext;
+}
+
+// Inicializar AudioContext na primeira interação do usuário
+function initAudioContextOnInteraction() {
+  if (audioContextInitialized) return;
+  
+  const initContext = () => {
+    const ctx = getAudioContext();
+    if (ctx.state === "suspended") {
+      ctx.resume().then(() => {
+        console.log("[Chat Sound] AudioContext ativado via interação do usuário");
+        audioContextInitialized = true;
+      });
+    } else {
+      audioContextInitialized = true;
+    }
+  };
+
+  // Eventos que podem desbloquear o AudioContext
+  ["click", "touchstart", "keydown"].forEach(event => {
+    document.addEventListener(event, initContext, { once: true, passive: true });
+  });
+}
+
+// Inicializar listeners quando o módulo carregar
+if (typeof window !== "undefined") {
+  initAudioContextOnInteraction();
 }
 
 // Função para gerar sons usando Web Audio API
@@ -27,7 +56,7 @@ function playGeneratedSound(soundId: string, volume: number = 0.5) {
   try {
     console.log("[Chat Sound] playGeneratedSound:", soundId, "volume:", volume);
     const audioContext = getAudioContext();
-    console.log("[Chat Sound] AudioContext state:", audioContext.state);
+    console.log("[Chat Sound] AudioContext state:", audioContext.state, "initialized:", audioContextInitialized);
     
     // Resumir contexto se estiver suspenso (requerido por alguns navegadores)
     if (audioContext.state === "suspended") {
