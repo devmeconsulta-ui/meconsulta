@@ -958,10 +958,29 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
           if (conversa?.clinica_id === clinicaId) {
             // Verificar se a mensagem não é do próprio usuário
             const novaMensagem = payload.new as any;
+            
+            // Debug: log para identificar o problema
+            console.log("[Chat Notification] Nova mensagem recebida:", {
+              remetente_usuario_id: novaMensagem.remetente_usuario_id,
+              remetente_medico_id: novaMensagem.remetente_medico_id,
+              remetente_usuario_clinica_id: novaMensagem.remetente_usuario_clinica_id,
+              currentUser: {
+                id: currentUser?.id,
+                medicoId: currentUser?.medicoId,
+                clinicaId: currentUser?.clinicaId,
+                tipo: currentUser?.tipo
+              }
+            });
+            
             const ehMinhaMsg = 
+              // Admin da clínica (tipo "clinica" e usa remetente_usuario_id)
               (currentUser?.tipo === "clinica" && novaMensagem.remetente_usuario_id === currentUser.id) ||
+              // Médico (usa remetente_medico_id)
               (currentUser?.medicoId && novaMensagem.remetente_medico_id === currentUser.medicoId) ||
-              (currentUser?.clinicaId && novaMensagem.remetente_usuario_clinica_id === currentUser.id);
+              // Funcionário da clínica (tem clinicaId mas não é tipo "clinica", usa remetente_usuario_clinica_id com currentUser.id)
+              (currentUser?.clinicaId && currentUser?.tipo !== "clinica" && novaMensagem.remetente_usuario_clinica_id === currentUser.id);
+
+            console.log("[Chat Notification] É minha mensagem?", ehMinhaMsg);
 
             // Verificar se fui mencionado na mensagem
             const meuNome = currentUser?.nome || "";
@@ -971,6 +990,7 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
 
             // Tocar som e enviar push se não for minha mensagem
             if (!ehMinhaMsg) {
+              console.log("[Chat Notification] Tocando som de notificação...");
               playNotificationSound();
               
               // Enviar notificação push (se documento não estiver visível OU se foi mencionado)
