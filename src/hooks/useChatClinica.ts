@@ -63,9 +63,38 @@ export interface TypingUser {
 
 import { playChatNotificationSound, sendChatPushNotification } from "./useChatSettings";
 
-// Função para tocar som de notificação
-const playNotificationSound = () => {
-  playChatNotificationSound();
+// Controle de cooldown para notificações (5 minutos entre sons)
+const NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutos
+const lastNotificationTimeByConversation = new Map<string, number>();
+
+// Função para verificar se deve tocar som (cooldown de 5 minutos por conversa)
+const shouldPlayNotificationSound = (conversaId: string): boolean => {
+  const now = Date.now();
+  const lastTime = lastNotificationTimeByConversation.get(conversaId);
+  
+  // Se nunca tocou ou passou 5 minutos, pode tocar
+  if (!lastTime || (now - lastTime) >= NOTIFICATION_COOLDOWN_MS) {
+    lastNotificationTimeByConversation.set(conversaId, now);
+    return true;
+  }
+  
+  return false;
+};
+
+// Função para resetar cooldown quando usuário envia mensagem
+const resetNotificationCooldown = (conversaId: string) => {
+  lastNotificationTimeByConversation.delete(conversaId);
+};
+
+// Função para tocar som de notificação com cooldown
+const playNotificationSound = (conversaId: string, forceMention: boolean = false) => {
+  // Se foi mencionado, sempre toca
+  if (forceMention || shouldPlayNotificationSound(conversaId)) {
+    console.log("[Chat Notification] Tocando som (cooldown passou ou menção)");
+    playChatNotificationSound();
+  } else {
+    console.log("[Chat Notification] Som em cooldown para conversa:", conversaId);
+  }
 };
 
 export interface ChatParticipante {
@@ -463,6 +492,9 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
         .insert(novaMensagem);
 
       if (error) throw error;
+
+      // Resetar cooldown de notificação para esta conversa (próxima mensagem recebida tocará som)
+      resetNotificationCooldown(conversaId);
 
       // Atualizar updated_at da conversa
       await supabase
@@ -1000,8 +1032,8 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
 
             // Tocar som e enviar push se não for minha mensagem
             if (!ehMinhaMsg) {
-              console.log("[Chat Notification] Tocando som de notificação...");
-              playNotificationSound();
+              // Tocar som com cooldown (menção sempre toca)
+              playNotificationSound(novaMensagem.conversa_id, foiMencionado);
               
               // Enviar notificação push (se documento não estiver visível OU se foi mencionado)
               if (document.hidden || foiMencionado) {
