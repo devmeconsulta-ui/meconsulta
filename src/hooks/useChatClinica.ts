@@ -938,8 +938,10 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
   useEffect(() => {
     if (!clinicaId) return;
 
+    console.log("[Chat Realtime] Configurando subscription para clinica:", clinicaId);
+
     const channel = supabase
-      .channel(`chat_clinica_${clinicaId}`)
+      .channel(`chat_mensagens_clinica_${clinicaId}_${Date.now()}`)
       .on(
         "postgres_changes",
         {
@@ -948,6 +950,7 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
           table: "chat_mensagens",
         },
         async (payload) => {
+          console.log("[Chat Realtime] INSERT recebido:", payload.new);
           // Verificar se a mensagem é de uma conversa da clínica
           const { data: conversa } = await supabase
             .from("chat_conversas")
@@ -1057,9 +1060,12 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("[Chat Realtime] Status da subscription:", status);
+      });
 
     return () => {
+      console.log("[Chat Realtime] Removendo canal");
       supabase.removeChannel(channel);
     };
   }, [clinicaId, conversaAtual, fetchMensagens, fetchConversas, currentUser]);
