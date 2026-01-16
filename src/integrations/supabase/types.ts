@@ -1273,6 +1273,7 @@ export type Database = {
       crm_funis: {
         Row: {
           ativo: boolean | null
+          automacoes: Json | null
           clinica_id: string
           created_at: string | null
           descricao: string | null
@@ -1280,9 +1281,11 @@ export type Database = {
           nome: string
           ordem: number | null
           updated_at: string | null
+          usuarios_permitidos: string[] | null
         }
         Insert: {
           ativo?: boolean | null
+          automacoes?: Json | null
           clinica_id: string
           created_at?: string | null
           descricao?: string | null
@@ -1290,9 +1293,11 @@ export type Database = {
           nome: string
           ordem?: number | null
           updated_at?: string | null
+          usuarios_permitidos?: string[] | null
         }
         Update: {
           ativo?: boolean | null
+          automacoes?: Json | null
           clinica_id?: string
           created_at?: string | null
           descricao?: string | null
@@ -1300,6 +1305,7 @@ export type Database = {
           nome?: string
           ordem?: number | null
           updated_at?: string | null
+          usuarios_permitidos?: string[] | null
         }
         Relationships: [
           {
