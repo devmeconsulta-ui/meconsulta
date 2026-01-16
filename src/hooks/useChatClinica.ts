@@ -61,7 +61,7 @@ export interface TypingUser {
   tipo: "admin_clinica" | "medico" | "funcionario";
 }
 
-import { isChatSoundEnabled, sendChatPushNotification } from "./useChatSettings";
+import { isChatSoundEnabled, getSelectedSoundUrl, sendChatPushNotification } from "./useChatSettings";
 
 // Função para tocar som de notificação
 const playNotificationSound = () => {
@@ -69,9 +69,8 @@ const playNotificationSound = () => {
   if (!isChatSoundEnabled()) return;
 
   try {
-    const audio = new Audio();
-    // Som simples de notificação
-    audio.src = "https://cdn.freesound.org/previews/536/536420_4921277-lq.mp3";
+    const soundUrl = getSelectedSoundUrl();
+    const audio = new Audio(soundUrl);
     audio.volume = 0.5;
     audio.play().catch(() => {
       // Ignorar erro se autoplay for bloqueado
