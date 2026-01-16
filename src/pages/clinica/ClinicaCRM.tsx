@@ -243,10 +243,7 @@ export default function ClinicaCRM() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          onClick={() => {
-                            setEtapaParaNovoLead(etapa.id);
-                            setLeadModalOpen(true);
-                          }}
+                          onClick={() => navigate("/clinica/agenda")}
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
