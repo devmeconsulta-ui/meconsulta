@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,7 +21,10 @@ import {
   Calculator,
   AlertTriangle,
   CheckCircle2,
-  Eye
+  Eye,
+  BarChart3,
+  Settings,
+  Bell
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,9 +48,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { FechamentoCaixa } from "@/hooks/useHistoricoCaixa";
+import { RelatorioMensalCaixaModal } from "./RelatorioMensalCaixaModal";
 
 interface MovimentoCaixa {
   id: string;
@@ -72,6 +77,10 @@ interface CaixaWidgetProps {
   historicoLoading?: boolean;
 }
 
+// Configuração de alerta de diferença
+const ALERTA_DIFERENCA_KEY = "caixa_alerta_diferenca";
+const ALERTA_VALOR_KEY = "caixa_alerta_valor";
+
 export function CaixaWidget({
   caixaAberto,
   saldoAbertura,
@@ -89,6 +98,8 @@ export function CaixaWidget({
   const [showFecharModal, setShowFecharModal] = useState(false);
   const [showMovimentoModal, setShowMovimentoModal] = useState(false);
   const [showHistoricoModal, setShowHistoricoModal] = useState(false);
+  const [showRelatorioModal, setShowRelatorioModal] = useState(false);
+  const [showConfigAlertaModal, setShowConfigAlertaModal] = useState(false);
   const [showDetalhesFechamento, setShowDetalhesFechamento] = useState<FechamentoCaixa | null>(null);
   const [tipoMovimento, setTipoMovimento] = useState<"entrada" | "saida" | "sangria" | "reforco">("entrada");
   
@@ -101,6 +112,44 @@ export function CaixaWidget({
   // Estado para conferência de caixa
   const [saldoContado, setSaldoContado] = useState("");
   const [mostrarConferencia, setMostrarConferencia] = useState(false);
+  
+  // Estado para alerta de diferença configurável
+  const [alertaAtivo, setAlertaAtivo] = useState(() => {
+    return localStorage.getItem(ALERTA_DIFERENCA_KEY) === "true";
+  });
+  const [valorAlerta, setValorAlerta] = useState(() => {
+    return localStorage.getItem(ALERTA_VALOR_KEY) || "50";
+  });
+  const [tempValorAlerta, setTempValorAlerta] = useState(valorAlerta);
+  const [tempAlertaAtivo, setTempAlertaAtivo] = useState(alertaAtivo);
+
+  // Salvar configurações de alerta
+  const salvarConfigAlerta = () => {
+    localStorage.setItem(ALERTA_DIFERENCA_KEY, tempAlertaAtivo.toString());
+    localStorage.setItem(ALERTA_VALOR_KEY, tempValorAlerta);
+    setAlertaAtivo(tempAlertaAtivo);
+    setValorAlerta(tempValorAlerta);
+    setShowConfigAlertaModal(false);
+    toast.success("Configurações de alerta salvas");
+  };
+
+  // Verificar se deve mostrar alerta de diferença
+  const verificarAlertaDiferenca = () => {
+    if (!alertaAtivo || !saldoContado) return null;
+    
+    const diferenca = Math.abs(parseFloat(saldoContado) - saldoAtual);
+    const limiteAlerta = parseFloat(valorAlerta);
+    
+    if (diferenca > limiteAlerta) {
+      return {
+        tipo: parseFloat(saldoContado) > saldoAtual ? "sobra" : "falta",
+        valor: diferenca,
+      };
+    }
+    return null;
+  };
+
+  const alertaDiferenca = verificarAlertaDiferenca();
 
   // Função para gerar PDF do resumo do caixa
   const gerarPDFResumoCaixa = () => {
@@ -551,16 +600,44 @@ export function CaixaWidget({
                     </Button>
                   </motion.div>
                   {historico.length > 0 && (
-                    <motion.div
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <Button variant="outline" onClick={() => setShowHistoricoModal(true)} className="gap-2">
-                        <History className="w-4 h-4" />
-                        Histórico
-                      </Button>
-                    </motion.div>
+                    <>
+                      <motion.div
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <Button variant="outline" onClick={() => setShowHistoricoModal(true)} className="gap-2">
+                          <History className="w-4 h-4" />
+                          Histórico
+                        </Button>
+                      </motion.div>
+                      <motion.div
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <Button variant="outline" onClick={() => setShowRelatorioModal(true)} className="gap-2">
+                          <BarChart3 className="w-4 h-4" />
+                          Relatório
+                        </Button>
+                      </motion.div>
+                    </>
                   )}
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => {
+                        setTempAlertaAtivo(alertaAtivo);
+                        setTempValorAlerta(valorAlerta);
+                        setShowConfigAlertaModal(true);
+                      }}
+                      title="Configurar alertas"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </Button>
+                  </motion.div>
                 </div>
               </motion.div>
             ) : (
@@ -704,11 +781,54 @@ export function CaixaWidget({
                   </motion.div>
                 )}
 
-                {/* Fechar Caixa */}
+                {/* Ações: Histórico, Relatório, Fechar */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.5 }}
+                  className="flex gap-2"
+                >
+                  {historico.length > 0 && (
+                    <>
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 flex-1"
+                        onClick={() => setShowHistoricoModal(true)}
+                      >
+                        <History className="w-4 h-4" />
+                        Histórico
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 flex-1"
+                        onClick={() => setShowRelatorioModal(true)}
+                      >
+                        <BarChart3 className="w-4 h-4" />
+                        Relatório
+                      </Button>
+                    </>
+                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => {
+                      setTempAlertaAtivo(alertaAtivo);
+                      setTempValorAlerta(valorAlerta);
+                      setShowConfigAlertaModal(true);
+                    }}
+                    title="Configurar alertas"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </Button>
+                </motion.div>
+
+                {/* Fechar Caixa */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6 }}
                 >
                   <Button 
                     variant="destructive" 
@@ -757,7 +877,7 @@ export function CaixaWidget({
 
       {/* Modal Fechar Caixa */}
       <Dialog open={showFecharModal} onOpenChange={setShowFecharModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Lock className="w-5 h-5 text-destructive" />
@@ -768,50 +888,49 @@ export function CaixaWidget({
             </DialogDescription>
           </DialogHeader>
           
-          <div className="py-4 space-y-4">
-            {/* Resumo Financeiro - Grid 2x2 organizado */}
-            <div className="rounded-xl border border-border overflow-hidden">
-              {/* Linha 1: Abertura e Saldo Final */}
-              <div className="grid grid-cols-2 divide-x divide-border">
-                <div className="p-4 text-center bg-muted/50">
-                  <p className="text-xs text-muted-foreground font-medium mb-1">Abertura</p>
-                  <p className="text-xl font-bold text-foreground">{formatCurrency(saldoAbertura)}</p>
+          <div className="py-3 space-y-4">
+            {/* Resumo Financeiro - Grid 2x2 compacto */}
+            <div className="rounded-lg border border-border overflow-hidden">
+              {/* Linha 1: Abertura e Saldo Esperado */}
+              <div className="grid grid-cols-2">
+                <div className="p-3 text-center bg-muted/50 border-r border-border">
+                  <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Abertura</p>
+                  <p className="text-base font-bold text-foreground mt-0.5">{formatCurrency(saldoAbertura)}</p>
                 </div>
-                <div className="p-4 text-center bg-blue-50 dark:bg-blue-900/30">
-                  <p className="text-xs font-medium mb-1 text-blue-600 dark:text-blue-400">Saldo Esperado</p>
-                  <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(saldoAtual)}</p>
+                <div className="p-3 text-center bg-blue-50 dark:bg-blue-950/40">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">Saldo Esperado</p>
+                  <p className="text-base font-bold text-blue-600 dark:text-blue-400 mt-0.5">{formatCurrency(saldoAtual)}</p>
                 </div>
               </div>
               
               {/* Linha 2: Entradas e Saídas */}
-              <div className="grid grid-cols-2 divide-x divide-border border-t border-border">
-                <div className="p-4 text-center bg-emerald-50 dark:bg-emerald-900/30">
-                  <p className="text-xs font-medium mb-1 text-emerald-600 dark:text-emerald-400">Total Entradas</p>
-                  <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">+ {formatCurrency(totalEntradas)}</p>
+              <div className="grid grid-cols-2 border-t border-border">
+                <div className="p-3 text-center bg-emerald-50 dark:bg-emerald-950/40 border-r border-border">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Entradas</p>
+                  <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">+{formatCurrency(totalEntradas)}</p>
                 </div>
-                <div className="p-4 text-center bg-red-50 dark:bg-red-900/30">
-                  <p className="text-xs font-medium mb-1 text-red-600 dark:text-red-400">Total Saídas</p>
-                  <p className="text-xl font-bold text-red-600 dark:text-red-400">- {formatCurrency(totalSaidas)}</p>
+                <div className="p-3 text-center bg-red-50 dark:bg-red-950/40">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-red-600 dark:text-red-400">Saídas</p>
+                  <p className="text-base font-bold text-red-600 dark:text-red-400 mt-0.5">-{formatCurrency(totalSaidas)}</p>
                 </div>
               </div>
             </div>
 
             {/* Conferência de Caixa */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2">
-                  <Calculator className="w-4 h-4" />
+            <div className="space-y-2">
+              <button 
+                type="button"
+                onClick={() => setMostrarConferencia(!mostrarConferencia)}
+                className="flex items-center justify-between w-full text-left p-2 rounded-md hover:bg-muted/50 transition-colors"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <Calculator className="w-4 h-4 text-muted-foreground" />
                   Conferência de Caixa
-                </Label>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => setMostrarConferencia(!mostrarConferencia)}
-                  className="h-7 text-xs"
-                >
+                </span>
+                <span className="text-xs text-primary">
                   {mostrarConferencia ? "Ocultar" : "Conferir"}
-                </Button>
-              </div>
+                </span>
+              </button>
               
               {mostrarConferencia && (
                 <div className="space-y-3 p-3 rounded-lg border bg-muted/30">
@@ -823,29 +942,41 @@ export function CaixaWidget({
                       placeholder="0,00"
                       value={saldoContado}
                       onChange={(e) => setSaldoContado(e.target.value)}
-                      className="mt-1"
+                      className="mt-1 h-9"
                     />
                   </div>
                   
                   {saldoContado && (
                     <div className={cn(
-                      "p-3 rounded-lg flex items-center gap-3",
+                      "p-2.5 rounded-lg flex items-center gap-2.5",
                       parseFloat(saldoContado) === saldoAtual 
-                        ? "bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800" 
-                        : "bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800"
+                        ? "bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-700" 
+                        : alertaDiferenca 
+                          ? "bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700"
+                          : "bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700"
                     )}>
                       {parseFloat(saldoContado) === saldoAtual ? (
                         <>
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                           <div>
-                            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Caixa conferido</p>
-                            <p className="text-xs text-emerald-600 dark:text-emerald-400">Valores batem perfeitamente</p>
+                            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Caixa conferido!</p>
+                            <p className="text-xs text-emerald-600 dark:text-emerald-400">Valores batem</p>
+                          </div>
+                        </>
+                      ) : alertaDiferenca ? (
+                        <>
+                          <Bell className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-red-700 dark:text-red-300">⚠️ Alerta de diferença!</p>
+                            <p className="text-xs text-red-600 dark:text-red-400">
+                              {alertaDiferenca.tipo === "sobra" ? "Sobra" : "Falta"} de {formatCurrency(alertaDiferenca.valor)} (acima de {formatCurrency(parseFloat(valorAlerta))})
+                            </p>
                           </div>
                         </>
                       ) : (
                         <>
-                          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                          <div className="flex-1">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                          <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Diferença encontrada</p>
                             <p className="text-xs text-amber-600 dark:text-amber-400">
                               {parseFloat(saldoContado) > saldoAtual 
@@ -1159,6 +1290,69 @@ export function CaixaWidget({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal Configuração de Alerta */}
+      <Dialog open={showConfigAlertaModal} onOpenChange={setShowConfigAlertaModal}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="w-5 h-5 text-primary" />
+              Configurar Alerta
+            </DialogTitle>
+            <DialogDescription>
+              Defina quando alertar sobre diferenças no caixa
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              <div>
+                <p className="text-sm font-medium">Alerta de diferença</p>
+                <p className="text-xs text-muted-foreground">Avisar quando diferença exceder limite</p>
+              </div>
+              <Switch 
+                checked={tempAlertaAtivo} 
+                onCheckedChange={setTempAlertaAtivo}
+              />
+            </div>
+            
+            {tempAlertaAtivo && (
+              <div className="space-y-2">
+                <Label className="text-sm">Valor limite para alerta (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="50,00"
+                  value={tempValorAlerta}
+                  onChange={(e) => setTempValorAlerta(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Diferenças acima deste valor serão destacadas em vermelho
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfigAlertaModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={salvarConfigAlerta}>
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Relatório Mensal */}
+      <RelatorioMensalCaixaModal
+        open={showRelatorioModal}
+        onOpenChange={setShowRelatorioModal}
+        historico={historico}
+        formatCurrency={formatCurrency}
+        nomeClinica={nomeClinica}
+      />
     </>
   );
 }
