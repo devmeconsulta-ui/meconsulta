@@ -29,11 +29,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -65,7 +60,6 @@ import {
   DollarSign,
   TrendingUp,
   Filter,
-  ChevronDown,
   Search,
   BarChart3,
   Globe,
@@ -188,7 +182,6 @@ export default function ClinicaFinanceiro() {
   const [contasReceber, setContasReceber] = useState<ContaReceber[]>([]);
   const [medicoRepasseConfigs, setMedicoRepasseConfigs] = useState<MedicoRepasseConfig[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   
   // Filtros
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
@@ -1106,16 +1099,81 @@ export default function ClinicaFinanceiro() {
         formatCurrency={formatCurrency}
       />
 
-      {/* Filters */}
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="outline" className="gap-2 w-full sm:w-auto">
-            <Filter className="w-4 h-4" />
-            Filtros Avançados
-            <ChevronDown className={`w-4 h-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pt-4">
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full max-w-4xl grid-cols-3 sm:grid-cols-6">
+          <TabsTrigger value="visao-geral" className="gap-1 text-xs sm:text-sm">
+            <BarChart3 className="h-4 w-4 hidden sm:block" />
+            <span>Visão Geral</span>
+          </TabsTrigger>
+          <TabsTrigger value="origem" className="gap-1 text-xs sm:text-sm">
+            <Globe className="h-4 w-4 hidden sm:block" />
+            <span>Origem</span>
+          </TabsTrigger>
+          <TabsTrigger value="fluxo" className="gap-1 text-xs sm:text-sm">
+            <ArrowLeftRight className="h-4 w-4 hidden sm:block" />
+            <span>Fluxo</span>
+          </TabsTrigger>
+          <TabsTrigger value="repasses" className="gap-1 text-xs sm:text-sm">
+            <Wallet className="h-4 w-4 hidden sm:block" />
+            <span>Repasses</span>
+          </TabsTrigger>
+          <TabsTrigger value="contas" className="gap-1 text-xs sm:text-sm">
+            <CreditCard className="h-4 w-4 hidden sm:block" />
+            <span>Contas</span>
+          </TabsTrigger>
+          <TabsTrigger value="config" className="gap-1 text-xs sm:text-sm">
+            <Settings className="h-4 w-4 hidden sm:block" />
+            <span>Config</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Tab: Visão Geral */}
+        <TabsContent value="visao-geral" className="mt-6 space-y-6">
+          {/* Consultas Pendentes de Sincronização com Caixa */}
+          <ConsultasPendentesCaixa
+            consultas={caixa.consultasPendentes}
+            formatCurrency={formatCurrency}
+            onSincronizar={caixa.sincronizarConsulta}
+            onSincronizarTodas={caixa.sincronizarTodas}
+            onRefresh={caixa.refetch}
+            caixaAberto={caixa.caixaAberto}
+          />
+
+          {/* Layout em grid: Caixa + Metas + Vencimentos */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Controle de Caixa */}
+            <CaixaWidget
+              caixaAberto={caixa.caixaAberto}
+              saldoAbertura={caixa.saldoAbertura}
+              saldoAtual={caixa.saldoAtual}
+              movimentos={caixa.movimentos}
+              formatCurrency={formatCurrency}
+              onAbrirCaixa={caixa.abrirCaixa}
+              onFecharCaixa={caixa.fecharCaixa}
+              onRegistrarMovimento={caixa.registrarMovimento}
+              nomeClinica={clinicaData?.nome_fantasia || "Clínica"}
+            />
+
+            {/* Metas Financeiras */}
+            <MetasFinanceirasWidget
+              clinicaId={clinicaData?.id}
+              faturamentoAtual={metrics.pago}
+              consultasAtual={filteredConsultas.filter(c => c.status_pagamento === "pago").length}
+              novosPacientesAtual={0}
+              ticketMedioAtual={metrics.pagos > 0 ? metrics.pago / metrics.pagos : 0}
+              formatCurrency={formatCurrency}
+            />
+
+            {/* Timeline de Vencimentos */}
+            <VencimentosTimeline
+              vencimentos={vencimentosTimeline}
+              formatCurrency={formatCurrency}
+            />
+          </div>
+
+          {/* Filtros abaixo do caixa */}
           <Card>
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -1193,81 +1251,6 @@ export default function ClinicaFinanceiro() {
               </div>
             </CardContent>
           </Card>
-        </CollapsibleContent>
-      </Collapsible>
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-4xl grid-cols-3 sm:grid-cols-6">
-          <TabsTrigger value="visao-geral" className="gap-1 text-xs sm:text-sm">
-            <BarChart3 className="h-4 w-4 hidden sm:block" />
-            <span>Visão Geral</span>
-          </TabsTrigger>
-          <TabsTrigger value="origem" className="gap-1 text-xs sm:text-sm">
-            <Globe className="h-4 w-4 hidden sm:block" />
-            <span>Origem</span>
-          </TabsTrigger>
-          <TabsTrigger value="fluxo" className="gap-1 text-xs sm:text-sm">
-            <ArrowLeftRight className="h-4 w-4 hidden sm:block" />
-            <span>Fluxo</span>
-          </TabsTrigger>
-          <TabsTrigger value="repasses" className="gap-1 text-xs sm:text-sm">
-            <Wallet className="h-4 w-4 hidden sm:block" />
-            <span>Repasses</span>
-          </TabsTrigger>
-          <TabsTrigger value="contas" className="gap-1 text-xs sm:text-sm">
-            <CreditCard className="h-4 w-4 hidden sm:block" />
-            <span>Contas</span>
-          </TabsTrigger>
-          <TabsTrigger value="config" className="gap-1 text-xs sm:text-sm">
-            <Settings className="h-4 w-4 hidden sm:block" />
-            <span>Config</span>
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Tab: Visão Geral */}
-        <TabsContent value="visao-geral" className="mt-6 space-y-6">
-          {/* Consultas Pendentes de Sincronização com Caixa */}
-          <ConsultasPendentesCaixa
-            consultas={caixa.consultasPendentes}
-            formatCurrency={formatCurrency}
-            onSincronizar={caixa.sincronizarConsulta}
-            onSincronizarTodas={caixa.sincronizarTodas}
-            onRefresh={caixa.refetch}
-            caixaAberto={caixa.caixaAberto}
-          />
-
-          {/* Layout em grid: Caixa + Metas + Vencimentos */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Controle de Caixa */}
-            <CaixaWidget
-              caixaAberto={caixa.caixaAberto}
-              saldoAbertura={caixa.saldoAbertura}
-              saldoAtual={caixa.saldoAtual}
-              movimentos={caixa.movimentos}
-              formatCurrency={formatCurrency}
-              onAbrirCaixa={caixa.abrirCaixa}
-              onFecharCaixa={caixa.fecharCaixa}
-              onRegistrarMovimento={caixa.registrarMovimento}
-              nomeClinica={clinicaData?.nome_fantasia || "Clínica"}
-            />
-
-            {/* Metas Financeiras */}
-            <MetasFinanceirasWidget
-              clinicaId={clinicaData?.id}
-              faturamentoAtual={metrics.pago}
-              consultasAtual={filteredConsultas.filter(c => c.status_pagamento === "pago").length}
-              novosPacientesAtual={0}
-              ticketMedioAtual={metrics.pagos > 0 ? metrics.pago / metrics.pagos : 0}
-              formatCurrency={formatCurrency}
-            />
-
-            {/* Timeline de Vencimentos */}
-            <VencimentosTimeline
-              vencimentos={vencimentosTimeline}
-              formatCurrency={formatCurrency}
-            />
-          </div>
 
           {/* Gráficos lado a lado */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
