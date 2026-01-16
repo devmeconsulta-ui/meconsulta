@@ -25,18 +25,25 @@ function getAudioContext(): AudioContext {
 // Função para gerar sons usando Web Audio API
 function playGeneratedSound(soundId: string, volume: number = 0.5) {
   try {
+    console.log("[Chat Sound] playGeneratedSound:", soundId, "volume:", volume);
     const audioContext = getAudioContext();
+    console.log("[Chat Sound] AudioContext state:", audioContext.state);
     
     // Resumir contexto se estiver suspenso (requerido por alguns navegadores)
     if (audioContext.state === "suspended") {
+      console.log("[Chat Sound] Resumindo AudioContext suspenso...");
       audioContext.resume().then(() => {
+        console.log("[Chat Sound] AudioContext resumido, executando som");
         executeSound(audioContext, soundId, volume);
+      }).catch(err => {
+        console.error("[Chat Sound] Erro ao resumir AudioContext:", err);
       });
     } else {
+      console.log("[Chat Sound] Executando som diretamente");
       executeSound(audioContext, soundId, volume);
     }
   } catch (error) {
-    console.error("Erro ao gerar som:", error);
+    console.error("[Chat Sound] Erro ao gerar som:", error);
   }
 }
 
@@ -312,8 +319,13 @@ export function getSelectedSoundId(): SoundId {
 
 // Função para tocar o som de notificação (exportada para uso em outros hooks)
 export function playChatNotificationSound(): void {
-  if (!isChatSoundEnabled()) return;
+  console.log("[Chat Sound] playChatNotificationSound chamado");
+  const enabled = isChatSoundEnabled();
+  console.log("[Chat Sound] Som habilitado:", enabled);
+  if (!enabled) return;
+  
   const soundId = getSelectedSoundId();
+  console.log("[Chat Sound] Som selecionado:", soundId);
   playGeneratedSound(soundId, 0.5);
 }
 
