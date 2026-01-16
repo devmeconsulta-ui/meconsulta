@@ -104,7 +104,7 @@ export default function ClinicaCRM() {
   }
 
   return (
-    <div className="p-3 md:p-6 h-full flex flex-col">
+    <div className="p-3 md:p-6 h-[calc(100vh-80px)] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex flex-col gap-3 mb-4 md:mb-6">
         {/* Title + Funnel Select + Config */}
@@ -193,12 +193,12 @@ export default function ClinicaCRM() {
         /* ===== KANBAN - Horizontal scroll for all screen sizes ===== */
         <DragDropContext onDragEnd={handleDragEnd}>
           <div 
-            className="flex-1 overflow-x-auto pb-4"
+            className="flex-1 overflow-x-auto overflow-y-hidden pb-4 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent"
             style={{ 
               WebkitOverflowScrolling: 'touch',
             }}
           >
-            <div className="flex gap-3 md:gap-4 h-full min-h-[400px] md:min-h-[600px]">
+            <div className="flex gap-3 md:gap-4 h-full">
               {etapas.map((etapa, index) => (
                 <div
                   key={etapa.id}
@@ -266,9 +266,10 @@ export default function ClinicaCRM() {
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                          "flex-1 p-2 space-y-2 overflow-y-auto transition-colors",
+                          "flex-1 p-2 space-y-2 overflow-y-auto transition-colors scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent",
                           snapshot.isDraggingOver && "bg-primary/5"
                         )}
+                        style={{ maxHeight: 'calc(100vh - 280px)' }}
                       >
                         {leadsPorEtapa[etapa.id]?.map((lead, leadIndex) => (
                           <Draggable
