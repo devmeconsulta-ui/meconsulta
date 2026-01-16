@@ -511,9 +511,9 @@ export default function ClinicaFinanceiro() {
   const cashFlowData = useMemo(() => {
     const data: { [key: string]: { entradas: number; saidas: number } } = {};
     
-    // Entradas das consultas pagas
+    // Entradas das consultas pagas (online + interna)
     filteredConsultas
-      .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
+      .filter((c) => c.status_pagamento === "pago")
       .forEach((c) => {
         const date = format(parseISO(c.data_hora), "dd/MM");
         if (!data[date]) data[date] = { entradas: 0, saidas: 0 };
@@ -537,7 +537,7 @@ export default function ClinicaFinanceiro() {
   const medicoChartData = useMemo(() => {
     const data: { [key: string]: number } = {};
     filteredConsultas
-      .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
+      .filter((c) => c.status_pagamento === "pago")
       .forEach((c) => {
         const medicoNome = c.medico?.nome || "Desconhecido";
         data[medicoNome] = (data[medicoNome] || 0) + c.valor_consulta;
@@ -1019,7 +1019,7 @@ export default function ClinicaFinanceiro() {
     const data: { [key: string]: { valor: number; consultas: number } } = {};
     
     filteredConsultas
-      .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
+      .filter((c) => c.status_pagamento === "pago")
       .forEach((c) => {
         const medicoNome = c.medico?.nome || "Desconhecido";
         if (!data[medicoNome]) data[medicoNome] = { valor: 0, consultas: 0 };
@@ -1274,10 +1274,10 @@ export default function ClinicaFinanceiro() {
             {/* Metas Financeiras */}
             <MetasFinanceirasWidget
               clinicaId={clinicaData?.id}
-              faturamentoAtual={metrics.pago}
+              faturamentoAtual={metrics.pagoTotal}
               consultasAtual={filteredConsultas.filter(c => c.status_pagamento === "pago").length}
               novosPacientesAtual={0}
-              ticketMedioAtual={metrics.pagos > 0 ? metrics.pago / metrics.pagos : 0}
+              ticketMedioAtual={metrics.pagos > 0 ? metrics.pagoTotal / metrics.pagos : 0}
               formatCurrency={formatCurrency}
             />
 
@@ -1294,7 +1294,7 @@ export default function ClinicaFinanceiro() {
             {/* Faturamento por Médico */}
             <FaturamentoChart
               medicoData={faturamentoPorMedicoData}
-              totalFaturamento={metrics.pago}
+              totalFaturamento={metrics.pagoTotal}
               formatCurrency={formatCurrency}
             />
 
