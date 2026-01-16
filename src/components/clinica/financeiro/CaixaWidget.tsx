@@ -877,8 +877,8 @@ export function CaixaWidget({
 
       {/* Modal Fechar Caixa */}
       <Dialog open={showFecharModal} onOpenChange={setShowFecharModal}>
-        <DialogContent className="sm:max-w-[420px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[400px] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="p-4 pb-3">
             <DialogTitle className="flex items-center gap-2">
               <Lock className="w-5 h-5 text-destructive" />
               Fechar Caixa
@@ -888,40 +888,40 @@ export function CaixaWidget({
             </DialogDescription>
           </DialogHeader>
           
-          <div className="py-3 space-y-4">
+          <div className="px-4 pb-4 space-y-3">
             {/* Resumo Financeiro - Grid 2x2 compacto */}
             <div className="rounded-lg border border-border overflow-hidden">
               {/* Linha 1: Abertura e Saldo Esperado */}
               <div className="grid grid-cols-2">
-                <div className="p-3 text-center bg-muted/50 border-r border-border">
+                <div className="p-2.5 text-center bg-muted/50 border-r border-border">
                   <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Abertura</p>
-                  <p className="text-base font-bold text-foreground mt-0.5">{formatCurrency(saldoAbertura)}</p>
+                  <p className="text-sm font-bold text-foreground mt-0.5">{formatCurrency(saldoAbertura)}</p>
                 </div>
-                <div className="p-3 text-center bg-blue-50 dark:bg-blue-950/40">
+                <div className="p-2.5 text-center bg-blue-50 dark:bg-blue-950/40">
                   <p className="text-[10px] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">Saldo Esperado</p>
-                  <p className="text-base font-bold text-blue-600 dark:text-blue-400 mt-0.5">{formatCurrency(saldoAtual)}</p>
+                  <p className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-0.5">{formatCurrency(saldoAtual)}</p>
                 </div>
               </div>
               
               {/* Linha 2: Entradas e Saídas */}
               <div className="grid grid-cols-2 border-t border-border">
-                <div className="p-3 text-center bg-emerald-50 dark:bg-emerald-950/40 border-r border-border">
+                <div className="p-2.5 text-center bg-emerald-50 dark:bg-emerald-950/40 border-r border-border">
                   <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Entradas</p>
-                  <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">+{formatCurrency(totalEntradas)}</p>
+                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">+{formatCurrency(totalEntradas)}</p>
                 </div>
-                <div className="p-3 text-center bg-red-50 dark:bg-red-950/40">
+                <div className="p-2.5 text-center bg-red-50 dark:bg-red-950/40">
                   <p className="text-[10px] font-medium uppercase tracking-wide text-red-600 dark:text-red-400">Saídas</p>
-                  <p className="text-base font-bold text-red-600 dark:text-red-400 mt-0.5">-{formatCurrency(totalSaidas)}</p>
+                  <p className="text-sm font-bold text-red-600 dark:text-red-400 mt-0.5">-{formatCurrency(totalSaidas)}</p>
                 </div>
               </div>
             </div>
 
             {/* Conferência de Caixa */}
-            <div className="space-y-2">
+            <div className="rounded-lg border border-border overflow-hidden">
               <button 
                 type="button"
                 onClick={() => setMostrarConferencia(!mostrarConferencia)}
-                className="flex items-center justify-between w-full text-left p-2 rounded-md hover:bg-muted/50 transition-colors"
+                className="flex items-center justify-between w-full text-left p-2.5 hover:bg-muted/50 transition-colors"
               >
                 <span className="flex items-center gap-2 text-sm font-medium">
                   <Calculator className="w-4 h-4 text-muted-foreground" />
@@ -933,22 +933,22 @@ export function CaixaWidget({
               </button>
               
               {mostrarConferencia && (
-                <div className="space-y-3 p-3 rounded-lg border bg-muted/30">
+                <div className="border-t border-border p-2.5 space-y-2.5 bg-muted/20">
                   <div>
-                    <Label className="text-xs">Valor contado no caixa (R$)</Label>
+                    <Label className="text-xs">Valor contado (R$)</Label>
                     <Input
                       type="number"
                       step="0.01"
                       placeholder="0,00"
                       value={saldoContado}
                       onChange={(e) => setSaldoContado(e.target.value)}
-                      className="mt-1 h-9"
+                      className="mt-1 h-8 text-sm"
                     />
                   </div>
                   
                   {saldoContado && (
                     <div className={cn(
-                      "p-2.5 rounded-lg flex items-center gap-2.5",
+                      "p-2 rounded-md flex items-center gap-2 text-xs",
                       parseFloat(saldoContado) === saldoAtual 
                         ? "bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-700" 
                         : alertaDiferenca 
@@ -958,33 +958,24 @@ export function CaixaWidget({
                       {parseFloat(saldoContado) === saldoAtual ? (
                         <>
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                          <div>
-                            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Caixa conferido!</p>
-                            <p className="text-xs text-emerald-600 dark:text-emerald-400">Valores batem</p>
-                          </div>
+                          <span className="text-emerald-700 dark:text-emerald-300 font-medium">Caixa conferido!</span>
                         </>
                       ) : alertaDiferenca ? (
                         <>
                           <Bell className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-red-700 dark:text-red-300">⚠️ Alerta de diferença!</p>
-                            <p className="text-xs text-red-600 dark:text-red-400">
-                              {alertaDiferenca.tipo === "sobra" ? "Sobra" : "Falta"} de {formatCurrency(alertaDiferenca.valor)} (acima de {formatCurrency(parseFloat(valorAlerta))})
-                            </p>
-                          </div>
+                          <span className="text-red-700 dark:text-red-300 font-medium">
+                            ⚠️ {alertaDiferenca.tipo === "sobra" ? "Sobra" : "Falta"}: {formatCurrency(alertaDiferenca.valor)}
+                          </span>
                         </>
                       ) : (
                         <>
                           <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Diferença encontrada</p>
-                            <p className="text-xs text-amber-600 dark:text-amber-400">
-                              {parseFloat(saldoContado) > saldoAtual 
-                                ? `Sobra de ${formatCurrency(parseFloat(saldoContado) - saldoAtual)}`
-                                : `Falta de ${formatCurrency(saldoAtual - parseFloat(saldoContado))}`
-                              }
-                            </p>
-                          </div>
+                          <span className="text-amber-700 dark:text-amber-300 font-medium">
+                            {parseFloat(saldoContado) > saldoAtual 
+                              ? `Sobra: ${formatCurrency(parseFloat(saldoContado) - saldoAtual)}`
+                              : `Falta: ${formatCurrency(saldoAtual - parseFloat(saldoContado))}`
+                            }
+                          </span>
                         </>
                       )}
                     </div>
@@ -994,43 +985,46 @@ export function CaixaWidget({
             </div>
             
             {/* Observações */}
-            <div className="space-y-2">
-              <Label>Observações (opcional)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Observações (opcional)</Label>
               <Textarea
                 placeholder="Observações sobre o fechamento..."
                 value={observacoesFechamento}
                 onChange={(e) => setObservacoesFechamento(e.target.value)}
                 rows={2}
+                className="text-sm resize-none"
               />
             </div>
 
             {/* Dica PDF */}
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted border border-border">
-              <Printer className="w-5 h-5 text-muted-foreground shrink-0" />
-              <p className="text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/50 border border-border">
+              <Printer className="w-4 h-4 text-muted-foreground shrink-0" />
+              <p className="text-xs text-muted-foreground">
                 Gere um PDF com o resumo completo do caixa
               </p>
             </div>
           </div>
           
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => setShowFecharModal(false)} className="sm:order-1">
+          <DialogFooter className="p-4 pt-0 flex-col gap-2 sm:flex-row">
+            <Button variant="outline" size="sm" onClick={() => setShowFecharModal(false)} className="sm:order-1">
               Cancelar
             </Button>
             <Button 
               variant="outline" 
+              size="sm"
               onClick={() => handleFecharCaixaComPDF(true)}
-              className="gap-2 sm:order-2"
+              className="gap-1.5 sm:order-2"
             >
-              <Printer className="w-4 h-4" />
-              Fechar e Imprimir PDF
+              <Printer className="w-3.5 h-3.5" />
+              Fechar + PDF
             </Button>
             <Button 
               variant="destructive" 
+              size="sm"
               onClick={() => handleFecharCaixaComPDF(false)}
               className="sm:order-3"
             >
-              Confirmar Fechamento
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>
