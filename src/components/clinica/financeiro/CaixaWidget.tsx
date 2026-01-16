@@ -589,55 +589,36 @@ export function CaixaWidget({
                   <Lock className="w-8 h-8 text-muted-foreground" />
                 </motion.div>
                 <p className="text-muted-foreground mb-4">Caixa fechado</p>
-                <div className="flex gap-2 justify-center">
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Button onClick={() => setShowAbrirModal(true)} className="gap-2">
-                      <Unlock className="w-4 h-4" />
-                      Abrir Caixa
-                    </Button>
-                  </motion.div>
+                <div className="flex flex-wrap gap-2 justify-center px-2">
+                  <Button onClick={() => setShowAbrirModal(true)} className="gap-2" size="sm">
+                    <Unlock className="w-4 h-4" />
+                    Abrir Caixa
+                  </Button>
                   {historico.length > 0 && (
                     <>
-                      <motion.div
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <Button variant="outline" onClick={() => setShowHistoricoModal(true)} className="gap-2">
-                          <History className="w-4 h-4" />
-                          Histórico
-                        </Button>
-                      </motion.div>
-                      <motion.div
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <Button variant="outline" onClick={() => setShowRelatorioModal(true)} className="gap-2">
-                          <BarChart3 className="w-4 h-4" />
-                          Relatório
-                        </Button>
-                      </motion.div>
+                      <Button variant="outline" size="sm" onClick={() => setShowHistoricoModal(true)} className="gap-2">
+                        <History className="w-4 h-4" />
+                        Histórico
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setShowRelatorioModal(true)} className="gap-2">
+                        <BarChart3 className="w-4 h-4" />
+                        Relatório
+                      </Button>
                     </>
                   )}
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      setTempAlertaAtivo(alertaAtivo);
+                      setTempValorAlerta(valorAlerta);
+                      setShowConfigAlertaModal(true);
+                    }}
+                    title="Configurar alertas"
                   >
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => {
-                        setTempAlertaAtivo(alertaAtivo);
-                        setTempValorAlerta(valorAlerta);
-                        setShowConfigAlertaModal(true);
-                      }}
-                      title="Configurar alertas"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </Button>
-                  </motion.div>
+                    <Settings className="w-4 h-4" />
+                  </Button>
                 </div>
               </motion.div>
             ) : (
