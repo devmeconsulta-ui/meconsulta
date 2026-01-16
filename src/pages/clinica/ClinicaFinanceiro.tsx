@@ -1071,6 +1071,210 @@ export default function ClinicaFinanceiro() {
       .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
   }, [contasPagar, contasReceber]);
 
+  // Funções de exportação de relatórios
+  const handleExportRelatorioExcel = () => {
+    if (!filteredConsultas.length) {
+      toast.error("Não há dados para exportar");
+      return;
+    }
+
+    try {
+      // Prepare data
+      const data = filteredConsultas.map((c) => ({
+        "Data/Hora": format(parseISO(c.data_hora), "dd/MM/yyyy HH:mm"),
+        "Médico": c.medico?.nome || "N/A",
+        "Especialidade": c.medico?.especialidade || "N/A",
+        "Paciente": getPatientName(c),
+        "Local": c.local?.nome_local || "N/A",
+        "Origem": c.origem === "online" ? "Online" : "Interna",
+        "Status Consulta": c.status_consulta,
+        "Status Pagamento": c.status_pagamento,
+        "Valor Consulta": c.valor_consulta,
+        "Valor Médico": c.valor_medico,
+        "Valor Plataforma": c.valor_plataforma,
+      }));
+
+      // Create summary sheet
+      const resumo = [
+        { "Métrica": "Total de Consultas", "Valor": filteredConsultas.length },
+        { "Métrica": "Consultas Online", "Valor": filteredConsultas.filter(c => c.origem === "online").length },
+        { "Métrica": "Consultas Internas", "Valor": filteredConsultas.filter(c => c.origem === "interna").length },
+        { "Métrica": "Consultas Pagas", "Valor": filteredConsultas.filter(c => c.status_pagamento === "pago").length },
+        { "Métrica": "Consultas Pendentes", "Valor": filteredConsultas.filter(c => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada").length },
+        { "Métrica": "Consultas Canceladas", "Valor": filteredConsultas.filter(c => c.status_consulta === "cancelada").length },
+        { "Métrica": "Receita Total (Pago)", "Valor": formatCurrency(metrics.pagoTotal) },
+        { "Métrica": "Receita Pendente", "Valor": formatCurrency(metrics.pendenteTotal) },
+        { "Métrica": "Ticket Médio", "Valor": formatCurrency(metrics.pagos > 0 ? metrics.pagoTotal / metrics.pagos : 0) },
+      ];
+
+      // Create by doctor sheet
+      const porMedico = faturamentoPorMedicoData.map((d) => ({
+        "Médico": `Dr(a). ${d.nome}`,
+        "Consultas": d.consultas,
+        "Receita Total": formatCurrency(d.valor),
+        "Ticket Médio": formatCurrency(d.consultas > 0 ? d.valor / d.consultas : 0),
+      }));
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      const ws1 = XLSX.utils.json_to_sheet(resumo);
+      XLSX.utils.book_append_sheet(wb, ws1, "Resumo");
+
+      const ws2 = XLSX.utils.json_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws2, "Consultas");
+
+      const ws3 = XLSX.utils.json_to_sheet(porMedico);
+      XLSX.utils.book_append_sheet(wb, ws3, "Por Médico");
+
+      // Generate filename
+      const filename = `relatorio_financeiro_${clinicaData?.nome_fantasia || "clinica"}_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`;
+
+      XLSX.writeFile(wb, filename);
+      toast.success("Relatório Excel gerado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao exportar Excel:", error);
+      toast.error("Erro ao gerar relatório Excel");
+    }
+  };
+
+  const handleExportRelatorioPDF = () => {
+    if (!filteredConsultas.length) {
+      toast.error("Não há dados para exportar");
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let yPos = 20;
+
+      // Header
+      doc.setFontSize(20);
+      doc.setFont("helvetica", "bold");
+      doc.text("Relatório Financeiro", pageWidth / 2, yPos, { align: "center" });
+      yPos += 8;
+
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text(clinicaData?.nome_fantasia || "Clínica", pageWidth / 2, yPos, { align: "center" });
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.text(`Período: ${format(dateRange.start, "dd/MM/yyyy")} a ${format(dateRange.end, "dd/MM/yyyy")}`, pageWidth / 2, yPos, { align: "center" });
+      yPos += 10;
+
+      doc.setFontSize(10);
+      doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, pageWidth / 2, yPos, { align: "center" });
+      yPos += 15;
+
+      // Summary section
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Resumo Geral", 14, yPos);
+      yPos += 10;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+
+      const summaryData = [
+        ["Total de Consultas:", filteredConsultas.length.toString()],
+        ["Consultas Online:", filteredConsultas.filter(c => c.origem === "online").length.toString()],
+        ["Consultas Internas:", filteredConsultas.filter(c => c.origem === "interna").length.toString()],
+        ["Consultas Pagas:", filteredConsultas.filter(c => c.status_pagamento === "pago").length.toString()],
+        ["Receita Total (Pago):", formatCurrency(metrics.pagoTotal)],
+        ["Receita Pendente:", formatCurrency(metrics.pendenteTotal)],
+        ["Ticket Médio:", formatCurrency(metrics.pagos > 0 ? metrics.pagoTotal / metrics.pagos : 0)],
+      ];
+
+      summaryData.forEach(([label, value]) => {
+        doc.text(label, 14, yPos);
+        doc.text(value, 80, yPos);
+        yPos += 6;
+      });
+
+      yPos += 10;
+
+      // By Doctor section
+      if (faturamentoPorMedicoData.length > 0) {
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text("Faturamento por Médico", 14, yPos);
+        yPos += 10;
+
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Médico", 14, yPos);
+        doc.text("Consultas", 100, yPos);
+        doc.text("Receita", 140, yPos);
+        yPos += 6;
+
+        doc.setFont("helvetica", "normal");
+        faturamentoPorMedicoData.slice(0, 10).forEach((d) => {
+          if (yPos > 270) {
+            doc.addPage();
+            yPos = 20;
+          }
+          doc.text(`Dr(a). ${d.nome}`.substring(0, 40), 14, yPos);
+          doc.text(d.consultas.toString(), 100, yPos);
+          doc.text(formatCurrency(d.valor), 140, yPos);
+          yPos += 6;
+        });
+      }
+
+      yPos += 10;
+
+      // Recent consultations
+      if (yPos > 200) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Últimas Consultas", 14, yPos);
+      yPos += 10;
+
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text("Data", 14, yPos);
+      doc.text("Médico", 40, yPos);
+      doc.text("Paciente", 85, yPos);
+      doc.text("Valor", 130, yPos);
+      doc.text("Status", 160, yPos);
+      yPos += 5;
+
+      doc.setFont("helvetica", "normal");
+      filteredConsultas.slice(0, 30).forEach((c) => {
+        if (yPos > 280) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.text(format(parseISO(c.data_hora), "dd/MM/yy HH:mm"), 14, yPos);
+        doc.text((c.medico?.nome || "N/A").substring(0, 20), 40, yPos);
+        doc.text(getPatientName(c).substring(0, 20), 85, yPos);
+        doc.text(formatCurrency(c.valor_consulta), 130, yPos);
+        doc.text(c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Cancelado" : "Pendente", 160, yPos);
+        yPos += 5;
+      });
+
+      // Footer
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, 290, { align: "center" });
+      }
+
+      const filename = `relatorio_financeiro_${clinicaData?.nome_fantasia || "clinica"}_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`;
+      doc.save(filename);
+      toast.success("Relatório PDF gerado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao exportar PDF:", error);
+      toast.error("Erro ao gerar relatório PDF");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -1120,7 +1324,7 @@ export default function ClinicaFinanceiro() {
 
       {/* Tabs - acima dos cards principais */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-4xl grid-cols-3 sm:grid-cols-6">
+        <TabsList className="grid w-full max-w-5xl grid-cols-4 sm:grid-cols-7">
           <TabsTrigger value="visao-geral" className="gap-1 text-xs sm:text-sm">
             <BarChart3 className="h-4 w-4 hidden sm:block" />
             <span>Visão Geral</span>
@@ -1140,6 +1344,10 @@ export default function ClinicaFinanceiro() {
           <TabsTrigger value="contas" className="gap-1 text-xs sm:text-sm">
             <CreditCard className="h-4 w-4 hidden sm:block" />
             <span>Contas</span>
+          </TabsTrigger>
+          <TabsTrigger value="relatorios" className="gap-1 text-xs sm:text-sm">
+            <FileText className="h-4 w-4 hidden sm:block" />
+            <span>Relatórios</span>
           </TabsTrigger>
           <TabsTrigger value="config" className="gap-1 text-xs sm:text-sm">
             <Settings className="h-4 w-4 hidden sm:block" />
@@ -2100,6 +2308,371 @@ export default function ClinicaFinanceiro() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Tab: Relatórios */}
+        <TabsContent value="relatorios" className="mt-6 space-y-6">
+          {/* Filtros de Relatório */}
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Relatórios Financeiros
+                  </CardTitle>
+                  <CardDescription>Gere relatórios detalhados em Excel e PDF</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" className="gap-2" onClick={handleExportRelatorioExcel}>
+                    <Download className="h-4 w-4" />
+                    Exportar Excel
+                  </Button>
+                  <Button variant="default" className="gap-2" onClick={handleExportRelatorioPDF}>
+                    <FileText className="h-4 w-4" />
+                    Exportar PDF
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm font-medium">
+                    <Users className="h-4 w-4" />
+                    Médico
+                  </Label>
+                  <Select value={medicoFilter} onValueChange={setMedicoFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os médicos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os médicos</SelectItem>
+                      {medicos.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>Dr(a). {m.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm font-medium">
+                    <DollarSign className="h-4 w-4" />
+                    Status Pagamento
+                  </Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="pago">Pago</SelectItem>
+                      <SelectItem value="pendente">Pendente</SelectItem>
+                      <SelectItem value="cancelado">Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Origem</Label>
+                  <Select value={origemFilter} onValueChange={setOrigemFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas</SelectItem>
+                      <SelectItem value="online">Online</SelectItem>
+                      <SelectItem value="interna">Interna</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Local</Label>
+                  <Select value={localFilter} onValueChange={setLocalFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      {locais.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>{l.nome_local}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Métricas do Relatório */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-green-500/10 shrink-0">
+                    <DollarSign className="w-6 h-6 text-green-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground">Receita Paga</p>
+                    <p className="text-xl font-bold text-green-500 truncate">{formatCurrency(metrics.pagoTotal)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-yellow-500/10 shrink-0">
+                    <Clock className="w-6 h-6 text-yellow-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground">Receita Pendente</p>
+                    <p className="text-xl font-bold text-yellow-500 truncate">{formatCurrency(metrics.pendenteTotal)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-primary/10 shrink-0">
+                    <Users className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground">Total Consultas</p>
+                    <p className="text-xl font-bold truncate">{filteredConsultas.length}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-primary/10 shrink-0">
+                    <TrendingUp className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground">Ticket Médio</p>
+                    <p className="text-xl font-bold truncate">
+                      {formatCurrency(metrics.pagos > 0 ? metrics.pagoTotal / metrics.pagos : 0)}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Gráficos do Relatório */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Faturamento por Médico */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Faturamento por Médico</CardTitle>
+                <CardDescription>Receita paga por profissional</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {faturamentoPorMedicoData.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Nenhum dado disponível para o período
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={faturamentoPorMedicoData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis type="number" tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} fontSize={12} />
+                      <YAxis dataKey="nome" type="category" width={100} fontSize={11} tickFormatter={(v) => v.substring(0, 15)} />
+                      <Tooltip 
+                        content={({ active, payload, label }) => {
+                          if (active && payload && payload.length) {
+                            return (
+                              <div className="bg-background/95 backdrop-blur-sm border border-border rounded-lg p-3 shadow-lg">
+                                <p className="font-medium text-foreground mb-2">{label}</p>
+                                {payload.map((entry: any, index: number) => (
+                                  <p key={index} className="text-sm" style={{ color: entry.color }}>
+                                    {entry.name}: {formatCurrency(entry.value)}
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar dataKey="valor" name="Receita" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Distribuição por Status */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Distribuição por Status</CardTitle>
+                <CardDescription>Consultas por status de pagamento</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {filteredConsultas.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Nenhum dado disponível
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <ResponsiveContainer width="50%" height={250}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: "Pago", value: filteredConsultas.filter(c => c.status_pagamento === "pago").length, color: "#10B981" },
+                            { name: "Pendente", value: filteredConsultas.filter(c => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada").length, color: "#F59E0B" },
+                            { name: "Cancelado", value: filteredConsultas.filter(c => c.status_consulta === "cancelada").length, color: "#EF4444" },
+                          ].filter(d => d.value > 0)}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={90}
+                        >
+                          {[
+                            { name: "Pago", value: filteredConsultas.filter(c => c.status_pagamento === "pago").length, color: "#10B981" },
+                            { name: "Pendente", value: filteredConsultas.filter(c => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada").length, color: "#F59E0B" },
+                            { name: "Cancelado", value: filteredConsultas.filter(c => c.status_consulta === "cancelada").length, color: "#EF4444" },
+                          ].filter(d => d.value > 0).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex-1 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-green-500" />
+                        <span className="text-sm">Pago: {filteredConsultas.filter(c => c.status_pagamento === "pago").length}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                        <span className="text-sm">Pendente: {filteredConsultas.filter(c => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada").length}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-red-500" />
+                        <span className="text-sm">Cancelado: {filteredConsultas.filter(c => c.status_consulta === "cancelada").length}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tabela Detalhada de Consultas */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Detalhamento de Consultas ({filteredConsultas.length})
+              </CardTitle>
+              <CardDescription>Lista completa das consultas no período filtrado</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {filteredConsultas.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Nenhuma consulta no período</div>
+              ) : (
+                <div className="overflow-x-auto max-h-[500px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data/Hora</TableHead>
+                        <TableHead>Médico</TableHead>
+                        <TableHead>Especialidade</TableHead>
+                        <TableHead>Paciente</TableHead>
+                        <TableHead>Local</TableHead>
+                        <TableHead>Origem</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead className="text-right">Repasse</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredConsultas.slice(0, 50).map((c) => (
+                        <TableRow key={c.id}>
+                          <TableCell className="text-sm whitespace-nowrap">{format(parseISO(c.data_hora), "dd/MM/yy HH:mm")}</TableCell>
+                          <TableCell className="truncate max-w-[120px] text-sm">{c.medico?.nome || "N/A"}</TableCell>
+                          <TableCell className="truncate max-w-[100px] text-sm text-muted-foreground">{c.medico?.especialidade || "-"}</TableCell>
+                          <TableCell className="truncate max-w-[120px] text-sm">{getPatientName(c)}</TableCell>
+                          <TableCell className="truncate max-w-[100px] text-sm text-muted-foreground">{c.local?.nome_local || "-"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={cn(
+                              "text-xs",
+                              c.origem === "online" ? "border-emerald-500 text-emerald-600" : "border-blue-500 text-blue-600"
+                            )}>
+                              {c.origem === "online" ? "Online" : "Interna"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(c.valor_consulta)}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{formatCurrency(c.valor_medico)}</TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={c.status_pagamento === "pago" ? "default" : c.status_consulta === "cancelada" ? "destructive" : "secondary"} 
+                              className="text-xs"
+                            >
+                              {c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Cancelado" : "Pendente"}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {filteredConsultas.length > 50 && (
+                    <div className="text-center py-4 text-muted-foreground text-sm">
+                      Exibindo 50 de {filteredConsultas.length} consultas. Exporte para ver todos os dados.
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Resumo por Médico */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Resumo por Médico</CardTitle>
+              <CardDescription>Performance financeira de cada profissional</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {faturamentoPorMedicoData.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Nenhum dado disponível</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Médico</TableHead>
+                        <TableHead className="text-center">Consultas</TableHead>
+                        <TableHead className="text-right">Receita Total</TableHead>
+                        <TableHead className="text-right">Ticket Médio</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {faturamentoPorMedicoData.map((d) => (
+                        <TableRow key={d.nome}>
+                          <TableCell className="font-medium">Dr(a). {d.nome}</TableCell>
+                          <TableCell className="text-center">{d.consultas}</TableCell>
+                          <TableCell className="text-right font-medium text-green-600">{formatCurrency(d.valor)}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {formatCurrency(d.consultas > 0 ? d.valor / d.consultas : 0)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Tab: Configurações */}
