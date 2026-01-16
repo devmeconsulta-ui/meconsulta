@@ -61,23 +61,11 @@ export interface TypingUser {
   tipo: "admin_clinica" | "medico" | "funcionario";
 }
 
-import { isChatSoundEnabled, getSelectedSoundUrl, sendChatPushNotification } from "./useChatSettings";
+import { playChatNotificationSound, sendChatPushNotification } from "./useChatSettings";
 
 // Função para tocar som de notificação
 const playNotificationSound = () => {
-  // Verificar se o som está ativado nas configurações
-  if (!isChatSoundEnabled()) return;
-
-  try {
-    const soundUrl = getSelectedSoundUrl();
-    const audio = new Audio(soundUrl);
-    audio.volume = 0.5;
-    audio.play().catch(() => {
-      // Ignorar erro se autoplay for bloqueado
-    });
-  } catch (error) {
-    console.log("Não foi possível tocar som de notificação");
-  }
+  playChatNotificationSound();
 };
 
 export interface ChatParticipante {

@@ -2,39 +2,157 @@ import { useState, useEffect, useCallback } from "react";
 
 const CHAT_SETTINGS_KEY = "meconsulta_chat_settings";
 
-// Opções de sons disponíveis
+// Opções de sons disponíveis (gerados via Web Audio API)
 export const NOTIFICATION_SOUNDS = [
-  {
-    id: "default",
-    name: "Padrão",
-    url: "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3",
-  },
-  {
-    id: "soft",
-    name: "Suave",
-    url: "https://notificationsounds.com/storage/sounds/file-sounds-1151-when.mp3",
-  },
-  {
-    id: "pop",
-    name: "Pop",
-    url: "https://notificationsounds.com/storage/sounds/file-sounds-1152-piece-of-cake.mp3",
-  },
-  {
-    id: "chime",
-    name: "Sino",
-    url: "https://notificationsounds.com/storage/sounds/file-sounds-1085-to-the-point.mp3",
-  },
-  {
-    id: "bell",
-    name: "Campainha",
-    url: "https://notificationsounds.com/storage/sounds/file-sounds-1149-clearly.mp3",
-  },
-  {
-    id: "ding",
-    name: "Ding",
-    url: "https://notificationsounds.com/storage/sounds/file-sounds-1154-definite.mp3",
-  },
+  { id: "default", name: "Padrão" },
+  { id: "soft", name: "Suave" },
+  { id: "pop", name: "Pop" },
+  { id: "chime", name: "Sino" },
+  { id: "bell", name: "Campainha" },
+  { id: "ding", name: "Ding" },
 ] as const;
+
+// Função para gerar sons usando Web Audio API
+function playGeneratedSound(soundId: string, volume: number = 0.5) {
+  try {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const gainNode = audioContext.createGain();
+    gainNode.gain.value = volume;
+    gainNode.connect(audioContext.destination);
+
+    const now = audioContext.currentTime;
+
+    switch (soundId) {
+      case "default": {
+        // Som padrão: dois tons rápidos
+        const osc1 = audioContext.createOscillator();
+        osc1.type = "sine";
+        osc1.frequency.setValueAtTime(880, now);
+        osc1.connect(gainNode);
+        osc1.start(now);
+        osc1.stop(now + 0.1);
+
+        const osc2 = audioContext.createOscillator();
+        osc2.type = "sine";
+        osc2.frequency.setValueAtTime(1100, now + 0.12);
+        osc2.connect(gainNode);
+        osc2.start(now + 0.12);
+        osc2.stop(now + 0.22);
+        break;
+      }
+      case "soft": {
+        // Som suave: onda senoidal com fade
+        const osc = audioContext.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(400, now + 0.3);
+        
+        const softGain = audioContext.createGain();
+        softGain.gain.setValueAtTime(volume, now);
+        softGain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        
+        osc.connect(softGain);
+        softGain.connect(audioContext.destination);
+        osc.start(now);
+        osc.stop(now + 0.3);
+        break;
+      }
+      case "pop": {
+        // Som pop: tom curto e agudo
+        const osc = audioContext.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.08);
+        
+        const popGain = audioContext.createGain();
+        popGain.gain.setValueAtTime(volume, now);
+        popGain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+        
+        osc.connect(popGain);
+        popGain.connect(audioContext.destination);
+        osc.start(now);
+        osc.stop(now + 0.1);
+        break;
+      }
+      case "chime": {
+        // Sino: múltiplos harmônicos
+        [523.25, 659.25, 783.99].forEach((freq, i) => {
+          const osc = audioContext.createOscillator();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, now);
+          
+          const chimeGain = audioContext.createGain();
+          chimeGain.gain.setValueAtTime(volume * (1 - i * 0.2), now + i * 0.05);
+          chimeGain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+          
+          osc.connect(chimeGain);
+          chimeGain.connect(audioContext.destination);
+          osc.start(now + i * 0.05);
+          osc.stop(now + 0.5);
+        });
+        break;
+      }
+      case "bell": {
+        // Campainha: tom com vibrato
+        const osc = audioContext.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(800, now);
+        
+        const vibrato = audioContext.createOscillator();
+        vibrato.frequency.setValueAtTime(15, now);
+        const vibratoGain = audioContext.createGain();
+        vibratoGain.gain.setValueAtTime(30, now);
+        vibrato.connect(vibratoGain);
+        vibratoGain.connect(osc.frequency);
+        vibrato.start(now);
+        vibrato.stop(now + 0.4);
+        
+        const bellGain = audioContext.createGain();
+        bellGain.gain.setValueAtTime(volume, now);
+        bellGain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        
+        osc.connect(bellGain);
+        bellGain.connect(audioContext.destination);
+        osc.start(now);
+        osc.stop(now + 0.4);
+        break;
+      }
+      case "ding": {
+        // Ding: tom único claro
+        const osc = audioContext.createOscillator();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(1400, now);
+        osc.frequency.exponentialRampToValueAtTime(1000, now + 0.15);
+        
+        const dingGain = audioContext.createGain();
+        dingGain.gain.setValueAtTime(volume, now);
+        dingGain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        
+        osc.connect(dingGain);
+        dingGain.connect(audioContext.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+        break;
+      }
+      default: {
+        // Fallback: tom simples
+        const osc = audioContext.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(800, now);
+        osc.connect(gainNode);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      }
+    }
+
+    // Limpar contexto após o som
+    setTimeout(() => {
+      audioContext.close();
+    }, 1000);
+  } catch (error) {
+    console.error("Erro ao gerar som:", error);
+  }
+}
 
 export type SoundId = typeof NOTIFICATION_SOUNDS[number]["id"];
 
@@ -126,24 +244,7 @@ export function useChatSettings() {
 
   // Tocar som de prévia
   const playPreviewSound = useCallback((soundId: SoundId) => {
-    const sound = NOTIFICATION_SOUNDS.find((s) => s.id === soundId);
-    if (!sound) return;
-
-    try {
-      const audio = new Audio(sound.url);
-      audio.volume = 0.5;
-      audio.crossOrigin = "anonymous";
-      
-      audio.addEventListener('error', (e) => {
-        console.error("Erro ao carregar áudio:", sound.url, e);
-      });
-      
-      audio.play().catch((err) => {
-        console.error("Erro ao tocar som:", err.message, sound.url);
-      });
-    } catch (error) {
-      console.error("Erro ao criar Audio:", error);
-    }
+    playGeneratedSound(soundId, 0.5);
   }, []);
 
   return {
@@ -174,20 +275,25 @@ export function isChatSoundEnabled(): boolean {
   }
 }
 
-// Função utilitária para obter o som selecionado
-export function getSelectedSoundUrl(): string {
+// Função utilitária para obter o ID do som selecionado
+export function getSelectedSoundId(): SoundId {
   try {
     const stored = localStorage.getItem(CHAT_SETTINGS_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      const soundId = parsed.selectedSound || "default";
-      const sound = NOTIFICATION_SOUNDS.find((s) => s.id === soundId);
-      return sound?.url || NOTIFICATION_SOUNDS[0].url;
+      return parsed.selectedSound || "default";
     }
-    return NOTIFICATION_SOUNDS[0].url;
+    return "default";
   } catch {
-    return NOTIFICATION_SOUNDS[0].url;
+    return "default";
   }
+}
+
+// Função para tocar o som de notificação (exportada para uso em outros hooks)
+export function playChatNotificationSound(): void {
+  if (!isChatSoundEnabled()) return;
+  const soundId = getSelectedSoundId();
+  playGeneratedSound(soundId, 0.5);
 }
 
 // Função utilitária para verificar se push está ativado
