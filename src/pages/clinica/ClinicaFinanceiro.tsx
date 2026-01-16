@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { format, subDays, parseISO, startOfMonth, endOfMonth, isWithinInterval, isToday, isBefore, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -7,6 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,8 @@ import {
   Download,
   FileSpreadsheet,
   Banknote,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -191,6 +194,7 @@ export default function ClinicaFinanceiro() {
   const [origemFilter, setOrigemFilter] = useState("todos");
   const [localFilter, setLocalFilter] = useState("todos");
   const [searchPaciente, setSearchPaciente] = useState("");
+  const [medicoComboboxOpen, setMedicoComboboxOpen] = useState(false);
   
   // Filtros customizados para aba Origem
   const [origemDateStart, setOrigemDateStart] = useState<Date | undefined>(subDays(new Date(), 30));
@@ -2342,17 +2346,64 @@ export default function ClinicaFinanceiro() {
                     <Users className="h-4 w-4" />
                     Médico
                   </Label>
-                  <Select value={medicoFilter} onValueChange={setMedicoFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos os médicos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todos os médicos</SelectItem>
-                      {medicos.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>Dr(a). {m.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={medicoComboboxOpen} onOpenChange={setMedicoComboboxOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={medicoComboboxOpen}
+                        className="w-full justify-between font-normal"
+                      >
+                        {medicoFilter === "todos" 
+                          ? "Todos os médicos" 
+                          : `Dr(a). ${medicos.find(m => m.id === medicoFilter)?.nome || ""}`}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Pesquisar médico..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum médico encontrado.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value="todos"
+                              onSelect={() => {
+                                setMedicoFilter("todos");
+                                setMedicoComboboxOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  medicoFilter === "todos" ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              Todos os médicos
+                            </CommandItem>
+                            {medicos.map((m) => (
+                              <CommandItem
+                                key={m.id}
+                                value={m.nome}
+                                onSelect={() => {
+                                  setMedicoFilter(m.id);
+                                  setMedicoComboboxOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    medicoFilter === m.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                Dr(a). {m.nome}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div className="space-y-2">
