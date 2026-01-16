@@ -200,7 +200,37 @@ export default function AdminClinicas() {
 
   const deleteClinica = useMutation({
     mutationFn: async (id: string) => {
-      // Delete related records first
+      // Get locais for this clinic to delete agenda_slots
+      const { data: locaisClinica } = await supabase
+        .from("locais_atendimento")
+        .select("id")
+        .eq("clinica_id", id);
+      
+      const locaisIds = locaisClinica?.map(l => l.id) || [];
+      
+      // Delete agenda_slots for these locais
+      if (locaisIds.length > 0) {
+        await supabase.from("agenda_slots").delete().in("local_id", locaisIds);
+      }
+
+      // Delete related records in order (respecting foreign keys)
+      await supabase.from("consultas").delete().eq("clinica_id", id);
+      await supabase.from("crm_leads").delete().eq("clinica_id", id);
+      await supabase.from("crm_etapas").delete().in("funil_id", 
+        (await supabase.from("crm_funis").select("id").eq("clinica_id", id)).data?.map(f => f.id) || []
+      );
+      await supabase.from("crm_funis").delete().eq("clinica_id", id);
+      await supabase.from("caixa_movimentos").delete().eq("clinica_id", id);
+      await supabase.from("caixa_operacoes").delete().eq("clinica_id", id);
+      await supabase.from("contas_pagar").delete().eq("clinica_id", id);
+      await supabase.from("contas_receber").delete().eq("clinica_id", id);
+      await supabase.from("convenios").delete().eq("clinica_id", id);
+      await supabase.from("centros_custo").delete().eq("clinica_id", id);
+      await supabase.from("metas_financeiras").delete().eq("clinica_id", id);
+      await supabase.from("clinica_notificacoes").delete().eq("clinica_id", id);
+      await supabase.from("chat_conversas").delete().eq("clinica_id", id);
+      await supabase.from("lista_espera").delete().eq("clinica_id", id);
+      await supabase.from("medico_repasse_config").delete().eq("clinica_id", id);
       await supabase.from("clinicas_medicos").delete().eq("clinica_id", id);
       await supabase.from("usuarios_clinica").delete().eq("clinica_id", id);
       await supabase.from("locais_atendimento").delete().eq("clinica_id", id);
