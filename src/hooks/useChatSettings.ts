@@ -7,32 +7,32 @@ export const NOTIFICATION_SOUNDS = [
   {
     id: "default",
     name: "Padrão",
-    url: "https://cdn.freesound.org/previews/536/536420_4921277-lq.mp3",
+    url: "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3",
   },
   {
     id: "soft",
     name: "Suave",
-    url: "https://cdn.freesound.org/previews/320/320655_5260872-lq.mp3",
+    url: "https://notificationsounds.com/storage/sounds/file-sounds-1151-when.mp3",
   },
   {
     id: "pop",
     name: "Pop",
-    url: "https://cdn.freesound.org/previews/256/256113_3263906-lq.mp3",
+    url: "https://notificationsounds.com/storage/sounds/file-sounds-1152-piece-of-cake.mp3",
   },
   {
     id: "chime",
     name: "Sino",
-    url: "https://cdn.freesound.org/previews/411/411089_5121236-lq.mp3",
+    url: "https://notificationsounds.com/storage/sounds/file-sounds-1085-to-the-point.mp3",
   },
   {
     id: "bell",
     name: "Campainha",
-    url: "https://cdn.freesound.org/previews/352/352661_2108246-lq.mp3",
+    url: "https://notificationsounds.com/storage/sounds/file-sounds-1149-clearly.mp3",
   },
   {
     id: "ding",
     name: "Ding",
-    url: "https://cdn.freesound.org/previews/254/254316_3615652-lq.mp3",
+    url: "https://notificationsounds.com/storage/sounds/file-sounds-1154-definite.mp3",
   },
 ] as const;
 
@@ -132,11 +132,17 @@ export function useChatSettings() {
     try {
       const audio = new Audio(sound.url);
       audio.volume = 0.5;
-      audio.play().catch(() => {
-        console.log("Não foi possível tocar o som de prévia");
+      audio.crossOrigin = "anonymous";
+      
+      audio.addEventListener('error', (e) => {
+        console.error("Erro ao carregar áudio:", sound.url, e);
+      });
+      
+      audio.play().catch((err) => {
+        console.error("Erro ao tocar som:", err.message, sound.url);
       });
     } catch (error) {
-      console.log("Erro ao tocar som:", error);
+      console.error("Erro ao criar Audio:", error);
     }
   }, []);
 
