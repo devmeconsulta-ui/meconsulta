@@ -171,7 +171,10 @@ export default function ClinicaConfiguracoes() {
                   variant="default"
                   size="sm"
                   className="gap-2"
-                  onClick={() => playPreviewSound(chatSettings.selectedSound as SoundId)}
+                  onClick={() => {
+                    playPreviewSound(chatSettings.selectedSound as SoundId);
+                    toast.success("Som de teste reproduzido! 🔊", { duration: 2000 });
+                  }}
                 >
                   <Play className="h-4 w-4" />
                   Testar Som Atual
