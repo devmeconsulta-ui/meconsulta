@@ -163,56 +163,72 @@ export default function ClinicaConfiguracoes() {
           </div>
 
           {chatSettings.soundEnabled && (
-            <Collapsible className="space-y-3 pl-0 border-l-2 border-primary/20 ml-0 sm:pl-4 sm:ml-4">
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 p-0 h-auto hover:bg-transparent">
-                  <Volume2 className="h-4 w-4 text-muted-foreground" />
-                  <p className="font-medium text-sm">Escolha o Som</p>
-                  <span className="text-xs text-muted-foreground">
-                    ({NOTIFICATION_SOUNDS.find(s => s.id === chatSettings.selectedSound)?.name || "Padrão"})
-                  </span>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+            <div className="space-y-4 pl-0 border-l-2 border-primary/20 ml-0 sm:pl-4 sm:ml-4">
+              {/* Botão de teste de som destacado */}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => playPreviewSound(chatSettings.selectedSound as SoundId)}
+                >
+                  <Play className="h-4 w-4" />
+                  Testar Som Atual
                 </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {NOTIFICATION_SOUNDS.map((sound) => (
-                    <div
-                      key={sound.id}
-                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
-                        chatSettings.selectedSound === sound.id
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/50 hover:bg-muted/50"
-                      }`}
-                      onClick={() => saveChatSettings({ selectedSound: sound.id as SoundId })}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`w-3 h-3 rounded-full border-2 ${
-                            chatSettings.selectedSound === sound.id
-                              ? "border-primary bg-primary"
-                              : "border-muted-foreground"
-                          }`}
-                        />
-                        <span className="text-sm font-medium">{sound.name}</span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          playPreviewSound(sound.id as SoundId);
-                        }}
+                <span className="text-sm text-muted-foreground">
+                  Som selecionado: <strong>{NOTIFICATION_SOUNDS.find(s => s.id === chatSettings.selectedSound)?.name || "Padrão"}</strong>
+                </span>
+              </div>
+
+              <Collapsible className="space-y-3">
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="flex items-center gap-2 p-0 h-auto hover:bg-transparent">
+                    <Volume2 className="h-4 w-4 text-muted-foreground" />
+                    <p className="font-medium text-sm">Escolha o Som</p>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {NOTIFICATION_SOUNDS.map((sound) => (
+                      <div
+                        key={sound.id}
+                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
+                          chatSettings.selectedSound === sound.id
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/50 hover:bg-muted/50"
+                        }`}
+                        onClick={() => saveChatSettings({ selectedSound: sound.id as SoundId })}
                       >
-                        <Play className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-3 h-3 rounded-full border-2 ${
+                              chatSettings.selectedSound === sound.id
+                                ? "border-primary bg-primary"
+                                : "border-muted-foreground"
+                            }`}
+                          />
+                          <span className="text-sm font-medium">{sound.name}</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            playPreviewSound(sound.id as SoundId);
+                          }}
+                        >
+                          <Play className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
           )}
 
           <div className="flex items-center justify-between pt-2 border-t">
