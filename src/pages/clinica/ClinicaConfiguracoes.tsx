@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, MessageCircle, Volume2, Play, ChevronDown } from "lucide-react";
+import { Loader2, MessageCircle, Volume2, Play, ChevronDown, Volume1, VolumeX } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useChatSettings, NOTIFICATION_SOUNDS, SoundId } from "@/hooks/useChatSettings";
+import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -164,6 +165,30 @@ export default function ClinicaConfiguracoes() {
 
           {chatSettings.soundEnabled && (
             <div className="space-y-4 pl-0 border-l-2 border-primary/20 ml-0 sm:pl-4 sm:ml-4">
+              {/* Controle de Volume */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  {chatSettings.volume === 0 ? (
+                    <VolumeX className="h-4 w-4 text-muted-foreground" />
+                  ) : chatSettings.volume < 0.5 ? (
+                    <Volume1 className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Volume2 className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <p className="font-medium text-sm">Volume: {Math.round(chatSettings.volume * 100)}%</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Slider
+                    value={[chatSettings.volume]}
+                    onValueChange={(values) => saveChatSettings({ volume: values[0] })}
+                    max={1}
+                    min={0}
+                    step={0.05}
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+
               {/* Botão de teste de som destacado */}
               <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
                 <Button

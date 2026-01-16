@@ -217,12 +217,14 @@ export interface ChatSettings {
   soundEnabled: boolean;
   pushEnabled: boolean;
   selectedSound: SoundId;
+  volume: number; // 0 a 1
 }
 
 const defaultSettings: ChatSettings = {
   soundEnabled: true,
   pushEnabled: false,
   selectedSound: "default",
+  volume: 0.5,
 };
 
 export function useChatSettings() {
@@ -300,9 +302,9 @@ export function useChatSettings() {
   }, [requestPushPermission, saveSettings]);
 
   // Tocar som de prévia
-  const playPreviewSound = useCallback((soundId: SoundId) => {
-    playGeneratedSound(soundId, 0.5);
-  }, []);
+  const playPreviewSound = useCallback((soundId: SoundId, customVolume?: number) => {
+    playGeneratedSound(soundId, customVolume ?? settings.volume);
+  }, [settings.volume]);
 
   return {
     settings,
@@ -346,6 +348,20 @@ export function getSelectedSoundId(): SoundId {
   }
 }
 
+// Função utilitária para obter o volume configurado
+export function getChatVolume(): number {
+  try {
+    const stored = localStorage.getItem(CHAT_SETTINGS_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return typeof parsed.volume === "number" ? parsed.volume : 0.5;
+    }
+    return 0.5;
+  } catch {
+    return 0.5;
+  }
+}
+
 // Função para tocar o som de notificação (exportada para uso em outros hooks)
 export function playChatNotificationSound(): void {
   console.log("[Chat Sound] playChatNotificationSound chamado");
@@ -354,8 +370,9 @@ export function playChatNotificationSound(): void {
   if (!enabled) return;
   
   const soundId = getSelectedSoundId();
-  console.log("[Chat Sound] Som selecionado:", soundId);
-  playGeneratedSound(soundId, 0.5);
+  const volume = getChatVolume();
+  console.log("[Chat Sound] Som selecionado:", soundId, "Volume:", volume);
+  playGeneratedSound(soundId, volume);
 }
 
 // Função utilitária para verificar se push está ativado
