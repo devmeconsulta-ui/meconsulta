@@ -1099,8 +1099,7 @@ export default function ClinicaFinanceiro() {
         formatCurrency={formatCurrency}
       />
 
-
-      {/* Tabs */}
+      {/* Tabs - movidas para logo abaixo do header */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full max-w-4xl grid-cols-3 sm:grid-cols-6">
           <TabsTrigger value="visao-geral" className="gap-1 text-xs sm:text-sm">
@@ -1131,49 +1130,7 @@ export default function ClinicaFinanceiro() {
 
         {/* Tab: Visão Geral */}
         <TabsContent value="visao-geral" className="mt-6 space-y-6">
-          {/* Consultas Pendentes de Sincronização com Caixa */}
-          <ConsultasPendentesCaixa
-            consultas={caixa.consultasPendentes}
-            formatCurrency={formatCurrency}
-            onSincronizar={caixa.sincronizarConsulta}
-            onSincronizarTodas={caixa.sincronizarTodas}
-            onRefresh={caixa.refetch}
-            caixaAberto={caixa.caixaAberto}
-          />
-
-          {/* Layout em grid: Caixa + Metas + Vencimentos */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Controle de Caixa */}
-            <CaixaWidget
-              caixaAberto={caixa.caixaAberto}
-              saldoAbertura={caixa.saldoAbertura}
-              saldoAtual={caixa.saldoAtual}
-              movimentos={caixa.movimentos}
-              formatCurrency={formatCurrency}
-              onAbrirCaixa={caixa.abrirCaixa}
-              onFecharCaixa={caixa.fecharCaixa}
-              onRegistrarMovimento={caixa.registrarMovimento}
-              nomeClinica={clinicaData?.nome_fantasia || "Clínica"}
-            />
-
-            {/* Metas Financeiras */}
-            <MetasFinanceirasWidget
-              clinicaId={clinicaData?.id}
-              faturamentoAtual={metrics.pago}
-              consultasAtual={filteredConsultas.filter(c => c.status_pagamento === "pago").length}
-              novosPacientesAtual={0}
-              ticketMedioAtual={metrics.pagos > 0 ? metrics.pago / metrics.pagos : 0}
-              formatCurrency={formatCurrency}
-            />
-
-            {/* Timeline de Vencimentos */}
-            <VencimentosTimeline
-              vencimentos={vencimentosTimeline}
-              formatCurrency={formatCurrency}
-            />
-          </div>
-
-          {/* Filtros abaixo do caixa */}
+          {/* Filtros no topo da aba */}
           <Card>
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -1251,6 +1208,50 @@ export default function ClinicaFinanceiro() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Consultas Pendentes de Sincronização com Caixa */}
+          {/* Consultas Pendentes de Sincronização com Caixa */}
+          <ConsultasPendentesCaixa
+            consultas={caixa.consultasPendentes}
+            formatCurrency={formatCurrency}
+            onSincronizar={caixa.sincronizarConsulta}
+            onSincronizarTodas={caixa.sincronizarTodas}
+            onRefresh={caixa.refetch}
+            caixaAberto={caixa.caixaAberto}
+          />
+
+          {/* Layout em grid: Caixa + Metas + Vencimentos */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Controle de Caixa */}
+            <CaixaWidget
+              caixaAberto={caixa.caixaAberto}
+              saldoAbertura={caixa.saldoAbertura}
+              saldoAtual={caixa.saldoAtual}
+              movimentos={caixa.movimentos}
+              formatCurrency={formatCurrency}
+              onAbrirCaixa={caixa.abrirCaixa}
+              onFecharCaixa={caixa.fecharCaixa}
+              onRegistrarMovimento={caixa.registrarMovimento}
+              nomeClinica={clinicaData?.nome_fantasia || "Clínica"}
+            />
+
+            {/* Metas Financeiras */}
+            <MetasFinanceirasWidget
+              clinicaId={clinicaData?.id}
+              faturamentoAtual={metrics.pago}
+              consultasAtual={filteredConsultas.filter(c => c.status_pagamento === "pago").length}
+              novosPacientesAtual={0}
+              ticketMedioAtual={metrics.pagos > 0 ? metrics.pago / metrics.pagos : 0}
+              formatCurrency={formatCurrency}
+            />
+
+            {/* Timeline de Vencimentos */}
+            <VencimentosTimeline
+              vencimentos={vencimentosTimeline}
+              formatCurrency={formatCurrency}
+            />
+          </div>
+
 
           {/* Gráficos lado a lado */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
