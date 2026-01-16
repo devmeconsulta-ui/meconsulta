@@ -110,10 +110,12 @@ export function useCrmClinica(clinicaId: string | null) {
     enabled: !!clinicaId,
   });
 
-  // Auto-selecionar primeiro funil
+  // Auto-selecionar primeiro funil ou limpar se não houver funis
   useEffect(() => {
-    if (funis.length > 0 && !funilSelecionado) {
+    if (funis.length > 0 && (!funilSelecionado || !funis.find(f => f.id === funilSelecionado))) {
       setFunilSelecionado(funis[0].id);
+    } else if (funis.length === 0) {
+      setFunilSelecionado(null);
     }
   }, [funis, funilSelecionado]);
 
@@ -230,10 +232,17 @@ export function useCrmClinica(clinicaId: string | null) {
         .update({ ativo: false })
         .eq("id", id);
       if (error) throw error;
+      return id;
     },
-    onSuccess: () => {
+    onSuccess: (deletedId) => {
+      // Limpar funil selecionado primeiro
+      if (funilSelecionado === deletedId) {
+        setFunilSelecionado(null);
+      }
+      // Invalidar todas as queries relacionadas
       queryClient.invalidateQueries({ queryKey: ["crm-funis", clinicaId] });
-      setFunilSelecionado(null);
+      queryClient.invalidateQueries({ queryKey: ["crm-etapas"] });
+      queryClient.invalidateQueries({ queryKey: ["crm-leads"] });
       toast.success("Funil excluído!");
     },
     onError: () => toast.error("Erro ao excluir funil"),
