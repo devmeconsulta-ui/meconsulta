@@ -939,18 +939,25 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
     if (!clinicaId) return;
 
     console.log("[Chat Realtime] Configurando subscription para clinica:", clinicaId);
+    console.log("[Chat Realtime] currentUser:", currentUser);
+
+    const channelName = `chat_mensagens_clinica_${clinicaId}_${Date.now()}`;
+    console.log("[Chat Realtime] Canal:", channelName);
 
     const channel = supabase
-      .channel(`chat_mensagens_clinica_${clinicaId}_${Date.now()}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*", // Escutar todos os eventos para debug
           schema: "public",
           table: "chat_mensagens",
         },
         async (payload) => {
-          console.log("[Chat Realtime] INSERT recebido:", payload.new);
+          console.log("[Chat Realtime] Evento recebido:", payload.eventType, payload.new);
+          
+          // Só processar INSERTs
+          if (payload.eventType !== "INSERT") return;
           // Verificar se a mensagem é de uma conversa da clínica
           const { data: conversa } = await supabase
             .from("chat_conversas")
