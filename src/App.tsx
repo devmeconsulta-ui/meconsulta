@@ -69,6 +69,7 @@ import ClinicaAvaliacoes from "./pages/clinica/ClinicaAvaliacoes";
 import ClinicaUsuarios from "./pages/clinica/ClinicaUsuarios";
 import ClinicaConfiguracoes from "./pages/clinica/ClinicaConfiguracoes";
 import ClinicaChat from "./pages/clinica/ClinicaChat";
+import ClinicaCRM from "./pages/clinica/ClinicaCRM";
 
 const queryClient = new QueryClient();
 
@@ -122,6 +123,7 @@ const App = () => (
             {/* Clinica routes */}
             <Route path="/clinica" element={<ClinicaLayout />}>
               <Route index element={<ClinicaDashboard />} />
+              <Route path="crm" element={<ClinicaCRM />} />
               <Route path="medicos" element={<ClinicaMedicos />} />
               <Route path="consultas" element={<ClinicaConsultas />} />
               <Route path="pacientes" element={<ClinicaPacientes />} />

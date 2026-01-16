@@ -1214,6 +1214,286 @@ export type Database = {
           },
         ]
       }
+      crm_etapas: {
+        Row: {
+          ativo: boolean | null
+          cor: string | null
+          created_at: string | null
+          descricao: string | null
+          funil_id: string
+          id: string
+          nome: string
+          ordem: number
+          pode_criar: boolean | null
+          pode_ganhar: boolean | null
+          probabilidade_ganho: number | null
+          tempo_estagnacao_dias: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          cor?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          funil_id: string
+          id?: string
+          nome: string
+          ordem?: number
+          pode_criar?: boolean | null
+          pode_ganhar?: boolean | null
+          probabilidade_ganho?: number | null
+          tempo_estagnacao_dias?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          cor?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          funil_id?: string
+          id?: string
+          nome?: string
+          ordem?: number
+          pode_criar?: boolean | null
+          pode_ganhar?: boolean | null
+          probabilidade_ganho?: number | null
+          tempo_estagnacao_dias?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_etapas_funil_id_fkey"
+            columns: ["funil_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_funis: {
+        Row: {
+          ativo: boolean | null
+          clinica_id: string
+          created_at: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          ordem: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          clinica_id: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          clinica_id?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_funis_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_leads: {
+        Row: {
+          clinica_id: string
+          consulta_id: string | null
+          created_at: string | null
+          data_ganho: string | null
+          data_perda: string | null
+          data_vencimento: string | null
+          email: string | null
+          etapa_id: string
+          funil_id: string
+          ganho: boolean | null
+          id: string
+          motivo_perda: string | null
+          nome: string
+          observacoes: string | null
+          ordem: number | null
+          origem: string | null
+          paciente_id: string | null
+          perdido: boolean | null
+          responsavel_id: string | null
+          tags: string[] | null
+          telefone: string | null
+          updated_at: string | null
+          valor_estimado: number | null
+        }
+        Insert: {
+          clinica_id: string
+          consulta_id?: string | null
+          created_at?: string | null
+          data_ganho?: string | null
+          data_perda?: string | null
+          data_vencimento?: string | null
+          email?: string | null
+          etapa_id: string
+          funil_id: string
+          ganho?: boolean | null
+          id?: string
+          motivo_perda?: string | null
+          nome: string
+          observacoes?: string | null
+          ordem?: number | null
+          origem?: string | null
+          paciente_id?: string | null
+          perdido?: boolean | null
+          responsavel_id?: string | null
+          tags?: string[] | null
+          telefone?: string | null
+          updated_at?: string | null
+          valor_estimado?: number | null
+        }
+        Update: {
+          clinica_id?: string
+          consulta_id?: string | null
+          created_at?: string | null
+          data_ganho?: string | null
+          data_perda?: string | null
+          data_vencimento?: string | null
+          email?: string | null
+          etapa_id?: string
+          funil_id?: string
+          ganho?: boolean | null
+          id?: string
+          motivo_perda?: string | null
+          nome?: string
+          observacoes?: string | null
+          ordem?: number | null
+          origem?: string | null
+          paciente_id?: string | null
+          perdido?: boolean | null
+          responsavel_id?: string | null
+          tags?: string[] | null
+          telefone?: string | null
+          updated_at?: string | null
+          valor_estimado?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_leads_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_leads_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_leads_etapa_id_fkey"
+            columns: ["etapa_id"]
+            isOneToOne: false
+            referencedRelation: "crm_etapas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_leads_funil_id_fkey"
+            columns: ["funil_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_leads_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_leads_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_leads_historico: {
+        Row: {
+          automatico: boolean | null
+          created_at: string | null
+          descricao: string | null
+          etapa_anterior_id: string | null
+          etapa_nova_id: string
+          id: string
+          lead_id: string
+          usuario_clinica_id: string | null
+        }
+        Insert: {
+          automatico?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          etapa_anterior_id?: string | null
+          etapa_nova_id: string
+          id?: string
+          lead_id: string
+          usuario_clinica_id?: string | null
+        }
+        Update: {
+          automatico?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          etapa_anterior_id?: string | null
+          etapa_nova_id?: string
+          id?: string
+          lead_id?: string
+          usuario_clinica_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_leads_historico_etapa_anterior_id_fkey"
+            columns: ["etapa_anterior_id"]
+            isOneToOne: false
+            referencedRelation: "crm_etapas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_leads_historico_etapa_nova_id_fkey"
+            columns: ["etapa_nova_id"]
+            isOneToOne: false
+            referencedRelation: "crm_etapas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_leads_historico_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_leads_historico_usuario_clinica_id_fkey"
+            columns: ["usuario_clinica_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       historico_medico_paciente: {
         Row: {
           ativo: boolean | null
