@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -21,15 +22,17 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   Plus,
   Settings,
   MoreVertical,
-  User,
   Calendar,
-  Phone,
   DollarSign,
-  TrendingUp,
-  FileDown,
+  ChevronLeft,
   ChevronRight,
   GripVertical,
   Target,
@@ -38,6 +41,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import CrmFunilModal from "@/components/clinica/crm/CrmFunilModal";
 import CrmEtapaModal from "@/components/clinica/crm/CrmEtapaModal";
 import CrmLeadModal from "@/components/clinica/crm/CrmLeadModal";
@@ -68,6 +72,10 @@ export default function ClinicaCRM() {
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [leadParaEditar, setLeadParaEditar] = useState<CrmLead | null>(null);
   const [etapaParaNovoLead, setEtapaParaNovoLead] = useState<string | null>(null);
+  
+  // Mobile state - etapa selecionada
+  const isMobile = useIsMobile();
+  const [etapaMobileIndex, setEtapaMobileIndex] = useState(0);
 
   // Drag and drop handler
   const handleDragEnd = (result: DropResult) => {
@@ -93,13 +101,18 @@ export default function ClinicaCRM() {
 
   const funilAtual = funis.find(f => f.id === funilSelecionado);
 
+  // Mobile navigation
+  const etapaMobile = etapas[etapaMobileIndex];
+  const goToPrevEtapa = () => setEtapaMobileIndex(i => Math.max(0, i - 1));
+  const goToNextEtapa = () => setEtapaMobileIndex(i => Math.min(etapas.length - 1, i + 1));
+
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-12 w-full" />
-        <div className="flex gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-[600px] w-80 flex-shrink-0" />
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+        <Skeleton className="h-10 md:h-12 w-full" />
+        <div className="flex gap-4 overflow-hidden">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-[400px] md:h-[600px] w-full md:w-80 flex-shrink-0" />
           ))}
         </div>
       </div>
@@ -107,18 +120,19 @@ export default function ClinicaCRM() {
   }
 
   return (
-    <div className="p-6 h-full flex flex-col">
+    <div className="p-3 md:p-6 h-full flex flex-col">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-foreground">CRM</h1>
+      <div className="flex flex-col gap-3 mb-4 md:mb-6">
+        {/* Title + Funnel Select + Config */}
+        <div className="flex items-center gap-2 md:gap-4">
+          <h1 className="text-lg md:text-2xl font-bold text-foreground">CRM</h1>
           
           <Select
             value={funilSelecionado || ""}
             onValueChange={setFunilSelecionado}
           >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Selecione um funil" />
+            <SelectTrigger className="flex-1 md:w-[200px] md:flex-none h-9 text-sm">
+              <SelectValue placeholder="Selecione funil" />
             </SelectTrigger>
             <SelectContent>
               {funis.map(funil => (
@@ -131,11 +145,11 @@ export default function ClinicaCRM() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" className="h-9 w-9">
                 <Settings className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
+            <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setFunilModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Funil
@@ -160,20 +174,19 @@ export default function ClinicaCRM() {
           </DropdownMenu>
         </div>
 
-        {/* Stats */}
+        {/* Stats - Compact on mobile */}
         {funilSelecionado && (
-          <div className="flex items-center gap-6 text-sm">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" />
+          <div className="flex items-center gap-4 text-xs md:text-sm">
+            <div className="flex items-center gap-1.5">
+              <Target className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary" />
               <span className="font-semibold">{estatisticas.totalLeads}</span>
-              <span className="text-muted-foreground">leads</span>
+              <span className="text-muted-foreground hidden sm:inline">leads</span>
             </div>
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-green-500" />
+            <div className="flex items-center gap-1.5">
+              <DollarSign className="h-3.5 w-3.5 md:h-4 md:w-4 text-green-500" />
               <span className="font-semibold">
-                R$ {estatisticas.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                R$ {estatisticas.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
               </span>
-              <span className="text-muted-foreground">valor total</span>
             </div>
           </div>
         )}
@@ -181,18 +194,229 @@ export default function ClinicaCRM() {
 
       {/* Board */}
       {!funilSelecionado ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center">
-          <Users className="h-16 w-16 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Nenhum funil selecionado</h2>
-          <p className="text-muted-foreground mb-4">
-            Crie seu primeiro funil para começar a gerenciar seus leads
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+          <Users className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground mb-4" />
+          <h2 className="text-lg md:text-xl font-semibold mb-2">Nenhum funil selecionado</h2>
+          <p className="text-sm md:text-base text-muted-foreground mb-4">
+            Crie seu primeiro funil para começar
           </p>
-          <Button onClick={() => setFunilModalOpen(true)}>
+          <Button onClick={() => setFunilModalOpen(true)} size="sm">
             <Plus className="h-4 w-4 mr-2" />
             Criar Funil
           </Button>
         </div>
+      ) : isMobile ? (
+        /* ===== MOBILE VIEW: Single column with navigation ===== */
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Mobile Tabs Navigation */}
+            <ScrollArea className="w-full mb-3">
+              <div className="flex gap-1 pb-2">
+                {etapas.map((etapa, index) => (
+                  <Button
+                    key={etapa.id}
+                    variant={etapaMobileIndex === index ? "default" : "ghost"}
+                    size="sm"
+                    className="flex-shrink-0 h-8 px-3 text-xs gap-1.5"
+                    onClick={() => setEtapaMobileIndex(index)}
+                    style={{
+                      borderBottom: etapaMobileIndex === index ? `2px solid ${etapa.cor}` : 'none'
+                    }}
+                  >
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: etapa.cor }}
+                    />
+                    {etapa.nome}
+                    <Badge variant="secondary" className="ml-1 text-[10px] h-4 px-1">
+                      {leadsPorEtapa[etapa.id]?.length || 0}
+                    </Badge>
+                  </Button>
+                ))}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-shrink-0 h-8 px-3 text-xs border-dashed border"
+                  onClick={() => setEtapaModalOpen(true)}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+
+            {/* Current Stage */}
+            {etapaMobile && (
+              <div className="flex-1 flex flex-col bg-muted/30 rounded-xl min-h-0">
+                {/* Stage Header */}
+                <div
+                  className="p-3 border-b flex items-center justify-between"
+                  style={{ borderTopColor: etapaMobile.cor, borderTopWidth: 3, borderTopLeftRadius: 12, borderTopRightRadius: 12 }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      disabled={etapaMobileIndex === 0}
+                      onClick={goToPrevEtapa}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: etapaMobile.cor }}
+                    />
+                    <h3 className="font-semibold text-sm">{etapaMobile.nome}</h3>
+                    <Badge variant="secondary">
+                      {leadsPorEtapa[etapaMobile.id]?.length || 0}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      disabled={etapaMobileIndex === etapas.length - 1}
+                      onClick={goToNextEtapa}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => {
+                          setEtapaParaEditar(etapaMobile);
+                          setEtapaModalOpen(true);
+                        }}>
+                          <Settings className="h-4 w-4 mr-2" />
+                          Configurar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    
+                    {etapaMobile.pode_criar && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => {
+                          setEtapaParaNovoLead(etapaMobile.id);
+                          setLeadModalOpen(true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Stage Stats */}
+                <div className="px-3 py-2 text-xs text-muted-foreground border-b">
+                  R$ {(estatisticas.leadsPorEtapa[etapaMobileIndex]?.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </div>
+
+                {/* Lead Cards */}
+                <Droppable droppableId={etapaMobile.id}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={cn(
+                        "flex-1 p-2 space-y-2 overflow-y-auto transition-colors",
+                        snapshot.isDraggingOver && "bg-primary/5"
+                      )}
+                    >
+                      {leadsPorEtapa[etapaMobile.id]?.map((lead, leadIndex) => (
+                        <Draggable
+                          key={lead.id}
+                          draggableId={lead.id}
+                          index={leadIndex}
+                        >
+                          {(provided, snapshot) => (
+                            <Card
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              className={cn(
+                                "p-3 cursor-pointer active:scale-[0.98] transition-all",
+                                snapshot.isDragging && "shadow-lg"
+                              )}
+                              onClick={() => {
+                                setLeadParaEditar(lead);
+                                setLeadModalOpen(true);
+                              }}
+                            >
+                              <div className="flex items-start gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between mb-1.5">
+                                    <div className="min-w-0 flex-1">
+                                      {lead.responsavel?.nome && (
+                                        <span className="text-[10px] text-muted-foreground">
+                                          {lead.responsavel.nome}
+                                        </span>
+                                      )}
+                                      <h4 className="font-medium text-sm truncate">
+                                        {lead.nome}
+                                      </h4>
+                                    </div>
+                                    
+                                    {lead.origem === "online" && (
+                                      <Badge variant="default" className="text-[9px] px-1 py-0 ml-2">
+                                        Online
+                                      </Badge>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-2">
+                                    {lead.data_vencimento ? (
+                                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                        <Calendar className="h-3 w-3" />
+                                        {format(new Date(lead.data_vencimento), "dd/MM", { locale: ptBR })}
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground">Sem vencimento</span>
+                                    )}
+                                    
+                                    <div className="flex items-center gap-1">
+                                      {lead.valor_estimado > 0 && (
+                                        <Badge variant="outline" className="text-[9px] h-4 px-1">
+                                          R$ {lead.valor_estimado.toLocaleString("pt-BR")}
+                                        </Badge>
+                                      )}
+                                      {lead.observacoes && (
+                                        <span className="text-[10px]">📝</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </Card>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                      
+                      {/* Empty state */}
+                      {(!leadsPorEtapa[etapaMobile.id] || leadsPorEtapa[etapaMobile.id].length === 0) && (
+                        <div className="text-center py-8 text-muted-foreground text-sm">
+                          Nenhum lead nesta etapa
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Droppable>
+              </div>
+            )}
+          </div>
+        </DragDropContext>
       ) : (
+        /* ===== DESKTOP VIEW: Multi-column Kanban ===== */
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="flex-1 overflow-x-auto">
             <div className="flex gap-4 h-full min-h-[600px] pb-4">
@@ -297,7 +521,6 @@ export default function ClinicaCRM() {
                                   </div>
                                   
                                   <div className="flex-1 min-w-0">
-                                    {/* Lead Info */}
                                     <div className="flex items-start justify-between mb-2">
                                       <div>
                                         {lead.responsavel?.nome && (
@@ -317,21 +540,17 @@ export default function ClinicaCRM() {
                                       )}
                                     </div>
 
-                                    {/* Vencimento */}
-                                    {lead.data_vencimento && (
+                                    {lead.data_vencimento ? (
                                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
                                         <Calendar className="h-3 w-3" />
                                         {format(new Date(lead.data_vencimento), "dd/MM/yyyy", { locale: ptBR })}
                                       </div>
-                                    )}
-                                    
-                                    {!lead.data_vencimento && (
+                                    ) : (
                                       <div className="text-xs text-muted-foreground mb-2">
                                         Sem vencimento
                                       </div>
                                     )}
 
-                                    {/* Tags and Value */}
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-1">
                                         {lead.valor_estimado > 0 && (
