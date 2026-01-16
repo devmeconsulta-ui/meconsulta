@@ -467,6 +467,32 @@ export default function MedicoChat() {
         onCriarGrupo={handleCriarGrupo}
         onCriarPrivada={handleCriarPrivada}
       />
+
+      {/* Modal de confirmação de exclusão */}
+      <AlertDialog open={confirmarExclusao} onOpenChange={setConfirmarExclusao}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir conversa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Todas as mensagens desta conversa serão permanentemente excluídas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (conversaAtual) {
+                  excluirConversa(conversaAtual.id);
+                }
+                setConfirmarExclusao(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
