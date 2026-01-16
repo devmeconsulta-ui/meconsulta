@@ -7,9 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, MessageCircle, Volume2, Play, ChevronDown, Volume1, VolumeX } from "lucide-react";
+import { Loader2, MessageCircle, Volume2, Play, ChevronDown, Volume1, VolumeX, Smartphone, Vibrate } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useChatSettings, NOTIFICATION_SOUNDS, SoundId } from "@/hooks/useChatSettings";
+import { useChatSettings, NOTIFICATION_SOUNDS, SoundId, isVibrationSupported } from "@/hooks/useChatSettings";
 import { Slider } from "@/components/ui/slider";
 import {
   Select,
@@ -258,6 +258,31 @@ export default function ClinicaConfiguracoes() {
               </Collapsible>
             </div>
           )}
+
+          {/* Vibração para dispositivos móveis */}
+          <div className="flex items-center justify-between pt-2 border-t">
+            <div>
+              <div className="flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-muted-foreground" />
+                <p className="font-medium">Vibração (Mobile)</p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Vibrar o dispositivo quando receber uma nova mensagem
+                {!isVibrationSupported() && (
+                  <span className="block text-amber-600 text-xs mt-1">
+                    Seu dispositivo não suporta vibração.
+                  </span>
+                )}
+              </p>
+            </div>
+            <Switch
+              checked={chatSettings.vibrationEnabled}
+              disabled={!isVibrationSupported()}
+              onCheckedChange={(checked) =>
+                saveChatSettings({ vibrationEnabled: checked })
+              }
+            />
+          </div>
 
           <div className="flex items-center justify-between pt-2 border-t">
             <div>
