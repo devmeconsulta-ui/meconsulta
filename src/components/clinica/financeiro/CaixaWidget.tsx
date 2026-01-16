@@ -16,7 +16,12 @@ import {
   CreditCard,
   Banknote,
   QrCode,
-  Printer
+  Printer,
+  History,
+  Calculator,
+  AlertTriangle,
+  CheckCircle2,
+  Eye
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,6 +47,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { FechamentoCaixa } from "@/hooks/useHistoricoCaixa";
 
 interface MovimentoCaixa {
   id: string;
@@ -62,6 +68,8 @@ interface CaixaWidgetProps {
   onFecharCaixa: (observacoes: string) => Promise<{ data: any; error: any } | undefined>;
   onRegistrarMovimento: (movimento: Omit<MovimentoCaixa, "id" | "hora">) => Promise<{ data: any; error: any } | undefined>;
   nomeClinica?: string;
+  historico?: FechamentoCaixa[];
+  historicoLoading?: boolean;
 }
 
 export function CaixaWidget({
@@ -74,10 +82,14 @@ export function CaixaWidget({
   onFecharCaixa,
   onRegistrarMovimento,
   nomeClinica = "Clínica",
+  historico = [],
+  historicoLoading = false,
 }: CaixaWidgetProps) {
   const [showAbrirModal, setShowAbrirModal] = useState(false);
   const [showFecharModal, setShowFecharModal] = useState(false);
   const [showMovimentoModal, setShowMovimentoModal] = useState(false);
+  const [showHistoricoModal, setShowHistoricoModal] = useState(false);
+  const [showDetalhesFechamento, setShowDetalhesFechamento] = useState<FechamentoCaixa | null>(null);
   const [tipoMovimento, setTipoMovimento] = useState<"entrada" | "saida" | "sangria" | "reforco">("entrada");
   
   const [saldoInicial, setSaldoInicial] = useState("");
@@ -85,6 +97,10 @@ export function CaixaWidget({
   const [descricaoMovimento, setDescricaoMovimento] = useState("");
   const [formaPagamento, setFormaPagamento] = useState("dinheiro");
   const [observacoesFechamento, setObservacoesFechamento] = useState("");
+  
+  // Estado para conferência de caixa
+  const [saldoContado, setSaldoContado] = useState("");
+  const [mostrarConferencia, setMostrarConferencia] = useState(false);
 
   // Função para gerar PDF do resumo do caixa
   const gerarPDFResumoCaixa = () => {
@@ -229,6 +245,142 @@ export function CaixaWidget({
 
     // Salvar PDF
     doc.save(`fechamento-caixa-${format(new Date(), "yyyy-MM-dd-HHmm")}.pdf`);
+    toast.success("PDF gerado com sucesso!");
+  };
+
+  // Função para gerar PDF de um fechamento do histórico
+  const gerarPDFHistorico = (fechamento: FechamentoCaixa) => {
+    const doc = new jsPDF();
+    
+    // Cabeçalho
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("RESUMO DE FECHAMENTO DE CAIXA", 105, 20, { align: "center" });
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text(nomeClinica, 105, 30, { align: "center" });
+    doc.text(`Data: ${fechamento.data} - Horário: ${fechamento.horaAbertura} às ${fechamento.horaFechamento}`, 105, 38, { align: "center" });
+    
+    // Linha separadora
+    doc.setDrawColor(200);
+    doc.line(20, 45, 190, 45);
+
+    // Resumo Financeiro
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Resumo Financeiro", 20, 55);
+    
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    let y = 65;
+    
+    doc.text(`Saldo de Abertura:`, 20, y);
+    doc.text(formatCurrency(fechamento.saldoInicial), 120, y, { align: "right" });
+    y += 8;
+    
+    doc.setTextColor(34, 197, 94);
+    doc.text(`Total de Entradas:`, 20, y);
+    doc.text(`+ ${formatCurrency(fechamento.totalEntradas)}`, 120, y, { align: "right" });
+    y += 8;
+    
+    doc.setTextColor(239, 68, 68);
+    doc.text(`Total de Saídas:`, 20, y);
+    doc.text(`- ${formatCurrency(fechamento.totalSaidas)}`, 120, y, { align: "right" });
+    y += 8;
+    
+    doc.setTextColor(0);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Saldo Final:`, 20, y);
+    doc.text(formatCurrency(fechamento.saldoFinal), 120, y, { align: "right" });
+    y += 15;
+
+    // Linha separadora
+    doc.setDrawColor(200);
+    doc.line(20, y, 190, y);
+    y += 10;
+
+    // Movimentações
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Movimentações do Dia (${fechamento.movimentos.length})`, 20, y);
+    y += 10;
+
+    if (fechamento.movimentos.length > 0) {
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("Hora", 20, y);
+      doc.text("Tipo", 45, y);
+      doc.text("Descrição", 80, y);
+      doc.text("Valor", 170, y, { align: "right" });
+      y += 6;
+      
+      doc.setDrawColor(200);
+      doc.line(20, y, 190, y);
+      y += 5;
+
+      doc.setFont("helvetica", "normal");
+      fechamento.movimentos.forEach((mov) => {
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+        
+        const tipoLabel = {
+          entrada: "Entrada",
+          saida: "Saída",
+          sangria: "Sangria",
+          reforco: "Reforço",
+        }[mov.tipo] || mov.tipo;
+        
+        const isPositivo = mov.tipo === "entrada" || mov.tipo === "reforco";
+        
+        doc.text(mov.hora, 20, y);
+        doc.text(tipoLabel, 45, y);
+        doc.text(mov.descricao.substring(0, 35), 80, y);
+        
+        if (isPositivo) {
+          doc.setTextColor(34, 197, 94);
+          doc.text(`+ ${formatCurrency(mov.valor)}`, 170, y, { align: "right" });
+        } else {
+          doc.setTextColor(239, 68, 68);
+          doc.text(`- ${formatCurrency(mov.valor)}`, 170, y, { align: "right" });
+        }
+        doc.setTextColor(0);
+        y += 7;
+      });
+    } else {
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "italic");
+      doc.text("Nenhuma movimentação registrada", 20, y);
+    }
+
+    // Observações
+    if (fechamento.observacoes) {
+      y += 15;
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Observações:", 20, y);
+      y += 8;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const obsLines = doc.splitTextToSize(fechamento.observacoes, 170);
+      doc.text(obsLines, 20, y);
+    }
+
+    // Rodapé
+    const pageCount = doc.internal.pages.length - 1;
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(128);
+      doc.text(`Página ${i} de ${pageCount}`, 105, 290, { align: "center" });
+      doc.text("Reimpresso pelo sistema", 105, 295, { align: "center" });
+    }
+
+    // Salvar PDF
+    doc.save(`fechamento-caixa-${fechamento.data.replace(/\//g, "-")}.pdf`);
     toast.success("PDF gerado com sucesso!");
   };
 
@@ -388,15 +540,28 @@ export function CaixaWidget({
                   <Lock className="w-8 h-8 text-muted-foreground" />
                 </motion.div>
                 <p className="text-muted-foreground mb-4">Caixa fechado</p>
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Button onClick={() => setShowAbrirModal(true)} className="gap-2">
-                    <Unlock className="w-4 h-4" />
-                    Abrir Caixa
-                  </Button>
-                </motion.div>
+                <div className="flex gap-2 justify-center">
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Button onClick={() => setShowAbrirModal(true)} className="gap-2">
+                      <Unlock className="w-4 h-4" />
+                      Abrir Caixa
+                    </Button>
+                  </motion.div>
+                  {historico.length > 0 && (
+                    <motion.div
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Button variant="outline" onClick={() => setShowHistoricoModal(true)} className="gap-2">
+                        <History className="w-4 h-4" />
+                        Histórico
+                      </Button>
+                    </motion.div>
+                  )}
+                </div>
               </motion.div>
             ) : (
               <motion.div
@@ -613,7 +778,7 @@ export function CaixaWidget({
                   <p className="text-xl font-bold text-foreground">{formatCurrency(saldoAbertura)}</p>
                 </div>
                 <div className="p-4 text-center bg-blue-50 dark:bg-blue-900/30">
-                  <p className="text-xs font-medium mb-1 text-blue-600 dark:text-blue-400">Saldo Final</p>
+                  <p className="text-xs font-medium mb-1 text-blue-600 dark:text-blue-400">Saldo Esperado</p>
                   <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(saldoAtual)}</p>
                 </div>
               </div>
@@ -630,6 +795,72 @@ export function CaixaWidget({
                 </div>
               </div>
             </div>
+
+            {/* Conferência de Caixa */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <Calculator className="w-4 h-4" />
+                  Conferência de Caixa
+                </Label>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setMostrarConferencia(!mostrarConferencia)}
+                  className="h-7 text-xs"
+                >
+                  {mostrarConferencia ? "Ocultar" : "Conferir"}
+                </Button>
+              </div>
+              
+              {mostrarConferencia && (
+                <div className="space-y-3 p-3 rounded-lg border bg-muted/30">
+                  <div>
+                    <Label className="text-xs">Valor contado no caixa (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0,00"
+                      value={saldoContado}
+                      onChange={(e) => setSaldoContado(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  
+                  {saldoContado && (
+                    <div className={cn(
+                      "p-3 rounded-lg flex items-center gap-3",
+                      parseFloat(saldoContado) === saldoAtual 
+                        ? "bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800" 
+                        : "bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800"
+                    )}>
+                      {parseFloat(saldoContado) === saldoAtual ? (
+                        <>
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                          <div>
+                            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Caixa conferido</p>
+                            <p className="text-xs text-emerald-600 dark:text-emerald-400">Valores batem perfeitamente</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Diferença encontrada</p>
+                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                              {parseFloat(saldoContado) > saldoAtual 
+                                ? `Sobra de ${formatCurrency(parseFloat(saldoContado) - saldoAtual)}`
+                                : `Falta de ${formatCurrency(saldoAtual - parseFloat(saldoContado))}`
+                              }
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             
             {/* Observações */}
             <div className="space-y-2">
@@ -638,7 +869,7 @@ export function CaixaWidget({
                 placeholder="Observações sobre o fechamento..."
                 value={observacoesFechamento}
                 onChange={(e) => setObservacoesFechamento(e.target.value)}
-                rows={3}
+                rows={2}
               />
             </div>
 
@@ -752,6 +983,179 @@ export function CaixaWidget({
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowMovimentoModal(false)}>Cancelar</Button>
             <Button onClick={handleRegistrarMovimento}>Registrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Histórico de Fechamentos */}
+      <Dialog open={showHistoricoModal} onOpenChange={setShowHistoricoModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5 text-primary" />
+              Histórico de Fechamentos
+            </DialogTitle>
+            <DialogDescription>
+              Últimos 30 dias de operações de caixa
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="max-h-[400px]">
+            {historicoLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Carregando histórico...
+              </div>
+            ) : historico.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum fechamento registrado
+              </div>
+            ) : (
+              <div className="space-y-3 pr-4">
+                {historico.map((fechamento) => (
+                  <div 
+                    key={fechamento.id}
+                    className="p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono">
+                          {fechamento.data}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {fechamento.horaAbertura} - {fechamento.horaFechamento}
+                        </span>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-7 gap-1"
+                        onClick={() => setShowDetalhesFechamento(fechamento)}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Ver
+                      </Button>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Abertura</p>
+                        <p className="font-medium">{formatCurrency(fechamento.saldoInicial)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-emerald-600">Entradas</p>
+                        <p className="font-medium text-emerald-600">+{formatCurrency(fechamento.totalEntradas)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-red-600">Saídas</p>
+                        <p className="font-medium text-red-600">-{formatCurrency(fechamento.totalSaidas)}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-2 pt-2 border-t flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Saldo Final</span>
+                      <span className="font-bold text-primary">{formatCurrency(fechamento.saldoFinal)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowHistoricoModal(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Detalhes do Fechamento */}
+      <Dialog open={!!showDetalhesFechamento} onOpenChange={() => setShowDetalhesFechamento(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-primary" />
+              Detalhes do Fechamento
+            </DialogTitle>
+            <DialogDescription>
+              {showDetalhesFechamento?.data} ({showDetalhesFechamento?.horaAbertura} - {showDetalhesFechamento?.horaFechamento})
+            </DialogDescription>
+          </DialogHeader>
+          
+          {showDetalhesFechamento && (
+            <div className="space-y-4">
+              {/* Resumo */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-muted/50 text-center">
+                  <p className="text-xs text-muted-foreground">Abertura</p>
+                  <p className="font-bold">{formatCurrency(showDetalhesFechamento.saldoInicial)}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-center">
+                  <p className="text-xs text-blue-600 dark:text-blue-400">Fechamento</p>
+                  <p className="font-bold text-blue-600 dark:text-blue-400">{formatCurrency(showDetalhesFechamento.saldoFinal)}</p>
+                </div>
+              </div>
+              
+              {/* Movimentações */}
+              <div>
+                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Movimentações ({showDetalhesFechamento.movimentos.length})
+                </h4>
+                <ScrollArea className="max-h-[200px]">
+                  {showDetalhesFechamento.movimentos.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Nenhuma movimentação
+                    </p>
+                  ) : (
+                    <div className="space-y-2 pr-4">
+                      {showDetalhesFechamento.movimentos.map((mov) => (
+                        <div key={mov.id} className="flex items-center justify-between p-2 rounded bg-muted/30 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground font-mono">{mov.hora}</span>
+                            <span className="truncate max-w-[180px]">{mov.descricao}</span>
+                          </div>
+                          <span className={cn(
+                            "font-medium",
+                            mov.tipo === "entrada" || mov.tipo === "reforco" 
+                              ? "text-emerald-600" 
+                              : "text-red-600"
+                          )}>
+                            {mov.tipo === "entrada" || mov.tipo === "reforco" ? "+" : "-"}
+                            {formatCurrency(mov.valor)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+              
+              {/* Observações */}
+              {showDetalhesFechamento.observacoes && (
+                <div className="p-3 rounded-lg bg-muted/30 border">
+                  <p className="text-xs text-muted-foreground mb-1">Observações</p>
+                  <p className="text-sm">{showDetalhesFechamento.observacoes}</p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setShowDetalhesFechamento(null)}>
+              Fechar
+            </Button>
+            <Button 
+              className="gap-2"
+              onClick={() => {
+                if (showDetalhesFechamento) {
+                  gerarPDFHistorico(showDetalhesFechamento);
+                }
+              }}
+            >
+              <Printer className="w-4 h-4" />
+              Reimprimir PDF
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
