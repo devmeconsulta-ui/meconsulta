@@ -92,6 +92,7 @@ import { FaturamentoChart } from "@/components/clinica/financeiro/FaturamentoCha
 import { FluxoCaixaChart } from "@/components/clinica/financeiro/FluxoCaixaChart";
 import { MetasFinanceirasWidget } from "@/components/clinica/financeiro/MetasFinanceirasWidget";
 import { useCaixaClinica } from "@/hooks/useCaixaClinica";
+import { useHistoricoCaixa } from "@/hooks/useHistoricoCaixa";
 
 interface ClinicaContext {
   clinicaData: any;
@@ -231,6 +232,9 @@ export default function ClinicaFinanceiro() {
     percentual_repasse: "70",
     valor_fixo_repasse: "",
   });
+
+  // Hook para histórico de caixa
+  const historicoData = useHistoricoCaixa(clinicaData?.id);
 
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -1263,6 +1267,8 @@ export default function ClinicaFinanceiro() {
               onFecharCaixa={caixa.fecharCaixa}
               onRegistrarMovimento={caixa.registrarMovimento}
               nomeClinica={clinicaData?.nome_fantasia || "Clínica"}
+              historico={historicoData.historico}
+              historicoLoading={historicoData.loading}
             />
 
             {/* Metas Financeiras */}
