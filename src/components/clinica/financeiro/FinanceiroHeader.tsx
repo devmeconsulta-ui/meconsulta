@@ -135,65 +135,64 @@ export function FinanceiroHeader({
         </div>
       </div>
 
-      {/* Cards de Métricas - 7 cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-        {/* Online */}
+      {/* Linha 1 - Faturamento e Saldos por Origem */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Faturamento Online"
           value={formatCurrency(faturamentoOnline)}
-          subtitle="Consultas pagas"
-          icon={<Globe className="w-4 h-4" />}
+          subtitle="Consultas pagas pela plataforma"
+          icon={<Globe className="w-5 h-5" />}
           variant="success"
         />
         
         <MetricCard
           title="Saldo Online"
           value={formatCurrency(saldoPrevistoOnline)}
-          subtitle="Entradas - Saídas"
-          icon={<Globe className="w-4 h-4" />}
+          subtitle="Entradas - Saídas online"
+          icon={<Globe className="w-5 h-5" />}
           variant={saldoPrevistoOnline >= 0 ? "success" : "danger"}
         />
         
-        {/* Interno */}
         <MetricCard
           title="Faturamento Interno"
           value={formatCurrency(faturamentoInterno)}
-          subtitle="Consultas internas"
-          icon={<Building2 className="w-4 h-4" />}
+          subtitle="Consultas agendadas internamente"
+          icon={<Building2 className="w-5 h-5" />}
           variant="blue"
         />
         
         <MetricCard
           title="Saldo Interno"
           value={formatCurrency(saldoPrevistoInterno)}
-          subtitle="Entradas - Saídas"
-          icon={<Building2 className="w-4 h-4" />}
+          subtitle="Entradas - Saídas internas"
+          icon={<Building2 className="w-5 h-5" />}
           variant={saldoPrevistoInterno >= 0 ? "blue" : "danger"}
         />
-        
-        {/* Contas */}
+      </div>
+
+      {/* Linha 2 - Contas e Previsão Geral */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
           title="A Receber"
           value={formatCurrency(aReceber)}
-          subtitle="Contas pendentes"
-          icon={<TrendingUp className="w-4 h-4" />}
+          subtitle="Consultas + contas pendentes"
+          icon={<TrendingUp className="w-5 h-5" />}
           variant="primary"
         />
         
         <MetricCard
           title="A Pagar"
           value={formatCurrency(aPagar)}
-          subtitle="Contas pendentes"
-          icon={<TrendingDown className="w-4 h-4" />}
+          subtitle="Contas a vencer"
+          icon={<TrendingDown className="w-5 h-5" />}
           variant="warning"
         />
         
-        {/* Geral */}
         <MetricCard
           title="Previsão Geral"
           value={formatCurrency(saldoPrevistoGeral)}
-          subtitle="Online + Interno"
-          icon={<Wallet className="w-4 h-4" />}
+          subtitle="Online + Interno - Despesas"
+          icon={<Wallet className="w-5 h-5" />}
           variant={saldoPrevistoGeral >= 0 ? "purple" : "danger"}
         />
       </div>
