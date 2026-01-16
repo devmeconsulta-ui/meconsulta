@@ -1086,20 +1086,7 @@ export default function ClinicaFinanceiro() {
         </Select>
       </div>
 
-      {/* Header de métricas melhorado */}
-      <FinanceiroHeader
-        faturamento={metrics.pago}
-        aReceber={metrics.pendente + totalContasReceber}
-        aPagar={totalContasPagar}
-        saldoPrevisto={(metrics.pago + totalContasReceber) - totalContasPagar}
-        caixaAberto={caixa.caixaAberto}
-        saldoCaixa={caixa.saldoAtual}
-        vencimentosHoje={vencimentosHoje}
-        vencimentosAtrasados={vencimentosAtrasados}
-        formatCurrency={formatCurrency}
-      />
-
-      {/* Tabs - movidas para logo abaixo do header */}
+      {/* Tabs - acima dos cards principais */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full max-w-4xl grid-cols-3 sm:grid-cols-6">
           <TabsTrigger value="visao-geral" className="gap-1 text-xs sm:text-sm">
@@ -1209,7 +1196,19 @@ export default function ClinicaFinanceiro() {
             </CardContent>
           </Card>
 
-          {/* Consultas Pendentes de Sincronização com Caixa */}
+          {/* Header de métricas */}
+          <FinanceiroHeader
+            faturamento={metrics.pago}
+            aReceber={metrics.pendente + totalContasReceber}
+            aPagar={totalContasPagar}
+            saldoPrevisto={(metrics.pago + totalContasReceber) - totalContasPagar}
+            caixaAberto={caixa.caixaAberto}
+            saldoCaixa={caixa.saldoAtual}
+            vencimentosHoje={vencimentosHoje}
+            vencimentosAtrasados={vencimentosAtrasados}
+            formatCurrency={formatCurrency}
+          />
+
           {/* Consultas Pendentes de Sincronização com Caixa */}
           <ConsultasPendentesCaixa
             consultas={caixa.consultasPendentes}
