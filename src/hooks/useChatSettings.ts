@@ -27,12 +27,12 @@ export const NOTIFICATION_SOUNDS = [
   {
     id: "bell",
     name: "Campainha",
-    url: "https://cdn.freesound.org/previews/339/339418_4957949-lq.mp3",
+    url: "https://cdn.freesound.org/previews/352/352661_2108246-lq.mp3",
   },
   {
     id: "ding",
     name: "Ding",
-    url: "https://cdn.freesound.org/previews/536/536108_4921277-lq.mp3",
+    url: "https://cdn.freesound.org/previews/254/254316_3615652-lq.mp3",
   },
 ] as const;
 
