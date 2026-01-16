@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LogOut, User, Building2 } from "lucide-react";
+import ClinicaNotificacoesDropdown from "./ClinicaNotificacoesDropdown";
 
 interface ClinicaHeaderProps {
   clinicaData: any;
@@ -31,6 +32,9 @@ export function ClinicaHeader({ clinicaData }: ClinicaHeaderProps) {
     .toUpperCase()
     .slice(0, 2) || "CL";
 
+  // Determinar o clinicaId a partir de diferentes fontes
+  const clinicaId = clinicaData?.id || currentUser?.clinicaId;
+
   return (
     <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -40,31 +44,39 @@ export function ClinicaHeader({ clinicaData }: ClinicaHeaderProps) {
         </span>
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="flex items-center gap-2">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <span className="hidden md:inline text-sm font-medium">
-              {currentUser?.nome}
-            </span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onClick={() => navigate("/clinica/configuracoes")}>
-            <User className="h-4 w-4 mr-2" />
-            Meu Perfil
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-            <LogOut className="h-4 w-4 mr-2" />
-            Sair
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-2">
+        {/* Sino de Notificações */}
+        {clinicaId && (
+          <ClinicaNotificacoesDropdown clinicaId={clinicaId} />
+        )}
+
+        {/* Dropdown do usuário */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="flex items-center gap-2">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <span className="hidden md:inline text-sm font-medium">
+                {currentUser?.nome}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={() => navigate("/clinica/configuracoes")}>
+              <User className="h-4 w-4 mr-2" />
+              Meu Perfil
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+              <LogOut className="h-4 w-4 mr-2" />
+              Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }

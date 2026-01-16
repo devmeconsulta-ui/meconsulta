@@ -585,6 +585,50 @@ export type Database = {
           },
         ]
       }
+      clinica_notificacoes: {
+        Row: {
+          categoria: string
+          clinica_id: string
+          created_at: string
+          id: string
+          lida: boolean
+          mensagem: string
+          referencia_id: string | null
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          categoria?: string
+          clinica_id: string
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem: string
+          referencia_id?: string | null
+          tipo?: string
+          titulo: string
+        }
+        Update: {
+          categoria?: string
+          clinica_id?: string
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem?: string
+          referencia_id?: string | null
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinica_notificacoes_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinicas: {
         Row: {
           agencia: string | null
