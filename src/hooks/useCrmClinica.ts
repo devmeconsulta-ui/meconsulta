@@ -76,6 +76,35 @@ export interface CrmLead {
   };
 }
 
+// Tipo para consulta virtual (consultas do banco mapeadas para o CRM)
+export interface ConsultaVirtual {
+  id: string;
+  etapa_nome: string;
+  paciente_id: string;
+  paciente_nome: string;
+  paciente_telefone: string | null;
+  paciente_cpf: string | null;
+  consulta_id: string;
+  data_hora: string;
+  status_consulta: string;
+  valor_consulta: number;
+  origem: "online" | "interno";
+  medico_nome: string | null;
+  medico_especialidade: string | null;
+  created_at: string;
+}
+
+// Mapeamento de status de consulta para nome da etapa CRM
+export const STATUS_TO_ETAPA: Record<string, string> = {
+  "agendada": "Agendado",
+  "aguardando_pagamento": "Aguardando Pagamento",
+  "confirmada": "Confirmado",
+  "aguardando": "Aguardando Atendimento",
+  "atendendo": "Em Atendimento",
+  "concluida": "Concluído",
+  "atendida_medico": "Concluído",
+};
+
 // Status da jornada do paciente mapeados para etapas CRM
 export const ETAPAS_JORNADA_PACIENTE = [
   { nome: "Lead Captado", cor: "#3b82f6", ordem: 0, pode_criar: true, probabilidade_ganho: 10 },
@@ -137,7 +166,7 @@ export function useCrmClinica(clinicaId: string | null) {
   });
 
   // Buscar leads do funil selecionado com dados de paciente e consulta
-  const { data: leads = [], isLoading: loadingLeads } = useQuery({
+  const { data: leadsDB = [], isLoading: loadingLeads } = useQuery({
     queryKey: ["crm-leads", funilSelecionado],
     queryFn: async () => {
       if (!funilSelecionado) return [];
@@ -164,6 +193,98 @@ export function useCrmClinica(clinicaId: string | null) {
     },
     enabled: !!funilSelecionado,
   });
+
+  // Buscar consultas ativas da clínica para povoar o CRM automaticamente
+  const { data: consultasClinica = [], isLoading: loadingConsultas } = useQuery({
+    queryKey: ["crm-consultas-clinica", clinicaId],
+    queryFn: async () => {
+      if (!clinicaId) return [];
+      const { data, error } = await supabase
+        .from("consultas")
+        .select(`
+          id,
+          data_hora,
+          status_consulta,
+          valor_consulta,
+          origem,
+          created_at,
+          paciente_id,
+          paciente:pacientes!consultas_paciente_id_fkey(id, nome, telefone, cpf),
+          medico:medicos!consultas_medico_id_fkey(nome, especialidade)
+        `)
+        .eq("clinica_id", clinicaId)
+        .not("status_consulta", "in", '("cancelada","nao_compareceu")')
+        .order("data_hora", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!clinicaId,
+  });
+
+  // Transformar consultas em leads virtuais baseado nas etapas do funil
+  const leadsVirtuais: CrmLead[] = (consultasClinica || [])
+    .filter(c => {
+      // Só incluir se o status mapeia para uma etapa
+      const etapaNome = STATUS_TO_ETAPA[c.status_consulta];
+      return etapaNome && etapas.some(e => e.nome === etapaNome);
+    })
+    .filter(c => {
+      // Não duplicar se já existe um lead para essa consulta
+      return !leadsDB.some(l => l.consulta_id === c.id);
+    })
+    .map((c, index) => {
+      const etapaNome = STATUS_TO_ETAPA[c.status_consulta];
+      const etapa = etapas.find(e => e.nome === etapaNome);
+      const paciente = c.paciente as any;
+      const medico = c.medico as any;
+      
+      return {
+        id: `virtual-${c.id}`,
+        clinica_id: clinicaId!,
+        funil_id: funilSelecionado!,
+        etapa_id: etapa?.id || "",
+        paciente_id: c.paciente_id,
+        consulta_id: c.id,
+        nome: paciente?.nome || "Paciente",
+        telefone: paciente?.telefone || null,
+        email: null,
+        valor_estimado: c.valor_consulta || 0,
+        origem: c.origem === "online" ? "online" : "interno",
+        responsavel_id: null,
+        data_vencimento: null,
+        observacoes: null,
+        tags: null,
+        ordem: index,
+        ganho: false,
+        perdido: false,
+        motivo_perda: null,
+        data_ganho: null,
+        data_perda: null,
+        created_at: c.created_at,
+        updated_at: c.created_at,
+        paciente: paciente ? {
+          id: paciente.id,
+          nome: paciente.nome,
+          telefone: paciente.telefone,
+          cpf: paciente.cpf,
+          data_nascimento: null,
+        } : undefined,
+        consulta: {
+          id: c.id,
+          data_hora: c.data_hora,
+          status_consulta: c.status_consulta,
+          valor_consulta: c.valor_consulta,
+          medico: medico ? {
+            nome: medico.nome,
+            especialidade: medico.especialidade,
+          } : undefined,
+        },
+      } as CrmLead;
+    });
+
+  // Combinar leads do banco + leads virtuais
+  const leads = [...leadsDB, ...leadsVirtuais];
 
   // Criar funil
   const criarFunil = useMutation({
@@ -470,7 +591,7 @@ export function useCrmClinica(clinicaId: string | null) {
     etapas,
     leads,
     estatisticas,
-    isLoading: loadingFunis || loadingEtapas || loadingLeads,
+    isLoading: loadingFunis || loadingEtapas || loadingLeads || loadingConsultas,
     criarFunil,
     atualizarFunil,
     excluirFunil,
