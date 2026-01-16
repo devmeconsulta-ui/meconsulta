@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock, Sun, Cloud, CloudRain, MapPin, ArrowRight, CheckCircle, XCircle, AlertCircle, CalendarDays, Phone, Lock } from "lucide-react";
+import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock, Sun, Cloud, CloudRain, MapPin, ArrowRight, CheckCircle, XCircle, AlertCircle, CalendarDays, Phone, Lock, Globe, Building2, Wallet } from "lucide-react";
 import { maskPhone, maskCPF } from "@/lib/maskUtils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -185,9 +185,18 @@ export default function ClinicaDashboard() {
         c.local?.clinica_id === clinicaData.id
       );
 
-      const faturamento = consultas
+      // Faturamento ONLINE (pago)
+      const faturamentoOnline = consultas
         .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
         .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
+
+      // Faturamento INTERNO (pago)
+      const faturamentoInterno = consultas
+        .filter((c) => c.status_pagamento === "pago" && c.origem === "interna")
+        .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
+
+      // Total faturado (online + interno)
+      const faturamentoTotal = faturamentoOnline + faturamentoInterno;
 
       const pendente = consultas
         .filter((c) => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada")
@@ -222,7 +231,9 @@ export default function ClinicaDashboard() {
         medicos: medicosCount,
         consultas: consultas.length,
         pacientes: uniquePacientes.size,
-        faturamento,
+        faturamento: faturamentoTotal,
+        faturamentoOnline,
+        faturamentoInterno,
         pendente,
         consultasHoje,
         consultasAmanha,
@@ -481,12 +492,40 @@ export default function ClinicaDashboard() {
           </CardContent>
         </Card>
 
+        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Pago Online</p>
+                <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{formatCurrency(stats?.faturamentoOnline || 0)}</p>
+              </div>
+              <Globe className="h-10 w-10 text-emerald-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100/50 dark:from-cyan-950/30 dark:to-cyan-900/20 border-cyan-200 dark:border-cyan-800">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-cyan-700 dark:text-cyan-300">Pago Interno</p>
+                <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">{formatCurrency(stats?.faturamentoInterno || 0)}</p>
+              </div>
+              <Building2 className="h-10 w-10 text-cyan-500" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Total Faturado e Pendente */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
         <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-green-700 dark:text-green-300">Faturado (Pago)</p>
+                <p className="text-sm font-medium text-green-700 dark:text-green-300">Total Faturado (Pago)</p>
                 <p className="text-2xl font-bold text-green-900 dark:text-green-100">{formatCurrency(stats?.faturamento || 0)}</p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">Online + Interno</p>
               </div>
               <CheckCircle className="h-10 w-10 text-green-500" />
             </div>
@@ -499,8 +538,22 @@ export default function ClinicaDashboard() {
               <div>
                 <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Pendente</p>
                 <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">{formatCurrency(stats?.pendente || 0)}</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Aguardando pagamento</p>
               </div>
               <AlertCircle className="h-10 w-10 text-amber-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20 border-indigo-200 dark:border-indigo-800 col-span-2 lg:col-span-1">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-indigo-700 dark:text-indigo-300">Previsão Total</p>
+                <p className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">{formatCurrency((stats?.faturamento || 0) + (stats?.pendente || 0))}</p>
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">Faturado + Pendente</p>
+              </div>
+              <Wallet className="h-10 w-10 text-indigo-500" />
             </div>
           </CardContent>
         </Card>
