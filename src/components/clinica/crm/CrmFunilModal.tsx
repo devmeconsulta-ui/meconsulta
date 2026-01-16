@@ -117,29 +117,33 @@ export default function CrmFunilModal({
           </TabsContent>
         </Tabs>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          {funilId && (
-            <div className="flex gap-2 mr-auto">
+        <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3 pt-4">
+          {funilId ? (
+            <div className="flex gap-2">
               <Button
                 variant="destructive"
+                size="sm"
                 onClick={handleDelete}
                 disabled={excluirFunil.isPending}
               >
-                <Trash2 className="h-4 w-4 mr-2" />
-                {confirmDelete ? "Confirmar Exclusão" : "Excluir Funil"}
+                <Trash2 className="h-4 w-4 mr-1" />
+                {confirmDelete ? "Confirmar Exclusão" : "Excluir"}
               </Button>
               {confirmDelete && (
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => setConfirmDelete(false)}
                 >
                   Cancelar
                 </Button>
               )}
             </div>
+          ) : (
+            <div />
           )}
           
-          <div className="flex gap-2">
+          <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
