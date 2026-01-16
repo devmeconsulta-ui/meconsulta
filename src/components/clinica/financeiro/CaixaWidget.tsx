@@ -605,28 +605,27 @@ export function CaixaWidget({
           
           <div className="py-4 space-y-4">
             {/* Resumo Financeiro - Grid 2x2 organizado */}
-            <div className="rounded-xl border overflow-hidden">
-              <div className="grid grid-cols-2">
-                {/* Abertura */}
-                <div className="p-4 text-center bg-slate-100 dark:bg-slate-800 border-r border-b">
+            <div className="rounded-xl border border-border overflow-hidden">
+              {/* Linha 1: Abertura e Saldo Final */}
+              <div className="grid grid-cols-2 divide-x divide-border">
+                <div className="p-4 text-center bg-muted/50">
                   <p className="text-xs text-muted-foreground font-medium mb-1">Abertura</p>
                   <p className="text-xl font-bold text-foreground">{formatCurrency(saldoAbertura)}</p>
                 </div>
-                {/* Saldo Final */}
-                <div className="p-4 text-center bg-blue-50 dark:bg-blue-950 border-b">
-                  <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1">Saldo Final</p>
+                <div className="p-4 text-center bg-blue-50 dark:bg-blue-900/30">
+                  <p className="text-xs font-medium mb-1 text-blue-600 dark:text-blue-400">Saldo Final</p>
                   <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(saldoAtual)}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2">
-                {/* Total Entradas */}
-                <div className="p-4 text-center bg-emerald-50 dark:bg-emerald-950 border-r">
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-1">Total Entradas</p>
+              
+              {/* Linha 2: Entradas e Saídas */}
+              <div className="grid grid-cols-2 divide-x divide-border border-t border-border">
+                <div className="p-4 text-center bg-emerald-50 dark:bg-emerald-900/30">
+                  <p className="text-xs font-medium mb-1 text-emerald-600 dark:text-emerald-400">Total Entradas</p>
                   <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">+ {formatCurrency(totalEntradas)}</p>
                 </div>
-                {/* Total Saídas */}
-                <div className="p-4 text-center bg-red-50 dark:bg-red-950">
-                  <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">Total Saídas</p>
+                <div className="p-4 text-center bg-red-50 dark:bg-red-900/30">
+                  <p className="text-xs font-medium mb-1 text-red-600 dark:text-red-400">Total Saídas</p>
                   <p className="text-xl font-bold text-red-600 dark:text-red-400">- {formatCurrency(totalSaidas)}</p>
                 </div>
               </div>
@@ -644,9 +643,9 @@ export function CaixaWidget({
             </div>
 
             {/* Dica PDF */}
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-              <Printer className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
-              <p className="text-sm text-blue-700 dark:text-blue-300">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted border border-border">
+              <Printer className="w-5 h-5 text-muted-foreground shrink-0" />
+              <p className="text-sm text-muted-foreground">
                 Gere um PDF com o resumo completo do caixa
               </p>
             </div>
