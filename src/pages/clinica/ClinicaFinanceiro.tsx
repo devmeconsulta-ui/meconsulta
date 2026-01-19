@@ -553,8 +553,37 @@ export default function ClinicaFinanceiro() {
       .slice(0, 5);
   }, [filteredConsultas]);
 
-  const repassesPorMedico = useMemo(() => {
-    const data: { [key: string]: { pendente: number; pago: number } } = {};
+  // Função para calcular o valor de repasse baseado na config
+  const calcularRepasseInterno = useCallback((consulta: Consulta) => {
+    const config = medicoRepasseConfigs.find(c => c.medico_id === consulta.medico_id);
+    if (!config) {
+      // Se não há config, usa 70% padrão
+      return consulta.valor_consulta * 0.7;
+    }
+    
+    if (config.tipo_repasse === "fixo" && config.valor_fixo_repasse) {
+      return config.valor_fixo_repasse;
+    }
+    
+    // Percentual
+    const percentual = config.percentual_repasse || 70;
+    return consulta.valor_consulta * (percentual / 100);
+  }, [medicoRepasseConfigs]);
+
+  // Repasses detalhados por médico com separação online/interna
+  const repassesPorMedicoDetalhado = useMemo(() => {
+    const data: { 
+      [key: string]: { 
+        medico_id: string;
+        pendente_online: number; 
+        pendente_interna: number;
+        total_consulta_interna: number;
+        deducao_clinica: number;
+        config?: MedicoRepasseConfig;
+        consultas_online: number;
+        consultas_internas: number;
+      } 
+    } = {};
     
     // Filter consultas based on repasse date range
     const filteredByDate = filteredConsultas.filter((c) => {
@@ -572,15 +601,74 @@ export default function ClinicaFinanceiro() {
       .filter((c) => c.status_pagamento === "pago" && c.finalizado_medico)
       .forEach((c) => {
         const medicoNome = c.medico?.nome || "Desconhecido";
-        if (!data[medicoNome]) data[medicoNome] = { pendente: 0, pago: 0 };
-        data[medicoNome].pendente += c.valor_medico;
+        const config = medicoRepasseConfigs.find(cfg => cfg.medico_id === c.medico_id);
+        
+        if (!data[medicoNome]) {
+          data[medicoNome] = { 
+            medico_id: c.medico_id,
+            pendente_online: 0, 
+            pendente_interna: 0,
+            total_consulta_interna: 0,
+            deducao_clinica: 0,
+            config,
+            consultas_online: 0,
+            consultas_internas: 0
+          };
+        }
+        
+        if (c.origem === "online") {
+          data[medicoNome].pendente_online += c.valor_medico;
+          data[medicoNome].consultas_online += 1;
+        } else if (c.origem === "interna") {
+          const valorRepasse = calcularRepasseInterno(c);
+          data[medicoNome].pendente_interna += valorRepasse;
+          data[medicoNome].total_consulta_interna += c.valor_consulta;
+          data[medicoNome].deducao_clinica += (c.valor_consulta - valorRepasse);
+          data[medicoNome].consultas_internas += 1;
+        }
       });
 
     return Object.entries(data).map(([nome, valores]) => ({
       nome,
       ...valores,
+      total_pendente: valores.pendente_online + valores.pendente_interna,
     }));
-  }, [filteredConsultas, repasseDateStart, repasseDateEnd, repasseMedicoFilter]);
+  }, [filteredConsultas, repasseDateStart, repasseDateEnd, repasseMedicoFilter, medicoRepasseConfigs, calcularRepasseInterno]);
+
+  // Consultas internas filtradas para relatório detalhado
+  const consultasInternasParaRepasse = useMemo(() => {
+    const filteredByDate = filteredConsultas.filter((c) => {
+      if (!repasseDateStart || !repasseDateEnd) return true;
+      const consultaDate = parseISO(c.data_hora);
+      return isWithinInterval(consultaDate, { start: repasseDateStart, end: repasseDateEnd });
+    });
+
+    const filteredByMedico = repasseMedicoFilter === "todos" 
+      ? filteredByDate 
+      : filteredByDate.filter(c => c.medico_id === repasseMedicoFilter);
+
+    return filteredByMedico
+      .filter((c) => c.origem === "interna" && c.status_pagamento === "pago" && c.finalizado_medico)
+      .map(c => {
+        const config = medicoRepasseConfigs.find(cfg => cfg.medico_id === c.medico_id);
+        const valorRepasse = calcularRepasseInterno(c);
+        return {
+          ...c,
+          valor_repasse_calculado: valorRepasse,
+          deducao_clinica: c.valor_consulta - valorRepasse,
+          config_repasse: config
+        };
+      });
+  }, [filteredConsultas, repasseDateStart, repasseDateEnd, repasseMedicoFilter, medicoRepasseConfigs, calcularRepasseInterno]);
+
+  // Legacy repassesPorMedico para compatibilidade (total pendente)
+  const repassesPorMedico = useMemo(() => {
+    return repassesPorMedicoDetalhado.map(item => ({
+      nome: item.nome,
+      pendente: item.total_pendente,
+      pago: 0
+    }));
+  }, [repassesPorMedicoDetalhado]);
 
   // Filtered repasses for display and export
   const filteredRepasses = useMemo(() => {
@@ -651,44 +739,94 @@ export default function ClinicaFinanceiro() {
     // Summary
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
-    doc.text("Resumo", 14, 52);
+    doc.text("Resumo Geral", 14, 52);
     
     doc.setFontSize(10);
-    const totalPendente = totalRepassesPendentesFiltered;
-    const totalPago = totalRepassadoFiltered;
-    const totalRepassesCount = filteredRepasses.length;
+    const totalOnline = repassesPorMedicoDetalhado.reduce((s, m) => s + m.pendente_online, 0);
+    const totalInterno = repassesPorMedicoDetalhado.reduce((s, m) => s + m.pendente_interna, 0);
+    const totalRetencao = repassesPorMedicoDetalhado.reduce((s, m) => s + m.deducao_clinica, 0);
     
-    doc.text(`Total Pendente: ${formatCurrency(totalPendente)}`, 14, 60);
-    doc.text(`Total Repassado: ${formatCurrency(totalPago)}`, 14, 66);
-    doc.text(`Quantidade de Repasses: ${totalRepassesCount}`, 14, 72);
+    doc.text(`Repasse Online (Pendente): ${formatCurrency(totalOnline)}`, 14, 60);
+    doc.text(`Repasse Interno (Pendente): ${formatCurrency(totalInterno)}`, 14, 66);
+    doc.text(`Retenção Clínica (Internas): ${formatCurrency(totalRetencao)}`, 14, 72);
+    doc.text(`Total Pendente: ${formatCurrency(totalOnline + totalInterno)}`, 14, 78);
     
-    // Repasses por Médico
+    // Repasses Detalhados por Médico
+    let yPos = 92;
     doc.setFontSize(12);
-    doc.text("Repasses Pendentes por Médico", 14, 86);
+    doc.text("Repasses Detalhados por Médico", 14, yPos);
+    yPos += 8;
     
-    let yPos = 94;
-    doc.setFontSize(9);
-    
-    if (repassesPorMedico.length > 0) {
+    doc.setFontSize(8);
+    if (repassesPorMedicoDetalhado.length > 0) {
       doc.setFillColor(240, 240, 240);
-      doc.rect(14, yPos - 4, pageWidth - 28, 8, "F");
+      doc.rect(14, yPos - 3, pageWidth - 28, 7, "F");
       doc.setTextColor(0, 0, 0);
       doc.text("Médico", 16, yPos);
-      doc.text("Valor Pendente", pageWidth - 50, yPos);
-      yPos += 10;
+      doc.text("Config", 55, yPos);
+      doc.text("Online", 85, yPos);
+      doc.text("Interno", 115, yPos);
+      doc.text("Retenção", 145, yPos);
+      doc.text("Total", pageWidth - 30, yPos);
+      yPos += 9;
       
-      repassesPorMedico.forEach((item) => {
+      repassesPorMedicoDetalhado.forEach((item) => {
         if (yPos > 270) {
           doc.addPage();
           yPos = 20;
         }
-        doc.text(`Dr(a). ${item.nome}`, 16, yPos);
-        doc.text(formatCurrency(item.pendente), pageWidth - 50, yPos);
-        yPos += 8;
+        const configStr = item.config 
+          ? (item.config.tipo_repasse === "fixo" ? `R$${item.config.valor_fixo_repasse}` : `${item.config.percentual_repasse}%`)
+          : "70%";
+        doc.text(`Dr(a). ${item.nome}`.substring(0, 18), 16, yPos);
+        doc.text(configStr, 55, yPos);
+        doc.text(formatCurrency(item.pendente_online), 85, yPos);
+        doc.text(formatCurrency(item.pendente_interna), 115, yPos);
+        doc.text(formatCurrency(item.deducao_clinica), 145, yPos);
+        doc.text(formatCurrency(item.total_pendente), pageWidth - 30, yPos);
+        yPos += 7;
       });
     } else {
       doc.text("Nenhum repasse pendente", 14, yPos);
       yPos += 10;
+    }
+    
+    // Detalhamento Consultas Internas
+    if (consultasInternasParaRepasse.length > 0) {
+      yPos += 10;
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+      
+      doc.setFontSize(12);
+      doc.text("Detalhamento Consultas Internas", 14, yPos);
+      yPos += 8;
+      
+      doc.setFontSize(7);
+      doc.setFillColor(240, 240, 240);
+      doc.rect(14, yPos - 3, pageWidth - 28, 6, "F");
+      doc.text("Data", 16, yPos);
+      doc.text("Paciente", 40, yPos);
+      doc.text("Médico", 85, yPos);
+      doc.text("Cobrado", 120, yPos);
+      doc.text("Repasse", 145, yPos);
+      doc.text("Retenção", 170, yPos);
+      yPos += 8;
+      
+      consultasInternasParaRepasse.slice(0, 30).forEach((c) => {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.text(format(parseISO(c.data_hora), "dd/MM/yy"), 16, yPos);
+        doc.text(getPatientName(c).substring(0, 20), 40, yPos);
+        doc.text(`Dr(a). ${c.medico?.nome || "N/A"}`.substring(0, 15), 85, yPos);
+        doc.text(formatCurrency(c.valor_consulta), 120, yPos);
+        doc.text(formatCurrency(c.valor_repasse_calculado), 145, yPos);
+        doc.text(formatCurrency(c.deducao_clinica), 170, yPos);
+        yPos += 6;
+      });
     }
     
     // Histórico de Repasses
@@ -735,13 +873,61 @@ export default function ClinicaFinanceiro() {
   };
 
   const exportRepassesToExcel = () => {
-    // Preparar dados de repasses por médico
-    const repassesPorMedicoData = repassesPorMedico.map(item => ({
+    // Resumo geral
+    const totalOnline = repassesPorMedicoDetalhado.reduce((s, m) => s + m.pendente_online, 0);
+    const totalInterno = repassesPorMedicoDetalhado.reduce((s, m) => s + m.pendente_interna, 0);
+    const totalRetencao = repassesPorMedicoDetalhado.reduce((s, m) => s + m.deducao_clinica, 0);
+    
+    const resumoData = [{
+      "Métrica": "Período",
+      "Valor": repasseDateStart && repasseDateEnd 
+        ? `${format(repasseDateStart, "dd/MM/yyyy")} a ${format(repasseDateEnd, "dd/MM/yyyy")}`
+        : "Todos",
+    }, {
+      "Métrica": "Repasse Online (Pendente)",
+      "Valor": totalOnline,
+    }, {
+      "Métrica": "Repasse Interno (Pendente)",
+      "Valor": totalInterno,
+    }, {
+      "Métrica": "Retenção Clínica (Internas)",
+      "Valor": totalRetencao,
+    }, {
+      "Métrica": "Total Pendente",
+      "Valor": totalOnline + totalInterno,
+    }, {
+      "Métrica": "Total Repassado (Histórico)",
+      "Valor": totalRepassadoFiltered,
+    }];
+    
+    // Repasses detalhados por médico
+    const repassesPorMedicoData = repassesPorMedicoDetalhado.map(item => ({
       "Médico": `Dr(a). ${item.nome}`,
-      "Valor Pendente": item.pendente,
+      "Configuração Repasse": item.config 
+        ? (item.config.tipo_repasse === "fixo" ? `R$ ${item.config.valor_fixo_repasse}` : `${item.config.percentual_repasse}%`)
+        : "70% (padrão)",
+      "Repasse Online": item.pendente_online,
+      "Consultas Online": item.consultas_online,
+      "Repasse Interno": item.pendente_interna,
+      "Consultas Internas": item.consultas_internas,
+      "Retenção Clínica": item.deducao_clinica,
+      "Total Pendente": item.total_pendente,
     }));
     
-    // Preparar dados do histórico de repasses (filtered)
+    // Consultas internas detalhadas
+    const consultasInternasData = consultasInternasParaRepasse.map(c => ({
+      "Data": format(parseISO(c.data_hora), "dd/MM/yyyy HH:mm"),
+      "Paciente": getPatientName(c),
+      "Médico": `Dr(a). ${c.medico?.nome || "N/A"}`,
+      "Valor Cobrado": c.valor_consulta,
+      "Config Repasse": c.config_repasse 
+        ? (c.config_repasse.tipo_repasse === "fixo" ? `R$ ${c.config_repasse.valor_fixo_repasse}` : `${c.config_repasse.percentual_repasse}%`)
+        : "70% (padrão)",
+      "Valor Repasse": c.valor_repasse_calculado,
+      "Retenção Clínica": c.deducao_clinica,
+    }));
+    
+    // Preparar dados do histórico de repasses
     const historicoData = filteredRepasses.map(r => ({
       "Médico": `Dr(a). ${r.medico?.nome || "N/A"}`,
       "Período Início": format(parseISO(r.periodo_inicio), "dd/MM/yyyy"),
@@ -751,33 +937,22 @@ export default function ClinicaFinanceiro() {
       "Data Pagamento": r.data_pagamento ? format(parseISO(r.data_pagamento), "dd/MM/yyyy") : "-",
     }));
     
-    // Preparar resumo
-    const resumoData = [{
-      "Métrica": "Período",
-      "Valor": repasseDateStart && repasseDateEnd 
-        ? `${format(repasseDateStart, "dd/MM/yyyy")} a ${format(repasseDateEnd, "dd/MM/yyyy")}`
-        : "Todos",
-    }, {
-      "Métrica": "Total Pendente",
-      "Valor": totalRepassesPendentesFiltered,
-    }, {
-      "Métrica": "Total Repassado",
-      "Valor": totalRepassadoFiltered,
-    }, {
-      "Métrica": "Quantidade de Repasses",
-      "Valor": filteredRepasses.length,
-    }];
-    
     const wb = XLSX.utils.book_new();
     
     // Aba Resumo
     const wsResumo = XLSX.utils.json_to_sheet(resumoData);
     XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
     
-    // Aba Pendentes por Médico
+    // Aba Detalhado por Médico
     if (repassesPorMedicoData.length > 0) {
       const wsPorMedico = XLSX.utils.json_to_sheet(repassesPorMedicoData);
-      XLSX.utils.book_append_sheet(wb, wsPorMedico, "Pendentes por Médico");
+      XLSX.utils.book_append_sheet(wb, wsPorMedico, "Repasses por Médico");
+    }
+    
+    // Aba Consultas Internas
+    if (consultasInternasData.length > 0) {
+      const wsInternas = XLSX.utils.json_to_sheet(consultasInternasData);
+      XLSX.utils.book_append_sheet(wb, wsInternas, "Consultas Internas");
     }
     
     // Aba Histórico
@@ -2142,34 +2317,189 @@ export default function ClinicaFinanceiro() {
             </Card>
           </div>
 
+          {/* Cards resumo por origem */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border-l-4 border-l-emerald-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Globe className="h-5 w-5" />
+                  Repasse Online (Pendente)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-emerald-500">
+                  {formatCurrency(repassesPorMedicoDetalhado.reduce((sum, m) => sum + m.pendente_online, 0))}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {repassesPorMedicoDetalhado.reduce((sum, m) => sum + m.consultas_online, 0)} consultas
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-blue-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Building2 className="h-5 w-5" />
+                  Repasse Interno (Pendente)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-blue-500">
+                  {formatCurrency(repassesPorMedicoDetalhado.reduce((sum, m) => sum + m.pendente_interna, 0))}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {repassesPorMedicoDetalhado.reduce((sum, m) => sum + m.consultas_internas, 0)} consultas
+                  {" • Retenção clínica: "}
+                  {formatCurrency(repassesPorMedicoDetalhado.reduce((sum, m) => sum + m.deducao_clinica, 0))}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tabela detalhada de repasses por médico */}
           <Card className="card-shadow">
             <CardHeader>
-              <CardTitle>Repasses por Médico</CardTitle>
-              <CardDescription>Valores pendentes de repasse por consulta (período filtrado)</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Repasses Detalhados por Médico
+              </CardTitle>
+              <CardDescription>Valores pendentes separados por origem (online/interno) no período filtrado</CardDescription>
             </CardHeader>
             <CardContent>
-              {repassesPorMedico.length === 0 ? (
+              {repassesPorMedicoDetalhado.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">Nenhum repasse pendente no período</div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Médico</TableHead>
-                      <TableHead className="text-right">Valor Pendente</TableHead>
+                      <TableHead className="text-center">Config Repasse</TableHead>
+                      <TableHead className="text-right">Online</TableHead>
+                      <TableHead className="text-right">Interno</TableHead>
+                      <TableHead className="text-right">Retenção Clínica</TableHead>
+                      <TableHead className="text-right">Total Pendente</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {repassesPorMedico.map((item) => (
+                    {repassesPorMedicoDetalhado.map((item) => (
                       <TableRow key={item.nome}>
                         <TableCell className="font-medium">Dr(a). {item.nome}</TableCell>
-                        <TableCell className="text-right text-yellow-600 font-bold">{formatCurrency(item.pendente)}</TableCell>
+                        <TableCell className="text-center">
+                          {item.config ? (
+                            <Badge variant="outline" className="text-xs">
+                              {item.config.tipo_repasse === "fixo" 
+                                ? `R$ ${item.config.valor_fixo_repasse?.toFixed(2)}` 
+                                : `${item.config.percentual_repasse}%`}
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">70% (padrão)</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-emerald-600">
+                          {formatCurrency(item.pendente_online)}
+                          <span className="text-xs text-muted-foreground ml-1">({item.consultas_online})</span>
+                        </TableCell>
+                        <TableCell className="text-right text-blue-600">
+                          {formatCurrency(item.pendente_interna)}
+                          <span className="text-xs text-muted-foreground ml-1">({item.consultas_internas})</span>
+                        </TableCell>
+                        <TableCell className="text-right text-orange-600">
+                          {formatCurrency(item.deducao_clinica)}
+                        </TableCell>
+                        <TableCell className="text-right text-yellow-600 font-bold">
+                          {formatCurrency(item.total_pendente)}
+                        </TableCell>
                       </TableRow>
                     ))}
+                    {/* Totais */}
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell>Total</TableCell>
+                      <TableCell></TableCell>
+                      <TableCell className="text-right text-emerald-600">
+                        {formatCurrency(repassesPorMedicoDetalhado.reduce((s, m) => s + m.pendente_online, 0))}
+                      </TableCell>
+                      <TableCell className="text-right text-blue-600">
+                        {formatCurrency(repassesPorMedicoDetalhado.reduce((s, m) => s + m.pendente_interna, 0))}
+                      </TableCell>
+                      <TableCell className="text-right text-orange-600">
+                        {formatCurrency(repassesPorMedicoDetalhado.reduce((s, m) => s + m.deducao_clinica, 0))}
+                      </TableCell>
+                      <TableCell className="text-right text-yellow-600">
+                        {formatCurrency(repassesPorMedicoDetalhado.reduce((s, m) => s + m.total_pendente, 0))}
+                      </TableCell>
+                    </TableRow>
                   </TableBody>
                 </Table>
               )}
             </CardContent>
           </Card>
+
+          {/* Relatório detalhado de consultas internas */}
+          {consultasInternasParaRepasse.length > 0 && (
+            <Card className="card-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Detalhamento Consultas Internas
+                </CardTitle>
+                <CardDescription>
+                  {consultasInternasParaRepasse.length} consulta(s) interna(s) com repasse calculado
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Paciente</TableHead>
+                        <TableHead>Médico</TableHead>
+                        <TableHead className="text-right">Valor Cobrado</TableHead>
+                        <TableHead className="text-center">Config</TableHead>
+                        <TableHead className="text-right">Repasse</TableHead>
+                        <TableHead className="text-right">Retenção</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {consultasInternasParaRepasse.slice(0, 50).map((c) => (
+                        <TableRow key={c.id}>
+                          <TableCell className="text-sm">
+                            {format(parseISO(c.data_hora), "dd/MM/yy HH:mm")}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {getPatientName(c)}
+                          </TableCell>
+                          <TableCell>
+                            Dr(a). {c.medico?.nome || "N/A"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(c.valor_consulta)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {c.config_repasse ? (
+                              <Badge variant="outline" className="text-xs">
+                                {c.config_repasse.tipo_repasse === "fixo"
+                                  ? `R$ ${c.config_repasse.valor_fixo_repasse?.toFixed(2)}`
+                                  : `${c.config_repasse.percentual_repasse}%`}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">70%</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right text-blue-600 font-medium">
+                            {formatCurrency(c.valor_repasse_calculado)}
+                          </TableCell>
+                          <TableCell className="text-right text-orange-600">
+                            {formatCurrency(c.deducao_clinica)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="card-shadow">
             <CardHeader>
