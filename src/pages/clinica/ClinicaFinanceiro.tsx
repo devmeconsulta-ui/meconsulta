@@ -598,7 +598,7 @@ export default function ClinicaFinanceiro() {
       : filteredByDate.filter(c => c.medico_id === repasseMedicoFilter);
     
     filteredByMedico
-      .filter((c) => c.status_pagamento === "pago" && c.finalizado_medico)
+      .filter((c) => c.status_pagamento === "pago")
       .forEach((c) => {
         const medicoNome = c.medico?.nome || "Desconhecido";
         const config = medicoRepasseConfigs.find(cfg => cfg.medico_id === c.medico_id);
@@ -648,7 +648,7 @@ export default function ClinicaFinanceiro() {
       : filteredByDate.filter(c => c.medico_id === repasseMedicoFilter);
 
     return filteredByMedico
-      .filter((c) => c.origem === "interna" && c.status_pagamento === "pago" && c.finalizado_medico)
+      .filter((c) => c.origem === "interna" && c.status_pagamento === "pago")
       .map(c => {
         const config = medicoRepasseConfigs.find(cfg => cfg.medico_id === c.medico_id);
         const valorRepasse = calcularRepasseInterno(c);
