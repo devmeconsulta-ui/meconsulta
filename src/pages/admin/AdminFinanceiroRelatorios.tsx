@@ -24,6 +24,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   FileText,
   Download,
   Calendar,
@@ -39,11 +45,15 @@ import {
   ChevronUp,
   MapPin,
   X,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, CartesianGrid, AreaChart, Area
 } from "recharts";
+import { jsPDF } from "jspdf";
+import * as XLSX from "xlsx";
+import { toast } from "sonner";
 
 const CHART_COLORS = ["#0066CC", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#06B6D4"];
 
@@ -304,6 +314,238 @@ export default function AdminFinanceiroRelatorios() {
     origemFilter !== "todos",
   ].filter(Boolean).length;
 
+  const formatCurrencySimple = (value: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
+  // Exportar PDF
+  const exportarPDF = () => {
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // Header
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("Relatório Financeiro - Admin", pageWidth / 2, 20, { align: "center" });
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Período: Últimos ${periodo} dias`, pageWidth / 2, 28, { align: "center" });
+      doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, pageWidth / 2, 34, { align: "center" });
+      
+      // Separator
+      doc.setDrawColor(200);
+      doc.line(20, 40, pageWidth - 20, 40);
+      
+      // Metrics summary
+      let yPos = 50;
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Resumo Financeiro", 20, yPos);
+      
+      yPos += 10;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      
+      const metricsData = [
+        ["Total de Consultas", metrics.totalConsultas.toString()],
+        ["Consultas Online", metrics.consultasOnline.toString()],
+        ["Consultas Internas", metrics.consultasInternas.toString()],
+        ["Receita Total", formatCurrencySimple(metrics.receitaTotal)],
+        ["Receita Paga", formatCurrencySimple(metrics.receitaPaga)],
+        ["Lucro Plataforma", formatCurrencySimple(metrics.lucroPlataforma)],
+        ["Repasses Médicos", formatCurrencySimple(metrics.repassesMedicos)],
+        ["Ticket Médio", formatCurrencySimple(metrics.ticketMedio)],
+      ];
+      
+      metricsData.forEach(([label, value]) => {
+        doc.text(`${label}:`, 20, yPos);
+        doc.text(value, 80, yPos);
+        yPos += 7;
+      });
+      
+      yPos += 10;
+      doc.setDrawColor(200);
+      doc.line(20, yPos, pageWidth - 20, yPos);
+      yPos += 10;
+      
+      // Table based on report type
+      if (tipoRelatorio === 'medicos' && dadosPorMedico.length > 0) {
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text("Performance por Médico", 20, yPos);
+        yPos += 10;
+        
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Médico", 20, yPos);
+        doc.text("Especialidade", 70, yPos);
+        doc.text("Consultas", 120, yPos);
+        doc.text("Receita", 150, yPos);
+        yPos += 6;
+        
+        doc.setFont("helvetica", "normal");
+        dadosPorMedico.slice(0, 15).forEach((med) => {
+          doc.text(med.nome.substring(0, 25), 20, yPos);
+          doc.text((med.especialidade || '-').substring(0, 20), 70, yPos);
+          doc.text(med.consultas.toString(), 120, yPos);
+          doc.text(formatCurrencySimple(med.receita), 150, yPos);
+          yPos += 6;
+          
+          if (yPos > 270) {
+            doc.addPage();
+            yPos = 20;
+          }
+        });
+      } else if (tipoRelatorio === 'especialidades' && dadosPorEspecialidade.length > 0) {
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text("Receita por Especialidade", 20, yPos);
+        yPos += 10;
+        
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Especialidade", 20, yPos);
+        doc.text("Consultas", 100, yPos);
+        doc.text("Receita", 140, yPos);
+        yPos += 6;
+        
+        doc.setFont("helvetica", "normal");
+        dadosPorEspecialidade.forEach((item) => {
+          doc.text(item.name.substring(0, 35), 20, yPos);
+          doc.text(item.consultas.toString(), 100, yPos);
+          doc.text(formatCurrencySimple(item.receita), 140, yPos);
+          yPos += 6;
+        });
+      } else if (tipoRelatorio === 'regioes' && dadosPorRegiao.length > 0) {
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text("Consultas por Região", 20, yPos);
+        yPos += 10;
+        
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Estado", 20, yPos);
+        doc.text("Consultas", 80, yPos);
+        doc.text("Pacientes", 130, yPos);
+        yPos += 6;
+        
+        doc.setFont("helvetica", "normal");
+        dadosPorRegiao.forEach((item) => {
+          doc.text(item.name, 20, yPos);
+          doc.text(item.consultas.toString(), 80, yPos);
+          doc.text(item.pacientes.toString(), 130, yPos);
+          yPos += 6;
+        });
+      }
+      
+      // Footer
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(128);
+        doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, 290, { align: "center" });
+      }
+      
+      doc.save(`relatorio-financeiro-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast.success("PDF exportado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao exportar PDF:", error);
+      toast.error("Erro ao exportar PDF");
+    }
+  };
+
+  // Exportar Excel
+  const exportarExcel = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+      
+      // Resumo sheet
+      const resumoData = [
+        ["Relatório Financeiro - Admin"],
+        [`Período: Últimos ${periodo} dias`],
+        [`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })}`],
+        [],
+        ["Métrica", "Valor"],
+        ["Total de Consultas", metrics.totalConsultas],
+        ["Consultas Online", metrics.consultasOnline],
+        ["Consultas Internas", metrics.consultasInternas],
+        ["Consultas Pagas", metrics.consultasPagas],
+        ["Consultas Pendentes", metrics.consultasPendentes],
+        ["Consultas Canceladas", metrics.consultasCanceladas],
+        ["Receita Total", metrics.receitaTotal],
+        ["Receita Paga", metrics.receitaPaga],
+        ["Lucro Plataforma", metrics.lucroPlataforma],
+        ["Repasses Médicos", metrics.repassesMedicos],
+        ["Ticket Médio", metrics.ticketMedio],
+      ];
+      const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
+      XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
+      
+      // Por Médico sheet
+      if (dadosPorMedico.length > 0) {
+        const medicoHeaders = ["#", "Médico", "Especialidade", "Consultas", "Ticket Médio", "Receita Total"];
+        const medicoRows = dadosPorMedico.map((med, i) => [
+          i + 1,
+          med.nome,
+          med.especialidade || '-',
+          med.consultas,
+          med.ticketMedio,
+          med.receita,
+        ]);
+        const wsMedicos = XLSX.utils.aoa_to_sheet([medicoHeaders, ...medicoRows]);
+        XLSX.utils.book_append_sheet(wb, wsMedicos, "Por Médico");
+      }
+      
+      // Por Especialidade sheet
+      if (dadosPorEspecialidade.length > 0) {
+        const espHeaders = ["Especialidade", "Consultas", "Receita"];
+        const espRows = dadosPorEspecialidade.map((item) => [
+          item.name,
+          item.consultas,
+          item.receita,
+        ]);
+        const wsEsp = XLSX.utils.aoa_to_sheet([espHeaders, ...espRows]);
+        XLSX.utils.book_append_sheet(wb, wsEsp, "Por Especialidade");
+      }
+      
+      // Por Região sheet
+      if (dadosPorRegiao.length > 0) {
+        const regiaoHeaders = ["Estado", "Consultas", "Pacientes Únicos"];
+        const regiaoRows = dadosPorRegiao.map((item) => [
+          item.name,
+          item.consultas,
+          item.pacientes,
+        ]);
+        const wsRegiao = XLSX.utils.aoa_to_sheet([regiaoHeaders, ...regiaoRows]);
+        XLSX.utils.book_append_sheet(wb, wsRegiao, "Por Região");
+      }
+      
+      // Consultas detalhadas
+      if (consultasFiltradas.length > 0) {
+        const consultasHeaders = ["Data", "Paciente", "Médico", "Especialidade", "Status Pagamento", "Origem", "Valor"];
+        const consultasRows = consultasFiltradas.map((c: any) => [
+          format(new Date(c.data_hora), "dd/MM/yyyy HH:mm"),
+          c.paciente?.nome || c.nome_paciente_consulta || '-',
+          c.medico?.nome || '-',
+          c.medico?.especialidade || '-',
+          c.status_pagamento,
+          c.origem || 'online',
+          c.valor_consulta,
+        ]);
+        const wsConsultas = XLSX.utils.aoa_to_sheet([consultasHeaders, ...consultasRows]);
+        XLSX.utils.book_append_sheet(wb, wsConsultas, "Consultas Detalhadas");
+      }
+      
+      XLSX.writeFile(wb, `relatorio-financeiro-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+      toast.success("Excel exportado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao exportar Excel:", error);
+      toast.error("Erro ao exportar Excel");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -360,10 +602,25 @@ export default function AdminFinanceiroRelatorios() {
           </SelectContent>
         </Select>
 
-        <Button variant="outline" className="gap-2 ml-auto">
-          <Download className="h-4 w-4" />
-          Exportar PDF
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-2 ml-auto">
+              <Download className="h-4 w-4" />
+              Exportar
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={exportarPDF} className="gap-2">
+              <FileText className="h-4 w-4" />
+              Exportar PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportarExcel} className="gap-2">
+              <FileSpreadsheet className="h-4 w-4" />
+              Exportar Excel
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Advanced Filters - Collapsible */}
