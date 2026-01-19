@@ -1324,6 +1324,24 @@ export default function ClinicaFinanceiro() {
 
     try {
       // Prepare data
+      // Helper to get forma de pagamento display
+      const getFormaPagamentoDisplay = (consulta: Consulta) => {
+        if (!consulta.formas_pagamento) return "N/A";
+        if (Array.isArray(consulta.formas_pagamento)) {
+          return consulta.formas_pagamento.map((fp: any) => {
+            const labels: Record<string, string> = {
+              dinheiro: "Dinheiro",
+              pix: "PIX",
+              cartao_debito: "Cartão Débito",
+              cartao_credito: "Cartão Crédito",
+              a_faturar: "À Faturar/Convênio"
+            };
+            return labels[fp.forma] || fp.forma;
+          }).join(", ");
+        }
+        return "N/A";
+      };
+
       const data = filteredConsultas.map((c) => ({
         "Data/Hora": format(parseISO(c.data_hora), "dd/MM/yyyy HH:mm"),
         "Médico": c.medico?.nome || "N/A",
@@ -1333,6 +1351,8 @@ export default function ClinicaFinanceiro() {
         "Origem": c.origem === "online" ? "Online" : "Interna",
         "Status Consulta": c.status_consulta,
         "Status Pagamento": c.status_pagamento,
+        "Convênio": c.convenio?.nome || "-",
+        "Forma Pagamento": getFormaPagamentoDisplay(c),
         "Valor Consulta": c.valor_consulta,
         "Valor Médico": c.valor_medico,
         "Valor Plataforma": c.valor_plataforma,
@@ -1479,14 +1499,34 @@ export default function ClinicaFinanceiro() {
       doc.text("Últimas Consultas", 14, yPos);
       yPos += 10;
 
-      doc.setFontSize(8);
+      doc.setFontSize(7);
       doc.setFont("helvetica", "bold");
       doc.text("Data", 14, yPos);
-      doc.text("Médico", 40, yPos);
-      doc.text("Paciente", 85, yPos);
-      doc.text("Valor", 130, yPos);
-      doc.text("Status", 160, yPos);
+      doc.text("Médico", 35, yPos);
+      doc.text("Paciente", 65, yPos);
+      doc.text("Convênio", 100, yPos);
+      doc.text("Forma Pgto", 130, yPos);
+      doc.text("Valor", 160, yPos);
+      doc.text("Status", 180, yPos);
       yPos += 5;
+
+      // Helper to get forma de pagamento display for PDF
+      const getFormaPagamentoPDF = (consulta: Consulta) => {
+        if (!consulta.formas_pagamento) return "-";
+        if (Array.isArray(consulta.formas_pagamento)) {
+          return consulta.formas_pagamento.map((fp: any) => {
+            const labels: Record<string, string> = {
+              dinheiro: "Din",
+              pix: "PIX",
+              cartao_debito: "Déb",
+              cartao_credito: "Créd",
+              a_faturar: "Conv"
+            };
+            return labels[fp.forma] || fp.forma;
+          }).join("/");
+        }
+        return "-";
+      };
 
       doc.setFont("helvetica", "normal");
       filteredConsultas.slice(0, 30).forEach((c) => {
@@ -1494,11 +1534,13 @@ export default function ClinicaFinanceiro() {
           doc.addPage();
           yPos = 20;
         }
-        doc.text(format(parseISO(c.data_hora), "dd/MM/yy HH:mm"), 14, yPos);
-        doc.text((c.medico?.nome || "N/A").substring(0, 20), 40, yPos);
-        doc.text(getPatientName(c).substring(0, 20), 85, yPos);
-        doc.text(formatCurrency(c.valor_consulta), 130, yPos);
-        doc.text(c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Cancelado" : "Pendente", 160, yPos);
+        doc.text(format(parseISO(c.data_hora), "dd/MM HH:mm"), 14, yPos);
+        doc.text((c.medico?.nome || "N/A").substring(0, 15), 35, yPos);
+        doc.text(getPatientName(c).substring(0, 15), 65, yPos);
+        doc.text((c.convenio?.nome || "-").substring(0, 12), 100, yPos);
+        doc.text(getFormaPagamentoPDF(c).substring(0, 10), 130, yPos);
+        doc.text(formatCurrency(c.valor_consulta), 160, yPos);
+        doc.text(c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Canc" : "Pend", 180, yPos);
         yPos += 5;
       });
 
