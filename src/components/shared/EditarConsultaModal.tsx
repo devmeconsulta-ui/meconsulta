@@ -33,17 +33,23 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Save, Trash2, X, Edit, Plus, ClipboardList, User, History, Stethoscope, MapPin, Phone } from "lucide-react";
+import { Loader2, Save, Trash2, X, Edit, Plus, ClipboardList, User, History, Stethoscope, MapPin, Phone, Banknote, CreditCard, Smartphone, AlertCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Procedimento {
   id?: string;
   nome_procedimento: string;
   valor: number;
   isNew?: boolean;
+}
+
+interface FormaPagamento {
+  tipo: string;
+  valor: number;
 }
 
 interface EditarConsultaModalProps {
@@ -71,6 +77,13 @@ const paymentStatusOptions = [
   { value: "cancelado", label: "Cancelado" },
 ];
 
+const formasPagamentoOptions = [
+  { value: "dinheiro", label: "Dinheiro", icon: Banknote },
+  { value: "pix", label: "PIX", icon: Smartphone },
+  { value: "cartao_debito", label: "Cartão Débito", icon: CreditCard },
+  { value: "cartao_credito", label: "Cartão Crédito", icon: CreditCard },
+];
+
 export function EditarConsultaModal({
   open,
   onOpenChange,
@@ -86,6 +99,8 @@ export function EditarConsultaModal({
   const [novoProcedimento, setNovoProcedimento] = useState({ nome: "", valor: "" });
   const [medicoData, setMedicoData] = useState<any>(null);
   const [eventos, setEventos] = useState<any[]>([]);
+  const [formasPagamento, setFormasPagamento] = useState<FormaPagamento[]>([]);
+  const [pagamentoDividido, setPagamentoDividido] = useState(false);
   
   const [formData, setFormData] = useState({
     data_hora: "",
@@ -113,6 +128,15 @@ export function EditarConsultaModal({
         nome_paciente_consulta: consulta.nome_paciente_consulta || consulta.paciente?.nome || "",
       });
       
+      // Carrega formas de pagamento se existirem
+      if (consulta.formas_pagamento && Array.isArray(consulta.formas_pagamento)) {
+        setFormasPagamento(consulta.formas_pagamento);
+        setPagamentoDividido(consulta.formas_pagamento.length > 1);
+      } else {
+        setFormasPagamento([]);
+        setPagamentoDividido(false);
+      }
+      
       // Fetch existing procedures
       fetchProcedimentos();
       
@@ -123,6 +147,9 @@ export function EditarConsultaModal({
       }
     }
   }, [consulta, open, readOnly]);
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
   const fetchMedicoData = async () => {
     if (!consulta?.medico_id) return;
@@ -218,8 +245,67 @@ export function EditarConsultaModal({
   const totalProcedimentos = procedimentos.reduce((acc, p) => acc + p.valor, 0);
   const valorTotal = formData.valor_consulta + totalProcedimentos;
 
+  // Soma das formas de pagamento
+  const totalFormasPagamento = formasPagamento.reduce((acc, fp) => acc + fp.valor, 0);
+  const diferencaPagamento = valorTotal - totalFormasPagamento;
+
+  // Handler para adicionar forma de pagamento
+  const handleAddFormaPagamento = () => {
+    setFormasPagamento(prev => [...prev, { tipo: "dinheiro", valor: 0 }]);
+  };
+
+  // Handler para remover forma de pagamento
+  const handleRemoveFormaPagamento = (index: number) => {
+    setFormasPagamento(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Handler para atualizar forma de pagamento
+  const handleFormaPagamentoChange = (index: number, field: "tipo" | "valor", value: string | number) => {
+    setFormasPagamento(prev => prev.map((fp, i) => {
+      if (i === index) {
+        return { ...fp, [field]: field === "valor" ? (parseFloat(value as string) || 0) : value };
+      }
+      return fp;
+    }));
+  };
+
+  // Inicializar forma de pagamento quando status muda para pago
+  useEffect(() => {
+    if (formData.status_pagamento === "pago" && formasPagamento.length === 0 && consulta?.origem === "interna") {
+      setFormasPagamento([{ tipo: "dinheiro", valor: valorTotal }]);
+    }
+  }, [formData.status_pagamento, valorTotal, consulta?.origem]);
+
+  // Atualizar valor único quando não é dividido
+  useEffect(() => {
+    if (!pagamentoDividido && formasPagamento.length === 1) {
+      setFormasPagamento([{ ...formasPagamento[0], valor: valorTotal }]);
+    }
+  }, [valorTotal, pagamentoDividido]);
+
   const handleSave = async () => {
     if (!consulta?.id) return;
+    
+    // Validação de formas de pagamento para consultas internas marcadas como pago
+    if (formData.status_pagamento === "pago" && consulta.origem === "interna") {
+      if (formasPagamento.length === 0) {
+        toast({
+          title: "Forma de pagamento obrigatória",
+          description: "Selecione pelo menos uma forma de pagamento.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (Math.abs(diferencaPagamento) > 0.01) {
+        toast({
+          title: "Valores não conferem",
+          description: `A soma das formas de pagamento (${formatCurrency(totalFormasPagamento)}) deve ser igual ao valor total (${formatCurrency(valorTotal)}).`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     
     setLoading(true);
     try {
@@ -231,8 +317,11 @@ export function EditarConsultaModal({
         motivo_consulta: formData.motivo_consulta || null,
         sintomas: formData.sintomas || null,
         observacoes_paciente: formData.observacoes_paciente || null,
-        valor_consulta: valorTotal, // Total = base + procedimentos (reflete nos relatórios financeiros)
+        valor_consulta: valorTotal,
         nome_paciente_consulta: formData.nome_paciente_consulta || null,
+        formas_pagamento: formData.status_pagamento === "pago" && consulta.origem === "interna" 
+          ? formasPagamento 
+          : null,
       };
 
       // Se cancelando, também cancelar no Asaas se tiver payment_id
@@ -289,6 +378,42 @@ export function EditarConsultaModal({
               valor: proc.valor
             })
             .eq("id", proc.id);
+        }
+      }
+
+      // Se marcou como pago e é consulta interna, sincronizar com caixa
+      if (formData.status_pagamento === "pago" && consulta.origem === "interna" && consulta.clinica_id) {
+        // Buscar operação de caixa aberta
+        const { data: caixaAberto } = await supabase
+          .from("caixa_operacoes")
+          .select("id")
+          .eq("clinica_id", consulta.clinica_id)
+          .eq("tipo", "abertura")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (caixaAberto) {
+          // Criar movimentos para cada forma de pagamento
+          for (const fp of formasPagamento) {
+            const tipoLabel = formasPagamentoOptions.find(o => o.value === fp.tipo)?.label || fp.tipo;
+            await supabase
+              .from("caixa_movimentos")
+              .insert({
+                clinica_id: consulta.clinica_id,
+                operacao_abertura_id: caixaAberto.id,
+                tipo: "entrada",
+                valor: fp.valor,
+                forma_pagamento: fp.tipo,
+                descricao: `Consulta - ${consulta.nome_paciente_consulta || "Paciente"} (${tipoLabel})`,
+              });
+          }
+
+          // Marcar consulta como sincronizada
+          await supabase
+            .from("consultas")
+            .update({ sincronizado_caixa: true })
+            .eq("id", consulta.id);
         }
       }
 
@@ -488,6 +613,127 @@ export function EditarConsultaModal({
                 disabled={readOnly}
               />
             </div>
+
+            {/* Formas de Pagamento - apenas para consultas internas e status pago */}
+            {!readOnly && consulta?.origem === "interna" && formData.status_pagamento === "pago" && (
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="pt-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Banknote className="h-5 w-5 text-primary" />
+                      <Label className="text-base font-medium">Forma de Pagamento</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="pagamento-dividido" className="text-sm text-muted-foreground">
+                        Pagamento dividido
+                      </Label>
+                      <input
+                        type="checkbox"
+                        id="pagamento-dividido"
+                        checked={pagamentoDividido}
+                        onChange={(e) => {
+                          setPagamentoDividido(e.target.checked);
+                          if (!e.target.checked && formasPagamento.length > 1) {
+                            setFormasPagamento([{ tipo: formasPagamento[0].tipo, valor: valorTotal }]);
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Lista de formas de pagamento */}
+                  <div className="space-y-3">
+                    {formasPagamento.map((fp, index) => (
+                      <div key={index} className="flex gap-2 items-end">
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-xs">Tipo</Label>
+                          <Select
+                            value={fp.tipo}
+                            onValueChange={(value) => handleFormaPagamentoChange(index, "tipo", value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {formasPagamentoOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  <div className="flex items-center gap-2">
+                                    <option.icon className="h-4 w-4" />
+                                    {option.label}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="w-32 space-y-1">
+                          <Label className="text-xs">Valor (R$)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={fp.valor}
+                            onChange={(e) => handleFormaPagamentoChange(index, "valor", e.target.value)}
+                            disabled={!pagamentoDividido && formasPagamento.length === 1}
+                          />
+                        </div>
+                        {pagamentoDividido && formasPagamento.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleRemoveFormaPagamento(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Botão para adicionar mais formas de pagamento */}
+                  {pagamentoDividido && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddFormaPagamento}
+                      className="w-full"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar forma de pagamento
+                    </Button>
+                  )}
+
+                  {/* Resumo do pagamento */}
+                  {pagamentoDividido && (
+                    <div className="pt-2 border-t space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span>Valor da consulta:</span>
+                        <span className="font-medium">{formatCurrency(valorTotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Total informado:</span>
+                        <span className="font-medium">{formatCurrency(totalFormasPagamento)}</span>
+                      </div>
+                      {Math.abs(diferencaPagamento) > 0.01 && (
+                        <Alert variant="destructive" className="py-2">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription className="text-xs">
+                            {diferencaPagamento > 0 
+                              ? `Faltam ${formatCurrency(diferencaPagamento)} para completar o valor.`
+                              : `Valor excede em ${formatCurrency(Math.abs(diferencaPagamento))}.`
+                            }
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Motivo */}
             <div className="space-y-2">

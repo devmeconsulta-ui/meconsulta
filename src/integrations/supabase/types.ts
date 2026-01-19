@@ -866,6 +866,7 @@ export type Database = {
           finalizado_medico: boolean | null
           finalizado_medico_id: string | null
           finalizado_paciente: boolean | null
+          formas_pagamento: Json | null
           id: string
           incluida_em_repasse: boolean | null
           local_id: string | null
@@ -905,6 +906,7 @@ export type Database = {
           finalizado_medico?: boolean | null
           finalizado_medico_id?: string | null
           finalizado_paciente?: boolean | null
+          formas_pagamento?: Json | null
           id?: string
           incluida_em_repasse?: boolean | null
           local_id?: string | null
@@ -944,6 +946,7 @@ export type Database = {
           finalizado_medico?: boolean | null
           finalizado_medico_id?: string | null
           finalizado_paciente?: boolean | null
+          formas_pagamento?: Json | null
           id?: string
           incluida_em_repasse?: boolean | null
           local_id?: string | null
