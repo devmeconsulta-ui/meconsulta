@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { format, subDays, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
+import { format, subDays, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
 import {
@@ -33,7 +33,10 @@ import {
   CartesianGrid,
   Legend,
   LineChart,
-  Line
+  Line,
+  PieChart,
+  Pie,
+  Cell
 } from "recharts";
 import { 
   BarChart3, 
@@ -42,7 +45,11 @@ import {
   TrendingUp, 
   TrendingDown,
   DollarSign,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Banknote,
+  QrCode,
+  CreditCard,
+  Smartphone
 } from "lucide-react";
 import { FechamentoCaixa } from "@/hooks/useHistoricoCaixa";
 
@@ -55,6 +62,13 @@ interface RelatorioMensalCaixaModalProps {
   formatCurrency: (value: number) => string;
   nomeClinica: string;
 }
+
+const FORMA_PAGAMENTO_CONFIG: Record<string, { label: string; icon: typeof Banknote; color: string }> = {
+  dinheiro: { label: "Dinheiro", icon: Banknote, color: "#22c55e" },
+  pix: { label: "PIX", icon: QrCode, color: "#8b5cf6" },
+  cartao_debito: { label: "Cartão Débito", icon: CreditCard, color: "#3b82f6" },
+  cartao_credito: { label: "Cartão Crédito", icon: CreditCard, color: "#f59e0b" },
+};
 
 export function RelatorioMensalCaixaModal({
   open,
@@ -130,6 +144,47 @@ export function RelatorioMensalCaixaModal({
     };
   }, [historicoFiltrado]);
 
+  // Calcular totais por forma de pagamento
+  const totaisPorFormaPagamento = useMemo(() => {
+    const totais: Record<string, number> = {
+      dinheiro: 0,
+      pix: 0,
+      cartao_debito: 0,
+      cartao_credito: 0,
+    };
+
+    historicoFiltrado.forEach((f) => {
+      f.movimentos.forEach((m) => {
+        if (m.tipo === "entrada" && m.forma_pagamento) {
+          const forma = m.forma_pagamento.toLowerCase().replace(/\s+/g, "_");
+          if (totais[forma] !== undefined) {
+            totais[forma] += m.valor;
+          } else {
+            // Mapear formas alternativas
+            if (forma.includes("dinheiro")) totais.dinheiro += m.valor;
+            else if (forma.includes("pix")) totais.pix += m.valor;
+            else if (forma.includes("debito") || forma === "cartao_debito") totais.cartao_debito += m.valor;
+            else if (forma.includes("credito") || forma === "cartao_credito") totais.cartao_credito += m.valor;
+            else totais.dinheiro += m.valor; // Default
+          }
+        }
+      });
+    });
+
+    return totais;
+  }, [historicoFiltrado]);
+
+  // Dados para gráfico de pizza por forma de pagamento
+  const dadosPizza = useMemo(() => {
+    return Object.entries(totaisPorFormaPagamento)
+      .filter(([_, valor]) => valor > 0)
+      .map(([forma, valor]) => ({
+        name: FORMA_PAGAMENTO_CONFIG[forma]?.label || forma,
+        value: valor,
+        color: FORMA_PAGAMENTO_CONFIG[forma]?.color || "#6b7280",
+      }));
+  }, [totaisPorFormaPagamento]);
+
   // Dados para gráfico de barras diário
   const dadosGrafico = useMemo(() => {
     return historicoFiltrado.map((f) => ({
@@ -201,28 +256,57 @@ export function RelatorioMensalCaixaModal({
     let y = 65;
     
     doc.text(`Dias com movimento:`, 20, y);
-    doc.text(`${metricas.diasComMovimento}`, 120, y, { align: "right" });
+    doc.text(`${metricas.diasComMovimento}`, 100, y, { align: "right" });
     y += 8;
     
     doc.setTextColor(34, 197, 94);
     doc.text(`Total de Entradas:`, 20, y);
-    doc.text(`+ ${formatCurrency(metricas.totalEntradas)}`, 120, y, { align: "right" });
+    doc.text(`+ ${formatCurrency(metricas.totalEntradas)}`, 100, y, { align: "right" });
     y += 8;
     
     doc.setTextColor(239, 68, 68);
     doc.text(`Total de Saídas:`, 20, y);
-    doc.text(`- ${formatCurrency(metricas.totalSaidas)}`, 120, y, { align: "right" });
+    doc.text(`- ${formatCurrency(metricas.totalSaidas)}`, 100, y, { align: "right" });
     y += 8;
     
     doc.setTextColor(0);
     doc.setFont("helvetica", "bold");
     doc.text(`Saldo Líquido:`, 20, y);
-    doc.text(formatCurrency(metricas.saldoLiquido), 120, y, { align: "right" });
-    y += 8;
+    doc.text(formatCurrency(metricas.saldoLiquido), 100, y, { align: "right" });
+    y += 15;
+
+    // Detalhamento por forma de pagamento
+    doc.setDrawColor(200);
+    doc.line(20, y, 190, y);
+    y += 10;
     
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0);
+    doc.text("Detalhamento por Forma de Pagamento", 20, y);
+    y += 10;
+
+    doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
-    doc.text(`Ticket Médio Diário:`, 20, y);
-    doc.text(formatCurrency(metricas.ticketMedio), 120, y, { align: "right" });
+    
+    // Dinheiro
+    doc.text("Dinheiro:", 20, y);
+    doc.text(formatCurrency(totaisPorFormaPagamento.dinheiro), 100, y, { align: "right" });
+    y += 7;
+    
+    // PIX
+    doc.text("PIX:", 20, y);
+    doc.text(formatCurrency(totaisPorFormaPagamento.pix), 100, y, { align: "right" });
+    y += 7;
+    
+    // Cartão Débito
+    doc.text("Cartão Débito:", 20, y);
+    doc.text(formatCurrency(totaisPorFormaPagamento.cartao_debito), 100, y, { align: "right" });
+    y += 7;
+    
+    // Cartão Crédito
+    doc.text("Cartão Crédito:", 20, y);
+    doc.text(formatCurrency(totaisPorFormaPagamento.cartao_credito), 100, y, { align: "right" });
     y += 15;
 
     // Detalhamento diário
@@ -256,6 +340,7 @@ export function RelatorioMensalCaixaModal({
           y = 20;
         }
         
+        doc.setTextColor(0);
         doc.text(f.data, 20, y);
         doc.text(formatCurrency(f.saldoInicial), 55, y);
         doc.setTextColor(34, 197, 94);
@@ -285,9 +370,11 @@ export function RelatorioMensalCaixaModal({
     doc.save(`relatorio-caixa-${format(new Date(), "yyyy-MM-dd")}.pdf`);
   };
 
+  const totalFormasPagamento = Object.values(totaisPorFormaPagamento).reduce((a, b) => a + b, 0);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-primary" />
@@ -381,7 +468,7 @@ export function RelatorioMensalCaixaModal({
 
           <ScrollArea className="flex-1">
             <div className="space-y-4 pr-4">
-              {/* Cards de métricas */}
+              {/* Cards de métricas gerais */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3 rounded-lg bg-muted/50 text-center">
                   <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-1">
@@ -418,6 +505,75 @@ export function RelatorioMensalCaixaModal({
                   </p>
                 </div>
               </div>
+
+              {/* Detalhamento por Forma de Pagamento */}
+              {totalFormasPagamento > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <CreditCard className="w-4 h-4" />
+                    Detalhamento por Forma de Pagamento
+                  </h4>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {Object.entries(FORMA_PAGAMENTO_CONFIG).map(([key, config]) => {
+                      const valor = totaisPorFormaPagamento[key] || 0;
+                      const percentual = totalFormasPagamento > 0 ? (valor / totalFormasPagamento) * 100 : 0;
+                      const Icon = config.icon;
+                      
+                      return (
+                        <div 
+                          key={key} 
+                          className="p-3 rounded-lg border bg-card text-center"
+                          style={{ borderColor: valor > 0 ? config.color : undefined }}
+                        >
+                          <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-1">
+                            <Icon className="w-3 h-3" style={{ color: config.color }} />
+                            {config.label}
+                          </div>
+                          <p className="text-sm font-bold" style={{ color: valor > 0 ? config.color : undefined }}>
+                            {formatCurrency(valor)}
+                          </p>
+                          {valor > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              {percentual.toFixed(1)}%
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Gráfico de Pizza */}
+                  {dadosPizza.length > 0 && (
+                    <div className="h-[160px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={dadosPizza}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={40}
+                            outerRadius={60}
+                            paddingAngle={2}
+                            dataKey="value"
+                          >
+                            {dadosPizza.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value: number) => formatCurrency(value)}
+                          />
+                          <Legend 
+                            wrapperStyle={{ fontSize: 11 }}
+                            formatter={(value) => <span className="text-xs">{value}</span>}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Gráfico de barras */}
               {dadosGrafico.length > 0 ? (
