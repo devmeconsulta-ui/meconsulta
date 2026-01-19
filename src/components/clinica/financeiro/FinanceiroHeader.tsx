@@ -1,4 +1,4 @@
-import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Globe, Building2 } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Globe, Building2, FileCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -72,6 +72,9 @@ interface FinanceiroHeaderProps {
   // Interno metrics
   faturamentoInterno: number;
   saldoPrevistoInterno: number;
+  // Convênio metrics
+  convenioAFaturar?: number;
+  convenioQtd?: number;
   // Geral
   aReceber: number;
   aPagar: number;
@@ -89,6 +92,8 @@ export function FinanceiroHeader({
   saldoPrevistoOnline,
   faturamentoInterno,
   saldoPrevistoInterno,
+  convenioAFaturar = 0,
+  convenioQtd = 0,
   aReceber,
   aPagar,
   saldoPrevistoGeral,
@@ -170,8 +175,8 @@ export function FinanceiroHeader({
         />
       </div>
 
-      {/* Linha 2 - Contas e Previsão Geral */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Linha 2 - Contas, Convênio e Previsão Geral */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="A Receber"
           value={formatCurrency(aReceber)}
@@ -186,6 +191,14 @@ export function FinanceiroHeader({
           subtitle="Contas a vencer"
           icon={<TrendingDown className="w-5 h-5" />}
           variant="warning"
+        />
+
+        <MetricCard
+          title="À Faturar (Convênio)"
+          value={formatCurrency(convenioAFaturar)}
+          subtitle={`${convenioQtd} consulta(s) para faturar`}
+          icon={<FileCheck className="w-5 h-5" />}
+          variant="blue"
         />
         
         <MetricCard
