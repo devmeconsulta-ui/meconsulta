@@ -68,6 +68,7 @@ const FORMA_PAGAMENTO_CONFIG: Record<string, { label: string; icon: typeof Bankn
   pix: { label: "PIX", icon: QrCode, color: "#8b5cf6" },
   cartao_debito: { label: "Cartão Débito", icon: CreditCard, color: "#3b82f6" },
   cartao_credito: { label: "Cartão Crédito", icon: CreditCard, color: "#f59e0b" },
+  a_faturar: { label: "À Faturar / Convênio", icon: FileText, color: "#06b6d4" },
 };
 
 export function RelatorioMensalCaixaModal({
@@ -151,6 +152,7 @@ export function RelatorioMensalCaixaModal({
       pix: 0,
       cartao_debito: 0,
       cartao_credito: 0,
+      a_faturar: 0,
     };
 
     historicoFiltrado.forEach((f) => {
@@ -165,6 +167,7 @@ export function RelatorioMensalCaixaModal({
             else if (forma.includes("pix")) totais.pix += m.valor;
             else if (forma.includes("debito") || forma === "cartao_debito") totais.cartao_debito += m.valor;
             else if (forma.includes("credito") || forma === "cartao_credito") totais.cartao_credito += m.valor;
+            else if (forma.includes("faturar") || forma.includes("convenio")) totais.a_faturar += m.valor;
             else totais.dinheiro += m.valor; // Default
           }
         }

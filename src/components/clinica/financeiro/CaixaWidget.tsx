@@ -536,6 +536,7 @@ export function CaixaWidget({
       case "credito": 
       case "debito": return <CreditCard className="w-3 h-3" />;
       case "pix": return <QrCode className="w-3 h-3" />;
+      case "a_faturar": return <Receipt className="w-3 h-3" />;
       default: return null;
     }
   };
@@ -1079,6 +1080,12 @@ export function CaixaWidget({
                       <div className="flex items-center gap-2">
                         <CreditCard className="w-4 h-4" />
                         Cartão Débito
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="a_faturar">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="w-4 h-4" />
+                        À Faturar / Convênio
                       </div>
                     </SelectItem>
                   </SelectContent>
