@@ -33,7 +33,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Save, Trash2, X, Edit, Plus, ClipboardList, User, History, Stethoscope, MapPin, Phone, Banknote, CreditCard, Smartphone, AlertCircle } from "lucide-react";
+import { Loader2, Save, Trash2, X, Edit, Plus, ClipboardList, User, History, Stethoscope, MapPin, Phone, Banknote, CreditCard, Smartphone, AlertCircle, FileText } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +82,7 @@ const formasPagamentoOptions = [
   { value: "pix", label: "PIX", icon: Smartphone },
   { value: "cartao_debito", label: "Cartão Débito", icon: CreditCard },
   { value: "cartao_credito", label: "Cartão Crédito", icon: CreditCard },
+  { value: "a_faturar", label: "À Faturar / Convênio", icon: FileText },
 ];
 
 export function EditarConsultaModal({
