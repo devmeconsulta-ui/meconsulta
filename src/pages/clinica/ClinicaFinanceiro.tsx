@@ -116,6 +116,7 @@ interface Consulta {
   paciente_id: string | null;
   tipo_atendimento: string | null;
   convenio_id: string | null;
+  formas_pagamento: any;
   paciente: { nome: string } | null;
   medico: { nome: string; especialidade: string } | null;
   local: { nome_local: string } | null;
@@ -200,6 +201,7 @@ export default function ClinicaFinanceiro() {
   const [localFilter, setLocalFilter] = useState("todos");
   const [tipoAtendimentoFilter, setTipoAtendimentoFilter] = useState("todos");
   const [convenioFilter, setConvenioFilter] = useState("todos");
+  const [formaPagamentoFilter, setFormaPagamentoFilter] = useState("todos");
   const [searchPaciente, setSearchPaciente] = useState("");
   const [medicoComboboxOpen, setMedicoComboboxOpen] = useState(false);
   
@@ -345,6 +347,7 @@ export default function ClinicaFinanceiro() {
         paciente_id,
         tipo_atendimento,
         convenio_id,
+        formas_pagamento,
         nome_paciente_consulta,
         finalizado_medico,
         paciente:pacientes!consultas_paciente_id_fkey(nome),
@@ -460,10 +463,17 @@ export default function ClinicaFinanceiro() {
       const matchConvenio = convenioFilter === "todos" || c.convenio_id === convenioFilter;
       const matchSearch = !searchPaciente.trim() || 
         (c.nome_paciente_consulta || c.paciente?.nome || "").toLowerCase().includes(searchPaciente.toLowerCase());
+      
+      // Filtro de forma de pagamento
+      let matchFormaPagamento = formaPagamentoFilter === "todos";
+      if (!matchFormaPagamento && c.formas_pagamento) {
+        const formas = Array.isArray(c.formas_pagamento) ? c.formas_pagamento : [];
+        matchFormaPagamento = formas.some((f: any) => f.tipo === formaPagamentoFilter);
+      }
 
-      return matchMedico && matchStatus && matchOrigem && matchLocal && matchTipoAtendimento && matchConvenio && matchSearch;
+      return matchMedico && matchStatus && matchOrigem && matchLocal && matchTipoAtendimento && matchConvenio && matchFormaPagamento && matchSearch;
     });
-  }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter, tipoAtendimentoFilter, convenioFilter, searchPaciente]);
+  }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter, tipoAtendimentoFilter, convenioFilter, formaPagamentoFilter, searchPaciente]);
 
   // Calcular novos pacientes do mês atual (pacientes que fizeram primeira consulta neste mês)
   const novosPacientesMesAtual = useMemo(() => {
@@ -2754,7 +2764,7 @@ export default function ClinicaFinanceiro() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-sm font-medium">
                     <Users className="h-4 w-4" />
@@ -2863,6 +2873,23 @@ export default function ClinicaFinanceiro() {
                       {locais.map((l) => (
                         <SelectItem key={l.id} value={l.id}>{l.nome_local}</SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Forma de Pagamento</Label>
+                  <Select value={formaPagamentoFilter} onValueChange={setFormaPagamentoFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas</SelectItem>
+                      <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                      <SelectItem value="pix">PIX</SelectItem>
+                      <SelectItem value="cartao_credito">Cartão Crédito</SelectItem>
+                      <SelectItem value="cartao_debito">Cartão Débito</SelectItem>
+                      <SelectItem value="a_faturar">À Faturar / Convênio</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
