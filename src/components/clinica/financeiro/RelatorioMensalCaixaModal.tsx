@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { format } from "date-fns";
+import { format, subDays, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
 import {
   Dialog,
@@ -19,6 +20,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { 
   BarChart, 
   Bar, 
@@ -38,9 +42,11 @@ import {
   TrendingUp, 
   TrendingDown,
   DollarSign,
-  Calendar
+  Calendar as CalendarIcon
 } from "lucide-react";
 import { FechamentoCaixa } from "@/hooks/useHistoricoCaixa";
+
+type PeriodFilter = "7d" | "15d" | "30d" | "mes_atual" | "mes_anterior" | "personalizado";
 
 interface RelatorioMensalCaixaModalProps {
   open: boolean;
@@ -57,30 +63,52 @@ export function RelatorioMensalCaixaModal({
   formatCurrency,
   nomeClinica,
 }: RelatorioMensalCaixaModalProps) {
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth();
-  
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth.toString());
-  const [selectedYear, setSelectedYear] = useState(currentYear.toString());
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
+  const [customDateStart, setCustomDateStart] = useState<Date | undefined>(undefined);
+  const [customDateEnd, setCustomDateEnd] = useState<Date | undefined>(undefined);
 
   const meses = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
   ];
 
-  const anos = Array.from({ length: 3 }, (_, i) => currentYear - i);
+  // Calcular range de datas baseado no filtro
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    
+    switch (periodFilter) {
+      case "7d":
+        return { start: subDays(now, 7), end: now };
+      case "15d":
+        return { start: subDays(now, 15), end: now };
+      case "30d":
+        return { start: subDays(now, 30), end: now };
+      case "mes_atual":
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case "mes_anterior":
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+      case "personalizado":
+        return {
+          start: customDateStart || subDays(now, 30),
+          end: customDateEnd || now
+        };
+      default:
+        return { start: subDays(now, 30), end: now };
+    }
+  }, [periodFilter, customDateStart, customDateEnd]);
 
-  // Filtrar histórico pelo mês/ano selecionado
+  // Filtrar histórico pelo período selecionado
   const historicoFiltrado = useMemo(() => {
     return historico.filter((f) => {
       const [dia, mes, ano] = f.data.split("/");
       const dataFechamento = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
-      return (
-        dataFechamento.getMonth() === parseInt(selectedMonth) &&
-        dataFechamento.getFullYear() === parseInt(selectedYear)
-      );
+      return isWithinInterval(dataFechamento, {
+        start: dateRange.start,
+        end: new Date(dateRange.end.getTime() + 24 * 60 * 60 * 1000 - 1)
+      });
     });
-  }, [historico, selectedMonth, selectedYear]);
+  }, [historico, dateRange]);
 
   // Calcular métricas
   const metricas = useMemo(() => {
@@ -124,24 +152,46 @@ export function RelatorioMensalCaixaModal({
     }).reverse();
   }, [historicoFiltrado]);
 
+  // Label do período para o PDF
+  const getPeriodoLabel = () => {
+    switch (periodFilter) {
+      case "7d":
+        return "Últimos 7 dias";
+      case "15d":
+        return "Últimos 15 dias";
+      case "30d":
+        return "Últimos 30 dias";
+      case "mes_atual":
+        return `${meses[new Date().getMonth()]} de ${new Date().getFullYear()}`;
+      case "mes_anterior":
+        const lastMonth = new Date();
+        lastMonth.setMonth(lastMonth.getMonth() - 1);
+        return `${meses[lastMonth.getMonth()]} de ${lastMonth.getFullYear()}`;
+      case "personalizado":
+        return `${format(dateRange.start, "dd/MM/yyyy")} a ${format(dateRange.end, "dd/MM/yyyy")}`;
+      default:
+        return "";
+    }
+  };
+
   const gerarPDFRelatorio = () => {
     const doc = new jsPDF();
-    const mesNome = meses[parseInt(selectedMonth)];
+    const periodoLabel = getPeriodoLabel();
     
     // Cabeçalho
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text("RELATÓRIO MENSAL DE CAIXA", 105, 20, { align: "center" });
+    doc.text("RELATÓRIO DE CAIXA", 105, 20, { align: "center" });
     
     doc.setFontSize(12);
     doc.setFont("helvetica", "normal");
     doc.text(nomeClinica, 105, 30, { align: "center" });
-    doc.text(`${mesNome} de ${selectedYear}`, 105, 38, { align: "center" });
+    doc.text(periodoLabel, 105, 38, { align: "center" });
     
     doc.setDrawColor(200);
     doc.line(20, 45, 190, 45);
 
-    // Resumo do mês
+    // Resumo do período
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.text("Resumo do Período", 20, 55);
@@ -232,7 +282,7 @@ export function RelatorioMensalCaixaModal({
       );
     }
 
-    doc.save(`relatorio-caixa-${mesNome.toLowerCase()}-${selectedYear}.pdf`);
+    doc.save(`relatorio-caixa-${format(new Date(), "yyyy-MM-dd")}.pdf`);
   };
 
   return (
@@ -241,7 +291,7 @@ export function RelatorioMensalCaixaModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-primary" />
-            Relatório Mensal de Caixa
+            Relatório de Caixa
           </DialogTitle>
           <DialogDescription>
             Análise consolidada dos fechamentos de caixa
@@ -250,37 +300,83 @@ export function RelatorioMensalCaixaModal({
         
         <div className="flex-1 overflow-hidden flex flex-col space-y-4">
           {/* Filtros */}
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <Label className="text-xs">Mês</Label>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Período</Label>
+              <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {meses.map((mes, index) => (
-                    <SelectItem key={index} value={index.toString()}>
-                      {mes}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="7d">Últimos 7 dias</SelectItem>
+                  <SelectItem value="15d">Últimos 15 dias</SelectItem>
+                  <SelectItem value="30d">Últimos 30 dias</SelectItem>
+                  <SelectItem value="mes_atual">Mês atual</SelectItem>
+                  <SelectItem value="mes_anterior">Mês anterior</SelectItem>
+                  <SelectItem value="personalizado">Personalizado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-24">
-              <Label className="text-xs">Ano</Label>
-              <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {anos.map((ano) => (
-                    <SelectItem key={ano} value={ano.toString()}>
-                      {ano}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+
+            {/* Calendários para período personalizado */}
+            {periodFilter === "personalizado" && (
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <Label className="text-xs">Data Início</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal mt-1",
+                          !customDateStart && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customDateStart ? format(customDateStart, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={customDateStart}
+                        onSelect={setCustomDateStart}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="flex-1">
+                  <Label className="text-xs">Data Fim</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal mt-1",
+                          !customDateEnd && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customDateEnd ? format(customDateEnd, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={customDateEnd}
+                        onSelect={setCustomDateEnd}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            )}
           </div>
 
           <ScrollArea className="flex-1">
@@ -289,7 +385,7 @@ export function RelatorioMensalCaixaModal({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3 rounded-lg bg-muted/50 text-center">
                   <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-1">
-                    <Calendar className="w-3 h-3" />
+                    <CalendarIcon className="w-3 h-3" />
                     Dias
                   </div>
                   <p className="text-lg font-bold">{metricas.diasComMovimento}</p>
