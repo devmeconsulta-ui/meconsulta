@@ -114,9 +114,12 @@ interface Consulta {
   local_id: string | null;
   clinica_id: string | null;
   paciente_id: string | null;
+  tipo_atendimento: string | null;
+  convenio_id: string | null;
   paciente: { nome: string } | null;
   medico: { nome: string; especialidade: string } | null;
   local: { nome_local: string } | null;
+  convenio: { nome: string } | null;
   nome_paciente_consulta: string | null;
   finalizado_medico: boolean;
 }
@@ -182,6 +185,7 @@ export default function ClinicaFinanceiro() {
   const [repasses, setRepasses] = useState<Repasse[]>([]);
   const [medicos, setMedicos] = useState<Array<{ id: string; nome: string }>>([]);
   const [locais, setLocais] = useState<Array<{ id: string; nome_local: string }>>([]);
+  const [convenios, setConvenios] = useState<Array<{ id: string; nome: string }>>([]);
   const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
   const [contasPagar, setContasPagar] = useState<ContaPagar[]>([]);
   const [contasReceber, setContasReceber] = useState<ContaReceber[]>([]);
@@ -194,6 +198,8 @@ export default function ClinicaFinanceiro() {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [origemFilter, setOrigemFilter] = useState("todos");
   const [localFilter, setLocalFilter] = useState("todos");
+  const [tipoAtendimentoFilter, setTipoAtendimentoFilter] = useState("todos");
+  const [convenioFilter, setConvenioFilter] = useState("todos");
   const [searchPaciente, setSearchPaciente] = useState("");
   const [medicoComboboxOpen, setMedicoComboboxOpen] = useState(false);
   
@@ -279,6 +285,7 @@ export default function ClinicaFinanceiro() {
       fetchContasPagar(),
       fetchContasReceber(),
       fetchMedicoRepasseConfigs(),
+      fetchConvenios(),
     ]);
     setLoading(false);
   }
@@ -336,11 +343,14 @@ export default function ClinicaFinanceiro() {
         local_id,
         clinica_id,
         paciente_id,
+        tipo_atendimento,
+        convenio_id,
         nome_paciente_consulta,
         finalizado_medico,
         paciente:pacientes!consultas_paciente_id_fkey(nome),
         medico:medicos!consultas_medico_id_fkey(nome, especialidade),
-        local:locais_atendimento!consultas_local_id_fkey(nome_local)
+        local:locais_atendimento!consultas_local_id_fkey(nome_local),
+        convenio:convenios!consultas_convenio_id_fkey(nome)
       `)
       .in("medico_id", medicoIds)
       .gte("data_hora", dateRange.start.toISOString())
@@ -426,6 +436,17 @@ export default function ClinicaFinanceiro() {
     setMedicoRepasseConfigs(data || []);
   }
 
+  async function fetchConvenios() {
+    const { data } = await supabase
+      .from("convenios")
+      .select("id, nome")
+      .eq("clinica_id", clinicaData.id)
+      .eq("ativo", true)
+      .order("nome");
+
+    setConvenios(data || []);
+  }
+
   const filteredConsultas = useMemo(() => {
     return consultas.filter((c) => {
       const matchMedico = medicoFilter === "todos" || c.medico_id === medicoFilter;
@@ -435,12 +456,14 @@ export default function ClinicaFinanceiro() {
         (statusFilter === "cancelado" && c.status_consulta === "cancelada");
       const matchOrigem = origemFilter === "todos" || c.origem === origemFilter;
       const matchLocal = localFilter === "todos" || c.local_id === localFilter;
+      const matchTipoAtendimento = tipoAtendimentoFilter === "todos" || c.tipo_atendimento === tipoAtendimentoFilter;
+      const matchConvenio = convenioFilter === "todos" || c.convenio_id === convenioFilter;
       const matchSearch = !searchPaciente.trim() || 
         (c.nome_paciente_consulta || c.paciente?.nome || "").toLowerCase().includes(searchPaciente.toLowerCase());
 
-      return matchMedico && matchStatus && matchOrigem && matchLocal && matchSearch;
+      return matchMedico && matchStatus && matchOrigem && matchLocal && matchTipoAtendimento && matchConvenio && matchSearch;
     });
-  }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter, searchPaciente]);
+  }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter, tipoAtendimentoFilter, convenioFilter, searchPaciente]);
 
   // Calcular novos pacientes do mês atual (pacientes que fizeram primeira consulta neste mês)
   const novosPacientesMesAtual = useMemo(() => {
@@ -1571,7 +1594,7 @@ export default function ClinicaFinanceiro() {
           {/* Filtros no topo da aba */}
           <Card>
             <CardContent className="pt-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Médico</label>
                   <Select value={medicoFilter} onValueChange={setMedicoFilter}>
@@ -1632,6 +1655,35 @@ export default function ClinicaFinanceiro() {
                 </div>
 
                 <div className="space-y-2">
+                  <label className="text-sm font-medium">Tipo Atendimento</label>
+                  <Select value={tipoAtendimentoFilter} onValueChange={setTipoAtendimentoFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="particular">Particular</SelectItem>
+                      <SelectItem value="convenio">Convênio</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Convênio</label>
+                  <Select value={convenioFilter} onValueChange={setConvenioFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      {convenios.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2 lg:col-span-2">
                   <label className="text-sm font-medium">Paciente</label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
