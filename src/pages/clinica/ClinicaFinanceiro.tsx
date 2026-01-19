@@ -113,6 +113,7 @@ interface Consulta {
   medico_id: string;
   local_id: string | null;
   clinica_id: string | null;
+  paciente_id: string | null;
   paciente: { nome: string } | null;
   medico: { nome: string; especialidade: string } | null;
   local: { nome_local: string } | null;
@@ -334,6 +335,7 @@ export default function ClinicaFinanceiro() {
         medico_id,
         local_id,
         clinica_id,
+        paciente_id,
         nome_paciente_consulta,
         finalizado_medico,
         paciente:pacientes!consultas_paciente_id_fkey(nome),
@@ -439,6 +441,36 @@ export default function ClinicaFinanceiro() {
       return matchMedico && matchStatus && matchOrigem && matchLocal && matchSearch;
     });
   }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter, searchPaciente]);
+
+  // Calcular novos pacientes do mês atual (pacientes que fizeram primeira consulta neste mês)
+  const novosPacientesMesAtual = useMemo(() => {
+    const now = new Date();
+    const inicioMes = startOfMonth(now);
+    const fimMes = endOfMonth(now);
+    
+    // Pegar todas as consultas pagas
+    const consultasPagas = consultas.filter(c => c.status_pagamento === "pago");
+    
+    // Agrupar por paciente_id e pegar a primeira consulta de cada
+    const primeiraConsultaPorPaciente: { [key: string]: Date } = {};
+    consultasPagas.forEach(c => {
+      if (!c.paciente_id) return;
+      const dataConsulta = parseISO(c.data_hora);
+      if (!primeiraConsultaPorPaciente[c.paciente_id] || dataConsulta < primeiraConsultaPorPaciente[c.paciente_id]) {
+        primeiraConsultaPorPaciente[c.paciente_id] = dataConsulta;
+      }
+    });
+    
+    // Contar quantos tiveram primeira consulta neste mês
+    let count = 0;
+    Object.values(primeiraConsultaPorPaciente).forEach(data => {
+      if (isWithinInterval(data, { start: inicioMes, end: fimMes })) {
+        count++;
+      }
+    });
+    
+    return count;
+  }, [consultas]);
 
   const metrics = useMemo(() => {
     const onlineConsultas = filteredConsultas.filter((c) => c.origem === "online");
@@ -1663,7 +1695,7 @@ export default function ClinicaFinanceiro() {
               clinicaId={clinicaData?.id}
               faturamentoAtual={metrics.pagoTotal}
               consultasAtual={filteredConsultas.filter(c => c.status_pagamento === "pago").length}
-              novosPacientesAtual={0}
+              novosPacientesAtual={novosPacientesMesAtual}
               ticketMedioAtual={metrics.pagos > 0 ? metrics.pagoTotal / metrics.pagos : 0}
               formatCurrency={formatCurrency}
             />
