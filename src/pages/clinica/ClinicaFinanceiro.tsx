@@ -3134,16 +3134,18 @@ export default function ClinicaFinanceiro() {
                         const formas = Array.isArray(c.formas_pagamento) ? c.formas_pagamento : [];
                         const formaPagtoLabel = formas.length > 0 
                           ? formas.map((f: any) => {
-                              switch(f.tipo) {
+                              const key = f.forma || f.tipo;
+                              switch(key) {
                                 case 'dinheiro': return 'Dinheiro';
                                 case 'pix': return 'PIX';
                                 case 'cartao_credito': return 'Cartão Créd.';
                                 case 'cartao_debito': return 'Cartão Déb.';
                                 case 'a_faturar': return 'À Faturar';
-                                default: return f.tipo;
+                                default: return key || '-';
                               }
                             }).join(', ')
                           : '-';
+                        const isAFaturar = formas.some((f: any) => (f.forma || f.tipo) === 'a_faturar');
                         
                         return (
                           <TableRow key={c.id}>
@@ -3161,7 +3163,7 @@ export default function ClinicaFinanceiro() {
                               )}
                             </TableCell>
                             <TableCell>
-                              {formas.some((f: any) => f.tipo === 'a_faturar') ? (
+                              {isAFaturar ? (
                                 <Badge variant="outline" className="text-xs border-cyan-500 text-cyan-600">
                                   {formaPagtoLabel}
                                 </Badge>
