@@ -85,9 +85,12 @@ interface Consulta {
   medico_id: string;
   local_id: string | null;
   clinica_id: string | null;
+  tipo_atendimento: string | null;
+  convenio_id: string | null;
   paciente: { nome: string; cpf?: string } | null;
   medico: { nome: string; especialidade: string; crm?: string } | null;
   local: { nome_local: string; cidade?: string; estado?: string } | null;
+  convenio: { nome: string } | null;
   nome_paciente_consulta: string | null;
   created_at: string;
 }
@@ -108,6 +111,8 @@ export default function ClinicaRelatorios() {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [origemFilter, setOrigemFilter] = useState("todos");
   const [localFilter, setLocalFilter] = useState("todos");
+  const [tipoAtendimentoFilter, setTipoAtendimentoFilter] = useState("todos");
+  const [convenioFilter, setConvenioFilter] = useState("todos");
 
   // Custom date range
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -179,6 +184,21 @@ export default function ClinicaRelatorios() {
     enabled: !!clinicaData?.id,
   });
 
+  // Fetch convênios
+  const { data: convenios } = useQuery({
+    queryKey: ["clinica-convenios-relatorios", clinicaData?.id],
+    queryFn: async () => {
+      if (!clinicaData?.id) return [];
+      const { data } = await supabase
+        .from("convenios")
+        .select("id, nome")
+        .eq("clinica_id", clinicaData.id)
+        .eq("ativo", true);
+      return data || [];
+    },
+    enabled: !!clinicaData?.id,
+  });
+
   // Fetch consultas
   const { data: consultas, isLoading } = useQuery({
     queryKey: ["clinica-consultas-relatorios", clinicaData?.id, calculatedDateRange],
@@ -200,11 +220,14 @@ export default function ClinicaRelatorios() {
           medico_id,
           local_id,
           clinica_id,
+          tipo_atendimento,
+          convenio_id,
           nome_paciente_consulta,
           created_at,
           paciente:pacientes!consultas_paciente_id_fkey(nome, cpf),
           medico:medicos!consultas_medico_id_fkey(nome, especialidade, crm),
-          local:locais_atendimento!consultas_local_id_fkey(nome_local, cidade, estado)
+          local:locais_atendimento!consultas_local_id_fkey(nome_local, cidade, estado),
+          convenio:convenios!consultas_convenio_id_fkey(nome)
         `)
         .eq("clinica_id", clinicaData.id)
         .in("medico_id", medicoIds)
@@ -244,8 +267,16 @@ export default function ClinicaRelatorios() {
       filtered = filtered.filter((c) => c.local_id === localFilter);
     }
 
+    if (tipoAtendimentoFilter !== "todos") {
+      filtered = filtered.filter((c) => c.tipo_atendimento === tipoAtendimentoFilter);
+    }
+
+    if (convenioFilter !== "todos") {
+      filtered = filtered.filter((c) => c.convenio_id === convenioFilter);
+    }
+
     return filtered;
-  }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter]);
+  }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter, tipoAtendimentoFilter, convenioFilter]);
 
   // Only online consultations for revenue
   const consultasOnline = useMemo(
@@ -354,6 +385,54 @@ export default function ClinicaRelatorios() {
     return Object.values(grouped).sort((a, b) => b.consultas - a.consultas);
   }, [filteredConsultas]);
 
+  // Data by convênio
+  const dadosPorConvenio = useMemo(() => {
+    if (!filteredConsultas.length) return [];
+
+    const grouped: Record<string, { nome: string; consultas: number; valor: number; pago: number }> = {};
+
+    // Group by tipo_atendimento first
+    const particular = filteredConsultas.filter((c) => c.tipo_atendimento === "particular" || !c.tipo_atendimento);
+    const convenioConsultas = filteredConsultas.filter((c) => c.tipo_atendimento === "convenio");
+
+    if (particular.length > 0) {
+      grouped["particular"] = {
+        nome: "Particular",
+        consultas: particular.length,
+        valor: particular.reduce((sum, c) => sum + Number(c.valor_consulta), 0),
+        pago: particular.filter((c) => c.status_pagamento === "pago").reduce((sum, c) => sum + Number(c.valor_consulta), 0),
+      };
+    }
+
+    convenioConsultas.forEach((c: any) => {
+      const id = c.convenio_id || "sem_convenio";
+      const nome = c.convenio?.nome || "Convênio não especificado";
+      if (!grouped[id]) {
+        grouped[id] = { nome, consultas: 0, valor: 0, pago: 0 };
+      }
+      grouped[id].consultas += 1;
+      grouped[id].valor += Number(c.valor_consulta);
+      if (c.status_pagamento === "pago") {
+        grouped[id].pago += Number(c.valor_consulta);
+      }
+    });
+
+    return Object.values(grouped).sort((a, b) => b.consultas - a.consultas);
+  }, [filteredConsultas]);
+
+  // Metrics by tipo atendimento
+  const metricasConvenio = useMemo(() => {
+    const particular = filteredConsultas.filter((c) => c.tipo_atendimento === "particular" || !c.tipo_atendimento);
+    const convenioConsultas = filteredConsultas.filter((c) => c.tipo_atendimento === "convenio");
+    
+    return {
+      totalParticular: particular.length,
+      valorParticular: particular.reduce((sum, c) => sum + Number(c.valor_consulta), 0),
+      totalConvenio: convenioConsultas.length,
+      valorConvenio: convenioConsultas.reduce((sum, c) => sum + Number(c.valor_consulta), 0),
+    };
+  }, [filteredConsultas]);
+
   // Data by status
   const dadosPorStatus = useMemo(() => {
     return [
@@ -379,6 +458,8 @@ export default function ClinicaRelatorios() {
     setStatusFilter("todos");
     setOrigemFilter("todos");
     setLocalFilter("todos");
+    setTipoAtendimentoFilter("todos");
+    setConvenioFilter("todos");
   };
 
   const activeFiltersCount = [
@@ -386,6 +467,8 @@ export default function ClinicaRelatorios() {
     statusFilter !== "todos",
     origemFilter !== "todos",
     localFilter !== "todos",
+    tipoAtendimentoFilter !== "todos",
+    convenioFilter !== "todos",
   ].filter(Boolean).length;
 
   // Export to Excel
@@ -708,6 +791,7 @@ export default function ClinicaRelatorios() {
             <SelectItem value="geral">Visão Geral</SelectItem>
             <SelectItem value="medicos">Por Médico</SelectItem>
             <SelectItem value="locais">Por Local</SelectItem>
+            <SelectItem value="convenios">Por Convênio</SelectItem>
           </SelectContent>
         </Select>
 
@@ -814,6 +898,37 @@ export default function ClinicaRelatorios() {
                       {locais?.map((l: any) => (
                         <SelectItem key={l.id} value={l.id}>
                           {l.nome_local}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tipo Atendimento</Label>
+                  <Select value={tipoAtendimentoFilter} onValueChange={setTipoAtendimentoFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="particular">Particular</SelectItem>
+                      <SelectItem value="convenio">Convênio</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Convênio</Label>
+                  <Select value={convenioFilter} onValueChange={setConvenioFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      {convenios?.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nome}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1032,6 +1147,108 @@ export default function ClinicaRelatorios() {
         </Card>
       )}
 
+      {tipoRelatorio === "convenios" && (
+        <>
+          {/* Metrics cards for convenio */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-blue-500/10 shrink-0">
+                    <Users className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground">Particular</p>
+                    <p className="text-xl font-bold truncate">{metricasConvenio.totalParticular} consultas</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-blue-500/10 shrink-0">
+                    <DollarSign className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground">Valor Particular</p>
+                    <p className="text-xl font-bold truncate">{formatCurrency(metricasConvenio.valorParticular)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-purple-500/10 shrink-0">
+                    <Users className="w-6 h-6 text-purple-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground">Convênio</p>
+                    <p className="text-xl font-bold truncate">{metricasConvenio.totalConvenio} consultas</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-purple-500/10 shrink-0">
+                    <DollarSign className="w-6 h-6 text-purple-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground">Valor Convênio</p>
+                    <p className="text-xl font-bold truncate">{formatCurrency(metricasConvenio.valorConvenio)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Consultas por Tipo de Atendimento / Convênio</CardTitle>
+              <CardDescription>Distribuição de consultas entre particular e convênios</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {dadosPorConvenio.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Nenhum dado disponível</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tipo / Convênio</TableHead>
+                        <TableHead className="text-center">Consultas</TableHead>
+                        <TableHead className="text-right">Valor Total</TableHead>
+                        <TableHead className="text-right">Valor Pago</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dadosPorConvenio.map((d) => (
+                        <TableRow key={d.nome}>
+                          <TableCell className="font-medium">
+                            <Badge variant={d.nome === "Particular" ? "default" : "secondary"}>
+                              {d.nome}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">{d.consultas}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(d.valor)}</TableCell>
+                          <TableCell className="text-right text-green-600">{formatCurrency(d.pago)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
       {/* Consultations Table */}
       <Card>
         <CardHeader>
@@ -1067,11 +1284,18 @@ export default function ClinicaRelatorios() {
                       <TableCell>{getPatientName(consulta)}</TableCell>
                       <TableCell>{consulta.local?.nome_local || "-"}</TableCell>
                       <TableCell>
-                        <Badge variant={consulta.origem === "online" ? "default" : "secondary"}>
-                          {consulta.origem === "online" ? "Online" : "Interna"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{formatCurrency(consulta.valor_consulta)}</TableCell>
+                              <div className="flex flex-col gap-1">
+                                <Badge variant={consulta.origem === "online" ? "default" : "secondary"}>
+                                  {consulta.origem === "online" ? "Online" : "Interna"}
+                                </Badge>
+                                {consulta.tipo_atendimento === "convenio" && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {consulta.convenio?.nome || "Convênio"}
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>{formatCurrency(consulta.valor_consulta)}</TableCell>
                       <TableCell>
                         <Badge
                           variant={
