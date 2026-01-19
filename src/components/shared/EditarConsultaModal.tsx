@@ -271,10 +271,10 @@ export function EditarConsultaModal({
 
   // Inicializar forma de pagamento quando status muda para pago
   useEffect(() => {
-    if (formData.status_pagamento === "pago" && formasPagamento.length === 0 && consulta?.origem === "interna") {
+    if (formData.status_pagamento === "pago" && formasPagamento.length === 0) {
       setFormasPagamento([{ tipo: "dinheiro", valor: valorTotal }]);
     }
-  }, [formData.status_pagamento, valorTotal, consulta?.origem]);
+  }, [formData.status_pagamento, valorTotal]);
 
   // Atualizar valor único quando não é dividido
   useEffect(() => {
@@ -286,8 +286,8 @@ export function EditarConsultaModal({
   const handleSave = async () => {
     if (!consulta?.id) return;
     
-    // Validação de formas de pagamento para consultas internas marcadas como pago
-    if (formData.status_pagamento === "pago" && consulta.origem === "interna") {
+    // Validação de formas de pagamento para consultas marcadas como pago
+    if (formData.status_pagamento === "pago") {
       if (formasPagamento.length === 0) {
         toast({
           title: "Forma de pagamento obrigatória",
@@ -319,9 +319,7 @@ export function EditarConsultaModal({
         observacoes_paciente: formData.observacoes_paciente || null,
         valor_consulta: valorTotal,
         nome_paciente_consulta: formData.nome_paciente_consulta || null,
-        formas_pagamento: formData.status_pagamento === "pago" && consulta.origem === "interna" 
-          ? formasPagamento 
-          : null,
+        formas_pagamento: formData.status_pagamento === "pago" ? formasPagamento : null,
       };
 
       // Se cancelando, também cancelar no Asaas se tiver payment_id
@@ -381,8 +379,8 @@ export function EditarConsultaModal({
         }
       }
 
-      // Se marcou como pago e é consulta interna, sincronizar com caixa
-      if (formData.status_pagamento === "pago" && consulta.origem === "interna" && consulta.clinica_id) {
+      // Se marcou como pago e tem clínica, sincronizar com caixa
+      if (formData.status_pagamento === "pago" && consulta.clinica_id) {
         // Buscar operação de caixa aberta
         const { data: caixaAberto } = await supabase
           .from("caixa_operacoes")
@@ -615,7 +613,7 @@ export function EditarConsultaModal({
             </div>
 
             {/* Formas de Pagamento - apenas para consultas internas e status pago */}
-            {!readOnly && consulta?.origem === "interna" && formData.status_pagamento === "pago" && (
+            {!readOnly && formData.status_pagamento === "pago" && (
               <Card className="border-primary/20 bg-primary/5">
                 <CardContent className="pt-4 space-y-4">
                   <div className="flex items-center justify-between">
