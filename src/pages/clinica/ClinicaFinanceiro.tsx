@@ -3079,43 +3079,66 @@ export default function ClinicaFinanceiro() {
                       <TableRow>
                         <TableHead>Data/Hora</TableHead>
                         <TableHead>Médico</TableHead>
-                        <TableHead>Especialidade</TableHead>
                         <TableHead>Paciente</TableHead>
                         <TableHead>Local</TableHead>
-                        <TableHead>Origem</TableHead>
+                        <TableHead>Convênio</TableHead>
+                        <TableHead>Forma Pagto</TableHead>
                         <TableHead className="text-right">Valor</TableHead>
-                        <TableHead className="text-right">Repasse</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredConsultas.slice(0, 50).map((c) => (
-                        <TableRow key={c.id}>
-                          <TableCell className="text-sm whitespace-nowrap">{format(parseISO(c.data_hora), "dd/MM/yy HH:mm")}</TableCell>
-                          <TableCell className="truncate max-w-[120px] text-sm">{c.medico?.nome || "N/A"}</TableCell>
-                          <TableCell className="truncate max-w-[100px] text-sm text-muted-foreground">{c.medico?.especialidade || "-"}</TableCell>
-                          <TableCell className="truncate max-w-[120px] text-sm">{getPatientName(c)}</TableCell>
-                          <TableCell className="truncate max-w-[100px] text-sm text-muted-foreground">{c.local?.nome_local || "-"}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={cn(
-                              "text-xs",
-                              c.origem === "online" ? "border-emerald-500 text-emerald-600" : "border-blue-500 text-blue-600"
-                            )}>
-                              {c.origem === "online" ? "Online" : "Interna"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(c.valor_consulta)}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">{formatCurrency(c.valor_medico)}</TableCell>
-                          <TableCell>
-                            <Badge 
-                              variant={c.status_pagamento === "pago" ? "default" : c.status_consulta === "cancelada" ? "destructive" : "secondary"} 
-                              className="text-xs"
-                            >
-                              {c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Cancelado" : "Pendente"}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {filteredConsultas.slice(0, 50).map((c) => {
+                        const formas = Array.isArray(c.formas_pagamento) ? c.formas_pagamento : [];
+                        const formaPagtoLabel = formas.length > 0 
+                          ? formas.map((f: any) => {
+                              switch(f.tipo) {
+                                case 'dinheiro': return 'Dinheiro';
+                                case 'pix': return 'PIX';
+                                case 'cartao_credito': return 'Cartão Créd.';
+                                case 'cartao_debito': return 'Cartão Déb.';
+                                case 'a_faturar': return 'À Faturar';
+                                default: return f.tipo;
+                              }
+                            }).join(', ')
+                          : '-';
+                        
+                        return (
+                          <TableRow key={c.id}>
+                            <TableCell className="text-sm whitespace-nowrap">{format(parseISO(c.data_hora), "dd/MM/yy HH:mm")}</TableCell>
+                            <TableCell className="truncate max-w-[120px] text-sm">{c.medico?.nome || "N/A"}</TableCell>
+                            <TableCell className="truncate max-w-[120px] text-sm">{getPatientName(c)}</TableCell>
+                            <TableCell className="truncate max-w-[100px] text-sm text-muted-foreground">{c.local?.nome_local || "-"}</TableCell>
+                            <TableCell>
+                              {c.convenio?.nome ? (
+                                <Badge variant="outline" className="text-xs border-cyan-500 text-cyan-600">
+                                  {c.convenio.nome}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">Particular</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {formas.some((f: any) => f.tipo === 'a_faturar') ? (
+                                <Badge variant="outline" className="text-xs border-cyan-500 text-cyan-600">
+                                  {formaPagtoLabel}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">{formaPagtoLabel}</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(c.valor_consulta)}</TableCell>
+                            <TableCell>
+                              <Badge 
+                                variant={c.status_pagamento === "pago" ? "default" : c.status_consulta === "cancelada" ? "destructive" : "secondary"} 
+                                className="text-xs"
+                              >
+                                {c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Cancelado" : "Pendente"}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                   {filteredConsultas.length > 50 && (
