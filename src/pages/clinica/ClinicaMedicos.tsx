@@ -41,7 +41,7 @@ import {
 import { toast } from "sonner";
 import { GerenciarMedicoModal } from "@/components/clinica/GerenciarMedicoModal";
 
-const especialidadesDefault = [
+const especialidadesDefault: string[] = [
   "Cardiologia", "Dermatologia", "Endocrinologia", "Gastroenterologia",
   "Ginecologia", "Neurologia", "Oftalmologia", "Ortopedia", "Pediatria",
   "Psiquiatria", "Urologia", "Clínico Geral", "Otorrinolaringologia",
