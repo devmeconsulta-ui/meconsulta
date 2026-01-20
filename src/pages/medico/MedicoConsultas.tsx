@@ -84,6 +84,46 @@ function TempoEspera({ dataHora }: { dataHora: string }) {
   );
 }
 
+// Componente para mostrar duração do atendimento
+function TempoAtendimento({ dataHora }: { dataHora: string }) {
+  const [duracao, setDuracao] = useState({ horas: 0, minutos: 0 });
+
+  useEffect(() => {
+    const calcular = () => {
+      const agora = new Date();
+      const horaConsulta = parseISO(dataHora);
+      const diffMinutos = differenceInMinutes(agora, horaConsulta);
+      
+      if (diffMinutos >= 0) {
+        const horas = Math.floor(diffMinutos / 60);
+        const minutos = diffMinutos % 60;
+        setDuracao({ horas, minutos });
+      } else {
+        setDuracao({ horas: 0, minutos: 0 });
+      }
+    };
+
+    calcular();
+    const interval = setInterval(calcular, 30000); // Atualiza a cada 30 segundos
+
+    return () => clearInterval(interval);
+  }, [dataHora]);
+
+  const formatDuracao = () => {
+    if (duracao.horas > 0) {
+      return `${duracao.horas}h ${duracao.minutos}min`;
+    }
+    return `${duracao.minutos}min`;
+  };
+
+  return (
+    <Badge className="bg-purple-500/10 text-purple-600 gap-1 animate-pulse">
+      <Timer className="w-3 h-3" />
+      {formatDuracao()}
+    </Badge>
+  );
+}
+
 interface Consulta {
   id: string;
   data_hora: string;
@@ -567,6 +607,11 @@ export default function MedicoConsultas() {
                       {/* Tempo de espera para status "aguardando" */}
                       {consulta.status_consulta === "aguardando" && (
                         <TempoEspera dataHora={consulta.data_hora} />
+                      )}
+                      
+                      {/* Tempo de duração para status "atendendo" */}
+                      {consulta.status_consulta === "atendendo" && (
+                        <TempoAtendimento dataHora={consulta.data_hora} />
                       )}
                       
                       {/* Show finalized status */}
