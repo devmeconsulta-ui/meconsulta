@@ -241,8 +241,20 @@ export default function MedicoConsultas() {
     setLoading(false);
   }
 
+  // Prioridade de status (menor = mais importante)
+  const statusPriority: Record<string, number> = {
+    atendendo: 1,
+    aguardando: 2,
+    confirmada: 3,
+    agendada: 4,
+    aguardando_pagamento: 5,
+    concluida: 6,
+    nao_compareceu: 7,
+    cancelada: 8,
+  };
+
   const filteredConsultas = useMemo(() => {
-    return consultas.filter((consulta) => {
+    const filtered = consultas.filter((consulta) => {
       const matchesSearch = 
         consulta.nome_paciente_consulta?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         consulta.paciente?.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -259,6 +271,29 @@ export default function MedicoConsultas() {
       }
       
       return matchesSearch && matchesStatus && matchesOrigem && matchesDate;
+    });
+
+    // Ordenar por prioridade de status e depois por data
+    return filtered.sort((a, b) => {
+      const priorityA = statusPriority[a.status_consulta] ?? 99;
+      const priorityB = statusPriority[b.status_consulta] ?? 99;
+      
+      // Se status diferente, ordena por prioridade
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      // Se mesmo status, ordena por data (mais próxima primeiro para agendadas, mais recente primeiro para concluídas)
+      const dateA = new Date(a.data_hora).getTime();
+      const dateB = new Date(b.data_hora).getTime();
+      
+      // Para status de consultas futuras/ativas, ordena por data ascendente (próximas primeiro)
+      if (priorityA <= 5) {
+        return dateA - dateB;
+      }
+      
+      // Para status finalizados (concluída, não compareceu, cancelada), ordena por data descendente (mais recentes primeiro)
+      return dateB - dateA;
     });
   }, [consultas, searchTerm, statusFilter, origemFilter, dateRange]);
 
