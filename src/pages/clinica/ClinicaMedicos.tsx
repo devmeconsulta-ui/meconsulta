@@ -41,7 +41,7 @@ import {
 import { toast } from "sonner";
 import { GerenciarMedicoModal } from "@/components/clinica/GerenciarMedicoModal";
 
-const especialidades = [
+const especialidadesDefault = [
   "Cardiologia", "Dermatologia", "Endocrinologia", "Gastroenterologia",
   "Ginecologia", "Neurologia", "Oftalmologia", "Ortopedia", "Pediatria",
   "Psiquiatria", "Urologia", "Clínico Geral", "Otorrinolaringologia",
@@ -64,6 +64,10 @@ export default function ClinicaMedicos() {
   const [selectedMedicoToGerenciar, setSelectedMedicoToGerenciar] = useState<any>(null);
   const [selectedMedicoToEdit, setSelectedMedicoToEdit] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("vinculados");
+  const [especialidades, setEspecialidades] = useState<string[]>(especialidadesDefault);
+  const [novaEspecialidade, setNovaEspecialidade] = useState("");
+  const [showAddEspecialidade, setShowAddEspecialidade] = useState(false);
+  const [showAddEspecialidadeEdit, setShowAddEspecialidadeEdit] = useState(false);
 
   // Form state para cadastro - senha padrão 123456
   const [formData, setFormData] = useState({
@@ -463,19 +467,70 @@ export default function ClinicaMedicos() {
                   </div>
                   <div className="space-y-2">
                     <Label>Especialidade *</Label>
-                    <Select
-                      value={formData.especialidade}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, especialidade: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {especialidades.map((esp) => (
-                          <SelectItem key={esp} value={esp}>{esp}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <Select
+                        value={formData.especialidade}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, especialidade: value }))}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {especialidades.sort().map((esp) => (
+                            <SelectItem key={esp} value={esp}>{esp}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setShowAddEspecialidade(true)}
+                        title="Adicionar nova especialidade"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {showAddEspecialidade && (
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          value={novaEspecialidade}
+                          onChange={(e) => setNovaEspecialidade(e.target.value)}
+                          placeholder="Nova especialidade..."
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            if (novaEspecialidade.trim()) {
+                              if (!especialidades.includes(novaEspecialidade.trim())) {
+                                setEspecialidades([...especialidades, novaEspecialidade.trim()]);
+                                setFormData(prev => ({ ...prev, especialidade: novaEspecialidade.trim() }));
+                                toast.success("Especialidade adicionada!");
+                              } else {
+                                toast.error("Especialidade já existe");
+                              }
+                              setNovaEspecialidade("");
+                              setShowAddEspecialidade(false);
+                            }
+                          }}
+                        >
+                          Adicionar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setNovaEspecialidade("");
+                            setShowAddEspecialidade(false);
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>CRM *</Label>
@@ -858,19 +913,70 @@ export default function ClinicaMedicos() {
               </div>
               <div className="space-y-2">
                 <Label>Especialidade</Label>
-                <Select
-                  value={editFormData.especialidade}
-                  onValueChange={(value) => setEditFormData(prev => ({ ...prev, especialidade: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {especialidades.map((esp) => (
-                      <SelectItem key={esp} value={esp}>{esp}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select
+                    value={editFormData.especialidade}
+                    onValueChange={(value) => setEditFormData(prev => ({ ...prev, especialidade: value }))}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {especialidades.sort().map((esp) => (
+                        <SelectItem key={esp} value={esp}>{esp}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowAddEspecialidadeEdit(true)}
+                    title="Adicionar nova especialidade"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {showAddEspecialidadeEdit && (
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      value={novaEspecialidade}
+                      onChange={(e) => setNovaEspecialidade(e.target.value)}
+                      placeholder="Nova especialidade..."
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        if (novaEspecialidade.trim()) {
+                          if (!especialidades.includes(novaEspecialidade.trim())) {
+                            setEspecialidades([...especialidades, novaEspecialidade.trim()]);
+                            setEditFormData(prev => ({ ...prev, especialidade: novaEspecialidade.trim() }));
+                            toast.success("Especialidade adicionada!");
+                          } else {
+                            toast.error("Especialidade já existe");
+                          }
+                          setNovaEspecialidade("");
+                          setShowAddEspecialidadeEdit(false);
+                        }
+                      }}
+                    >
+                      Adicionar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setNovaEspecialidade("");
+                        setShowAddEspecialidadeEdit(false);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>CRM</Label>
