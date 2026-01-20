@@ -233,19 +233,22 @@ export default function MedicoConsultas() {
 
   useEffect(() => {
     if (currentUser?.medicoId) {
-      fetchConsultas();
+      fetchConsultas(true); // Initial load shows loading
       
-      // Atualiza a cada 1 minuto para manter o tempo de espera atualizado
-      const interval = setInterval(fetchConsultas, 60000);
+      // Atualiza a cada 1 minuto para manter os dados atualizados (sem mostrar loading)
+      const interval = setInterval(() => fetchConsultas(false), 60000);
       
       return () => clearInterval(interval);
     }
   }, [currentUser?.medicoId]);
 
-  async function fetchConsultas() {
+  async function fetchConsultas(showLoading = true) {
     if (!currentUser?.medicoId) return;
     
-    setLoading(true);
+    // Só mostra loading no carregamento inicial
+    if (showLoading) {
+      setLoading(true);
+    }
     
     const { data, error } = await supabase
       .from("consultas")
@@ -278,7 +281,9 @@ export default function MedicoConsultas() {
       setConsultas(data || []);
     }
     
-    setLoading(false);
+    if (showLoading) {
+      setLoading(false);
+    }
   }
 
   // Prioridade de status (menor = mais importante)
