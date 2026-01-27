@@ -36,7 +36,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/clinica", permission: "dashboard" },
   { icon: Target, label: "CRM", path: "/clinica/crm", permission: "dashboard" },
-  { icon: Headphones, label: "Omnichannel", path: "/clinica/omnichannel", permission: "omnichannel_dashboard" },
+  { icon: Headphones, label: "Atendimentos", path: "/clinica/omnichannel", permission: "omnichannel_dashboard" },
   { icon: Stethoscope, label: "Médicos", path: "/clinica/medicos" },
   { icon: Calendar, label: "Consultas", path: "/clinica/consultas", permission: "consultas" },
   { icon: Users, label: "Pacientes", path: "/clinica/pacientes", permission: "pacientes" },
