@@ -1,0 +1,1 @@
+UPDATE usuarios SET ativo = true WHERE id = 'b4efc4d9-319f-42d6-afe0-d67d938ccad6';
