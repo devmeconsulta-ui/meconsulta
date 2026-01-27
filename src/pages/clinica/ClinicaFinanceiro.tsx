@@ -1337,19 +1337,23 @@ export default function ClinicaFinanceiro() {
       // Helper to get forma de pagamento display
       const getFormaPagamentoDisplay = (consulta: Consulta) => {
         if (!consulta.formas_pagamento) return "N/A";
-        if (Array.isArray(consulta.formas_pagamento)) {
-          return consulta.formas_pagamento.map((fp: any) => {
-            const labels: Record<string, string> = {
-              dinheiro: "Dinheiro",
-              pix: "PIX",
-              cartao_debito: "Cartão Débito",
-              cartao_credito: "Cartão Crédito",
-              a_faturar: "À Faturar/Convênio"
-            };
-            return labels[fp.forma] || fp.forma;
-          }).join(", ");
-        }
-        return "N/A";
+        const formas = Array.isArray(consulta.formas_pagamento) 
+          ? consulta.formas_pagamento 
+          : [];
+        if (formas.length === 0) return "N/A";
+        
+        return formas.map((fp: any) => {
+          const labels: Record<string, string> = {
+            dinheiro: "Dinheiro",
+            pix: "PIX",
+            cartao_debito: "Cartão Débito",
+            cartao_credito: "Cartão Crédito",
+            a_faturar: "À Faturar/Convênio"
+          };
+          // Support both 'tipo' and 'forma' field names
+          const tipoForma = fp.tipo || fp.forma || "";
+          return labels[tipoForma] || tipoForma || "N/A";
+        }).join(", ");
       };
 
       const data = filteredConsultas.map((c) => ({
@@ -1523,19 +1527,23 @@ export default function ClinicaFinanceiro() {
       // Helper to get forma de pagamento display for PDF
       const getFormaPagamentoPDF = (consulta: Consulta) => {
         if (!consulta.formas_pagamento) return "-";
-        if (Array.isArray(consulta.formas_pagamento)) {
-          return consulta.formas_pagamento.map((fp: any) => {
-            const labels: Record<string, string> = {
-              dinheiro: "Din",
-              pix: "PIX",
-              cartao_debito: "Déb",
-              cartao_credito: "Créd",
-              a_faturar: "Conv"
-            };
-            return labels[fp.forma] || fp.forma;
-          }).join("/");
-        }
-        return "-";
+        const formas = Array.isArray(consulta.formas_pagamento) 
+          ? consulta.formas_pagamento 
+          : [];
+        if (formas.length === 0) return "-";
+        
+        return formas.map((fp: any) => {
+          const labels: Record<string, string> = {
+            dinheiro: "Din",
+            pix: "PIX",
+            cartao_debito: "Déb",
+            cartao_credito: "Créd",
+            a_faturar: "Conv"
+          };
+          // Support both 'tipo' and 'forma' field names
+          const tipoForma = fp.tipo || fp.forma || "";
+          return labels[tipoForma] || tipoForma || "-";
+        }).join("/");
       };
 
       doc.setFont("helvetica", "normal");
