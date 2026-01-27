@@ -114,15 +114,18 @@ export function EncaixeModal({
   async function checkRetornoEligibility(pacienteId: string, medicoId: string) {
     const trintaDiasAtras = subDays(new Date(), 30);
     
-    const { data, error } = await supabase
+    let query = supabase
       .from("consultas")
       .select("data_hora")
       .eq("paciente_id", pacienteId)
       .eq("medico_id", medicoId)
+      .eq("clinica_id", clinicaId) // Retorno só vale na mesma clínica
       .in("status_consulta", ["concluida", "atendida_medico"])
       .gte("data_hora", trintaDiasAtras.toISOString())
       .order("data_hora", { ascending: false })
       .limit(1);
+
+    const { data, error } = await query;
 
     if (error || !data || data.length === 0) {
       setIsRetornoElegivel(false);

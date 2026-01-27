@@ -300,39 +300,56 @@ export default function ClinicaAgenda() {
         .in("agenda_slot_id", slotIds)
         .neq("status_consulta", "cancelada");
 
-      // Verificar quais pacientes são elegíveis para retorno (consulta concluída nos últimos 30 dias)
-      const pacienteIds = consultasData
-        ?.filter(c => c.paciente_id)
-        .map(c => c.paciente_id) || [];
+      // Verificar quais pacientes são elegíveis para retorno 
+      // Regra: mesma clínica + mesmo médico + consulta concluída nos últimos 30 dias
+      // Agrupar pacientes por médico para verificação correta
+      const pacienteMedicoMap = new Map<string, Set<string>>();
+      consultasData?.forEach(c => {
+        if (c.paciente_id) {
+          const slot = slotsData.find(s => s.id === c.agenda_slot_id);
+          if (slot?.medico_id) {
+            const key = `${c.paciente_id}-${slot.medico_id}`;
+            if (!pacienteMedicoMap.has(slot.medico_id)) {
+              pacienteMedicoMap.set(slot.medico_id, new Set());
+            }
+            pacienteMedicoMap.get(slot.medico_id)!.add(c.paciente_id);
+          }
+        }
+      });
       
-      const uniquePacienteIds = [...new Set(pacienteIds)] as string[];
-      
+      const trintaDiasAtras = subDays(new Date(), 30);
       let retornoPacientes = new Set<string>();
       
-      if (uniquePacienteIds.length > 0) {
-        const trintaDiasAtras = subDays(new Date(), 30);
+      // Para cada médico, buscar pacientes elegíveis para retorno
+      for (const [medicoId, pacienteIds] of pacienteMedicoMap.entries()) {
+        const uniquePacienteIds = [...pacienteIds];
         
-        // Buscar pacientes que têm consulta concluída nos últimos 30 dias
-        const { data: historicoData } = await supabase
-          .from("consultas")
-          .select("paciente_id")
-          .in("paciente_id", uniquePacienteIds)
-          .in("status_consulta", ["concluida", "atendida_medico"])
-          .gte("data_hora", trintaDiasAtras.toISOString());
-        
-        // Pacientes com pelo menos 1 consulta concluída nos últimos 30 dias são retorno
-        historicoData?.forEach(h => {
-          if (h.paciente_id) {
-            retornoPacientes.add(h.paciente_id);
-          }
-        });
+        if (uniquePacienteIds.length > 0) {
+          const { data: historicoData } = await supabase
+            .from("consultas")
+            .select("paciente_id")
+            .in("paciente_id", uniquePacienteIds)
+            .eq("medico_id", medicoId) // Mesmo médico
+            .eq("clinica_id", clinicaData?.id) // Mesma clínica
+            .in("status_consulta", ["concluida", "atendida_medico"])
+            .gte("data_hora", trintaDiasAtras.toISOString());
+          
+          // Pacientes com pelo menos 1 consulta concluída nos últimos 30 dias são retorno
+          historicoData?.forEach(h => {
+            if (h.paciente_id) {
+              // Guardar como combinação paciente-médico
+              retornoPacientes.add(`${h.paciente_id}-${medicoId}`);
+            }
+          });
+        }
       }
 
       const slotsWithConsultas = slotsData.map((slot) => ({
         ...slot,
         consultas: consultasData?.filter((c) => c.agenda_slot_id === slot.id).map(c => ({
           ...c,
-          isRetorno: c.paciente_id ? retornoPacientes.has(c.paciente_id) : false
+          // Verificar retorno considerando combinação paciente-médico
+          isRetorno: c.paciente_id && slot.medico_id ? retornoPacientes.has(`${c.paciente_id}-${slot.medico_id}`) : false
         })) || [],
       }));
 
