@@ -1,13 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
@@ -34,41 +33,26 @@ import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
 import { Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
   currentUser: { id: string; nome: string } | null;
 }
 
-// Mock data for agents (will be replaced with real data from omni_agentes table)
-const mockAgentes = [
-  {
-    id: "1",
-    nome: "Aline Rosaria",
-    avatar: null,
-    status: "online",
-    filas: 1,
-    chatsAtivos: 14,
-    chatsHoje: 31,
-    satisfacaoMedia: 0.0,
-    satisfacaoTotal: 0.0,
-    tempoLogado: "10:14:12",
-    tempoPausa: "00:00:00",
-  },
-  {
-    id: "2",
-    nome: "Carlos Silva",
-    avatar: null,
-    status: "pausa",
-    filas: 2,
-    chatsAtivos: 0,
-    chatsHoje: 18,
-    satisfacaoMedia: 4.5,
-    satisfacaoTotal: 4.2,
-    tempoLogado: "08:32:45",
-    tempoPausa: "00:15:30",
-  },
-];
+interface Agente {
+  id: string;
+  nome: string;
+  avatar_url?: string | null;
+  status: "online" | "offline" | "pausa";
+  filas: number;
+  chatsAtivos: number;
+  chatsHoje: number;
+  satisfacaoMedia: number;
+  satisfacaoTotal: number;
+  tempoLogado: string;
+  tempoPausa: string;
+}
 
 export default function OmniAgentes() {
   const { clinicaData } = useOutletContext<ClinicaContext>();
@@ -78,11 +62,103 @@ export default function OmniAgentes() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFilas, setSelectedFilas] = useState<string[]>([]);
   const [filterAgente, setFilterAgente] = useState("todos");
+  const [agentes, setAgentes] = useState<Agente[]>([]);
+  const [loadingAgentes, setLoadingAgentes] = useState(true);
 
   const { atendimentos, loading: loadingAtendimentos } = useOmniAtendimentos(clinicaId);
   const { filas, loading: loadingFilas } = useOmniFilas(clinicaId);
 
-  const loading = loadingAtendimentos || loadingFilas;
+  // Fetch real agents from usuarios_clinica
+  useEffect(() => {
+    const fetchAgentes = async () => {
+      if (!clinicaId) {
+        setLoadingAgentes(false);
+        return;
+      }
+
+      try {
+        const { data: usuarios, error } = await supabase
+          .from("usuarios_clinica")
+          .select("*")
+          .eq("clinica_id", clinicaId)
+          .eq("ativo", true);
+
+        if (error) throw error;
+
+        // Transform usuarios into agentes with computed metrics
+        const agentesData: Agente[] = (usuarios || []).map((u) => {
+          // Count active chats for this agent
+          const chatsAtivos = atendimentos.filter(
+            (a) => a.agente_id === u.id && a.status === "em_atendimento"
+          ).length;
+
+          // Count today's chats for this agent
+          const hoje = new Date();
+          hoje.setHours(0, 0, 0, 0);
+          const chatsHoje = atendimentos.filter((a) => {
+            if (a.agente_id !== u.id) return false;
+            const dataAbertura = new Date(a.data_abertura);
+            return dataAbertura >= hoje;
+          }).length;
+
+          // Calculate average satisfaction from atendimentos
+          const atendimentosComNota = atendimentos.filter(
+            (a) => a.agente_id === u.id && a.avaliacao_nota
+          );
+          const satisfacaoMedia =
+            atendimentosComNota.length > 0
+              ? atendimentosComNota.reduce((acc, a) => acc + (a.avaliacao_nota || 0), 0) /
+                atendimentosComNota.length
+              : 0;
+
+          // Count filas (we'll assume agent can work in all filas for now)
+          const filasCount = filas.length;
+
+          return {
+            id: u.id,
+            nome: u.nome,
+            avatar_url: null,
+            status: "offline" as const, // Default to offline, would need realtime presence for actual status
+            filas: filasCount,
+            chatsAtivos,
+            chatsHoje,
+            satisfacaoMedia,
+            satisfacaoTotal: satisfacaoMedia,
+            tempoLogado: "00:00:00",
+            tempoPausa: "00:00:00",
+          };
+        });
+
+        setAgentes(agentesData);
+      } catch (error) {
+        console.error("Error fetching agentes:", error);
+      } finally {
+        setLoadingAgentes(false);
+      }
+    };
+
+    fetchAgentes();
+  }, [clinicaId, atendimentos, filas]);
+
+  const loading = loadingAtendimentos || loadingFilas || loadingAgentes;
+
+  // Filter agentes based on search
+  const filteredAgentes = useMemo(() => {
+    return agentes.filter((a) => {
+      const matchesSearch = !searchTerm || a.nome.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesFilter = filterAgente === "todos" || a.id === filterAgente;
+      return matchesSearch && matchesFilter;
+    });
+  }, [agentes, searchTerm, filterAgente]);
+
+  // Count agentes by status
+  const agenteStatusCounts = useMemo(() => {
+    const counts = { online: 0, pausa: 0, offline: 0 };
+    agentes.forEach((a) => {
+      counts[a.status]++;
+    });
+    return counts;
+  }, [agentes]);
 
   // Filter atendimentos based on selected filas and search
   const filteredAtendimentos = useMemo(() => {
@@ -222,7 +298,7 @@ export default function OmniAgentes() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>
-                  {mockAgentes.map((agente) => (
+                  {agentes.map((agente) => (
                     <SelectItem key={agente.id} value={agente.id}>
                       {agente.nome}
                     </SelectItem>
@@ -249,19 +325,19 @@ export default function OmniAgentes() {
               <div className="flex items-center justify-end gap-4 text-sm">
                 <div className="flex items-center gap-1.5">
                   <Circle className="w-3 h-3 fill-destructive text-destructive" />
-                  <span>0</span>
+                  <span>{agenteStatusCounts.offline}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Circle className="w-3 h-3 fill-orange-500 text-orange-500" />
-                  <span>0</span>
+                  <span>{agenteStatusCounts.pausa}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Circle className="w-3 h-3 fill-green-500 text-green-500" />
-                  <span>1</span>
+                  <span>{agenteStatusCounts.online}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-muted-foreground" />
-                  <span>0</span>
+                  <span>{agentes.length}</span>
                 </div>
               </div>
 
@@ -298,107 +374,115 @@ export default function OmniAgentes() {
                       </tr>
                     </thead>
                     <tbody>
-                      {mockAgentes.map((agente) => (
-                        <tr key={agente.id} className="border-b hover:bg-muted/20">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-10 w-10">
-                                <AvatarImage src={agente.avatar || undefined} />
-                                <AvatarFallback className="bg-primary/10 text-primary">
-                                  {getInitials(agente.nome)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="font-medium">{agente.nome}</p>
-                                <div className="flex items-center gap-1 text-muted-foreground">
-                                  <MessageSquare className="w-3 h-3" />
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="text-center p-4">
-                            <span className="text-sm">{agente.filas}</span>
-                          </td>
-                          <td className="text-center p-4">
-                            <div className={`inline-flex items-center justify-center w-10 h-10 rounded-full ${
-                              agente.status === "online" 
-                                ? "bg-green-500/20 text-green-500" 
-                                : agente.status === "pausa"
-                                ? "bg-orange-500/20 text-orange-500"
-                                : "bg-muted text-muted-foreground"
-                            }`}>
-                              {agente.status === "online" ? (
-                                <Play className="w-5 h-5 fill-current" />
-                              ) : agente.status === "pausa" ? (
-                                <Pause className="w-5 h-5" />
-                              ) : (
-                                <Circle className="w-5 h-5" />
-                              )}
-                            </div>
-                          </td>
-                          <td className="text-center p-4">
-                            <div className="text-center">
-                              <span className="font-semibold">{agente.chatsAtivos}</span>
-                              <p className="text-xs text-muted-foreground">chats</p>
-                            </div>
-                          </td>
-                          <td className="text-center p-4">
-                            <div className="text-center">
-                              <span className="font-semibold">{agente.chatsHoje}</span>
-                              <p className="text-xs text-muted-foreground">chats</p>
-                            </div>
-                          </td>
-                          <td className="text-center p-4 text-sm">
-                            😊 {agente.satisfacaoMedia.toFixed(1)}
-                          </td>
-                          <td className="text-center p-4 text-sm">
-                            😊 {agente.satisfacaoTotal.toFixed(1)}
-                          </td>
-                          <td className="text-center p-4 text-sm font-mono">
-                            {agente.tempoLogado}
-                          </td>
-                          <td className="text-center p-4 text-sm font-mono">
-                            {agente.tempoPausa}
-                          </td>
-                          <td className="text-center p-4">
-                            <div className="flex items-center justify-center gap-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                      <Users className="w-4 h-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Ver filas</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                      <BookOpen className="w-4 h-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Histórico</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                      <Eye className="w-4 h-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Visualizar</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="w-4 h-4" />
-                              </Button>
-                            </div>
+                      {filteredAgentes.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="text-center py-8 text-muted-foreground">
+                            Nenhum agente encontrado
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredAgentes.map((agente) => (
+                          <tr key={agente.id} className="border-b hover:bg-muted/20">
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10">
+                                  <AvatarImage src={agente.avatar_url || undefined} />
+                                  <AvatarFallback className="bg-primary/10 text-primary">
+                                    {getInitials(agente.nome)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium">{agente.nome}</p>
+                                  <div className="flex items-center gap-1 text-muted-foreground">
+                                    <MessageSquare className="w-3 h-3" />
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="text-center p-4">
+                              <span className="text-sm">{agente.filas}</span>
+                            </td>
+                            <td className="text-center p-4">
+                              <div className={`inline-flex items-center justify-center w-10 h-10 rounded-full ${
+                                agente.status === "online" 
+                                  ? "bg-green-500/20 text-green-500" 
+                                  : agente.status === "pausa"
+                                  ? "bg-orange-500/20 text-orange-500"
+                                  : "bg-muted text-muted-foreground"
+                              }`}>
+                                {agente.status === "online" ? (
+                                  <Play className="w-5 h-5 fill-current" />
+                                ) : agente.status === "pausa" ? (
+                                  <Pause className="w-5 h-5" />
+                                ) : (
+                                  <Circle className="w-5 h-5" />
+                                )}
+                              </div>
+                            </td>
+                            <td className="text-center p-4">
+                              <div className="text-center">
+                                <span className="font-semibold">{agente.chatsAtivos}</span>
+                                <p className="text-xs text-muted-foreground">chats</p>
+                              </div>
+                            </td>
+                            <td className="text-center p-4">
+                              <div className="text-center">
+                                <span className="font-semibold">{agente.chatsHoje}</span>
+                                <p className="text-xs text-muted-foreground">chats</p>
+                              </div>
+                            </td>
+                            <td className="text-center p-4 text-sm">
+                              😊 {agente.satisfacaoMedia.toFixed(1)}
+                            </td>
+                            <td className="text-center p-4 text-sm">
+                              😊 {agente.satisfacaoTotal.toFixed(1)}
+                            </td>
+                            <td className="text-center p-4 text-sm font-mono">
+                              {agente.tempoLogado}
+                            </td>
+                            <td className="text-center p-4 text-sm font-mono">
+                              {agente.tempoPausa}
+                            </td>
+                            <td className="text-center p-4">
+                              <div className="flex items-center justify-center gap-2">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <Users className="w-4 h-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Ver filas</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <BookOpen className="w-4 h-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Histórico</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <Eye className="w-4 h-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Visualizar</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </CardContent>
