@@ -35,6 +35,7 @@ import {
   Phone,
 } from "lucide-react";
 import { useOmniFilas, OmniFila } from "@/hooks/useOmniFilas";
+import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
 import { toast } from "sonner";
 
 interface ClinicaContext {
@@ -167,14 +168,24 @@ export default function OmniFilas() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
+        <div className="sticky top-0 z-50">
+          <OmniHeader />
+        </div>
+        <div className="flex items-center justify-center flex-1">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
+      <div className="sticky top-0 z-50">
+        <OmniHeader />
+      </div>
+
+      <div className="px-6 pt-6 pb-6 space-y-6 flex-1 overflow-auto">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Filas de Atendimento</h1>
@@ -638,6 +649,7 @@ export default function OmniFilas() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
