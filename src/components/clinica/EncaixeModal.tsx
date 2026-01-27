@@ -495,7 +495,16 @@ export function EncaixeModal({
             </div>
             <Select
               value={form.procedimento}
-              onValueChange={(v) => setForm({ ...form, procedimento: v as typeof form.procedimento })}
+              onValueChange={(v) => {
+                // Bloquear seleção de retorno se não for elegível
+                if (v === "retorno" && !isRetornoElegivel) {
+                  toast.error("Paciente não elegível para retorno", {
+                    description: "O paciente não possui consulta concluída nos últimos 30 dias com este médico nesta clínica."
+                  });
+                  return;
+                }
+                setForm({ ...form, procedimento: v as typeof form.procedimento });
+              }}
             >
               <SelectTrigger className={cn(
                 isRetornoElegivel && form.procedimento === "retorno" && "border-green-500 bg-green-50 dark:bg-green-950"
@@ -504,11 +513,16 @@ export function EncaixeModal({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="consulta">Consulta</SelectItem>
-                <SelectItem value="retorno">
+                <SelectItem 
+                  value="retorno"
+                  className={!isRetornoElegivel ? "text-muted-foreground" : ""}
+                >
                   <span className="flex items-center gap-2">
                     Retorno
-                    {isRetornoElegivel && (
+                    {isRetornoElegivel ? (
                       <span className="text-green-600 text-xs">(elegível - R$ 0)</span>
+                    ) : (
+                      <span className="text-destructive text-xs">(não elegível)</span>
                     )}
                   </span>
                 </SelectItem>

@@ -784,7 +784,16 @@ export function AgendaInternaModal({
               </div>
               <Select
                 value={formData.procedimento}
-                onValueChange={(v) => setFormData({ ...formData, procedimento: v })}
+                onValueChange={(v) => {
+                  // Bloquear seleção de retorno se não for elegível
+                  if (v === "retorno" && !isRetornoElegivel) {
+                    toast.error("Paciente não elegível para retorno", {
+                      description: "O paciente não possui consulta concluída nos últimos 30 dias com este médico nesta clínica."
+                    });
+                    return;
+                  }
+                  setFormData({ ...formData, procedimento: v });
+                }}
               >
                 <SelectTrigger className={cn(
                   "h-9 text-sm",
@@ -794,11 +803,16 @@ export function AgendaInternaModal({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="consulta">Consulta</SelectItem>
-                  <SelectItem value="retorno">
+                  <SelectItem 
+                    value="retorno"
+                    className={!isRetornoElegivel ? "text-muted-foreground" : ""}
+                  >
                     <span className="flex items-center gap-2">
                       Retorno
-                      {isRetornoElegivel && (
+                      {isRetornoElegivel ? (
                         <span className="text-green-600 text-xs">(elegível - R$ 0)</span>
+                      ) : (
+                        <span className="text-destructive text-xs">(não elegível)</span>
                       )}
                     </span>
                   </SelectItem>
