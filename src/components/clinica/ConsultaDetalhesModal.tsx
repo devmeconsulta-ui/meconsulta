@@ -24,6 +24,7 @@ import {
   Building2,
   Edit,
   Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { maskPhone, maskCPF } from "@/lib/maskUtils";
 import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
@@ -109,6 +110,12 @@ export function ConsultaDetalhesModal({
                 {consulta.tipo_atendimento === "convenio" && consulta.convenio?.nome && (
                   <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">
                     {consulta.convenio.nome}
+                  </Badge>
+                )}
+                {consulta.tipo_servico === "retorno" && consulta.valor_consulta === 0 && (
+                  <Badge className="bg-green-600 text-white gap-1">
+                    <RotateCcw className="w-3 h-3" />
+                    Retorno 30d (R$ 0)
                   </Badge>
                 )}
               </div>

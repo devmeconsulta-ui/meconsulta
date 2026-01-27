@@ -24,7 +24,8 @@ import {
   Pencil,
   Timer,
   Filter,
-  CalendarRange
+  CalendarRange,
+  RotateCcw
 } from "lucide-react";
 import { format, parseISO, differenceInMinutes, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -139,6 +140,8 @@ interface Consulta {
   local_id: string | null;
   tipo_atendimento: string | null;
   convenio_id: string | null;
+  tipo_servico: string | null;
+  valor_consulta: number | null;
   paciente: {
     id: string;
     nome: string;
@@ -267,6 +270,8 @@ export default function MedicoConsultas() {
         local_id,
         tipo_atendimento,
         convenio_id,
+        tipo_servico,
+        valor_consulta,
         paciente:pacientes!consultas_paciente_id_fkey(id, nome, cpf, data_nascimento, cidade, estado, bairro),
         dependente:paciente_dependentes(id, nome, parentesco),
         local:locais_atendimento(id, nome_local, endereco, cidade, estado, tipo_atendimento),
@@ -603,6 +608,12 @@ export default function MedicoConsultas() {
                       {consulta.tipo_atendimento === "convenio" && consulta.convenio?.nome && (
                         <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">
                           {consulta.convenio.nome}
+                        </Badge>
+                      )}
+                      {consulta.tipo_servico === "retorno" && consulta.valor_consulta === 0 && (
+                        <Badge className="bg-green-600 text-white gap-1">
+                          <RotateCcw className="w-3 h-3" />
+                          Retorno 30d (R$ 0)
                         </Badge>
                       )}
                       <Badge className={statusColors[consulta.status_consulta] || "bg-muted"}>

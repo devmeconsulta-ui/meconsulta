@@ -18,8 +18,8 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Calendar, Clock, UserPlus, Search } from "lucide-react";
-import { format, parseISO, setHours, setMinutes } from "date-fns";
+import { Calendar, Clock, UserPlus, Search, RotateCcw } from "lucide-react";
+import { format, parseISO, setHours, setMinutes, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -48,6 +48,10 @@ export function EncaixeModal({
   const [pacientesBusca, setPacientesBusca] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [isNewPaciente, setIsNewPaciente] = useState(false);
+  
+  // Estado para retorno 30 dias
+  const [isRetornoElegivel, setIsRetornoElegivel] = useState(false);
+  const [diasDesdeUltimaConsulta, setDiasDesdeUltimaConsulta] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     medicoId: "",
@@ -60,6 +64,7 @@ export function EncaixeModal({
     pacienteTelefone: "",
     pacienteCpf: "",
     motivo: "",
+    procedimento: "consulta" as "consulta" | "retorno" | "exame" | "procedimento",
   });
 
   // Generate time options
@@ -99,7 +104,54 @@ export function EncaixeModal({
     setIsNewPaciente(false);
     setPacientesBusca([]);
     setSearchPaciente("");
+    
+    // Verificar elegibilidade de retorno se tiver médico selecionado
+    if (form.medicoId) {
+      checkRetornoEligibility(paciente.id, form.medicoId);
+    }
   }
+
+  async function checkRetornoEligibility(pacienteId: string, medicoId: string) {
+    const trintaDiasAtras = subDays(new Date(), 30);
+    
+    const { data, error } = await supabase
+      .from("consultas")
+      .select("data_hora")
+      .eq("paciente_id", pacienteId)
+      .eq("medico_id", medicoId)
+      .in("status_consulta", ["concluida", "atendida_medico"])
+      .gte("data_hora", trintaDiasAtras.toISOString())
+      .order("data_hora", { ascending: false })
+      .limit(1);
+
+    if (error || !data || data.length === 0) {
+      setIsRetornoElegivel(false);
+      setDiasDesdeUltimaConsulta(null);
+      return;
+    }
+
+    const ultimaConsultaDate = new Date(data[0].data_hora);
+    const hoje = new Date();
+    const dias = Math.floor(
+      (hoje.getTime() - ultimaConsultaDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    setIsRetornoElegivel(true);
+    setDiasDesdeUltimaConsulta(dias);
+    
+    // Auto-selecionar retorno se elegível
+    setForm(prev => ({ ...prev, procedimento: "retorno" }));
+  }
+
+  // Re-verificar elegibilidade quando o médico mudar
+  useEffect(() => {
+    if (form.medicoId && form.pacienteId) {
+      checkRetornoEligibility(form.pacienteId, form.medicoId);
+    } else {
+      setIsRetornoElegivel(false);
+      setDiasDesdeUltimaConsulta(null);
+    }
+  }, [form.medicoId, form.pacienteId]);
 
   async function handleSubmit() {
     if (!form.medicoId) {
@@ -177,8 +229,9 @@ export function EncaixeModal({
 
       if (slotError) throw slotError;
 
-      // Calculate values
-      const valorConsulta = medico.valor_consulta || 0;
+      // Calculate values - se é retorno elegível, valor é zero
+      const isRetornoGratuito = isRetornoElegivel && form.procedimento === "retorno";
+      const valorConsulta = isRetornoGratuito ? 0 : (medico.valor_consulta || 0);
       const percentualRepasse = medico.percentual_repasse || 70;
       const valorMedico = (valorConsulta * percentualRepasse) / 100;
       const valorPlataforma = valorConsulta - valorMedico;
@@ -194,12 +247,13 @@ export function EncaixeModal({
         nome_paciente_consulta: form.pacienteNome,
         origem: "interna",
         status_consulta: "confirmada",
-        status_pagamento: "pendente",
+        status_pagamento: isRetornoGratuito ? "pago" : "pendente",
         valor_consulta: valorConsulta,
         valor_medico: valorMedico,
         valor_plataforma: valorPlataforma,
         motivo_consulta: form.motivo || null,
         tipo_atendimento: "particular",
+        tipo_servico: form.procedimento,
       });
 
       if (consultaError) throw consultaError;
@@ -228,10 +282,13 @@ export function EncaixeModal({
       pacienteTelefone: "",
       pacienteCpf: "",
       motivo: "",
+      procedimento: "consulta",
     });
     setIsNewPaciente(false);
     setSearchPaciente("");
     setPacientesBusca([]);
+    setIsRetornoElegivel(false);
+    setDiasDesdeUltimaConsulta(null);
   }
 
   return (
@@ -421,6 +478,57 @@ export function EncaixeModal({
               </>
             )}
           </div>
+
+          {/* Procedimento */}
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <Label>Tipo de Procedimento</Label>
+              {isRetornoElegivel && (
+                <Badge className="bg-green-600 text-white text-[10px] gap-1 px-1.5 py-0.5">
+                  <RotateCcw className="w-2.5 h-2.5" />
+                  Retorno 30d (R$ 0)
+                </Badge>
+              )}
+            </div>
+            <Select
+              value={form.procedimento}
+              onValueChange={(v) => setForm({ ...form, procedimento: v as typeof form.procedimento })}
+            >
+              <SelectTrigger className={cn(
+                isRetornoElegivel && form.procedimento === "retorno" && "border-green-500 bg-green-50 dark:bg-green-950"
+              )}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="consulta">Consulta</SelectItem>
+                <SelectItem value="retorno">
+                  <span className="flex items-center gap-2">
+                    Retorno
+                    {isRetornoElegivel && (
+                      <span className="text-green-600 text-xs">(elegível - R$ 0)</span>
+                    )}
+                  </span>
+                </SelectItem>
+                <SelectItem value="exame">Exame</SelectItem>
+                <SelectItem value="procedimento">Procedimento</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Aviso de retorno elegível */}
+          {isRetornoElegivel && form.procedimento === "retorno" && (
+            <div className="bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg p-3">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-green-600" />
+                <div className="text-sm">
+                  <span className="font-medium text-green-700 dark:text-green-400">Retorno gratuito!</span>
+                  <span className="text-green-600 dark:text-green-500 ml-2">
+                    Última consulta há {diasDesdeUltimaConsulta} dia(s) — dentro do prazo de 30 dias
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <Label>Motivo da consulta</Label>

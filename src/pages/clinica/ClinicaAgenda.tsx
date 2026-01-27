@@ -300,35 +300,30 @@ export default function ClinicaAgenda() {
         .in("agenda_slot_id", slotIds)
         .neq("status_consulta", "cancelada");
 
-      // Verificar quais pacientes são retorno (já tiveram consultas anteriores)
+      // Verificar quais pacientes são elegíveis para retorno (consulta concluída nos últimos 30 dias)
       const pacienteIds = consultasData
         ?.filter(c => c.paciente_id)
         .map(c => c.paciente_id) || [];
       
-      const uniquePacienteIds = [...new Set(pacienteIds)];
+      const uniquePacienteIds = [...new Set(pacienteIds)] as string[];
       
       let retornoPacientes = new Set<string>();
       
       if (uniquePacienteIds.length > 0) {
-        // Buscar pacientes que têm mais de uma consulta concluída
+        const trintaDiasAtras = subDays(new Date(), 30);
+        
+        // Buscar pacientes que têm consulta concluída nos últimos 30 dias
         const { data: historicoData } = await supabase
           .from("consultas")
           .select("paciente_id")
           .in("paciente_id", uniquePacienteIds)
-          .in("status_consulta", ["concluida", "atendida_medico"]);
+          .in("status_consulta", ["concluida", "atendida_medico"])
+          .gte("data_hora", trintaDiasAtras.toISOString());
         
-        // Contar consultas por paciente
-        const contagemPorPaciente: Record<string, number> = {};
+        // Pacientes com pelo menos 1 consulta concluída nos últimos 30 dias são retorno
         historicoData?.forEach(h => {
           if (h.paciente_id) {
-            contagemPorPaciente[h.paciente_id] = (contagemPorPaciente[h.paciente_id] || 0) + 1;
-          }
-        });
-        
-        // Pacientes com pelo menos 1 consulta concluída anterior são retorno
-        Object.entries(contagemPorPaciente).forEach(([pacId, count]) => {
-          if (count >= 1) {
-            retornoPacientes.add(pacId);
+            retornoPacientes.add(h.paciente_id);
           }
         });
       }
@@ -651,12 +646,12 @@ export default function ClinicaAgenda() {
                     {slotInfo.pacienteNome}
                   </span>
                 </div>
-                {/* Badge de Retorno */}
+                {/* Badge de Retorno - elegível para valor zero (últimos 30 dias) */}
                 {slotInfo.isRetorno && (
-                  <div className="flex items-center gap-1">
-                    <RotateCcw className="w-2.5 h-2.5 text-amber-300" />
-                    <span className="text-[10px] font-semibold text-amber-300 uppercase tracking-wide">
-                      Retorno
+                  <div className="flex items-center gap-1 bg-green-500/20 rounded px-1">
+                    <RotateCcw className="w-2.5 h-2.5 text-green-300" />
+                    <span className="text-[10px] font-semibold text-green-300 uppercase tracking-wide">
+                      Retorno 30d
                     </span>
                   </div>
                 )}
@@ -868,11 +863,11 @@ export default function ClinicaAgenda() {
                             </Badge>
                           )}
                           <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
-                          {/* Badge de Retorno */}
+                          {/* Badge de Retorno - elegível para valor zero (últimos 30 dias) */}
                           {slotInfo.isRetorno && (
-                            <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs gap-1">
+                            <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs gap-1">
                               <RotateCcw className="w-3 h-3" />
-                              Retorno
+                              Retorno 30d (R$ 0)
                             </Badge>
                           )}
                         </div>
@@ -1103,11 +1098,11 @@ export default function ClinicaAgenda() {
                               </Badge>
                             )}
                             <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
-                            {/* Badge de Retorno */}
+                            {/* Badge de Retorno - elegível para valor zero (últimos 30 dias) */}
                             {slotInfo.isRetorno && (
-                              <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs gap-1">
+                              <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs gap-1">
                                 <RotateCcw className="w-3 h-3" />
-                                Retorno
+                                Retorno 30d (R$ 0)
                               </Badge>
                             )}
                           </div>
