@@ -43,9 +43,11 @@ export default function OmniDashboard() {
 
   if (loading) {
     return (
-      <div className="space-y-6 -m-6">
-        <OmniHeader />
-        <div className="flex items-center justify-center h-64">
+      <div className="-m-6 flex flex-col h-[calc(100vh-64px)]">
+        <div className="sticky top-0 z-50">
+          <OmniHeader />
+        </div>
+        <div className="flex items-center justify-center flex-1">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
@@ -53,11 +55,13 @@ export default function OmniDashboard() {
   }
 
   return (
-    <div className="space-y-6 -m-6">
-      {/* Header com navegação */}
-      <OmniHeader />
+    <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
+      {/* Header com navegação - fixo */}
+      <div className="sticky top-0 z-50">
+        <OmniHeader />
+      </div>
 
-      <div className="px-6 pt-4 space-y-6">
+      <div className="px-6 pt-6 pb-6 space-y-6 flex-1 overflow-auto">
         {/* Tabs e Filtros */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full lg:w-auto">
