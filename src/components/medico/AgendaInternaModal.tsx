@@ -209,7 +209,11 @@ export function AgendaInternaModal({
   async function checkRetornoEligibility(pacienteId: string) {
     const trintaDiasAtras = subDays(new Date(), 30);
     
-    const { data, error } = await supabase
+    // Buscar o clinica_id do local selecionado
+    const localSelecionado = locais.find(l => l.id === formData.localSelecionado);
+    const clinicaIdLocal = localSelecionado?.clinica_id || clinicaId;
+    
+    let query = supabase
       .from("consultas")
       .select("data_hora")
       .eq("paciente_id", pacienteId)
@@ -218,6 +222,13 @@ export function AgendaInternaModal({
       .gte("data_hora", trintaDiasAtras.toISOString())
       .order("data_hora", { ascending: false })
       .limit(1);
+
+    // Filtrar pela mesma clínica se disponível
+    if (clinicaIdLocal) {
+      query = query.eq("clinica_id", clinicaIdLocal);
+    }
+
+    const { data, error } = await query;
 
     if (error || !data || data.length === 0) {
       setIsRetornoElegivel(false);
