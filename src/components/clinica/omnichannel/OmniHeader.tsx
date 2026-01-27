@@ -8,7 +8,6 @@ import {
   FileText,
   Bell,
   Settings,
-  Power,
   Wifi
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,8 +35,8 @@ export function OmniHeader() {
   const location = useLocation();
 
   return (
-    <div className="bg-card border-b border-border px-6 py-4">
-      <div className="flex items-center justify-center gap-3">
+    <div className="bg-card border-b border-border px-6 py-3 sticky top-0 z-50">
+      <div className="flex items-center justify-center gap-2">
         {navItems.map((item) => {
           const isExactMatch = item.path === "/clinica/omnichannel" 
             ? location.pathname === "/clinica/omnichannel"
@@ -49,13 +48,13 @@ export function OmniHeader() {
                 <NavLink to={item.path}>
                   <div
                     className={cn(
-                      "w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer",
+                      "w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer",
                       isExactMatch
                         ? "bg-primary text-primary-foreground shadow-lg scale-105"
                         : "border-2 border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary hover:scale-105 hover:shadow-md"
                     )}
                   >
-                    <item.icon className="w-6 h-6" />
+                    <item.icon className="w-5 h-5" />
                   </div>
                 </NavLink>
               </TooltipTrigger>
@@ -65,23 +64,6 @@ export function OmniHeader() {
             </Tooltip>
           );
         })}
-
-        {/* Separador */}
-        <div className="w-px h-10 bg-border mx-2" />
-        
-        {/* Botão de voltar */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <NavLink to="/clinica">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center border-2 border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:scale-105 hover:shadow-md transition-all duration-200 cursor-pointer">
-                <Power className="w-6 h-6" />
-              </div>
-            </NavLink>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p>Voltar para Clínica</p>
-          </TooltipContent>
-        </Tooltip>
       </div>
     </div>
   );
