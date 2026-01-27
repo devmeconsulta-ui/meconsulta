@@ -198,7 +198,7 @@ export default function MedicoConsultas() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [origemFilter, setOrigemFilter] = useState("todos");
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("todos");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("hoje");
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined);
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined);
   const [selectedConsulta, setSelectedConsulta] = useState<Consulta | null>(null);

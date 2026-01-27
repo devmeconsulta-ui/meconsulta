@@ -42,7 +42,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit, Timer, CalendarIcon } from "lucide-react";
-import { format, subDays, parseISO, differenceInMinutes } from "date-fns";
+import { format, subDays, parseISO, differenceInMinutes, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ConsultaDetalhesModal } from "@/components/clinica/ConsultaDetalhesModal";
 import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
@@ -98,7 +98,7 @@ function TempoEspera({ dataHora }: { dataHora: string }) {
   );
 }
 
-type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d" | "custom";
+type PeriodFilter = "hoje" | "7d" | "30d" | "60d" | "90d" | "180d" | "365d" | "custom";
 
 export default function ClinicaConsultas() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
@@ -113,7 +113,7 @@ export default function ClinicaConsultas() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   // Filters
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("hoje");
   const [medicoFilter, setMedicoFilter] = useState("todos");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [origemFilter, setOrigemFilter] = useState("todos");
@@ -129,10 +129,12 @@ export default function ClinicaConsultas() {
     future.setDate(future.getDate() + 90);
     
     if (periodFilter === "custom" && customDateStart && customDateEnd) {
-      return { start: customDateStart, end: customDateEnd };
+      return { start: startOfDay(customDateStart), end: endOfDay(customDateEnd) };
     }
     
     switch (periodFilter) {
+      case "hoje":
+        return { start: startOfDay(now), end: endOfDay(now) };
       case "7d":
         return { start: subDays(now, 7), end: future };
       case "30d":
@@ -146,7 +148,7 @@ export default function ClinicaConsultas() {
       case "365d":
         return { start: subDays(now, 365), end: future };
       default:
-        return { start: subDays(now, 30), end: future };
+        return { start: startOfDay(now), end: endOfDay(now) };
     }
   }, [periodFilter, customDateStart, customDateEnd]);
   
@@ -172,6 +174,7 @@ export default function ClinicaConsultas() {
       return `${format(customDateStart, "dd/MM/yy", { locale: ptBR })} - ${format(customDateEnd, "dd/MM/yy", { locale: ptBR })}`;
     }
     const labels: Record<string, string> = {
+      "hoje": "Hoje",
       "7d": "Últimos 7 dias",
       "30d": "Últimos 30 dias",
       "60d": "Últimos 60 dias",
@@ -179,7 +182,7 @@ export default function ClinicaConsultas() {
       "180d": "Últimos 180 dias",
       "365d": "Último ano",
     };
-    return labels[periodFilter] || "Últimos 30 dias";
+    return labels[periodFilter] || "Hoje";
   };
 
   // Get linked doctors
@@ -257,10 +260,22 @@ export default function ClinicaConsultas() {
     enabled: !!clinicaData?.id,
   });
 
+  // Prioridade de status (menor = mais importante)
+  const statusPriority: Record<string, number> = {
+    atendendo: 1,
+    aguardando: 2,
+    confirmada: 3,
+    agendada: 4,
+    aguardando_pagamento: 5,
+    concluida: 6,
+    nao_compareceu: 7,
+    cancelada: 8,
+  };
+
   const filteredConsultas = useMemo(() => {
     if (!consultas) return [];
     
-    return consultas.filter((c: any) => {
+    const filtered = consultas.filter((c: any) => {
       const matchSearch = 
         c.medico?.nome?.toLowerCase().includes(search.toLowerCase()) ||
         c.paciente?.nome?.toLowerCase().includes(search.toLowerCase()) ||
@@ -273,6 +288,29 @@ export default function ClinicaConsultas() {
       const matchOrigem = origemFilter === "todos" || c.origem === origemFilter;
 
       return matchSearch && matchMedico && matchStatus && matchOrigem;
+    });
+
+    // Ordenar por prioridade de status e depois por data (primeiro horário para o último)
+    return filtered.sort((a: any, b: any) => {
+      const priorityA = statusPriority[a.status_consulta] ?? 99;
+      const priorityB = statusPriority[b.status_consulta] ?? 99;
+      
+      // Se status diferente, ordena por prioridade
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      // Se mesmo status, ordena por data (primeiro horário para o último)
+      const dateA = new Date(a.data_hora).getTime();
+      const dateB = new Date(b.data_hora).getTime();
+      
+      // Para status finalizados (concluída, não compareceu, cancelada), ordena do mais recente
+      if (priorityA >= 6) {
+        return dateB - dateA;
+      }
+      
+      // Para status ativos, ordena do primeiro horário para o último
+      return dateA - dateB;
     });
   }, [consultas, search, medicoFilter, statusFilter, origemFilter]);
 
@@ -384,6 +422,7 @@ export default function ClinicaConsultas() {
               </div>
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="hoje">Hoje</SelectItem>
               <SelectItem value="7d">Últimos 7 dias</SelectItem>
               <SelectItem value="30d">Últimos 30 dias</SelectItem>
               <SelectItem value="60d">Últimos 60 dias</SelectItem>
