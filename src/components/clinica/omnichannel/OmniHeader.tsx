@@ -6,14 +6,12 @@ import {
   User,
   ListChecks,
   FileText,
-  Printer,
   Bell,
   Settings,
   Power,
   Wifi
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface NavItem {
@@ -39,7 +37,7 @@ export function OmniHeader() {
 
   return (
     <div className="bg-card border-b border-border px-6 py-4">
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex items-center justify-center gap-3">
         {navItems.map((item) => {
           const isExactMatch = item.path === "/clinica/omnichannel" 
             ? location.pathname === "/clinica/omnichannel"
@@ -49,18 +47,16 @@ export function OmniHeader() {
             <Tooltip key={item.path}>
               <TooltipTrigger asChild>
                 <NavLink to={item.path}>
-                  <Button
-                    variant="ghost"
-                    size="lg"
+                  <div
                     className={cn(
-                      "w-14 h-14 rounded-full transition-all",
+                      "w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer",
                       isExactMatch
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        ? "bg-primary text-primary-foreground shadow-lg scale-105"
+                        : "border-2 border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary hover:scale-105 hover:shadow-md"
                     )}
                   >
                     <item.icon className="w-6 h-6" />
-                  </Button>
+                  </div>
                 </NavLink>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -70,19 +66,16 @@ export function OmniHeader() {
           );
         })}
 
-        {/* Separador e botão de voltar */}
+        {/* Separador */}
         <div className="w-px h-10 bg-border mx-2" />
         
+        {/* Botão de voltar */}
         <Tooltip>
           <TooltipTrigger asChild>
             <NavLink to="/clinica">
-              <Button
-                variant="ghost"
-                size="lg"
-                className="w-14 h-14 rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
+              <div className="w-14 h-14 rounded-full flex items-center justify-center border-2 border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:scale-105 hover:shadow-md transition-all duration-200 cursor-pointer">
                 <Power className="w-6 h-6" />
-              </Button>
+              </div>
             </NavLink>
           </TooltipTrigger>
           <TooltipContent side="bottom">
