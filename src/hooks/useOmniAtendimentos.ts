@@ -70,6 +70,7 @@ interface UseOmniAtendimentosOptions {
 
 export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAtendimentosOptions = {}) {
   const [atendimentos, setAtendimentos] = useState<OmniAtendimento[]>([]);
+  const [mensagens, setMensagens] = useState<OmniMensagem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAtendimentos = useCallback(async () => {
@@ -103,6 +104,16 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
 
       if (error) throw error;
       setAtendimentos((data || []) as OmniAtendimento[]);
+
+      // Fetch all mensagens for dashboard metrics
+      const { data: msgsData, error: msgsError } = await supabase
+        .from("omni_mensagens")
+        .select("*")
+        .in("atendimento_id", (data || []).map((a: any) => a.id));
+
+      if (!msgsError) {
+        setMensagens((msgsData || []) as OmniMensagem[]);
+      }
     } catch (error) {
       console.error("Error fetching atendimentos:", error);
       toast.error("Erro ao carregar atendimentos");
@@ -220,6 +231,7 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
 
   return {
     atendimentos,
+    mensagens,
     loading,
     refetch: fetchAtendimentos,
     atribuirAtendimento,
