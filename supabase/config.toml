@@ -32,3 +32,21 @@ verify_jwt = false
 
 [functions.admin-execute-transfer]
 verify_jwt = false
+
+[functions.evolution-create-instance]
+verify_jwt = false
+
+[functions.evolution-connect-instance]
+verify_jwt = false
+
+[functions.evolution-disconnect-instance]
+verify_jwt = false
+
+[functions.evolution-webhook]
+verify_jwt = false
+
+[functions.evolution-send-message]
+verify_jwt = false
+
+[functions.evolution-connection-status]
+verify_jwt = false

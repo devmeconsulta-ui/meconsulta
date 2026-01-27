@@ -1965,6 +1965,643 @@ export type Database = {
           },
         ]
       }
+      omni_agente_pausas: {
+        Row: {
+          agente_id: string
+          created_at: string
+          duracao_segundos: number | null
+          fim: string | null
+          id: string
+          inicio: string
+          tipo_pausa_id: string | null
+        }
+        Insert: {
+          agente_id: string
+          created_at?: string
+          duracao_segundos?: number | null
+          fim?: string | null
+          id?: string
+          inicio?: string
+          tipo_pausa_id?: string | null
+        }
+        Update: {
+          agente_id?: string
+          created_at?: string
+          duracao_segundos?: number | null
+          fim?: string | null
+          id?: string
+          inicio?: string
+          tipo_pausa_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_agente_pausas_agente_id_fkey"
+            columns: ["agente_id"]
+            isOneToOne: false
+            referencedRelation: "omni_agentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_agente_pausas_tipo_pausa_id_fkey"
+            columns: ["tipo_pausa_id"]
+            isOneToOne: false
+            referencedRelation: "omni_pausas_tipos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_agentes: {
+        Row: {
+          atendimentos_hoje: number | null
+          created_at: string
+          fila_id: string
+          id: string
+          max_atendimentos_simultaneos: number | null
+          motivo_pausa: string | null
+          status: string
+          tempo_logado_hoje: number | null
+          updated_at: string
+          usuario_clinica_id: string
+        }
+        Insert: {
+          atendimentos_hoje?: number | null
+          created_at?: string
+          fila_id: string
+          id?: string
+          max_atendimentos_simultaneos?: number | null
+          motivo_pausa?: string | null
+          status?: string
+          tempo_logado_hoje?: number | null
+          updated_at?: string
+          usuario_clinica_id: string
+        }
+        Update: {
+          atendimentos_hoje?: number | null
+          created_at?: string
+          fila_id?: string
+          id?: string
+          max_atendimentos_simultaneos?: number | null
+          motivo_pausa?: string | null
+          status?: string
+          tempo_logado_hoje?: number | null
+          updated_at?: string
+          usuario_clinica_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_agentes_fila_id_fkey"
+            columns: ["fila_id"]
+            isOneToOne: false
+            referencedRelation: "omni_filas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_agentes_usuario_clinica_id_fkey"
+            columns: ["usuario_clinica_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_atendimentos: {
+        Row: {
+          agente_id: string | null
+          avaliacao_comentario: string | null
+          avaliacao_nota: number | null
+          canal: string
+          clinica_id: string
+          contato_id: string
+          created_at: string
+          data_abertura: string
+          data_fechamento: string | null
+          data_primeira_resposta: string | null
+          etiquetas: string[] | null
+          fila_id: string | null
+          id: string
+          motivo_fechamento: string | null
+          prioridade: string | null
+          protocolo: number
+          status: string
+          tempo_primeira_resposta: number | null
+          tempo_total_atendimento: number | null
+          transferido_de_agente_id: string | null
+          transferido_de_fila_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          agente_id?: string | null
+          avaliacao_comentario?: string | null
+          avaliacao_nota?: number | null
+          canal?: string
+          clinica_id: string
+          contato_id: string
+          created_at?: string
+          data_abertura?: string
+          data_fechamento?: string | null
+          data_primeira_resposta?: string | null
+          etiquetas?: string[] | null
+          fila_id?: string | null
+          id?: string
+          motivo_fechamento?: string | null
+          prioridade?: string | null
+          protocolo?: number
+          status?: string
+          tempo_primeira_resposta?: number | null
+          tempo_total_atendimento?: number | null
+          transferido_de_agente_id?: string | null
+          transferido_de_fila_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agente_id?: string | null
+          avaliacao_comentario?: string | null
+          avaliacao_nota?: number | null
+          canal?: string
+          clinica_id?: string
+          contato_id?: string
+          created_at?: string
+          data_abertura?: string
+          data_fechamento?: string | null
+          data_primeira_resposta?: string | null
+          etiquetas?: string[] | null
+          fila_id?: string | null
+          id?: string
+          motivo_fechamento?: string | null
+          prioridade?: string | null
+          protocolo?: number
+          status?: string
+          tempo_primeira_resposta?: number | null
+          tempo_total_atendimento?: number | null
+          transferido_de_agente_id?: string | null
+          transferido_de_fila_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_atendimentos_agente_id_fkey"
+            columns: ["agente_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_atendimentos_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_atendimentos_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "omni_contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_atendimentos_fila_id_fkey"
+            columns: ["fila_id"]
+            isOneToOne: false
+            referencedRelation: "omni_filas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_atendimentos_transferido_de_agente_id_fkey"
+            columns: ["transferido_de_agente_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_atendimentos_transferido_de_fila_id_fkey"
+            columns: ["transferido_de_fila_id"]
+            isOneToOne: false
+            referencedRelation: "omni_filas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_contatos: {
+        Row: {
+          agente_preferencial_id: string | null
+          clinica_id: string
+          created_at: string
+          dados_extras: Json | null
+          documento: string | null
+          email: string | null
+          empresa: string | null
+          etiquetas: string[] | null
+          foto_url: string | null
+          id: string
+          instagram: string | null
+          nome: string
+          observacoes: string | null
+          paciente_id: string | null
+          telefone: string
+          updated_at: string
+        }
+        Insert: {
+          agente_preferencial_id?: string | null
+          clinica_id: string
+          created_at?: string
+          dados_extras?: Json | null
+          documento?: string | null
+          email?: string | null
+          empresa?: string | null
+          etiquetas?: string[] | null
+          foto_url?: string | null
+          id?: string
+          instagram?: string | null
+          nome: string
+          observacoes?: string | null
+          paciente_id?: string | null
+          telefone: string
+          updated_at?: string
+        }
+        Update: {
+          agente_preferencial_id?: string | null
+          clinica_id?: string
+          created_at?: string
+          dados_extras?: Json | null
+          documento?: string | null
+          email?: string | null
+          empresa?: string | null
+          etiquetas?: string[] | null
+          foto_url?: string | null
+          id?: string
+          instagram?: string | null
+          nome?: string
+          observacoes?: string | null
+          paciente_id?: string | null
+          telefone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_contatos_agente_preferencial_id_fkey"
+            columns: ["agente_preferencial_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_contatos_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_contatos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_etiquetas: {
+        Row: {
+          clinica_id: string
+          cor: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          clinica_id: string
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          clinica_id?: string
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_etiquetas_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_filas: {
+        Row: {
+          atendimentos_max_agente: number | null
+          ativo: boolean | null
+          clinica_id: string
+          cor: string | null
+          created_at: string
+          descricao: string | null
+          estrategia_distribuicao: string | null
+          fechar_por_inatividade_minutos: number | null
+          horario_funcionamento: Json | null
+          id: string
+          instancia_id: string | null
+          mensagem_boas_vindas: string | null
+          mensagem_espera: string | null
+          mensagem_fechamento: string | null
+          mensagem_fora_horario: string | null
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          atendimentos_max_agente?: number | null
+          ativo?: boolean | null
+          clinica_id: string
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          estrategia_distribuicao?: string | null
+          fechar_por_inatividade_minutos?: number | null
+          horario_funcionamento?: Json | null
+          id?: string
+          instancia_id?: string | null
+          mensagem_boas_vindas?: string | null
+          mensagem_espera?: string | null
+          mensagem_fechamento?: string | null
+          mensagem_fora_horario?: string | null
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          atendimentos_max_agente?: number | null
+          ativo?: boolean | null
+          clinica_id?: string
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          estrategia_distribuicao?: string | null
+          fechar_por_inatividade_minutos?: number | null
+          horario_funcionamento?: Json | null
+          id?: string
+          instancia_id?: string | null
+          mensagem_boas_vindas?: string | null
+          mensagem_espera?: string | null
+          mensagem_fechamento?: string | null
+          mensagem_fora_horario?: string | null
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_filas_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_filas_instancia_id_fkey"
+            columns: ["instancia_id"]
+            isOneToOne: false
+            referencedRelation: "omni_instancias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_instancias: {
+        Row: {
+          api_key_hash: string | null
+          clinica_id: string
+          configuracoes: Json | null
+          created_at: string
+          evolution_instance_name: string
+          id: string
+          nome: string
+          numero_whatsapp: string | null
+          servidor_url: string | null
+          status: string
+          updated_at: string
+          webhook_url: string | null
+        }
+        Insert: {
+          api_key_hash?: string | null
+          clinica_id: string
+          configuracoes?: Json | null
+          created_at?: string
+          evolution_instance_name: string
+          id?: string
+          nome: string
+          numero_whatsapp?: string | null
+          servidor_url?: string | null
+          status?: string
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Update: {
+          api_key_hash?: string | null
+          clinica_id?: string
+          configuracoes?: Json | null
+          created_at?: string
+          evolution_instance_name?: string
+          id?: string
+          nome?: string
+          numero_whatsapp?: string | null
+          servidor_url?: string | null
+          status?: string
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_instancias_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_mensagens: {
+        Row: {
+          agente_id: string | null
+          arquivo_nome: string | null
+          arquivo_tipo: string | null
+          arquivo_url: string | null
+          atendimento_id: string
+          contato_id: string | null
+          conteudo: string | null
+          created_at: string
+          direcao: string
+          erro_descricao: string | null
+          id: string
+          quoted_message_id: string | null
+          status: string | null
+          tipo: string
+          updated_at: string
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          agente_id?: string | null
+          arquivo_nome?: string | null
+          arquivo_tipo?: string | null
+          arquivo_url?: string | null
+          atendimento_id: string
+          contato_id?: string | null
+          conteudo?: string | null
+          created_at?: string
+          direcao: string
+          erro_descricao?: string | null
+          id?: string
+          quoted_message_id?: string | null
+          status?: string | null
+          tipo?: string
+          updated_at?: string
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          agente_id?: string | null
+          arquivo_nome?: string | null
+          arquivo_tipo?: string | null
+          arquivo_url?: string | null
+          atendimento_id?: string
+          contato_id?: string | null
+          conteudo?: string | null
+          created_at?: string
+          direcao?: string
+          erro_descricao?: string | null
+          id?: string
+          quoted_message_id?: string | null
+          status?: string | null
+          tipo?: string
+          updated_at?: string
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_mensagens_agente_id_fkey"
+            columns: ["agente_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_mensagens_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "omni_atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_mensagens_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "omni_contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_mensagens_quoted_message_id_fkey"
+            columns: ["quoted_message_id"]
+            isOneToOne: false
+            referencedRelation: "omni_mensagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_mensagens_rapidas: {
+        Row: {
+          atalho: string | null
+          ativo: boolean | null
+          categoria: string | null
+          clinica_id: string
+          conteudo: string
+          created_at: string
+          fila_id: string | null
+          id: string
+          titulo: string
+          updated_at: string
+          variaveis: Json | null
+        }
+        Insert: {
+          atalho?: string | null
+          ativo?: boolean | null
+          categoria?: string | null
+          clinica_id: string
+          conteudo: string
+          created_at?: string
+          fila_id?: string | null
+          id?: string
+          titulo: string
+          updated_at?: string
+          variaveis?: Json | null
+        }
+        Update: {
+          atalho?: string | null
+          ativo?: boolean | null
+          categoria?: string | null
+          clinica_id?: string
+          conteudo?: string
+          created_at?: string
+          fila_id?: string | null
+          id?: string
+          titulo?: string
+          updated_at?: string
+          variaveis?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_mensagens_rapidas_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_mensagens_rapidas_fila_id_fkey"
+            columns: ["fila_id"]
+            isOneToOne: false
+            referencedRelation: "omni_filas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_pausas_tipos: {
+        Row: {
+          ativo: boolean | null
+          clinica_id: string
+          created_at: string
+          id: string
+          nome: string
+          tempo_max_minutos: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          clinica_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          tempo_max_minutos?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          clinica_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          tempo_max_minutos?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_pausas_tipos_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       paciente_dependentes: {
         Row: {
           ativo: boolean | null
