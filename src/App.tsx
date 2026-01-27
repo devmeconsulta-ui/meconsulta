@@ -73,6 +73,7 @@ import ClinicaCRM from "./pages/clinica/ClinicaCRM";
 
 // Omnichannel pages
 import OmniDashboard from "./pages/clinica/omnichannel/OmniDashboard";
+import OmniAgentes from "./pages/clinica/omnichannel/OmniAgentes";
 import OmniFilas from "./pages/clinica/omnichannel/OmniFilas";
 import OmniAtendimentos from "./pages/clinica/omnichannel/OmniAtendimentos";
 import OmniContatos from "./pages/clinica/omnichannel/OmniContatos";
@@ -131,6 +132,7 @@ const App = () => (
               <Route index element={<ClinicaDashboard />} />
               <Route path="crm" element={<ClinicaCRM />} />
               <Route path="omnichannel" element={<OmniDashboard />} />
+              <Route path="omnichannel/agentes" element={<OmniAgentes />} />
               <Route path="omnichannel/filas" element={<OmniFilas />} />
               <Route path="omnichannel/atendimentos" element={<OmniAtendimentos />} />
               <Route path="omnichannel/contatos" element={<OmniContatos />} />
