@@ -15,6 +15,7 @@ import { useOmniAtendimentos } from "@/hooks/useOmniAtendimentos";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
@@ -59,20 +60,24 @@ export default function OmniDashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Omnichannel</h1>
-          <p className="text-muted-foreground">
-            Gestão de atendimento via WhatsApp
-          </p>
+    <div className="space-y-6 -m-6">
+      {/* Header com navegação */}
+      <OmniHeader />
+
+      <div className="px-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Visão geral do atendimento
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant={instanciasConectadas.length > 0 ? "default" : "secondary"}>
+              {instanciasConectadas.length} instância(s) conectada(s)
+            </Badge>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={instanciasConectadas.length > 0 ? "default" : "secondary"}>
-            {instanciasConectadas.length} instância(s) conectada(s)
-          </Badge>
-        </div>
-      </div>
 
       {/* Cards de Métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -240,6 +245,7 @@ export default function OmniDashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );
