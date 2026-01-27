@@ -71,6 +71,12 @@ import ClinicaConfiguracoes from "./pages/clinica/ClinicaConfiguracoes";
 import ClinicaChat from "./pages/clinica/ClinicaChat";
 import ClinicaCRM from "./pages/clinica/ClinicaCRM";
 
+// Omnichannel pages
+import OmniDashboard from "./pages/clinica/omnichannel/OmniDashboard";
+import OmniFilas from "./pages/clinica/omnichannel/OmniFilas";
+import OmniAtendimentos from "./pages/clinica/omnichannel/OmniAtendimentos";
+import OmniContatos from "./pages/clinica/omnichannel/OmniContatos";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -124,6 +130,10 @@ const App = () => (
             <Route path="/clinica" element={<ClinicaLayout />}>
               <Route index element={<ClinicaDashboard />} />
               <Route path="crm" element={<ClinicaCRM />} />
+              <Route path="omnichannel" element={<OmniDashboard />} />
+              <Route path="omnichannel/filas" element={<OmniFilas />} />
+              <Route path="omnichannel/atendimentos" element={<OmniAtendimentos />} />
+              <Route path="omnichannel/contatos" element={<OmniContatos />} />
               <Route path="medicos" element={<ClinicaMedicos />} />
               <Route path="consultas" element={<ClinicaConsultas />} />
               <Route path="pacientes" element={<ClinicaPacientes />} />
