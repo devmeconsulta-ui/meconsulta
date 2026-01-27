@@ -57,7 +57,7 @@ export default function OmniDashboard() {
       {/* Header com navegação */}
       <OmniHeader />
 
-      <div className="px-6 space-y-6">
+      <div className="px-6 pt-4 space-y-6">
         {/* Tabs e Filtros */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full lg:w-auto">
