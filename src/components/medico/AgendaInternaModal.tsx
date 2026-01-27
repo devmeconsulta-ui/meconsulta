@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -30,7 +31,7 @@ import {
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { 
@@ -42,7 +43,8 @@ import {
   Lock,
   Plus,
   Percent,
-  DollarSign
+  DollarSign,
+  RotateCcw
 } from "lucide-react";
 import { maskPhone } from "@/lib/maskUtils";
 
@@ -126,6 +128,10 @@ export function AgendaInternaModal({
   const [showNovoConvenio, setShowNovoConvenio] = useState(false);
   const [novoConvenioNome, setNovoConvenioNome] = useState("");
   
+  // Estado para retorno 30 dias
+  const [isRetornoElegivel, setIsRetornoElegivel] = useState(false);
+  const [diasDesdeUltimaConsulta, setDiasDesdeUltimaConsulta] = useState<number | null>(null);
+  
   // For manual booking date/time selection
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     slotDataHora ? new Date(slotDataHora) : new Date()
@@ -149,8 +155,13 @@ export function AgendaInternaModal({
     observacoes: "",
   });
 
-  // Calculate final value with discount
+  // Calculate final value with discount or return (retorno 30d = R$ 0)
   const calcularValorFinal = () => {
+    // Se é retorno elegível (30 dias), valor é zero
+    if (isRetornoElegivel && formData.procedimento === "retorno") {
+      return 0;
+    }
+    
     if (!hasDesconto || descontoValor <= 0) return formData.valor;
     
     if (descontoTipo === "valor") {
@@ -188,8 +199,44 @@ export function AgendaInternaModal({
   useEffect(() => {
     if (selectedPaciente) {
       fetchHistorico(selectedPaciente.id);
+      checkRetornoEligibility(selectedPaciente.id);
+    } else {
+      setIsRetornoElegivel(false);
+      setDiasDesdeUltimaConsulta(null);
     }
-  }, [selectedPaciente]);
+  }, [selectedPaciente, medicoId]);
+
+  async function checkRetornoEligibility(pacienteId: string) {
+    const trintaDiasAtras = subDays(new Date(), 30);
+    
+    const { data, error } = await supabase
+      .from("consultas")
+      .select("data_hora")
+      .eq("paciente_id", pacienteId)
+      .eq("medico_id", medicoId)
+      .in("status_consulta", ["concluida", "atendida_medico"])
+      .gte("data_hora", trintaDiasAtras.toISOString())
+      .order("data_hora", { ascending: false })
+      .limit(1);
+
+    if (error || !data || data.length === 0) {
+      setIsRetornoElegivel(false);
+      setDiasDesdeUltimaConsulta(null);
+      return;
+    }
+
+    const ultimaConsultaDate = new Date(data[0].data_hora);
+    const hoje = new Date();
+    const dias = Math.floor(
+      (hoje.getTime() - ultimaConsultaDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    setIsRetornoElegivel(true);
+    setDiasDesdeUltimaConsulta(dias);
+    
+    // Auto-selecionar retorno se elegível
+    setFormData(prev => ({ ...prev, procedimento: "retorno" }));
+  }
 
   async function fetchHistorico(pacienteId: string) {
     const { data } = await supabase
@@ -305,6 +352,8 @@ export function AgendaInternaModal({
     setHistoricoConsultas([]);
     setHasDesconto(false);
     setDescontoValor(0);
+    setIsRetornoElegivel(false);
+    setDiasDesdeUltimaConsulta(null);
   }
 
   async function handleSubmit() {
@@ -713,23 +762,56 @@ export function AgendaInternaModal({
             </div>
 
             <div className="col-span-1 sm:col-span-7">
-              <Label className="text-xs sm:text-sm mb-1.5 block">Procedimento</Label>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Label className="text-xs sm:text-sm">Procedimento</Label>
+                {isRetornoElegivel && (
+                  <Badge className="bg-green-600 text-white text-[10px] gap-1 px-1.5 py-0.5">
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    Retorno 30d (R$ 0)
+                  </Badge>
+                )}
+              </div>
               <Select
                 value={formData.procedimento}
                 onValueChange={(v) => setFormData({ ...formData, procedimento: v })}
               >
-                <SelectTrigger className="h-9 text-sm">
+                <SelectTrigger className={cn(
+                  "h-9 text-sm",
+                  isRetornoElegivel && formData.procedimento === "retorno" && "border-green-500 bg-green-50 dark:bg-green-950"
+                )}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="consulta">Consulta</SelectItem>
-                  <SelectItem value="retorno">Retorno</SelectItem>
+                  <SelectItem value="retorno">
+                    <span className="flex items-center gap-2">
+                      Retorno
+                      {isRetornoElegivel && (
+                        <span className="text-green-600 text-xs">(elegível - R$ 0)</span>
+                      )}
+                    </span>
+                  </SelectItem>
                   <SelectItem value="exame">Exame</SelectItem>
                   <SelectItem value="procedimento">Procedimento</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
+
+          {/* Aviso de retorno elegível */}
+          {isRetornoElegivel && formData.procedimento === "retorno" && (
+            <div className="bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg p-3">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-green-600" />
+                <div className="text-sm">
+                  <span className="font-medium text-green-700 dark:text-green-400">Retorno gratuito!</span>
+                  <span className="text-green-600 dark:text-green-500 ml-2">
+                    Última consulta há {diasDesdeUltimaConsulta} dia(s) — dentro do prazo de 30 dias
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Row 4: Service Type + Convenio + Medico */}
           <div className="grid grid-cols-2 sm:grid-cols-12 gap-3 sm:gap-4">

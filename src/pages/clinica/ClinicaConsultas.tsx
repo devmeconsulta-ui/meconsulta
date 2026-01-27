@@ -41,7 +41,7 @@ import {
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit, Timer, CalendarIcon } from "lucide-react";
+import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit, Timer, CalendarIcon, RotateCcw } from "lucide-react";
 import { format, subDays, parseISO, differenceInMinutes, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ConsultaDetalhesModal } from "@/components/clinica/ConsultaDetalhesModal";
@@ -701,6 +701,12 @@ export default function ClinicaConsultas() {
                           {consulta.tipo_atendimento === "convenio" && consulta.convenio?.nome && (
                             <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">
                               {consulta.convenio.nome}
+                            </Badge>
+                          )}
+                          {consulta.tipo_servico === "retorno" && consulta.valor_consulta === 0 && (
+                            <Badge className="bg-green-600 text-white gap-1">
+                              <RotateCcw className="w-3 h-3" />
+                              Retorno 30d (R$ 0)
                             </Badge>
                           )}
                         </div>
