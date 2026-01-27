@@ -204,9 +204,11 @@ export default function OmniAgentes() {
 
   if (loading) {
     return (
-      <div className="space-y-6 -m-6">
-        <OmniHeader />
-        <div className="flex items-center justify-center h-64">
+      <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
+        <div className="sticky top-0 z-50">
+          <OmniHeader />
+        </div>
+        <div className="flex items-center justify-center flex-1">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
@@ -214,10 +216,12 @@ export default function OmniAgentes() {
   }
 
   return (
-    <div className="space-y-6 -m-6">
-      <OmniHeader />
+    <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
+      <div className="sticky top-0 z-50">
+        <OmniHeader />
+      </div>
 
-      <div className="flex h-[calc(100vh-180px)]">
+      <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - Filas Filter */}
         <div className="w-64 border-r bg-card p-4 flex flex-col gap-2">
           <div className="flex items-center justify-between mb-2">
