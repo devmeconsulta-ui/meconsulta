@@ -38,75 +38,57 @@ export function OmniHeader() {
   const location = useLocation();
 
   return (
-    <div className="bg-slate-900 border-b border-slate-700 px-4 py-3">
-      <div className="flex items-center justify-between">
-        {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center">
-            <MessageCircle className="w-6 h-6 text-slate-900" />
-          </div>
-          <div className="hidden md:block">
-            <h1 className="text-lg font-bold text-white">Atendimentos</h1>
-            <p className="text-xs text-slate-400">Central de Atendimento</p>
-          </div>
-        </div>
+    <div className="bg-card border-b border-border px-6 py-4">
+      <div className="flex items-center justify-center gap-2">
+        {navItems.map((item) => {
+          const isExactMatch = item.path === "/clinica/omnichannel" 
+            ? location.pathname === "/clinica/omnichannel"
+            : location.pathname === item.path;
 
-        {/* Navigation Icons */}
-        <div className="flex items-center gap-1">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path || 
-              (item.path === "/clinica/omnichannel" && location.pathname === "/clinica/omnichannel");
-            
-            // Check if it's exact match for dashboard
-            const isExactMatch = item.path === "/clinica/omnichannel" 
-              ? location.pathname === "/clinica/omnichannel"
-              : location.pathname === item.path;
+          return (
+            <Tooltip key={item.path}>
+              <TooltipTrigger asChild>
+                <NavLink to={item.path}>
+                  <Button
+                    variant="ghost"
+                    size="lg"
+                    className={cn(
+                      "w-14 h-14 rounded-full transition-all",
+                      isExactMatch
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    )}
+                  >
+                    <item.icon className="w-6 h-6" />
+                  </Button>
+                </NavLink>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>{item.label}</p>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
 
-            return (
-              <Tooltip key={item.path}>
-                <TooltipTrigger asChild>
-                  <NavLink to={item.path}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        "w-10 h-10 rounded-full transition-all",
-                        isExactMatch
-                          ? "bg-cyan-500 text-slate-900 hover:bg-cyan-400"
-                          : "text-slate-400 hover:text-white hover:bg-slate-800"
-                      )}
-                    >
-                      <item.icon className="w-5 h-5" />
-                    </Button>
-                  </NavLink>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>{item.label}</p>
-                </TooltipContent>
-              </Tooltip>
-            );
-          })}
-        </div>
-
-        {/* Right side - Power button */}
-        <div className="flex items-center gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <NavLink to="/clinica">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="w-10 h-10 rounded-full text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                >
-                  <Power className="w-5 h-5" />
-                </Button>
-              </NavLink>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>Voltar para Clínica</p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
+        {/* Separador e botão de voltar */}
+        <div className="w-px h-10 bg-border mx-2" />
+        
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <NavLink to="/clinica">
+              <Button
+                variant="ghost"
+                size="lg"
+                className="w-14 h-14 rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <Power className="w-6 h-6" />
+              </Button>
+            </NavLink>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Voltar para Clínica</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
