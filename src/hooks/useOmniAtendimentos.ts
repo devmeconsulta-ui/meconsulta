@@ -69,14 +69,23 @@ interface UseOmniAtendimentosOptions {
 }
 
 export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAtendimentosOptions = {}) {
+  // Destructure options to get stable primitive values for dependencies
+  const statusFilter = options.status;
+  const agenteIdFilter = options.agenteId;
+  const filaIdFilter = options.filaId;
+
   const [atendimentos, setAtendimentos] = useState<OmniAtendimento[]>([]);
   const [mensagens, setMensagens] = useState<OmniMensagem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAtendimentos = useCallback(async () => {
-    if (!clinicaId) return;
+    if (!clinicaId) {
+      setLoading(false);
+      return;
+    }
 
     try {
+      setLoading(true);
       let query = supabase
         .from("omni_atendimentos")
         .select(`
@@ -88,16 +97,16 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
         .eq("clinica_id", clinicaId)
         .order("data_abertura", { ascending: false });
 
-      if (options.status?.length) {
-        query = query.in("status", options.status);
+      if (statusFilter?.length) {
+        query = query.in("status", statusFilter);
       }
 
-      if (options.agenteId) {
-        query = query.eq("agente_id", options.agenteId);
+      if (agenteIdFilter) {
+        query = query.eq("agente_id", agenteIdFilter);
       }
 
-      if (options.filaId) {
-        query = query.eq("fila_id", options.filaId);
+      if (filaIdFilter) {
+        query = query.eq("fila_id", filaIdFilter);
       }
 
       const { data, error } = await query;
@@ -106,13 +115,17 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
       setAtendimentos((data || []) as OmniAtendimento[]);
 
       // Fetch all mensagens for dashboard metrics
-      const { data: msgsData, error: msgsError } = await supabase
-        .from("omni_mensagens")
-        .select("*")
-        .in("atendimento_id", (data || []).map((a: any) => a.id));
+      if (data && data.length > 0) {
+        const { data: msgsData, error: msgsError } = await supabase
+          .from("omni_mensagens")
+          .select("*")
+          .in("atendimento_id", data.map((a: any) => a.id));
 
-      if (!msgsError) {
-        setMensagens((msgsData || []) as OmniMensagem[]);
+        if (!msgsError) {
+          setMensagens((msgsData || []) as OmniMensagem[]);
+        }
+      } else {
+        setMensagens([]);
       }
     } catch (error) {
       console.error("Error fetching atendimentos:", error);
@@ -120,7 +133,7 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
     } finally {
       setLoading(false);
     }
-  }, [clinicaId, options.status, options.agenteId, options.filaId]);
+  }, [clinicaId, statusFilter, agenteIdFilter, filaIdFilter]);
 
   useEffect(() => {
     fetchAtendimentos();
