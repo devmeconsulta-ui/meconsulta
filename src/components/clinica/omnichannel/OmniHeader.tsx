@@ -2,7 +2,6 @@ import { NavLink, useLocation } from "react-router-dom";
 import { 
   LayoutDashboard,
   Users,
-  MessageCircle,
   MessagesSquare,
   User,
   ListChecks,
@@ -28,7 +27,6 @@ const navItems: NavItem[] = [
   { icon: Users, label: "Agentes", path: "/clinica/omnichannel/agentes" },
   { icon: MessagesSquare, label: "Chat", path: "/clinica/chat" },
   { icon: Kanban, label: "CRM", path: "/clinica/crm" },
-  { icon: MessageCircle, label: "Atendimentos", path: "/clinica/omnichannel/atendimentos" },
   { icon: User, label: "Contatos", path: "/clinica/omnichannel/contatos" },
   { icon: ListChecks, label: "Filas", path: "/clinica/omnichannel/filas" },
   { icon: FileText, label: "Relatórios", path: "/clinica/omnichannel/relatorios" },
