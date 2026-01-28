@@ -36,6 +36,7 @@ import CrmLeadCard from "@/components/clinica/crm/CrmLeadCard";
 import CrmLeadDetalhesModal from "@/components/clinica/crm/CrmLeadDetalhesModal";
 import { AgendaInternaModal } from "@/components/medico/AgendaInternaModal";
 import { supabase } from "@/integrations/supabase/client";
+import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
 
 export default function ClinicaCRM() {
   const { currentUser } = useAuth();
@@ -137,19 +138,31 @@ export default function ClinicaCRM() {
 
   if (isLoading) {
     return (
-      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-        <Skeleton className="h-10 md:h-12 w-full" />
-        <div className="flex gap-4 overflow-hidden">
-          {[1, 2, 3].map(i => (
-            <Skeleton key={i} className="h-[400px] md:h-[600px] w-full md:w-80 flex-shrink-0" />
-          ))}
+      <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
+        <div className="shrink-0">
+          <OmniHeader />
+        </div>
+        <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+          <Skeleton className="h-10 md:h-12 w-full" />
+          <div className="flex gap-4 overflow-hidden">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-[400px] md:h-[600px] w-full md:w-80 flex-shrink-0" />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-3 md:p-6 h-[calc(100vh-80px)] flex flex-col overflow-hidden">
+    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
+      {/* Header fixo */}
+      <div className="shrink-0">
+        <OmniHeader />
+      </div>
+
+      {/* Conteúdo com scroll */}
+      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6">
       {/* Header */}
       <div className="flex flex-col gap-3 mb-4 md:mb-6">
         {/* Title + Funnel Select + Config */}
@@ -365,6 +378,7 @@ export default function ClinicaCRM() {
           </div>
         </DragDropContext>
       )}
+      </div>
 
       {/* Modals */}
       <CrmFunilModal
