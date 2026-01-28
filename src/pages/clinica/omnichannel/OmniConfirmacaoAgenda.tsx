@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmacaoAgenda } from "@/hooks/useConfirmacaoAgenda";
-import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
+import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -218,11 +218,7 @@ export default function OmniConfirmacaoAgenda() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <OmniHeader />
-
-      {/* Conteúdo */}
+    <OmniLayout>
       <div className="space-y-6">
         {/* Header da página */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -855,6 +851,6 @@ export default function OmniConfirmacaoAgenda() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </OmniLayout>
   );
 }

@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useOmniAtendimentos, OmniAtendimento } from "@/hooks/useOmniAtendimentos";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
-import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
+import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { FilaFilterAccordion } from "@/components/clinica/omnichannel/agentes/FilaFilterAccordion";
 import { TransferirAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/TransferirAtendimentoModal";
 import { VisualizarConversaModal } from "@/components/clinica/omnichannel/atendimentos/VisualizarConversaModal";
@@ -260,19 +260,16 @@ export default function OmniAgentes() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <OmniHeader />
+      <OmniLayout>
         <div className="flex items-center justify-center h-[calc(100vh-250px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </div>
+      </OmniLayout>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <OmniHeader />
-
+    <OmniLayout>
       {/* Conteúdo */}
       <div className="flex gap-4">
         {/* Left Sidebar - Filas Filter (hidden on mobile) */}
@@ -691,6 +688,6 @@ export default function OmniAgentes() {
           setIsTransferirModalOpen(true);
         }}
       />
-    </div>
+    </OmniLayout>
   );
 }

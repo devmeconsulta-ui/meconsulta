@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { format, subDays, isWithinInterval, startOfMonth, endOfMonth, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
+import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { useOmniAtendimentos } from "@/hooks/useOmniAtendimentos";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 import { supabase } from "@/integrations/supabase/client";
@@ -206,19 +206,16 @@ export default function OmniRelatorios() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <OmniHeader />
+      <OmniLayout>
         <div className="flex items-center justify-center h-[calc(100vh-250px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </div>
+      </OmniLayout>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <OmniHeader />
-
+    <OmniLayout>
       <div className="space-y-6">
         {/* Header da página */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -559,6 +556,6 @@ export default function OmniRelatorios() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </OmniLayout>
   );
 }

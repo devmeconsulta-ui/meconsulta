@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useOmniAtendimentos } from "@/hooks/useOmniAtendimentos";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
-import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
+import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { OmniDashAtendimentos } from "@/components/clinica/omnichannel/dashboard/OmniDashAtendimentos";
 import { OmniDashIntegracoes } from "@/components/clinica/omnichannel/dashboard/OmniDashIntegracoes";
 
@@ -43,19 +43,16 @@ export default function OmniDashboard() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <OmniHeader />
+      <OmniLayout>
         <div className="flex items-center justify-center h-[calc(100vh-250px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </div>
+      </OmniLayout>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <OmniHeader />
-
+    <OmniLayout>
       {/* Conteúdo */}
       <div className="space-y-4 sm:space-y-6">
           {/* Tabs e Filtros */}
@@ -131,8 +128,8 @@ export default function OmniDashboard() {
               periodo={periodo}
               filaFilter={filaFilter}
             />
-          )}
-        </div>
-    </div>
+        )}
+      </div>
+    </OmniLayout>
   );
 }
