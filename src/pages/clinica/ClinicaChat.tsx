@@ -6,6 +6,7 @@ import { ChatSidebar } from "@/components/clinica/chat/ChatSidebar";
 import { ChatMessages } from "@/components/clinica/chat/ChatMessages";
 import { ChatInput } from "@/components/clinica/chat/ChatInput";
 import { NovaConversaModal } from "@/components/clinica/chat/NovaConversaModal";
+import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Hash, Users, Menu, X, Archive, ArchiveRestore, Trash2, Pin, PinOff, Search, PanelLeftClose, PanelLeft } from "lucide-react";
@@ -120,7 +121,17 @@ export default function ClinicaChat() {
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex bg-background rounded-lg border overflow-hidden">
+    <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
+      {/* Header fixo no topo - abaixo do ClinicaHeader */}
+      <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background">
+        <OmniHeader />
+      </div>
+
+      {/* Espaçador para compensar o header fixo */}
+      <div className="h-[calc(4rem+56px)] lg:h-[calc(1.5rem+56px)]" />
+
+      {/* Container do Chat */}
+      <div className="h-[calc(100vh-12rem)] lg:h-[calc(100vh-8rem)] mx-4 sm:mx-6 flex bg-background rounded-lg border overflow-hidden">
       {/* Botão mobile para abrir sidebar */}
       <Button
         variant="ghost"
@@ -438,6 +449,7 @@ export default function ClinicaChat() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }
