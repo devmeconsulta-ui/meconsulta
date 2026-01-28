@@ -14,8 +14,7 @@ import {
   Pause,
   Check,
   CheckCheck,
-  Phone,
-  MoreVertical,
+  X,
   MessageCircle,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -298,17 +297,10 @@ export function VisualizarConversaModal({
               variant="ghost"
               size="icon"
               className="h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 rounded-full"
-              title="Ligar"
+              onClick={onClose}
+              title="Fechar"
             >
-              <Phone className="h-5 w-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 rounded-full"
-              title="Mais opções"
-            >
-              <MoreVertical className="h-5 w-5" />
+              <X className="h-5 w-5" />
             </Button>
           </div>
         </div>
