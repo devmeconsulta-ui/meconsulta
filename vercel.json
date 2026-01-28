@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/confirmar-consulta/:token", "destination": "/confirmar.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

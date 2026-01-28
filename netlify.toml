@@ -2,6 +2,13 @@
   publish = "dist"
   command = "npm run build"
 
+# Página estática de confirmação (leve e rápida)
+[[redirects]]
+  from = "/confirmar-consulta/*"
+  to = "/confirmar.html"
+  status = 200
+
+# SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirmar Consulta</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      max-width: 400px;
+      width: 100%;
+      padding: 32px 24px;
+      text-align: center;
+    }
+    
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #0284c7;
+      margin-bottom: 8px;
+    }
+    
+    .subtitle {
+      color: #64748b;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+    
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #0284c7;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .info-box {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: left;
+    }
+    
+    .info-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    
+    .info-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    .info-icon {
+      width: 20px;
+      height: 20px;
+      color: #0284c7;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    
+    .info-label {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 2px;
+    }
+    
+    .info-value {
+      font-size: 14px;
+      color: #1e293b;
+      font-weight: 500;
+    }
+    
+    .buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    
+    .btn {
+      padding: 16px 24px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    .btn-confirm {
+      background: #059669;
+      color: white;
+    }
+    
+    .btn-confirm:hover:not(:disabled) {
+      background: #047857;
+    }
+    
+    .btn-cancel {
+      background: white;
+      color: #dc2626;
+      border: 2px solid #fecaca;
+    }
+    
+    .btn-cancel:hover:not(:disabled) {
+      background: #fef2f2;
+    }
+    
+    .result-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+    
+    .result-icon.success {
+      background: #d1fae5;
+      color: #059669;
+    }
+    
+    .result-icon.error {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+    
+    .result-icon.warning {
+      background: #fef3c7;
+      color: #d97706;
+    }
+    
+    .result-icon svg {
+      width: 32px;
+      height: 32px;
+    }
+    
+    .result-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    
+    .result-title.success { color: #059669; }
+    .result-title.error { color: #dc2626; }
+    .result-title.warning { color: #d97706; }
+    
+    .result-message {
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    .reminder {
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 16px;
+      font-size: 13px;
+      color: #92400e;
+    }
+    
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">MeConsulta</div>
+    <div class="subtitle">Confirmação de Consulta</div>
+    
+    <!-- Loading State -->
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p style="color: #64748b;">Carregando dados...</p>
+    </div>
+    
+    <!-- Consultation Info -->
+    <div id="consulta-info" class="hidden">
+      <div class="info-box">
+        <div class="info-row">
+          <svg class="info-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+          <div>
+            <div class="info-label">Paciente</div>
+            <div class="info-value" id="paciente-nome">-</div>
+          </div>
+        </div>
+        
+        <div class="info-row">
+          <svg class="info-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <div>
+            <div class="info-label">Médico</div>
+            <div class="info-value" id="medico-nome">-</div>
+            <div class="info-label" id="especialidade" style="margin-top: 2px;">-</div>
+          </div>
+        </div>
+        
+        <div class="info-row">
+          <svg class="info-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <div>
+            <div class="info-label">Data e Horário</div>
+            <div class="info-value"><span id="data">-</span> às <span id="horario">-</span></div>
+          </div>
+        </div>
+        
+        <div class="info-row">
+          <svg class="info-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <div>
+            <div class="info-label">Local</div>
+            <div class="info-value" id="local">-</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="buttons">
+        <button class="btn btn-confirm" id="btn-confirm" onclick="confirmar()">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          Confirmar Presença
+        </button>
+        
+        <button class="btn btn-cancel" id="btn-cancel" onclick="recusar()">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+          Não Poderei Comparecer
+        </button>
+      </div>
+    </div>
+    
+    <!-- Result States -->
+    <div id="result-success" class="hidden">
+      <div class="result-icon success">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <h2 class="result-title success">Consulta Confirmada!</h2>
+      <p class="result-message">Obrigado por confirmar sua presença. Aguardamos você!</p>
+      <div class="reminder">
+        <strong>Lembrete:</strong> Chegue pelo menos 15 minutos antes do horário agendado.
+      </div>
+    </div>
+    
+    <div id="result-declined" class="hidden">
+      <div class="result-icon error">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </div>
+      <h2 class="result-title error">Consulta Cancelada</h2>
+      <p class="result-message">Obrigado por nos avisar. Esperamos poder atendê-lo em breve.</p>
+    </div>
+    
+    <div id="result-error" class="hidden">
+      <div class="result-icon warning">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+      </div>
+      <h2 class="result-title warning" id="error-title">Link Inválido</h2>
+      <p class="result-message" id="error-message">Este link não é mais válido ou já foi utilizado.</p>
+    </div>
+  </div>
+  
+  <script>
+    const API_URL = 'https://dwqceailivjjacvqzfnh.supabase.co/functions/v1/confirmation-response';
+    let token = '';
+    
+    // Pegar token da URL
+    function getToken() {
+      const path = window.location.pathname;
+      const parts = path.split('/');
+      // Procura por "confirmar-consulta" ou pega o último segmento
+      const idx = parts.indexOf('confirmar-consulta');
+      if (idx !== -1 && parts[idx + 1]) {
+        return parts[idx + 1];
+      }
+      // Fallback: último segmento da URL
+      return parts[parts.length - 1] || '';
+    }
+    
+    // Mostrar estado
+    function showState(state) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('consulta-info').classList.add('hidden');
+      document.getElementById('result-success').classList.add('hidden');
+      document.getElementById('result-declined').classList.add('hidden');
+      document.getElementById('result-error').classList.add('hidden');
+      
+      if (state === 'loading') {
+        document.getElementById('loading').classList.remove('hidden');
+      } else if (state === 'info') {
+        document.getElementById('consulta-info').classList.remove('hidden');
+      } else if (state === 'success') {
+        document.getElementById('result-success').classList.remove('hidden');
+      } else if (state === 'declined') {
+        document.getElementById('result-declined').classList.remove('hidden');
+      } else if (state === 'error') {
+        document.getElementById('result-error').classList.remove('hidden');
+      }
+    }
+    
+    // Mostrar erro
+    function showError(title, message) {
+      document.getElementById('error-title').textContent = title;
+      document.getElementById('error-message').textContent = message;
+      showState('error');
+    }
+    
+    // Carregar dados da consulta
+    async function loadConsulta() {
+      token = getToken();
+      
+      if (!token) {
+        showError('Link Inválido', 'Token não encontrado na URL.');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_URL}?token=${token}&action=get`);
+        const result = await response.json();
+        
+        if (result.success && result.status === 'valid' && result.data) {
+          // Preencher dados
+          document.getElementById('paciente-nome').textContent = result.data.paciente_nome || '-';
+          document.getElementById('medico-nome').textContent = result.data.medico_nome || '-';
+          document.getElementById('especialidade').textContent = result.data.especialidade || '';
+          document.getElementById('data').textContent = result.data.data || '-';
+          document.getElementById('horario').textContent = result.data.horario || '-';
+          document.getElementById('local').textContent = result.data.local || '-';
+          showState('info');
+        } else if (result.status === 'already_confirmed') {
+          showState('success');
+        } else if (result.status === 'already_declined') {
+          showState('declined');
+        } else if (result.status === 'expired') {
+          showError('Link Expirado', 'O prazo para confirmar esta consulta já expirou.');
+        } else if (result.status === 'cancelled') {
+          showError('Consulta Cancelada', 'Esta consulta foi cancelada.');
+        } else {
+          showError('Link Inválido', result.error || 'Este link não é mais válido.');
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        showError('Erro de Conexão', 'Não foi possível carregar os dados. Tente novamente.');
+      }
+    }
+    
+    // Confirmar presença
+    async function confirmar() {
+      const btn = document.getElementById('btn-confirm');
+      const btnCancel = document.getElementById('btn-cancel');
+      btn.disabled = true;
+      btnCancel.disabled = true;
+      btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;"></div> Confirmando...';
+      
+      try {
+        const response = await fetch(`${API_URL}?token=${token}&action=confirm`);
+        const result = await response.json();
+        
+        if (result.success && (result.status === 'confirmed' || result.status === 'already_confirmed')) {
+          showState('success');
+        } else {
+          showError('Erro', result.error || 'Não foi possível confirmar. Tente novamente.');
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        showError('Erro de Conexão', 'Não foi possível confirmar. Tente novamente.');
+      }
+    }
+    
+    // Recusar consulta
+    async function recusar() {
+      const btn = document.getElementById('btn-cancel');
+      const btnConfirm = document.getElementById('btn-confirm');
+      btn.disabled = true;
+      btnConfirm.disabled = true;
+      btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;border-color:#fecaca;border-top-color:#dc2626;"></div> Processando...';
+      
+      try {
+        const response = await fetch(`${API_URL}?token=${token}&action=decline`);
+        const result = await response.json();
+        
+        if (result.success && (result.status === 'declined' || result.status === 'already_declined')) {
+          showState('declined');
+        } else {
+          showError('Erro', result.error || 'Não foi possível processar. Tente novamente.');
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        showError('Erro de Conexão', 'Não foi possível processar. Tente novamente.');
+      }
+    }
+    
+    // Iniciar
+    document.addEventListener('DOMContentLoaded', loadConsulta);
+  </script>
+</body>
+</html>
