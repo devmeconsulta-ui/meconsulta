@@ -31,18 +31,26 @@ serve(async (req) => {
     }
 
     // Buscar instância pelo nome
+    console.log(`Looking for instance: ${instance}`);
+    
     const { data: instanciaData, error: instanciaError } = await supabase
       .from("omni_instancias")
       .select("*, clinica_id")
       .eq("evolution_instance_name", instance)
       .single();
 
-    if (instanciaError || !instanciaData) {
+    if (instanciaError) {
+      console.log(`Instance query error:`, instanciaError);
+    }
+
+    if (!instanciaData) {
       console.log(`Instance not found: ${instance}`);
       return new Response(JSON.stringify({ received: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    
+    console.log(`Found instance: ${instanciaData.id}, clinica: ${instanciaData.clinica_id}`);
 
     const clinica_id = instanciaData.clinica_id;
 
@@ -75,18 +83,27 @@ serve(async (req) => {
 
       case "MESSAGES_UPSERT": {
         // Processar mensagem recebida
+        console.log("Processing MESSAGES_UPSERT, data:", JSON.stringify(data).substring(0, 500));
+        
+        // A estrutura pode variar: data pode ser a mensagem diretamente ou data.message
         const message = data?.message || data;
-        if (!message) break;
+        if (!message) {
+          console.log("No message found in data");
+          break;
+        }
 
-        const remoteJid = message.key?.remoteJid || message.remoteJid;
+        // remoteJid pode estar em data.key.remoteJid ou message.key.remoteJid
+        const remoteJid = data?.key?.remoteJid || message.key?.remoteJid || message.remoteJid;
+        console.log(`remoteJid: ${remoteJid}`);
+        
         if (!remoteJid || remoteJid.includes("@g.us")) {
-          // Ignorar mensagens de grupo
+          console.log("No remoteJid or is group message, ignoring");
           break;
         }
 
         const telefone = remoteJid.replace("@s.whatsapp.net", "");
-        const isFromMe = message.key?.fromMe || false;
-        const messageId = message.key?.id;
+        const isFromMe = data?.key?.fromMe || message.key?.fromMe || false;
+        const messageId = data?.key?.id || message.key?.id;
 
         // Ignorar mensagens enviadas por nós
         if (isFromMe) {
@@ -102,16 +119,24 @@ serve(async (req) => {
         }
 
         // Buscar ou criar contato
-        let { data: contato } = await supabase
+        console.log(`Looking for contact with telefone: ${telefone}, clinica: ${clinica_id}`);
+        
+        let { data: contato, error: contatoQueryError } = await supabase
           .from("omni_contatos")
           .select("*")
           .eq("clinica_id", clinica_id)
           .eq("telefone", telefone)
           .single();
 
+        if (contatoQueryError) {
+          console.log(`Contact query result:`, contatoQueryError.code, contatoQueryError.message);
+        }
+
         if (!contato) {
-          // Criar novo contato
-          const pushName = message.pushName || message.name || telefone;
+          // Criar novo contato - pushName pode estar em data ou message
+          const pushName = data?.pushName || message.pushName || message.name || telefone;
+          console.log(`Creating new contact: ${pushName}`);
+          
           const { data: novoContato, error: contatoError } = await supabase
             .from("omni_contatos")
             .insert({
@@ -128,6 +153,9 @@ serve(async (req) => {
             break;
           }
           contato = novoContato;
+          console.log(`Contact created: ${contato.id}`);
+        } else {
+          console.log(`Contact found: ${contato.id}`);
         }
 
         // Buscar atendimento ativo ou criar um novo
