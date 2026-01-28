@@ -223,50 +223,51 @@ export default function OmniAgentes() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - Filas Filter */}
-        <div className="w-64 border-r bg-card p-4 flex flex-col gap-2">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="w-72 border-r bg-card flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center gap-2 text-sm font-medium">
               <Filter className="w-4 h-4" />
               <span>Filtrar</span>
             </div>
-            {selectedFilas.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedFilas([])}
-                className="h-6 px-2"
-              >
-                <X className="w-3 h-3" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSelectedFilas([])}
+              className="h-6 w-6"
+            >
+              <X className="w-4 h-4" />
+            </Button>
           </div>
 
-          <ScrollArea className="flex-1">
+          {/* Filter Items */}
+          <ScrollArea className="flex-1 p-4">
             <div className="space-y-2">
               {filas.map((fila) => {
                 const count = atendimentos.filter((a) => a.fila_id === fila.id && a.status !== "finalizado").length;
+                const isSelected = selectedFilas.includes(fila.id);
                 return (
                   <div
                     key={fila.id}
-                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selectedFilas.includes(fila.id)
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-muted/50"
+                    className={`flex items-center justify-between p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                      isSelected
+                        ? "border-primary bg-background shadow-sm"
+                        : "border-transparent bg-background hover:border-muted"
                     }`}
                     onClick={() => toggleFila(fila.id)}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <div
-                        className="w-3 h-3 rounded-full"
+                        className="w-2.5 h-2.5 rounded-full"
                         style={{ backgroundColor: fila.cor }}
                       />
-                      <span className="text-sm font-medium truncate max-w-[120px]">
+                      <span className="text-sm font-medium">
                         {fila.nome}
                       </span>
                     </div>
-                    <Badge variant="secondary" className="text-xs">
+                    <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full bg-yellow-400 text-xs font-semibold text-black">
                       {count}
-                    </Badge>
+                    </span>
                   </div>
                 );
               })}
