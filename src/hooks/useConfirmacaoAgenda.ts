@@ -32,6 +32,7 @@ interface SendConfirmationParams {
   mensagem_template: string;
   intervalo_min?: number;
   intervalo_max?: number;
+  agendar_para?: string | null; // ISO datetime para agendamento
 }
 
 interface Metrics {
@@ -162,33 +163,33 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
     try {
       const baseUrl = window.location.origin;
 
-      const response = await fetch(
-        "https://dwqceailivjjacvqzfnh.supabase.co/functions/v1/send-confirmation-batch",
+      // Usar supabase.functions.invoke em vez de fetch direto
+      const { data: result, error } = await supabase.functions.invoke(
+        "send-confirmation-batch",
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+          body: {
             ...params,
             base_url: baseUrl,
-          }),
+          },
         }
       );
 
-      const result = await response.json();
+      if (error) throw error;
 
-      if (result.success) {
+      if (result?.success) {
+        const isAgendado = !!params.agendar_para;
         toast({
-          title: "Envio concluído",
-          description: `${result.enviadas} mensagens enviadas, ${result.falhas} falhas`,
+          title: isAgendado ? "Envio agendado!" : "Envio concluído",
+          description: isAgendado 
+            ? `${result.agendadas} mensagens agendadas para envio`
+            : `${result.enviadas} mensagens enviadas, ${result.falhas} falhas`,
         });
 
         // Atualizar dados
         refetchConfirmacoes();
         refetchConsultas();
       } else {
-        throw new Error(result.error);
+        throw new Error(result?.error || "Erro desconhecido");
       }
 
       return result;

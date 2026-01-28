@@ -13,6 +13,7 @@ interface ConfirmationRequest {
   intervalo_min: number; // milliseconds
   intervalo_max: number; // milliseconds
   base_url: string; // URL base para o link de confirmação
+  agendar_para?: string | null; // ISO datetime para agendamento (ex: "2024-01-29T06:00:00")
 }
 
 interface SendResult {
@@ -20,6 +21,7 @@ interface SendResult {
   success: boolean;
   error?: string;
   token?: string;
+  agendado?: boolean;
 }
 
 Deno.serve(async (req: Request) => {
@@ -48,11 +50,15 @@ Deno.serve(async (req: Request) => {
       intervalo_min = 3000,
       intervalo_max = 5000,
       base_url,
+      agendar_para,
     } = body;
 
     if (!consulta_ids?.length || !fila_id || !clinica_id) {
       throw new Error("consulta_ids, fila_id e clinica_id são obrigatórios");
     }
+
+    // Se for agendado, salvar apenas os registros pendentes e não enviar
+    const isAgendado = !!agendar_para;
 
     // Limitar a 50 mensagens por lote
     const consultasToProcess = consulta_ids.slice(0, 50);
@@ -152,19 +158,26 @@ Deno.serve(async (req: Request) => {
         }
 
         // Salvar registro de confirmação
+        const confirmacaoData: any = {
+          clinica_id,
+          consulta_id: consulta.id,
+          paciente_id: paciente.id,
+          fila_id,
+          telefone: paciente.telefone,
+          mensagem_enviada: mensagem,
+          link_confirmacao: linkConfirmacao,
+          token_confirmacao: token,
+          status: isAgendado ? "agendada" : "pendente",
+        };
+
+        // Se for agendado, salvar data de agendamento
+        if (isAgendado && agendar_para) {
+          confirmacaoData.data_agendamento = agendar_para;
+        }
+
         const { data: confirmacao, error: insertError } = await supabase
           .from("confirmacoes_agenda")
-          .insert({
-            clinica_id,
-            consulta_id: consulta.id,
-            paciente_id: paciente.id,
-            fila_id,
-            telefone: paciente.telefone,
-            mensagem_enviada: mensagem,
-            link_confirmacao: linkConfirmacao,
-            token_confirmacao: token,
-            status: "pendente",
-          })
+          .insert(confirmacaoData)
           .select()
           .single();
 
@@ -172,7 +185,18 @@ Deno.serve(async (req: Request) => {
           throw new Error(`Erro ao salvar confirmação: ${insertError.message}`);
         }
 
-        // Enviar mensagem via Evolution API
+        // Se for agendado, apenas registrar e não enviar agora
+        if (isAgendado) {
+          results.push({
+            consulta_id: consulta.id,
+            success: true,
+            token,
+            agendado: true,
+          });
+          continue;
+        }
+
+        // Enviar mensagem via Evolution API (apenas se for envio imediato)
         const evolutionResponse = await fetch(
           `${evolutionApiUrl}/message/sendText/${instanceName}`,
           {
@@ -246,16 +270,18 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const successCount = results.filter((r) => r.success).length;
+    const successCount = results.filter((r) => r.success && !r.agendado).length;
+    const agendadasCount = results.filter((r) => r.agendado).length;
     const failCount = results.filter((r) => !r.success).length;
 
-    console.log(`Envio concluído: ${successCount} sucesso, ${failCount} falhas`);
+    console.log(`Processamento concluído: ${successCount} enviadas, ${agendadasCount} agendadas, ${failCount} falhas`);
 
     return new Response(
       JSON.stringify({
         success: true,
         total: results.length,
         enviadas: successCount,
+        agendadas: agendadasCount,
         falhas: failCount,
         results,
       }),
