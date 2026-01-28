@@ -2,9 +2,34 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, Users } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-import { format, startOfDay, isToday, subDays, isWithinInterval, startOfMonth, endOfMonth } from "date-fns";
+import { 
+  MessageSquare, 
+  Users, 
+  Clock, 
+  Send, 
+  Inbox, 
+  UserCheck,
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  PieChart as PieChartIcon
+} from "lucide-react";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  PieChart, 
+  Pie, 
+  Cell, 
+  Legend,
+  AreaChart,
+  Area
+} from "recharts";
+import { format, isToday, subDays, isWithinInterval, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface Props {
@@ -15,7 +40,49 @@ interface Props {
   filaFilter: string;
 }
 
-const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+// Paleta de cores vibrantes para os cards
+const cardStyles = {
+  atendimentos: {
+    bg: "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30",
+    icon: "bg-blue-500/20 text-blue-600 dark:text-blue-400",
+    border: "border-blue-200/50 dark:border-blue-700/50"
+  },
+  clientes: {
+    bg: "bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30",
+    icon: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
+    border: "border-emerald-200/50 dark:border-emerald-700/50"
+  },
+  enviadas: {
+    bg: "bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/50 dark:to-violet-900/30",
+    icon: "bg-violet-500/20 text-violet-600 dark:text-violet-400",
+    border: "border-violet-200/50 dark:border-violet-700/50"
+  },
+  recebidas: {
+    bg: "bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30",
+    icon: "bg-amber-500/20 text-amber-600 dark:text-amber-400",
+    border: "border-amber-200/50 dark:border-amber-700/50"
+  },
+  mediaAgente: {
+    bg: "bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950/50 dark:to-cyan-900/30",
+    icon: "bg-cyan-500/20 text-cyan-600 dark:text-cyan-400",
+    border: "border-cyan-200/50 dark:border-cyan-700/50"
+  },
+  tma: {
+    bg: "bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30",
+    icon: "bg-rose-500/20 text-rose-600 dark:text-rose-400",
+    border: "border-rose-200/50 dark:border-rose-700/50"
+  }
+};
+
+// Cores modernas para gráficos
+const CHART_COLORS = [
+  '#3b82f6', // blue-500
+  '#10b981', // emerald-500
+  '#8b5cf6', // violet-500
+  '#f59e0b', // amber-500
+  '#06b6d4', // cyan-500
+  '#f43f5e', // rose-500
+];
 
 export function OmniDashAtendimentos({ atendimentos, mensagens, filas, periodo, filaFilter }: Props) {
   const [chartView, setChartView] = useState<"hora" | "dia">("hora");
@@ -138,7 +205,7 @@ export function OmniDashAtendimentos({ atendimentos, mensagens, filas, periodo, 
       if (!agentStats[a.agente_id]) {
         agentStats[a.agente_id] = {
           id: a.agente_id,
-          nome: a.agente?.usuario_clinica?.nome || "Agente",
+          nome: a.agente?.nome || "Agente",
           atendimentos: 0,
           dias: new Set(),
           msgsEnviadas: 0,
@@ -171,120 +238,199 @@ export function OmniDashAtendimentos({ atendimentos, mensagens, filas, periodo, 
 
   return (
     <div className="space-y-6">
-      {/* Cards de Métricas */}
+      {/* Cards de Métricas - Redesenhados */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <MetricCard
           label="Atendimentos"
           value={totalAtendimentos}
           trend={62}
           trendUp
+          icon={<MessageSquare className="w-5 h-5" />}
+          style={cardStyles.atendimentos}
         />
         <MetricCard
           label="Clientes únicos"
           value={clientesUnicos}
           trend={47}
           trendUp
+          icon={<UserCheck className="w-5 h-5" />}
+          style={cardStyles.clientes}
           showProgress
           progress={taxaConversao}
         />
         <MetricCard
-          label="Mensagens enviadas"
+          label="Msgs enviadas"
           value={msgsEnviadas}
           trend={213}
           trendUp
+          icon={<Send className="w-5 h-5" />}
+          style={cardStyles.enviadas}
         />
         <MetricCard
-          label="Mensagens recebidas"
+          label="Msgs recebidas"
           value={msgsRecebidas}
           trend={300}
           trendUp
+          icon={<Inbox className="w-5 h-5" />}
+          style={cardStyles.recebidas}
         />
         <MetricCard
-          label="Méd. atend. / agente"
+          label="Méd. atend./agente"
           value={mediaAtendAgente}
           trend={143}
           trendUp
+          icon={<Users className="w-5 h-5" />}
+          style={cardStyles.mediaAgente}
         />
         <MetricCard
           label="TMA"
           value={tmaFormatted}
           isTime
+          icon={<Clock className="w-5 h-5" />}
+          style={cardStyles.tma}
         />
       </div>
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Gráfico de barras */}
-        <Card className="lg:col-span-2">
+        {/* Gráfico de barras moderno */}
+        <Card className="lg:col-span-2 shadow-sm border-0 bg-card/50 backdrop-blur-sm">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                </div>
+                <CardTitle className="text-base font-semibold">Volume de Atendimentos</CardTitle>
+              </div>
               <Tabs value={chartView} onValueChange={(v) => setChartView(v as "hora" | "dia")}>
-                <TabsList>
-                  <TabsTrigger value="hora">Contatos por hora</TabsTrigger>
-                  <TabsTrigger value="dia">Contatos por dia do mês</TabsTrigger>
+                <TabsList className="h-8">
+                  <TabsTrigger value="hora" className="text-xs px-3 h-7">Por Hora</TabsTrigger>
+                  <TabsTrigger value="dia" className="text-xs px-3 h-7">Por Dia</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-primary" />
-                  <span className="text-muted-foreground">Chats</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-muted-foreground/50" />
-                  <span className="text-muted-foreground">Abandonadas</span>
-                </div>
+            </div>
+            <div className="flex items-center gap-6 mt-2 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500" />
+                <span className="text-muted-foreground text-xs">Chats atendidos</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-rose-400" />
+                <span className="text-muted-foreground text-xs">Abandonados</span>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-2">
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={hourlyData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="hora" className="text-xs" />
-                <YAxis className="text-xs" />
+              <AreaChart data={hourlyData}>
+                <defs>
+                  <linearGradient id="colorChats" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorAbandonadas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                <XAxis 
+                  dataKey="hora" 
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis 
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={30}
+                />
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
                     border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px'
-                  }} 
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                  labelStyle={{ fontWeight: 600, marginBottom: 4 }}
                 />
-                <Bar dataKey="chats" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="abandonadas" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Area 
+                  type="monotone" 
+                  dataKey="chats" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2}
+                  fillOpacity={1} 
+                  fill="url(#colorChats)" 
+                  name="Chats"
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="abandonadas" 
+                  stroke="#f43f5e" 
+                  strokeWidth={2}
+                  fillOpacity={1} 
+                  fill="url(#colorAbandonadas)" 
+                  name="Abandonados"
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Gráfico de pizza */}
-        <Card>
+        {/* Gráfico de pizza moderno */}
+        <Card className="shadow-sm border-0 bg-card/50 backdrop-blur-sm">
           <CardHeader className="pb-2">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 rounded-lg bg-violet-500/10">
+                <PieChartIcon className="w-4 h-4 text-violet-500" />
+              </div>
+              <CardTitle className="text-base font-semibold">Distribuição</CardTitle>
+            </div>
             <Tabs value={pieView} onValueChange={(v) => setPieView(v as "fila" | "canal")}>
-              <TabsList className="w-full">
-                <TabsTrigger value="fila" className="flex-1">Atendimentos por fila</TabsTrigger>
-                <TabsTrigger value="canal" className="flex-1">Por canal</TabsTrigger>
+              <TabsList className="w-full h-8">
+                <TabsTrigger value="fila" className="flex-1 text-xs h-7">Por Fila</TabsTrigger>
+                <TabsTrigger value="canal" className="flex-1 text-xs h-7">Por Canal</TabsTrigger>
               </TabsList>
             </Tabs>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
                   data={pieView === "fila" ? pieDataByFila : pieDataByCanal}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={2}
+                  innerRadius={55}
+                  outerRadius={85}
+                  paddingAngle={3}
                   dataKey="value"
-                  label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                  strokeWidth={0}
+                  label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                  labelLine={false}
                 >
                   {(pieView === "fila" ? pieDataByFila : pieDataByCanal).map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={CHART_COLORS[index % CHART_COLORS.length]}
+                      className="drop-shadow-sm"
+                    />
                   ))}
                 </Pie>
-                <Tooltip />
-                <Legend />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))', 
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                />
+                <Legend 
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: '12px' }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -292,55 +438,77 @@ export function OmniDashAtendimentos({ atendimentos, mensagens, filas, periodo, 
       </div>
 
       {/* Tabela de Agentes */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            Performance dos Agentes
-          </CardTitle>
+      <Card className="shadow-sm border-0 bg-card/50 backdrop-blur-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-emerald-500/10">
+              <Users className="w-4 h-4 text-emerald-500" />
+            </div>
+            <CardTitle className="text-base font-semibold">Performance dos Agentes</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Agente</TableHead>
-                <TableHead className="text-center">Atendimentos</TableHead>
-                <TableHead className="text-center">Dias</TableHead>
-                <TableHead className="text-center">Méd. Atend. / Dia</TableHead>
-                <TableHead className="text-center">Msg. Enviadas</TableHead>
-                <TableHead className="text-center">Msg. Recebidas</TableHead>
-                <TableHead className="text-center">TMA</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {agentesData.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                    Nenhum dado de agente disponível
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-semibold">Agente</TableHead>
+                  <TableHead className="text-center font-semibold">Atendimentos</TableHead>
+                  <TableHead className="text-center font-semibold">Dias</TableHead>
+                  <TableHead className="text-center font-semibold">Méd./Dia</TableHead>
+                  <TableHead className="text-center font-semibold">Enviadas</TableHead>
+                  <TableHead className="text-center font-semibold">Recebidas</TableHead>
+                  <TableHead className="text-center font-semibold">TMA</TableHead>
                 </TableRow>
-              ) : (
-                agentesData.map((agent) => (
-                  <TableRow key={agent.id}>
-                    <TableCell className="font-medium">{agent.nome}</TableCell>
-                    <TableCell className="text-center">{agent.atendimentos}</TableCell>
-                    <TableCell className="text-center text-primary">{agent.dias}</TableCell>
-                    <TableCell className="text-center">{agent.mediaAtendDia}</TableCell>
-                    <TableCell className="text-center">{agent.msgsEnviadas}</TableCell>
-                    <TableCell className="text-center">{agent.msgsRecebidas}</TableCell>
-                    <TableCell className="text-center">{agent.tma}</TableCell>
+              </TableHeader>
+              <TableBody>
+                {agentesData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
+                      <div className="flex flex-col items-center gap-2">
+                        <Users className="w-8 h-8 text-muted-foreground/50" />
+                        <span>Nenhum dado de agente disponível</span>
+                      </div>
+                    </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  agentesData.map((agent, index) => (
+                    <TableRow key={agent.id} className="hover:bg-muted/30">
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+                            {agent.nome.charAt(0).toUpperCase()}
+                          </div>
+                          {agent.nome}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-medium">
+                          {agent.atendimentos}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center text-primary font-medium">{agent.dias}</TableCell>
+                      <TableCell className="text-center">{agent.mediaAtendDia}</TableCell>
+                      <TableCell className="text-center">
+                        <span className="text-violet-600 dark:text-violet-400">{agent.msgsEnviadas}</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="text-amber-600 dark:text-amber-400">{agent.msgsRecebidas}</span>
+                      </TableCell>
+                      <TableCell className="text-center font-mono text-sm">{agent.tma}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 }
 
-// Componente de Card de Métrica
+// Componente de Card de Métrica Redesenhado
 function MetricCard({ 
   label, 
   value, 
@@ -348,7 +516,9 @@ function MetricCard({
   trendUp, 
   showProgress, 
   progress,
-  isTime 
+  isTime,
+  icon,
+  style
 }: { 
   label: string; 
   value: string | number; 
@@ -357,46 +527,59 @@ function MetricCard({
   showProgress?: boolean;
   progress?: number;
   isTime?: boolean;
+  icon: React.ReactNode;
+  style: { bg: string; icon: string; border: string };
 }) {
   return (
-    <Card>
+    <Card className={`${style.bg} ${style.border} border shadow-sm hover:shadow-md transition-all duration-200`}>
       <CardContent className="p-4">
-        <p className="text-sm text-muted-foreground mb-1">{label}</p>
-        <div className="flex items-center gap-2">
-          <span className={`font-bold ${isTime ? 'text-2xl' : 'text-3xl'}`}>{value}</span>
-          {trend !== undefined && (
-            <span className={`flex items-center text-xs ${trendUp ? 'text-green-500' : 'text-red-500'}`}>
-              {trendUp ? <TrendingUp className="w-3 h-3 mr-0.5" /> : <TrendingDown className="w-3 h-3 mr-0.5" />}
-              {trend}%
-            </span>
-          )}
-          {showProgress && progress !== undefined && (
-            <div className="relative w-10 h-10">
-              <svg className="w-10 h-10 transform -rotate-90">
-                <circle
-                  cx="20"
-                  cy="20"
-                  r="16"
-                  stroke="hsl(var(--muted))"
-                  strokeWidth="3"
-                  fill="none"
-                />
-                <circle
-                  cx="20"
-                  cy="20"
-                  r="16"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth="3"
-                  fill="none"
-                  strokeDasharray={`${progress} ${100 - progress}`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-xs font-medium">
-                {progress}%
+        <div className="flex items-start justify-between mb-3">
+          <p className="text-xs font-medium text-muted-foreground line-clamp-1">{label}</p>
+          <div className={`p-2 rounded-xl ${style.icon}`}>
+            {icon}
+          </div>
+        </div>
+        <div className="flex items-end justify-between gap-2">
+          <span className={`font-bold tracking-tight ${isTime ? 'text-xl' : 'text-2xl'}`}>
+            {value}
+          </span>
+          <div className="flex items-center gap-1">
+            {trend !== undefined && (
+              <span className={`flex items-center text-xs font-medium ${trendUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                {trendUp ? <TrendingUp className="w-3 h-3 mr-0.5" /> : <TrendingDown className="w-3 h-3 mr-0.5" />}
+                {trend}%
               </span>
-            </div>
-          )}
+            )}
+            {showProgress && progress !== undefined && (
+              <div className="relative w-9 h-9">
+                <svg className="w-9 h-9 transform -rotate-90">
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="14"
+                    stroke="currentColor"
+                    className="text-muted/30"
+                    strokeWidth="3"
+                    fill="none"
+                  />
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="14"
+                    stroke="currentColor"
+                    className="text-emerald-500"
+                    strokeWidth="3"
+                    fill="none"
+                    strokeDasharray={`${(progress / 100) * 88} 88`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold">
+                  {progress}%
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
