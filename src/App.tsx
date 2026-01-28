@@ -79,6 +79,7 @@ import OmniAtendimentos from "./pages/clinica/omnichannel/OmniAtendimentos";
 import OmniContatos from "./pages/clinica/omnichannel/OmniContatos";
 import OmniRelatorios from "./pages/clinica/omnichannel/OmniRelatorios";
 import OmniConfirmacaoAgenda from "./pages/clinica/omnichannel/OmniConfirmacaoAgenda";
+import OmniNotificacoes from "./pages/clinica/omnichannel/OmniNotificacoes";
 
 // Public pages
 import ConfirmarConsulta from "./pages/ConfirmarConsulta";
@@ -144,6 +145,7 @@ const App = () => (
               <Route path="omnichannel/contatos" element={<OmniContatos />} />
               <Route path="omnichannel/relatorios" element={<OmniRelatorios />} />
               <Route path="omnichannel/confirmacao-agenda" element={<OmniConfirmacaoAgenda />} />
+              <Route path="omnichannel/notificacoes" element={<OmniNotificacoes />} />
               <Route path="medicos" element={<ClinicaMedicos />} />
               <Route path="consultas" element={<ClinicaConsultas />} />
               <Route path="pacientes" element={<ClinicaPacientes />} />
