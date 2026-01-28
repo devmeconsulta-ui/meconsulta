@@ -139,7 +139,7 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
         `)
         .eq("clinica_id", clinicaId)
         .gte("data_hora", hoje)
-        .in("status_consulta", ["aguardando_pagamento", "confirmada", "paga"])
+        .in("status_consulta", ["agendada", "aguardando_pagamento", "confirmada", "paga"])
         .order("data_hora", { ascending: true });
 
       if (idsConfirmados.length > 0) {
