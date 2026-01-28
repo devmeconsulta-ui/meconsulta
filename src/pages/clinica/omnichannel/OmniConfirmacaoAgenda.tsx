@@ -218,17 +218,12 @@ export default function OmniConfirmacaoAgenda() {
   };
 
   return (
-    <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
-      {/* Header fixo */}
-      <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background border-b border-border">
-        <OmniHeader />
-      </div>
-
-      {/* Espaçador */}
-      <div className="h-14" />
+    <div className="space-y-6">
+      {/* Header */}
+      <OmniHeader />
 
       {/* Conteúdo */}
-      <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-6">
+      <div className="space-y-6">
         {/* Header da página */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
