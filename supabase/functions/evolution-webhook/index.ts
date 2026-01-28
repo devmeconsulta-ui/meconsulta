@@ -264,6 +264,8 @@ serve(async (req) => {
         // Salvar mensagem - tanto entrada quanto saída
         const direcao = isFromMe ? "saida" : "entrada";
         
+        // Status válidos: "enviada" | "entregue" | "lida" | "erro"
+        // Para mensagens recebidas, usamos "entregue" pois já chegou ao servidor
         const { error: msgError } = await supabase
           .from("omni_mensagens")
           .insert({
@@ -276,7 +278,7 @@ serve(async (req) => {
             arquivo_nome: arquivoNome,
             arquivo_tipo: arquivoTipo,
             whatsapp_message_id: messageId,
-            status: isFromMe ? "enviada" : "recebida",
+            status: "entregue",
           });
 
         if (msgError) {
