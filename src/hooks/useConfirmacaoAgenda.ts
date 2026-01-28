@@ -233,10 +233,33 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
     enabled: !!clinicaId,
   });
 
+  // Buscar médicos da clínica
+  const { data: medicosClinica = [] } = useQuery({
+    queryKey: ["medicos-clinica-confirmacao", clinicaId],
+    queryFn: async () => {
+      if (!clinicaId) return [];
+
+      // @ts-ignore
+      const { data, error } = await supabase
+        .from("clinicas_medicos")
+        .select(`
+          medico:medicos(id, nome, especialidade)
+        `)
+        .eq("clinica_id", clinicaId)
+        .eq("ativo", true);
+
+      if (error) throw error;
+
+      return (data || []).map((cm: any) => cm.medico).filter(Boolean);
+    },
+    enabled: !!clinicaId,
+  });
+
   return {
     confirmacoes,
     consultasDisponiveis,
     filas,
+    medicosClinica,
     metrics,
     isLoadingConfirmacoes,
     isLoadingConsultas,
