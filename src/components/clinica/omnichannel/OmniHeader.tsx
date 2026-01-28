@@ -7,7 +7,6 @@ import {
   User,
   ListChecks,
   FileText,
-  Bell,
   Settings,
   CalendarCheck,
   Kanban
@@ -31,7 +30,6 @@ const navItems: NavItem[] = [
   { icon: ListChecks, label: "Filas", path: "/clinica/omnichannel/filas" },
   { icon: FileText, label: "Relatórios", path: "/clinica/omnichannel/relatorios" },
   { icon: CalendarCheck, label: "Confirmação Agenda", path: "/clinica/omnichannel/confirmacao-agenda" },
-  { icon: Bell, label: "Notificações", path: "/clinica/omnichannel/notificacoes" },
   { icon: Settings, label: "Configurações", path: "/clinica/omnichannel/configuracoes" },
 ];
 
