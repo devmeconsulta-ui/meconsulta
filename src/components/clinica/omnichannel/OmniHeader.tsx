@@ -8,7 +8,8 @@ import {
   FileText,
   Bell,
   Settings,
-  Wifi
+  Wifi,
+  Kanban
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -22,6 +23,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/clinica/omnichannel" },
   { icon: Users, label: "Agentes", path: "/clinica/omnichannel/agentes" },
+  { icon: Kanban, label: "CRM", path: "/clinica/crm" },
   { icon: MessageCircle, label: "Atendimentos", path: "/clinica/omnichannel/atendimentos" },
   { icon: User, label: "Contatos", path: "/clinica/omnichannel/contatos" },
   { icon: ListChecks, label: "Filas", path: "/clinica/omnichannel/filas" },
