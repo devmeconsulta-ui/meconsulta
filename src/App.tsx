@@ -78,6 +78,10 @@ import OmniFilas from "./pages/clinica/omnichannel/OmniFilas";
 import OmniAtendimentos from "./pages/clinica/omnichannel/OmniAtendimentos";
 import OmniContatos from "./pages/clinica/omnichannel/OmniContatos";
 import OmniRelatorios from "./pages/clinica/omnichannel/OmniRelatorios";
+import OmniConfirmacaoAgenda from "./pages/clinica/omnichannel/OmniConfirmacaoAgenda";
+
+// Public pages
+import ConfirmarConsulta from "./pages/ConfirmarConsulta";
 
 const queryClient = new QueryClient();
 
@@ -100,6 +104,7 @@ const App = () => (
             <Route path="/entrar" element={<Entrar />} />
             <Route path="/politica-privacidade" element={<PoliticaPrivacidade />} />
             <Route path="/termos-uso" element={<TermosUso />} />
+            <Route path="/confirmar-consulta/:token" element={<ConfirmarConsulta />} />
             {/* Paciente routes */}
             <Route path="/paciente" element={<PacienteLayout />}>
               <Route index element={<PacienteDashboard />} />
@@ -138,6 +143,7 @@ const App = () => (
               <Route path="omnichannel/atendimentos" element={<OmniAtendimentos />} />
               <Route path="omnichannel/contatos" element={<OmniContatos />} />
               <Route path="omnichannel/relatorios" element={<OmniRelatorios />} />
+              <Route path="omnichannel/confirmacao-agenda" element={<OmniConfirmacaoAgenda />} />
               <Route path="medicos" element={<ClinicaMedicos />} />
               <Route path="consultas" element={<ClinicaConsultas />} />
               <Route path="pacientes" element={<ClinicaPacientes />} />

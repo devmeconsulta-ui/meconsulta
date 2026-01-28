@@ -50,3 +50,12 @@ verify_jwt = false
 
 [functions.evolution-connection-status]
 verify_jwt = false
+
+[functions.evolution-delete-instance]
+verify_jwt = false
+
+[functions.send-confirmation-batch]
+verify_jwt = false
+
+[functions.confirmation-response]
+verify_jwt = false
