@@ -9,7 +9,7 @@ import {
   FileText,
   Bell,
   Settings,
-  Wifi,
+  CalendarCheck,
   Kanban
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ const navItems: NavItem[] = [
   { icon: User, label: "Contatos", path: "/clinica/omnichannel/contatos" },
   { icon: ListChecks, label: "Filas", path: "/clinica/omnichannel/filas" },
   { icon: FileText, label: "Relatórios", path: "/clinica/omnichannel/relatorios" },
-  { icon: Wifi, label: "Instâncias", path: "/clinica/omnichannel/instancias" },
+  { icon: CalendarCheck, label: "Confirmação Agenda", path: "/clinica/omnichannel/confirmacao-agenda" },
   { icon: Bell, label: "Notificações", path: "/clinica/omnichannel/notificacoes" },
   { icon: Settings, label: "Configurações", path: "/clinica/omnichannel/configuracoes" },
 ];
