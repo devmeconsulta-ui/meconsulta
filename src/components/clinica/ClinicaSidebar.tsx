@@ -57,13 +57,12 @@ const menuItems: MenuItem[] = [
   { icon: Settings, label: "Configurações", path: "/clinica/configuracoes" },
 ];
 
-// Grupo de Atendimento (submenu)
+// Grupo de Atendimento (submenu) - visível para todos usuários da clínica
 const atendimentoGroup: MenuGroup = {
   icon: Headset,
   label: "Atendimento",
-  permission: "omnichannel_dashboard",
   items: [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/clinica/omnichannel", permission: "omnichannel_dashboard" },
+    { icon: LayoutDashboard, label: "Dashboard", path: "/clinica/omnichannel" },
   ],
 };
 
@@ -105,17 +104,11 @@ export function ClinicaSidebar() {
     return userPermissions.includes(item.permission);
   });
 
-  // Check if atendimento group should be visible
-  const showAtendimentoGroup = !isEmployee || 
-    (atendimentoGroup.permission && userPermissions.includes(atendimentoGroup.permission)) ||
-    atendimentoGroup.items.some(item => item.permission && userPermissions.includes(item.permission));
+  // Atendimento group is always visible for clinic users
+  const showAtendimentoGroup = true;
 
-  // Filter atendimento items based on permissions
-  const visibleAtendimentoItems = atendimentoGroup.items.filter((item) => {
-    if (!isEmployee) return true;
-    if (!item.permission) return false;
-    return userPermissions.includes(item.permission);
-  });
+  // All atendimento items visible (no permission filtering)
+  const visibleAtendimentoItems = atendimentoGroup.items;
 
   // Check if any atendimento route is active
   const isAtendimentoActive = atendimentoGroup.items.some(
