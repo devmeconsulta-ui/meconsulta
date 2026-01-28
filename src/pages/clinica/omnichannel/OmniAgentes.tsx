@@ -208,10 +208,11 @@ export default function OmniAgentes() {
   const handleEncerrar = async (atendimento: OmniAtendimento) => {
     const { error } = await supabase
       .from("omni_atendimentos")
-      .update({ status: "finalizado", data_encerramento: new Date().toISOString() })
+      .update({ status: "finalizado", data_fechamento: new Date().toISOString() })
       .eq("id", atendimento.id);
 
     if (error) {
+      console.error("Error closing atendimento:", error);
       toast.error("Erro ao encerrar atendimento");
     } else {
       toast.success("Atendimento encerrado com sucesso");
