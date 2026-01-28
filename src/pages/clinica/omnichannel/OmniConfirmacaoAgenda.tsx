@@ -367,119 +367,82 @@ export default function OmniConfirmacaoAgenda() {
           </div>
         </div>
 
-        {/* Filtros Globais */}
-        <Card className="bg-muted/30 border-dashed">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Filter className="h-4 w-4" />
-                Filtros:
-              </div>
-              
-              {/* Filtro de Período */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9">
-                    <CalendarDays className="h-4 w-4 mr-2" />
-                    {getPeriodoLabel()}
-                    <ChevronDown className="h-3 w-3 ml-2 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[280px] p-2" align="start">
-                  <div className="space-y-1">
-                    {[
-                      { value: "todos", label: "Todos" },
-                      { value: "hoje", label: "Hoje" },
-                      { value: "ultimos7", label: "7 dias" },
-                      { value: "ultimos30", label: "30 dias" },
-                      { value: "mesAtual", label: "Mês atual" },
-                      { value: "mesAnterior", label: "Mês anterior" },
-                    ].map((opt) => (
-                      <Button
-                        key={opt.value}
-                        variant={globalPeriodo === opt.value ? "default" : "ghost"}
-                        size="sm"
-                        className="w-full justify-start text-sm h-8"
-                        onClick={() => {
-                          setGlobalPeriodo(opt.value);
-                          setGlobalDateRange({ from: undefined, to: undefined });
-                        }}
-                      >
-                        {opt.label}
-                      </Button>
-                    ))}
-                    <div className="border-t pt-2 mt-2">
-                      <p className="text-xs text-muted-foreground mb-2">Personalizado:</p>
-                      <CalendarComponent
-                        mode="range"
-                        selected={globalDateRange}
-                        onSelect={(range: any) => {
-                          setGlobalDateRange(range || { from: undefined, to: undefined });
-                          if (range?.from) {
-                            setGlobalPeriodo("personalizado");
-                          }
-                        }}
-                        numberOfMonths={1}
-                        locale={ptBR}
-                        className="rounded-md border text-sm"
-                      />
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+        {/* Filtros Globais - Inline */}
+        <div className="flex flex-wrap items-center gap-2 bg-muted/30 rounded-lg p-3 border border-dashed">
+          <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+            <Filter className="h-4 w-4" />
+            <span>Filtros:</span>
+          </div>
+          
+          {/* Filtro de Período */}
+          <Select value={globalPeriodo} onValueChange={(val) => {
+            setGlobalPeriodo(val);
+            setGlobalDateRange({ from: undefined, to: undefined });
+          }}>
+            <SelectTrigger className="w-[130px] h-8 text-xs">
+              <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="hoje">Hoje</SelectItem>
+              <SelectItem value="ultimos7">7 dias</SelectItem>
+              <SelectItem value="ultimos30">30 dias</SelectItem>
+              <SelectItem value="mesAtual">Mês atual</SelectItem>
+              <SelectItem value="mesAnterior">Mês anterior</SelectItem>
+            </SelectContent>
+          </Select>
 
-              {/* Filtro de Médico */}
-              <Select value={globalMedico} onValueChange={setGlobalMedico}>
-                <SelectTrigger className="w-[200px] h-9">
-                  <Stethoscope className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Médico" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os médicos</SelectItem>
-                  {medicos.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Filtro de Médico */}
+          <Select value={globalMedico} onValueChange={setGlobalMedico}>
+            <SelectTrigger className="w-[150px] h-8 text-xs">
+              <Stethoscope className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue placeholder="Médico" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              {medicos.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-              {/* Filtro de Status */}
-              <Select value={globalStatus} onValueChange={setGlobalStatus}>
-                <SelectTrigger className="w-[180px] h-9">
-                  <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os status</SelectItem>
-                  <SelectItem value="enviada">Enviada</SelectItem>
-                  <SelectItem value="confirmada">Confirmada</SelectItem>
-                  <SelectItem value="recusada">Recusada</SelectItem>
-                  <SelectItem value="erro">Erro</SelectItem>
-                  <SelectItem value="agendada">Agendada</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Filtro de Status */}
+          <Select value={globalStatus} onValueChange={setGlobalStatus}>
+            <SelectTrigger className="w-[130px] h-8 text-xs">
+              <Clock className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="enviada">Enviada</SelectItem>
+              <SelectItem value="confirmada">Confirmada</SelectItem>
+              <SelectItem value="recusada">Recusada</SelectItem>
+              <SelectItem value="erro">Erro</SelectItem>
+              <SelectItem value="agendada">Agendada</SelectItem>
+            </SelectContent>
+          </Select>
 
-              {/* Botão limpar filtros */}
-              {(globalPeriodo !== "todos" || globalMedico !== "todos" || globalStatus !== "todos") && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-9"
-                  onClick={() => {
-                    setGlobalPeriodo("todos");
-                    setGlobalMedico("todos");
-                    setGlobalStatus("todos");
-                    setGlobalDateRange({ from: undefined, to: undefined });
-                  }}
-                >
-                  <XCircle className="h-4 w-4 mr-1" />
-                  Limpar
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+          {/* Botão limpar filtros */}
+          {(globalPeriodo !== "todos" || globalMedico !== "todos" || globalStatus !== "todos") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs"
+              onClick={() => {
+                setGlobalPeriodo("todos");
+                setGlobalMedico("todos");
+                setGlobalStatus("todos");
+                setGlobalDateRange({ from: undefined, to: undefined });
+              }}
+            >
+              <XCircle className="h-3.5 w-3.5 mr-1" />
+              Limpar
+            </Button>
+          )}
+        </div>
 
         {/* Dashboard Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
