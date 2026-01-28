@@ -138,6 +138,7 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
           local:locais_atendimento!consultas_local_id_fkey(id, nome_local)
         `)
         .eq("clinica_id", clinicaId)
+        .not("paciente_id", "is", null) // Apenas consultas com paciente vinculado
         .gte("data_hora", hoje)
         .in("status_consulta", ["agendada", "aguardando_pagamento", "confirmada", "paga"])
         .order("data_hora", { ascending: true });
