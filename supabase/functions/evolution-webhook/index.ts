@@ -86,7 +86,7 @@ serve(async (req) => {
       }
 
       case "MESSAGES_UPSERT": {
-        // Processar mensagem recebida
+        // Processar mensagem recebida ou enviada
         console.log("Processing MESSAGES_UPSERT, data:", JSON.stringify(data).substring(0, 500));
         
         // A estrutura pode variar: data pode ser a mensagem diretamente ou data.message
@@ -105,22 +105,11 @@ serve(async (req) => {
           break;
         }
 
-        const telefone = remoteJid.replace("@s.whatsapp.net", "");
+        const telefone = remoteJid.replace("@s.whatsapp.net", "").replace("@lid", "");
         const isFromMe = data?.key?.fromMe || message.key?.fromMe || false;
         const messageId = data?.key?.id || message.key?.id;
 
-        // Ignorar mensagens enviadas por nós
-        if (isFromMe) {
-          console.log("Message from us, updating status only");
-          // Atualizar status da mensagem se existir
-          if (messageId) {
-            await supabase
-              .from("omni_mensagens")
-              .update({ status: "enviada" })
-              .eq("whatsapp_message_id", messageId);
-          }
-          break;
-        }
+        console.log(`Processing message - telefone: ${telefone}, fromMe: ${isFromMe}, messageId: ${messageId}`);
 
         // Buscar ou criar contato
         console.log(`Looking for contact with telefone: ${telefone}, clinica: ${clinica_id}`);
@@ -132,8 +121,8 @@ serve(async (req) => {
           .eq("telefone", telefone)
           .single();
 
-        if (contatoQueryError) {
-          console.log(`Contact query result:`, contatoQueryError.code, contatoQueryError.message);
+        if (contatoQueryError && contatoQueryError.code !== "PGRST116") {
+          console.log(`Contact query error:`, contatoQueryError.code, contatoQueryError.message);
         }
 
         if (!contato) {
@@ -185,7 +174,7 @@ serve(async (req) => {
             .limit(1)
             .single();
           
-          if (filaError) {
+          if (filaError && filaError.code !== "PGRST116") {
             console.log(`Fila query error:`, filaError.code, filaError.message);
           }
           console.log(`Found fila:`, fila ? `${fila.id} - ${fila.nome}` : "none");
@@ -208,6 +197,23 @@ serve(async (req) => {
             break;
           }
           atendimento = novoAtendimento;
+          console.log(`Atendimento created: ${atendimento.id}`);
+        } else {
+          console.log(`Atendimento found: ${atendimento.id}`);
+        }
+
+        // Verificar se a mensagem já existe (evitar duplicatas)
+        if (messageId) {
+          const { data: existingMsg } = await supabase
+            .from("omni_mensagens")
+            .select("id")
+            .eq("whatsapp_message_id", messageId)
+            .single();
+
+          if (existingMsg) {
+            console.log(`Message ${messageId} already exists, skipping`);
+            break;
+          }
         }
 
         // Extrair conteúdo da mensagem
@@ -255,26 +261,175 @@ serve(async (req) => {
           });
         }
 
-        // Salvar mensagem
+        // Salvar mensagem - tanto entrada quanto saída
+        const direcao = isFromMe ? "saida" : "entrada";
+        
         const { error: msgError } = await supabase
           .from("omni_mensagens")
           .insert({
             atendimento_id: atendimento.id,
             contato_id: contato.id,
             tipo,
-            direcao: "entrada",
+            direcao,
             conteudo,
             arquivo_url: arquivoUrl,
             arquivo_nome: arquivoNome,
             arquivo_tipo: arquivoTipo,
             whatsapp_message_id: messageId,
-            status: "lida",
+            status: isFromMe ? "enviada" : "recebida",
           });
 
         if (msgError) {
           console.error("Error saving message:", msgError);
         } else {
-          console.log(`Message saved for atendimento ${atendimento.id}`);
+          console.log(`Message saved for atendimento ${atendimento.id}, direction: ${direcao}, content: ${conteudo?.substring(0, 50)}`);
+        }
+
+        break;
+      }
+
+      case "SEND_MESSAGE": {
+        // Mensagem enviada pela instância (via API ou WhatsApp Web/App)
+        console.log("Processing SEND_MESSAGE, data:", JSON.stringify(data).substring(0, 500));
+        
+        const message = data;
+        if (!message) {
+          console.log("No message found in SEND_MESSAGE data");
+          break;
+        }
+
+        const remoteJid = message.key?.remoteJid;
+        if (!remoteJid || remoteJid.includes("@g.us")) {
+          console.log("No remoteJid or is group message, ignoring");
+          break;
+        }
+
+        const telefone = remoteJid.replace("@s.whatsapp.net", "").replace("@lid", "");
+        const messageId = message.key?.id;
+
+        console.log(`SEND_MESSAGE - telefone: ${telefone}, messageId: ${messageId}`);
+
+        // Buscar contato
+        let { data: contato } = await supabase
+          .from("omni_contatos")
+          .select("*")
+          .eq("clinica_id", clinica_id)
+          .eq("telefone", telefone)
+          .single();
+
+        if (!contato) {
+          // Criar contato se não existir
+          const pushName = message.pushName || telefone;
+          const { data: novoContato, error: contatoError } = await supabase
+            .from("omni_contatos")
+            .insert({
+              clinica_id,
+              nome: pushName,
+              telefone,
+            })
+            .select()
+            .single();
+
+          if (contatoError) {
+            console.error("Error creating contact:", contatoError);
+            break;
+          }
+          contato = novoContato;
+          console.log(`Contact created: ${contato.id}`);
+        }
+
+        // Buscar atendimento ativo ou criar um novo
+        let { data: atendimento } = await supabase
+          .from("omni_atendimentos")
+          .select("*")
+          .eq("clinica_id", clinica_id)
+          .eq("contato_id", contato.id)
+          .in("status", ["aguardando", "em_atendimento"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!atendimento) {
+          // Buscar fila padrão
+          const { data: fila } = await supabase
+            .from("omni_filas")
+            .select("id")
+            .eq("instancia_id", instanciaData.id)
+            .eq("ativo", true)
+            .limit(1)
+            .single();
+
+          const { data: novoAtendimento, error: atendimentoError } = await supabase
+            .from("omni_atendimentos")
+            .insert({
+              clinica_id,
+              contato_id: contato.id,
+              fila_id: fila?.id || null,
+              status: "em_atendimento",
+              canal: "whatsapp",
+            })
+            .select()
+            .single();
+
+          if (atendimentoError) {
+            console.error("Error creating atendimento:", atendimentoError);
+            break;
+          }
+          atendimento = novoAtendimento;
+        }
+
+        // Verificar se a mensagem já existe
+        if (messageId) {
+          const { data: existingMsg } = await supabase
+            .from("omni_mensagens")
+            .select("id")
+            .eq("whatsapp_message_id", messageId)
+            .single();
+
+          if (existingMsg) {
+            console.log(`Message ${messageId} already exists, skipping`);
+            break;
+          }
+        }
+
+        // Extrair conteúdo
+        let conteudo = "";
+        let tipo = "texto";
+        const msgContent = message.message || {};
+
+        if (msgContent.conversation) {
+          conteudo = msgContent.conversation;
+        } else if (msgContent.extendedTextMessage) {
+          conteudo = msgContent.extendedTextMessage.text;
+        } else if (msgContent.imageMessage) {
+          tipo = "imagem";
+          conteudo = msgContent.imageMessage.caption || "";
+        } else if (msgContent.audioMessage) {
+          tipo = "audio";
+        } else if (msgContent.videoMessage) {
+          tipo = "video";
+          conteudo = msgContent.videoMessage.caption || "";
+        } else if (msgContent.documentMessage) {
+          tipo = "documento";
+        }
+
+        // Salvar mensagem de saída
+        const { error: msgError } = await supabase
+          .from("omni_mensagens")
+          .insert({
+            atendimento_id: atendimento.id,
+            contato_id: contato.id,
+            tipo,
+            direcao: "saida",
+            conteudo,
+            whatsapp_message_id: messageId,
+            status: "enviada",
+          });
+
+        if (msgError) {
+          console.error("Error saving SEND_MESSAGE:", msgError);
+        } else {
+          console.log(`SEND_MESSAGE saved for atendimento ${atendimento.id}, content: ${conteudo?.substring(0, 50)}`);
         }
 
         break;
@@ -285,8 +440,8 @@ serve(async (req) => {
         const updates = Array.isArray(data) ? data : [data];
         
         for (const update of updates) {
-          const messageId = update.key?.id;
-          const status = update.update?.status;
+          const messageId = update.keyId || update.key?.id;
+          const status = update.status;
           
           if (messageId && status) {
             let dbStatus = "enviada";
@@ -294,10 +449,14 @@ serve(async (req) => {
             if (status === 3 || status === "READ") dbStatus = "lida";
             if (status === 4 || status === "PLAYED") dbStatus = "lida";
 
-            await supabase
+            const { error } = await supabase
               .from("omni_mensagens")
               .update({ status: dbStatus })
               .eq("whatsapp_message_id", messageId);
+
+            if (!error) {
+              console.log(`Message ${messageId} status updated to ${dbStatus}`);
+            }
           }
         }
         break;
