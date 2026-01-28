@@ -822,6 +822,7 @@ export type Database = {
           clinica_id: string
           consulta_id: string
           created_at: string
+          data_agendamento: string | null
           data_envio: string | null
           data_resposta: string | null
           erro_descricao: string | null
@@ -839,6 +840,7 @@ export type Database = {
           clinica_id: string
           consulta_id: string
           created_at?: string
+          data_agendamento?: string | null
           data_envio?: string | null
           data_resposta?: string | null
           erro_descricao?: string | null
@@ -856,6 +858,7 @@ export type Database = {
           clinica_id?: string
           consulta_id?: string
           created_at?: string
+          data_agendamento?: string | null
           data_envio?: string | null
           data_resposta?: string | null
           erro_descricao?: string | null
