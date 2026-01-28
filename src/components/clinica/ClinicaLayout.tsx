@@ -83,7 +83,7 @@ export function ClinicaLayout() {
         </div>
         {/* Espaçador para o header fixo */}
         <div className="h-16" />
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
           {dataLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />

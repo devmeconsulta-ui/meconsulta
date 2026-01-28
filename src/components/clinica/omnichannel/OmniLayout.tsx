@@ -7,14 +7,14 @@ interface OmniLayoutProps {
 
 export function OmniLayout({ children }: OmniLayoutProps) {
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] -m-4 sm:-m-6">
+    <div className="flex flex-col min-h-[calc(100vh-8rem)] -m-4 sm:-m-6">
       {/* Header fixo do omnichannel */}
-      <div className="flex-shrink-0 bg-background border-b border-border">
+      <div className="sticky top-0 z-30 bg-background border-b border-border">
         <OmniHeader />
       </div>
       
-      {/* Conteúdo com scroll */}
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      {/* Conteúdo com padding */}
+      <div className="flex-1 p-4 sm:p-6">
         {children}
       </div>
     </div>
