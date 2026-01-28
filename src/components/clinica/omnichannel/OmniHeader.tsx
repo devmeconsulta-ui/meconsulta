@@ -13,8 +13,6 @@ import {
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { useOmniAtendimentos } from "@/hooks/useOmniAtendimentos";
-import { useOutletContext } from "react-router-dom";
 
 interface NavItem {
   icon: React.ElementType;
@@ -47,24 +45,12 @@ function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
-export function OmniHeader() {
+interface OmniHeaderProps {
+  atendimentosCount?: number;
+}
+
+export function OmniHeader({ atendimentosCount = 0 }: OmniHeaderProps) {
   const location = useLocation();
-  
-  // Get clinicaId from context if available
-  let clinicaId: string | null = null;
-  try {
-    const context = useOutletContext<{ clinicaData?: { id: string } }>();
-    clinicaId = context?.clinicaData?.id || null;
-  } catch {
-    // Context not available, will show 0 count
-  }
-
-  // Fetch atendimentos aguardando para mostrar badge
-  const { atendimentos } = useOmniAtendimentos(clinicaId, {
-    status: ["aguardando", "em_atendimento"],
-  });
-
-  const atendimentosCount = atendimentos?.length || 0;
 
   return (
     <div className="bg-card border-b border-border px-4 py-3 sticky top-0 z-40">
