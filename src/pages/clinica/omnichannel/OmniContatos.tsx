@@ -209,8 +209,8 @@ export default function OmniContatos() {
 
   if (isLoading) {
     return (
-      <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
-        <div className="sticky top-0 z-50">
+      <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
+        <div className="shrink-0">
           <OmniHeader />
         </div>
         <div className="flex items-center justify-center flex-1">
@@ -221,16 +221,19 @@ export default function OmniContatos() {
   }
 
   return (
-    <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
-      <div className="sticky top-0 z-50">
+    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
+      {/* Header fixo */}
+      <div className="shrink-0">
         <OmniHeader />
       </div>
 
-      <div className="px-6 pt-6 pb-6 space-y-6 flex-1 overflow-auto">
-      <div className="flex items-center justify-between">
+      {/* Conteúdo com scroll */}
+      <div className="flex-1 overflow-auto">
+        <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Contatos</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold">Contatos</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Gerencie os contatos do atendimento
           </p>
         </div>
@@ -245,12 +248,12 @@ export default function OmniContatos() {
           }}
         >
           <DialogTrigger asChild>
-            <Button onClick={() => setShowNovoContato(true)}>
+            <Button onClick={() => setShowNovoContato(true)} className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Novo Contato
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md mx-4 sm:mx-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingContato ? "Editar Contato" : "Novo Contato"}
@@ -275,7 +278,7 @@ export default function OmniContatos() {
                   placeholder="5511999999999"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label>CPF/CNPJ</Label>
                   <Input
@@ -298,7 +301,7 @@ export default function OmniContatos() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label>Instagram</Label>
                   <Input
@@ -330,7 +333,7 @@ export default function OmniContatos() {
                   placeholder="Observações adicionais"
                 />
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -338,12 +341,14 @@ export default function OmniContatos() {
                     setEditingContato(null);
                     resetForm();
                   }}
+                  className="w-full sm:w-auto"
                 >
                   Cancelar
                 </Button>
                 <Button
                   onClick={handleSubmit}
                   disabled={createMutation.isPending || updateMutation.isPending}
+                  className="w-full sm:w-auto"
                 >
                   {(createMutation.isPending || updateMutation.isPending) && (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -371,10 +376,74 @@ export default function OmniContatos() {
         </CardContent>
       </Card>
 
-      {/* Tabela */}
+      {/* Tabela - versão mobile com cards */}
       <Card>
         <CardContent className="p-0">
-          <Table>
+          {/* Mobile: Card view */}
+          <div className="sm:hidden divide-y">
+            {filteredContatos.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Nenhum contato encontrado</p>
+              </div>
+            ) : (
+              filteredContatos.map((contato) => (
+                <div key={contato.id} className="p-4 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                        {contato.foto_url ? (
+                          <img
+                            src={contato.foto_url}
+                            alt={contato.nome}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <User className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium">{contato.nome}</p>
+                        <p className="text-sm text-muted-foreground">{contato.telefone}</p>
+                      </div>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEdit(contato)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Nova Conversa
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => deleteMutation.mutate(contato.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  {contato.email && (
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Mail className="h-3 w-3" />
+                      {contato.email}
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+          
+          {/* Desktop: Table view */}
+          <Table className="hidden sm:table">
             <TableHeader>
               <TableRow>
                 <TableHead>Contato</TableHead>
@@ -490,6 +559,7 @@ export default function OmniContatos() {
           </Table>
         </CardContent>
       </Card>
+        </div>
       </div>
     </div>
   );

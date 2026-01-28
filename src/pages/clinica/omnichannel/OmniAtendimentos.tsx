@@ -198,119 +198,122 @@ export default function OmniAtendimentos() {
   }
 
   return (
-    <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
+    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
       {/* Header fixo */}
-      <div className="sticky top-0 z-50">
+      <div className="shrink-0">
         <OmniHeader />
       </div>
 
-      <div className="px-6 pt-6 pb-6 space-y-4 flex-1 overflow-auto">
-        {/* Filtros */}
-        <div className="flex items-center gap-3">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Filter className="h-4 w-4" />
-                Filtrar
-                {statusFilters.length > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {statusFilters.length}
-                  </Badge>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56" align="start">
-              <div className="space-y-3">
-                <p className="font-medium text-sm">Status</p>
-                {[
-                  { value: "aguardando", label: "Aguardando" },
-                  { value: "em_atendimento", label: "Em Atendimento" },
-                  { value: "finalizado", label: "Finalizado" },
-                  { value: "abandonado", label: "Abandonado" },
-                ].map((status) => (
-                  <div key={status.value} className="flex items-center gap-2">
-                    <Checkbox
-                      id={status.value}
-                      checked={statusFilters.includes(status.value)}
-                      onCheckedChange={() => toggleStatusFilter(status.value)}
-                    />
-                    <Label htmlFor={status.value} className="text-sm cursor-pointer">
-                      {status.label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
+      {/* Conteúdo com scroll */}
+      <div className="flex-1 overflow-auto">
+        <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-4">
+          {/* Filtros */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 w-full sm:w-auto">
+                  <Filter className="h-4 w-4" />
+                  Filtrar
+                  {statusFilters.length > 0 && (
+                    <Badge variant="secondary" className="ml-1">
+                      {statusFilters.length}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56" align="start">
+                <div className="space-y-3">
+                  <p className="font-medium text-sm">Status</p>
+                  {[
+                    { value: "aguardando", label: "Aguardando" },
+                    { value: "em_atendimento", label: "Em Atendimento" },
+                    { value: "finalizado", label: "Finalizado" },
+                    { value: "abandonado", label: "Abandonado" },
+                  ].map((status) => (
+                    <div key={status.value} className="flex items-center gap-2">
+                      <Checkbox
+                        id={status.value}
+                        checked={statusFilters.includes(status.value)}
+                        onCheckedChange={() => toggleStatusFilter(status.value)}
+                      />
+                      <Label htmlFor={status.value} className="text-sm cursor-pointer">
+                        {status.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
 
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome, telefone..."
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Resumo */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500" />
-              <span className="font-medium">Agendamentos</span>
-              <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
-                {atendimentos.length}
-              </Badge>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, telefone..."
+                className="pl-9"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Filas com acordeão */}
-        <div className="space-y-3">
-          {filas.map((fila) => (
-            <FilaAccordion
-              key={fila.id}
-              fila={fila}
-              atendimentos={atendimentosPorFila[fila.id] || []}
-              etiquetas={etiquetas}
-              onVisualizarConversa={handleVisualizarConversa}
-              onTransferir={handleTransferir}
-              onAlterarEtiqueta={handleAlterarEtiqueta}
-              onEncerrar={handleEncerrar}
-              onAbrirTodos={handleAbrirTodos}
-              onEncerrarTodos={handleEncerrarTodos}
-              onRemoverTravas={handleRemoverTravas}
-            />
-          ))}
-
-          {/* Atendimentos sem fila */}
-          {atendimentosPorFila["sem_fila"]?.length > 0 && (
-            <FilaAccordion
-              fila={{ id: "sem_fila", nome: "Sem Fila", cor: "#9CA3AF" }}
-              atendimentos={atendimentosPorFila["sem_fila"]}
-              etiquetas={etiquetas}
-              onVisualizarConversa={handleVisualizarConversa}
-              onTransferir={handleTransferir}
-              onAlterarEtiqueta={handleAlterarEtiqueta}
-              onEncerrar={handleEncerrar}
-              onAbrirTodos={handleAbrirTodos}
-              onEncerrarTodos={handleEncerrarTodos}
-              onRemoverTravas={handleRemoverTravas}
-            />
-          )}
-        </div>
-
-        {filas.length === 0 && atendimentos.length === 0 && (
+          {/* Resumo */}
           <Card>
-            <CardContent className="p-8 text-center">
-              <p className="text-muted-foreground">
-                Nenhuma fila ou atendimento encontrado.
-              </p>
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <span className="font-medium text-sm sm:text-base">Agendamentos</span>
+                <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
+                  {atendimentos.length}
+                </Badge>
+              </div>
             </CardContent>
           </Card>
-        )}
+
+          {/* Filas com acordeão */}
+          <div className="space-y-3">
+            {filas.map((fila) => (
+              <FilaAccordion
+                key={fila.id}
+                fila={fila}
+                atendimentos={atendimentosPorFila[fila.id] || []}
+                etiquetas={etiquetas}
+                onVisualizarConversa={handleVisualizarConversa}
+                onTransferir={handleTransferir}
+                onAlterarEtiqueta={handleAlterarEtiqueta}
+                onEncerrar={handleEncerrar}
+                onAbrirTodos={handleAbrirTodos}
+                onEncerrarTodos={handleEncerrarTodos}
+                onRemoverTravas={handleRemoverTravas}
+              />
+            ))}
+
+            {/* Atendimentos sem fila */}
+            {atendimentosPorFila["sem_fila"]?.length > 0 && (
+              <FilaAccordion
+                fila={{ id: "sem_fila", nome: "Sem Fila", cor: "#9CA3AF" }}
+                atendimentos={atendimentosPorFila["sem_fila"]}
+                etiquetas={etiquetas}
+                onVisualizarConversa={handleVisualizarConversa}
+                onTransferir={handleTransferir}
+                onAlterarEtiqueta={handleAlterarEtiqueta}
+                onEncerrar={handleEncerrar}
+                onAbrirTodos={handleAbrirTodos}
+                onEncerrarTodos={handleEncerrarTodos}
+                onRemoverTravas={handleRemoverTravas}
+              />
+            )}
+          </div>
+
+          {filas.length === 0 && atendimentos.length === 0 && (
+            <Card>
+              <CardContent className="p-6 sm:p-8 text-center">
+                <p className="text-muted-foreground text-sm sm:text-base">
+                  Nenhuma fila ou atendimento encontrado.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
 
       {/* Modals */}

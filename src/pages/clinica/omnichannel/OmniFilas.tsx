@@ -187,8 +187,8 @@ export default function OmniFilas() {
 
   if (loading) {
     return (
-      <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
-        <div className="sticky top-0 z-50">
+      <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
+        <div className="shrink-0">
           <OmniHeader />
         </div>
         <div className="flex items-center justify-center flex-1">
@@ -199,16 +199,19 @@ export default function OmniFilas() {
   }
 
   return (
-    <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
-      <div className="sticky top-0 z-50">
+    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
+      {/* Header fixo */}
+      <div className="shrink-0">
         <OmniHeader />
       </div>
 
-      <div className="px-6 pt-6 pb-6 space-y-6 flex-1 overflow-auto">
-      <div className="flex items-center justify-between">
+      {/* Conteúdo com scroll */}
+      <div className="flex-1 overflow-auto">
+        <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Filas de Atendimento</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold">Filas de Atendimento</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Gerencie suas filas e conexões WhatsApp
           </p>
         </div>
@@ -703,6 +706,7 @@ export default function OmniFilas() {
           )}
         </CardContent>
       </Card>
+        </div>
       </div>
     </div>
   );

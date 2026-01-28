@@ -260,8 +260,8 @@ export default function OmniAgentes() {
 
   if (loading) {
     return (
-      <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
-        <div className="sticky top-0 z-50">
+      <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
+        <div className="shrink-0">
           <OmniHeader />
         </div>
         <div className="flex items-center justify-center flex-1">
@@ -272,42 +272,46 @@ export default function OmniAgentes() {
   }
 
   return (
-    <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
-      <div className="sticky top-0 z-50">
+    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
+      {/* Header fixo */}
+      <div className="shrink-0">
         <OmniHeader />
       </div>
 
+      {/* Conteúdo com scroll */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar - Filas Filter */}
-        <FilaFilterAccordion
-          filas={filas}
-          atendimentos={atendimentos}
-          selectedFilas={selectedFilas}
-          onToggleFila={toggleFila}
-          onClearFilters={() => setSelectedFilas([])}
-          onTransferir={handleTransferir}
-          onVisualizarConversa={handleVisualizarConversa}
-          onEncerrar={handleEncerrar}
-        />
+        {/* Left Sidebar - Filas Filter (hidden on mobile) */}
+        <div className="hidden lg:block">
+          <FilaFilterAccordion
+            filas={filas}
+            atendimentos={atendimentos}
+            selectedFilas={selectedFilas}
+            onToggleFila={toggleFila}
+            onClearFilters={() => setSelectedFilas([])}
+            onTransferir={handleTransferir}
+            onVisualizarConversa={handleVisualizarConversa}
+            onEncerrar={handleEncerrar}
+          />
+        </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-6 overflow-auto">
+        <div className="flex-1 p-4 sm:p-6 overflow-auto">
           {/* Tabs */}
-          <div className="flex items-center justify-between mb-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="h-12">
-                <TabsTrigger value="agentes" className="px-8 h-10">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4 sm:mb-6">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full lg:w-auto">
+              <TabsList className="h-10 sm:h-12 w-full lg:w-auto">
+                <TabsTrigger value="agentes" className="flex-1 lg:flex-none px-4 sm:px-8 h-8 sm:h-10 text-xs sm:text-sm">
                   Painel de agentes
                 </TabsTrigger>
-                <TabsTrigger value="atendimentos" className="px-8 h-10">
+                <TabsTrigger value="atendimentos" className="flex-1 lg:flex-none px-4 sm:px-8 h-8 sm:h-10 text-xs sm:text-sm">
                   Painel de atendimentos
                 </TabsTrigger>
               </TabsList>
             </Tabs>
 
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
               <Select value={filterAgente} onValueChange={setFilterAgente}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Agentes" />
                 </SelectTrigger>
                 <SelectContent>
@@ -326,7 +330,7 @@ export default function OmniAgentes() {
                   placeholder="Buscar"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 w-48"
+                  className="pl-9 w-full sm:w-48"
                 />
               </div>
             </div>
