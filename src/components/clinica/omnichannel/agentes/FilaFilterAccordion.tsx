@@ -10,6 +10,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { 
@@ -21,7 +22,11 @@ import {
   MessageCircle, 
   Smile,
   Settings,
-  MoreHorizontal
+  MoreHorizontal,
+  ArrowRightLeft,
+  Eye,
+  Tag,
+  XCircle
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -34,6 +39,9 @@ interface FilaFilterAccordionProps {
   selectedFilas: string[];
   onToggleFila: (filaId: string) => void;
   onClearFilters: () => void;
+  onTransferir?: (atendimento: OmniAtendimento) => void;
+  onVisualizarConversa?: (atendimento: OmniAtendimento) => void;
+  onEncerrar?: (atendimento: OmniAtendimento) => void;
 }
 
 export function FilaFilterAccordion({
@@ -42,6 +50,9 @@ export function FilaFilterAccordion({
   selectedFilas,
   onToggleFila,
   onClearFilters,
+  onTransferir,
+  onVisualizarConversa,
+  onEncerrar,
 }: FilaFilterAccordionProps) {
   const [expandedFilas, setExpandedFilas] = useState<string[]>([]);
 
@@ -153,7 +164,7 @@ export function FilaFilterAccordion({
                             <Settings className="w-3.5 h-3.5" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-popover">
+                        <DropdownMenuContent align="end" className="bg-popover border shadow-lg z-[100]">
                           <DropdownMenuItem>Abrir todos</DropdownMenuItem>
                           <DropdownMenuItem>Remover bloqueios</DropdownMenuItem>
                           <DropdownMenuItem>Fechar todos</DropdownMenuItem>
@@ -195,16 +206,24 @@ export function FilaFilterAccordion({
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-48 z-[100] bg-popover border shadow-lg">
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onTransferir?.(atendimento)}>
+                                  <ArrowRightLeft className="w-4 h-4 mr-2" />
                                   Transferir
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onVisualizarConversa?.(atendimento)}>
+                                  <Eye className="w-4 h-4 mr-2" />
                                   Visualizar conversa
                                 </DropdownMenuItem>
                                 <DropdownMenuItem>
+                                  <Tag className="w-4 h-4 mr-2" />
                                   Alterar etiqueta
                                 </DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => onEncerrar?.(atendimento)}
+                                >
+                                  <XCircle className="w-4 h-4 mr-2" />
                                   Encerrar atendimento
                                 </DropdownMenuItem>
                               </DropdownMenuContent>

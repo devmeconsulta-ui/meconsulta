@@ -24,14 +24,17 @@ import {
   XCircle,
   Bot,
 } from "lucide-react";
-import { useOmniAtendimentos } from "@/hooks/useOmniAtendimentos";
+import { useOmniAtendimentos, OmniAtendimento } from "@/hooks/useOmniAtendimentos";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
 import { FilaFilterAccordion } from "@/components/clinica/omnichannel/agentes/FilaFilterAccordion";
+import { TransferirAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/TransferirAtendimentoModal";
+import { VisualizarConversaModal } from "@/components/clinica/omnichannel/atendimentos/VisualizarConversaModal";
 import { Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
@@ -63,7 +66,12 @@ export default function OmniAgentes() {
   const [agentes, setAgentes] = useState<Agente[]>([]);
   const [loadingAgentes, setLoadingAgentes] = useState(true);
 
-  const { atendimentos, loading: loadingAtendimentos } = useOmniAtendimentos(clinicaId);
+  // Modal states
+  const [selectedAtendimento, setSelectedAtendimento] = useState<OmniAtendimento | null>(null);
+  const [isTransferirModalOpen, setIsTransferirModalOpen] = useState(false);
+  const [isVisualizarModalOpen, setIsVisualizarModalOpen] = useState(false);
+
+  const { atendimentos, loading: loadingAtendimentos, refetch } = useOmniAtendimentos(clinicaId);
   const { filas, loading: loadingFilas } = useOmniFilas(clinicaId);
 
   // Fetch real agents from usuarios_clinica
@@ -186,6 +194,46 @@ export default function OmniAgentes() {
     );
   };
 
+  // Modal handlers
+  const handleTransferir = (atendimento: OmniAtendimento) => {
+    setSelectedAtendimento(atendimento);
+    setIsTransferirModalOpen(true);
+  };
+
+  const handleVisualizarConversa = (atendimento: OmniAtendimento) => {
+    setSelectedAtendimento(atendimento);
+    setIsVisualizarModalOpen(true);
+  };
+
+  const handleEncerrar = async (atendimento: OmniAtendimento) => {
+    const { error } = await supabase
+      .from("omni_atendimentos")
+      .update({ status: "finalizado", data_encerramento: new Date().toISOString() })
+      .eq("id", atendimento.id);
+
+    if (error) {
+      toast.error("Erro ao encerrar atendimento");
+    } else {
+      toast.success("Atendimento encerrado com sucesso");
+      refetch();
+    }
+  };
+
+  const handleTransferirConfirm = async (atendimentoId: string, novoAgenteId?: string) => {
+    const { error } = await supabase
+      .from("omni_atendimentos")
+      .update({ agente_id: novoAgenteId })
+      .eq("id", atendimentoId);
+
+    if (error) {
+      toast.error("Erro ao transferir atendimento");
+      throw error;
+    } else {
+      toast.success("Atendimento transferido com sucesso");
+      refetch();
+    }
+  };
+
   const formatTimeAgo = (date: string | null) => {
     if (!date) return "N/A";
     return formatDistanceToNow(new Date(date), { locale: ptBR, addSuffix: false });
@@ -199,6 +247,15 @@ export default function OmniAgentes() {
       .substring(0, 2)
       .toUpperCase();
   };
+
+  // Prepare agentes data for transfer modal
+  const agentesParaTransferencia = useMemo(() => {
+    return agentes.map((a) => ({
+      id: a.id,
+      nome: a.nome,
+      atendimentos_count: a.chatsAtivos,
+    }));
+  }, [agentes]);
 
   if (loading) {
     return (
@@ -227,6 +284,9 @@ export default function OmniAgentes() {
           selectedFilas={selectedFilas}
           onToggleFila={toggleFila}
           onClearFilters={() => setSelectedFilas([])}
+          onTransferir={handleTransferir}
+          onVisualizarConversa={handleVisualizarConversa}
+          onEncerrar={handleEncerrar}
         />
 
         {/* Main Content */}
@@ -605,6 +665,32 @@ export default function OmniAgentes() {
           )}
         </div>
       </div>
+
+      {/* Modals */}
+      <TransferirAtendimentoModal
+        open={isTransferirModalOpen}
+        onClose={() => {
+          setIsTransferirModalOpen(false);
+          setSelectedAtendimento(null);
+        }}
+        atendimento={selectedAtendimento}
+        filas={filas.map((f) => ({ id: f.id, nome: f.nome, cor: f.cor }))}
+        agentes={agentesParaTransferencia}
+        onTransferir={handleTransferirConfirm}
+      />
+
+      <VisualizarConversaModal
+        open={isVisualizarModalOpen}
+        onClose={() => {
+          setIsVisualizarModalOpen(false);
+          setSelectedAtendimento(null);
+        }}
+        atendimento={selectedAtendimento}
+        onTransferir={() => {
+          setIsVisualizarModalOpen(false);
+          setIsTransferirModalOpen(true);
+        }}
+      />
     </div>
   );
 }
