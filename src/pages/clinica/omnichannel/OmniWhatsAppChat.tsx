@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { useOmniMensagens, OmniAtendimento, OmniMensagem } from "@/hooks/useOmniAtendimentos";
 import { TransferirAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/TransferirAtendimentoModal";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
@@ -377,19 +376,16 @@ export default function OmniWhatsAppChat() {
 
   if (loading) {
     return (
-      <OmniLayout>
-        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </OmniLayout>
+      <div className="flex items-center justify-center h-screen bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
   }
 
   return (
-    <OmniLayout>
-      <div className="flex h-[calc(100vh-200px)] bg-white rounded-lg border shadow-sm overflow-hidden">
-        {/* Sidebar - Lista de Conversas */}
-        <div className="w-80 border-r flex flex-col bg-white">
+    <div className="flex h-screen bg-background -m-4 sm:-m-6">
+      {/* Sidebar - Lista de Conversas */}
+      <div className="w-80 border-r flex flex-col bg-card">
           {/* Search */}
           <div className="p-3 border-b">
             <div className="relative">
@@ -466,11 +462,11 @@ export default function OmniWhatsAppChat() {
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col bg-[#E5DDD5]">
+        <div className="flex-1 flex flex-col bg-muted/30">
           {selectedAtendimento ? (
             <>
-              {/* Chat header */}
-              <div className="bg-[#075E54] text-white px-4 py-2 flex items-center gap-3">
+              {/* Chat header - Blue theme */}
+              <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
                 <Avatar className="h-10 w-10 border-2 border-white/20">
                   <AvatarImage src={selectedAtendimento.contato?.foto_url || undefined} />
                   <AvatarFallback className="bg-gray-300 text-gray-700">
@@ -596,7 +592,6 @@ export default function OmniWhatsAppChat() {
             </div>
           )}
         </div>
-      </div>
 
       {/* Transfer Modal */}
       <TransferirAtendimentoModal
@@ -607,6 +602,6 @@ export default function OmniWhatsAppChat() {
         agentes={agentes}
         onTransferir={handleTransferirAtendimento}
       />
-    </OmniLayout>
+    </div>
   );
 }
