@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,14 +12,11 @@ import {
   Smile,
   Mic,
   MoreVertical,
-  Phone,
-  Video,
   ArrowRightLeft,
   Clock,
   Check,
   CheckCheck,
   MessageCircle,
-  Tag,
   Users,
   Filter,
   Loader2,
@@ -31,14 +28,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
-import { useOmniAtendimentos, useOmniMensagens, OmniAtendimento, OmniMensagem } from "@/hooks/useOmniAtendimentos";
+import { useOmniMensagens, OmniAtendimento, OmniMensagem } from "@/hooks/useOmniAtendimentos";
 import { TransferirAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/TransferirAtendimentoModal";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ClinicaContext {
@@ -184,13 +180,69 @@ export default function OmniWhatsAppChat() {
   const [activeTab, setActiveTab] = useState<"all" | "waiting" | "mine">("all");
   const [waitTimeDisplay, setWaitTimeDisplay] = useState("00:00:00");
   
+  // Local state for atendimentos to avoid hook conflicts
+  const [atendimentos, setAtendimentos] = useState<OmniAtendimento[]>([]);
+  const [loading, setLoading] = useState(true);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const { atendimentos, loading, finalizarAtendimento, transferirAtendimento, refetch } = useOmniAtendimentos(clinicaId, {
-    status: ["aguardando", "em_atendimento"],
-  });
   const { filas } = useOmniFilas(clinicaId);
   const { mensagens, loading: loadingMessages, enviarMensagem } = useOmniMensagens(selectedAtendimento?.id || null);
+
+  // Fetch atendimentos locally to avoid conflicts with OmniLayout hook
+  const fetchAtendimentos = useCallback(async () => {
+    if (!clinicaId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("omni_atendimentos")
+        .select(`
+          *,
+          contato:omni_contatos!contato_id(*),
+          fila:omni_filas!fila_id(id, nome, cor),
+          agente:usuarios_clinica!agente_id(id, nome)
+        `)
+        .eq("clinica_id", clinicaId)
+        .in("status", ["aguardando", "em_atendimento"])
+        .order("data_abertura", { ascending: false });
+
+      if (error) throw error;
+      setAtendimentos((data || []) as OmniAtendimento[]);
+    } catch (error) {
+      console.error("Error fetching atendimentos:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [clinicaId]);
+
+  // Initial fetch and real-time subscription
+  useEffect(() => {
+    fetchAtendimentos();
+
+    if (clinicaId) {
+      const channel = supabase
+        .channel(`omni_chat_${clinicaId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "omni_atendimentos",
+            filter: `clinica_id=eq.${clinicaId}`,
+          },
+          () => {
+            fetchAtendimentos();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [clinicaId, fetchAtendimentos]);
 
   // Auto scroll to bottom when messages change
   useEffect(() => {
@@ -276,8 +328,51 @@ export default function OmniWhatsAppChat() {
 
   const handleFinalizarAtendimento = async () => {
     if (!selectedAtendimento) return;
-    await finalizarAtendimento(selectedAtendimento.id, "Encerrado pelo agente");
-    setSelectedAtendimento(null);
+    
+    try {
+      const tempoTotal = selectedAtendimento.data_abertura
+        ? Math.floor((Date.now() - new Date(selectedAtendimento.data_abertura).getTime()) / 1000)
+        : null;
+
+      await supabase
+        .from("omni_atendimentos")
+        .update({
+          status: "finalizado",
+          data_fechamento: new Date().toISOString(),
+          motivo_fechamento: "Encerrado pelo agente",
+          tempo_total_atendimento: tempoTotal,
+        })
+        .eq("id", selectedAtendimento.id);
+
+      setSelectedAtendimento(null);
+      fetchAtendimentos();
+    } catch (error) {
+      console.error("Error finalizing atendimento:", error);
+    }
+  };
+
+  const handleTransferirAtendimento = async (
+    atendimentoId: string,
+    novoAgenteId?: string,
+    novaFilaId?: string
+  ) => {
+    try {
+      const atendimento = atendimentos.find((a) => a.id === atendimentoId);
+      if (!atendimento) return;
+
+      await supabase
+        .from("omni_atendimentos")
+        .update({
+          agente_id: novoAgenteId || null,
+          fila_id: novaFilaId || atendimento.fila_id,
+          status: novoAgenteId ? "em_atendimento" : "aguardando",
+        })
+        .eq("id", atendimentoId);
+
+      fetchAtendimentos();
+    } catch (error) {
+      console.error("Error transferring atendimento:", error);
+    }
   };
 
   if (loading) {
@@ -510,7 +605,7 @@ export default function OmniWhatsAppChat() {
         atendimento={selectedAtendimento}
         filas={filas}
         agentes={agentes}
-        onTransferir={transferirAtendimento}
+        onTransferir={handleTransferirAtendimento}
       />
     </OmniLayout>
   );
