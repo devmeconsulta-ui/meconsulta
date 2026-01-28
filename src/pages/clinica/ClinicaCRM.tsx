@@ -155,15 +155,16 @@ export default function ClinicaCRM() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] -m-4 sm:-m-6 overflow-hidden">
-      {/* Header fixo - não rola */}
-      <div className="shrink-0 sticky top-0 z-10 bg-background">
+    <>
+      {/* Header fixo fora do fluxo de scroll */}
+      <div className="fixed top-16 lg:top-0 left-0 lg:left-64 right-0 z-20 bg-background">
         <OmniHeader />
       </div>
 
-      {/* Conteúdo com scroll interno - contido na área do CRM */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div className="p-3 md:p-6 flex flex-col flex-1 min-h-0">
+      {/* Container principal com margin-top para compensar header fixo */}
+      <div className="flex flex-col h-[calc(100vh-64px-80px)] lg:h-[calc(100vh-80px)] mt-16">
+        {/* Área de conteúdo do CRM */}
+        <div className="flex flex-col flex-1 min-h-0">
         {/* Header */}
         <div className="flex flex-col gap-3 mb-4 md:mb-6 shrink-0">
           {/* Title + Funnel Select + Config */}
@@ -454,6 +455,6 @@ export default function ClinicaCRM() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }
