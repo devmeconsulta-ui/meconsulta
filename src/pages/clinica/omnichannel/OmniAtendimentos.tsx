@@ -23,7 +23,7 @@ import { useOmniEtiquetas } from "@/hooks/useOmniEtiquetas";
 import { FilaAccordion } from "@/components/clinica/omnichannel/atendimentos/FilaAccordion";
 import { VisualizarConversaModal } from "@/components/clinica/omnichannel/atendimentos/VisualizarConversaModal";
 import { TransferirAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/TransferirAtendimentoModal";
-import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
+import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { OmniAtendimento } from "@/hooks/useOmniAtendimentos";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -186,19 +186,16 @@ export default function OmniAtendimentos() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <OmniHeader />
+      <OmniLayout>
         <div className="flex items-center justify-center h-[calc(100vh-250px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </div>
+      </OmniLayout>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <OmniHeader />
-
+    <OmniLayout>
       <div className="space-y-4">
         {/* Filtros */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -333,6 +330,6 @@ export default function OmniAtendimentos() {
         agentes={agentes}
         onTransferir={transferirAtendimento}
       />
-    </div>
+    </OmniLayout>
   );
 }

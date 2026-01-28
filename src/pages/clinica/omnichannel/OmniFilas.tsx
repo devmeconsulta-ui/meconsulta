@@ -46,7 +46,7 @@ import {
   Phone,
 } from "lucide-react";
 import { useOmniFilas, OmniFila } from "@/hooks/useOmniFilas";
-import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
+import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { toast } from "sonner";
 
 interface ClinicaContext {
@@ -187,19 +187,16 @@ export default function OmniFilas() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <OmniHeader />
+      <OmniLayout>
         <div className="flex items-center justify-center h-[calc(100vh-250px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </div>
+      </OmniLayout>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <OmniHeader />
-
+    <OmniLayout>
       {/* Conteúdo */}
       <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -744,7 +741,7 @@ export default function OmniFilas() {
         </DialogContent>
       </Dialog>
       </div>
-    </div>
+    </OmniLayout>
   );
 }
 
