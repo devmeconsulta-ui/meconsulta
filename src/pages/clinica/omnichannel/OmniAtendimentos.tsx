@@ -89,19 +89,44 @@ export default function OmniAtendimentos() {
     return grouped;
   }, [filteredAtendimentos, filas]);
 
-  // Get agentes from usuarios_clinica
-  const [agentes, setAgentes] = useState<Array<{ id: string; nome: string }>>([]);
+  // Get agentes from usuarios_clinica with atendimentos count
+  const [agentes, setAgentes] = useState<Array<{ id: string; nome: string; atendimentos_count?: number }>>([]);
+  
+  // Load agentes on mount
   useState(() => {
-    if (clinicaId) {
-      supabase
+    const loadAgentes = async () => {
+      if (!clinicaId) return;
+      
+      const { data: usuariosData } = await supabase
         .from("usuarios_clinica")
         .select("id, nome")
         .eq("clinica_id", clinicaId)
-        .eq("ativo", true)
-        .then(({ data }) => {
-          if (data) setAgentes(data);
-        });
-    }
+        .eq("ativo", true);
+      
+      if (usuariosData) {
+        // Count atendimentos per agent
+        const { data: atendimentosData } = await supabase
+          .from("omni_atendimentos")
+          .select("agente_id")
+          .eq("clinica_id", clinicaId)
+          .in("status", ["aguardando", "em_atendimento"]);
+        
+        const countByAgent = (atendimentosData || []).reduce((acc, a) => {
+          if (a.agente_id) {
+            acc[a.agente_id] = (acc[a.agente_id] || 0) + 1;
+          }
+          return acc;
+        }, {} as Record<string, number>);
+        
+        setAgentes(
+          usuariosData.map((u) => ({
+            ...u,
+            atendimentos_count: countByAgent[u.id] || 0,
+          }))
+        );
+      }
+    };
+    loadAgentes();
   });
 
   const handleVisualizarConversa = (atendimento: OmniAtendimento) => {
