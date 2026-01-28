@@ -76,6 +76,7 @@ import OmniDashboard from "./pages/clinica/omnichannel/OmniDashboard";
 import OmniAgentes from "./pages/clinica/omnichannel/OmniAgentes";
 import OmniFilas from "./pages/clinica/omnichannel/OmniFilas";
 import OmniAtendimentos from "./pages/clinica/omnichannel/OmniAtendimentos";
+import OmniWhatsAppChat from "./pages/clinica/omnichannel/OmniWhatsAppChat";
 import OmniContatos from "./pages/clinica/omnichannel/OmniContatos";
 import OmniRelatorios from "./pages/clinica/omnichannel/OmniRelatorios";
 import OmniConfirmacaoAgenda from "./pages/clinica/omnichannel/OmniConfirmacaoAgenda";
@@ -152,6 +153,7 @@ const App = () => (
               <Route path="omnichannel/agentes" element={<OmniAgentes />} />
               <Route path="omnichannel/filas" element={<OmniFilas />} />
               <Route path="omnichannel/atendimentos" element={<OmniAtendimentos />} />
+              <Route path="omnichannel/whatsapp" element={<OmniWhatsAppChat />} />
               <Route path="omnichannel/contatos" element={<OmniContatos />} />
               <Route path="omnichannel/relatorios" element={<OmniRelatorios />} />
               <Route path="omnichannel/confirmacao-agenda" element={<OmniConfirmacaoAgenda />} />

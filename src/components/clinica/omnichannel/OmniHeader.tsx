@@ -104,12 +104,12 @@ export function OmniHeader({ atendimentosCount = 0 }: OmniHeaderProps) {
         {/* WhatsApp Chat Button - Atendimento de Pacientes */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <NavLink to="/clinica/omnichannel/atendimentos">
+            <NavLink to="/clinica/omnichannel/whatsapp">
               <div className="relative">
                 <div
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 cursor-pointer font-medium text-sm",
-                    location.pathname === "/clinica/omnichannel/atendimentos"
+                    location.pathname === "/clinica/omnichannel/whatsapp"
                       ? "bg-green-600 text-white shadow-lg"
                       : "bg-green-100 text-green-700 hover:bg-green-200 hover:text-green-800"
                   )}
