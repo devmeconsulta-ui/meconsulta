@@ -1,303 +1,303 @@
 
-# Plano de Implementacao - Modulo Omnichannel WhatsApp
+# Plano: Sistema de Confirmacao de Agenda via WhatsApp
 
 ## Visao Geral
 
-Implementar um sistema completo de gestao de atendimento via WhatsApp integrado com Evolution API, permitindo que clinicas gerenciem multiplos atendentes, filas de atendimento e conversas com clientes em tempo real.
+Criar uma pagina completa para envio automatizado de confirmacoes de consultas via WhatsApp, integrada ao modulo omnichannel existente. O sistema permitira selecionar consultas, enviar mensagens personalizadas com link de confirmacao, e receber respostas dos pacientes em tempo real.
+
+---
 
 ## Arquitetura do Sistema
 
 ```text
-+------------------+     +-------------------+     +------------------+
-|   Frontend       |     |   Edge Functions  |     |   Evolution API  |
-|   (React)        |<--->|   (Supabase)      |<--->|   (WhatsApp)     |
-+------------------+     +-------------------+     +------------------+
-        |                        |
-        v                        v
-+------------------+     +-------------------+
-|   Supabase       |     |   Webhooks        |
-|   Realtime       |     |   (Mensagens)     |
-+------------------+     +-------------------+
++-------------------+     +----------------------+     +------------------+
+|   Frontend        |     |   Edge Functions     |     |   Evolution API  |
+|   OmniConfirmacao |<--->|   send-confirmation  |<--->|   (WhatsApp)     |
++-------------------+     +----------------------+     +------------------+
+        |                         |                           |
+        v                         v                           v
++-------------------+     +----------------------+     +------------------+
+|   Supabase DB     |     |   Webhook            |     |   Pagina Publica |
+|   confirmacoes    |<----|   (respostas)        |<----|   Confirmacao    |
++-------------------+     +----------------------+     +------------------+
 ```
 
 ---
 
-## Fase 1: Estrutura do Banco de Dados
+## Fase 1: Nova Tabela no Banco de Dados
 
-### Novas Tabelas
+### Tabela: confirmacoes_agenda
 
-**1. omni_instancias** - Gerenciar instancias WhatsApp
-- id, clinica_id, nome, numero_whatsapp, evolution_instance_name
-- status (disconnected, connecting, connected)
-- webhook_url, api_key_hash
-- servidor_url, configuracoes (JSON)
-- created_at, updated_at
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| id | uuid | PK |
+| clinica_id | uuid | FK para clinicas |
+| consulta_id | uuid | FK para consultas |
+| paciente_id | uuid | FK para pacientes |
+| fila_id | uuid | FK para omni_filas (fila de envio) |
+| telefone | text | Telefone do paciente |
+| mensagem_enviada | text | Conteudo da mensagem |
+| link_confirmacao | text | Link unico gerado |
+| token_confirmacao | text | Token unico para validacao |
+| status | text | pendente/enviada/confirmada/recusada/erro/expirada |
+| data_envio | timestamp | Quando foi enviada |
+| data_resposta | timestamp | Quando o paciente respondeu |
+| whatsapp_message_id | text | ID da mensagem no WhatsApp |
+| erro_descricao | text | Descricao do erro (se houver) |
+| created_at | timestamp | |
 
-**2. omni_filas** - Filas de atendimento
-- id, clinica_id, instancia_id, nome, descricao
-- numero_whatsapp, cor
-- atendimentos_max_agente, estrategia_distribuicao
-- fechar_por_inatividade_minutos
-- mensagem_boas_vindas, mensagem_fora_horario
-- mensagem_fechamento, mensagem_espera
-- horario_funcionamento (JSON: {inicio, fim, dias_semana})
-- ativo, created_at, updated_at
-
-**3. omni_agentes** - Agentes por fila
-- id, fila_id, usuario_clinica_id
-- status (online, offline, pausa, ocupado)
-- motivo_pausa, max_atendimentos_simultaneos
-- tempo_logado_hoje, atendimentos_hoje
-- created_at, updated_at
-
-**4. omni_contatos** - Contatos/Clientes
-- id, clinica_id, nome, telefone, documento
-- email, instagram, foto_url, etiquetas (array)
-- agente_preferencial_id, empresa
-- observacoes, dados_extras (JSON)
-- paciente_id (FK opcional)
-- created_at, updated_at
-
-**5. omni_atendimentos** - Conversas/Tickets
-- id, clinica_id, fila_id, contato_id, agente_id
-- protocolo (numero sequencial)
-- status (aguardando, em_atendimento, finalizado, abandonado)
-- canal (whatsapp, instagram, telegram)
-- prioridade (baixa, normal, alta, urgente)
-- motivo_fechamento, avaliacao_nota, avaliacao_comentario
-- tempo_primeira_resposta, tempo_total_atendimento
-- data_abertura, data_primeira_resposta, data_fechamento
-- transferido_de_agente_id, transferido_de_fila_id
-- etiquetas (array), created_at, updated_at
-
-**6. omni_mensagens** - Mensagens das conversas
-- id, atendimento_id, contato_id, agente_id
-- tipo (texto, imagem, audio, video, documento, localizacao, contato, sticker)
-- direcao (entrada, saida)
-- conteudo, arquivo_url, arquivo_nome, arquivo_tipo
-- whatsapp_message_id, status (enviada, entregue, lida, erro)
-- erro_descricao, quoted_message_id
-- created_at, updated_at
-
-**7. omni_mensagens_rapidas** - Templates de resposta
-- id, clinica_id, fila_id, titulo, atalho, conteudo
-- categoria, variaveis (JSON), ativo
-- created_at, updated_at
-
-**8. omni_etiquetas** - Etiquetas para contatos/atendimentos
-- id, clinica_id, nome, cor, descricao
-- created_at
-
-**9. omni_pausas_tipos** - Tipos de pausa (almoco, banheiro, etc)
-- id, clinica_id, nome, tempo_max_minutos
-- ativo, created_at
-
-**10. omni_agente_pausas** - Historico de pausas
-- id, agente_id, tipo_pausa_id
-- inicio, fim, duracao_segundos
-- created_at
+**Indices**: consulta_id, clinica_id, token_confirmacao, status
 
 ---
 
-## Fase 2: Edge Functions (Supabase)
+## Fase 2: Edge Functions
 
-### 1. evolution-create-instance
-- Cria nova instancia na Evolution API
-- Configura webhook automaticamente
-- Salva dados no banco
+### 1. send-confirmation-batch (Nova)
 
-### 2. evolution-connect-instance
-- Gera QR Code para conexao
-- Retorna dados para exibir no frontend
+Responsavel por enviar confirmacoes em lote com controle de throttling:
 
-### 3. evolution-disconnect-instance
-- Desconecta instancia
-- Atualiza status no banco
+- Recebe lista de consulta_ids e fila_id
+- Busca dados das consultas (paciente, medico, horario, local)
+- Gera token unico para cada confirmacao
+- Monta mensagem personalizada com variaveis
+- Envia via Evolution API com delay configuravel entre mensagens (ex: 3-5 segundos)
+- Salva registros na tabela confirmacoes_agenda
+- Retorna estatisticas de envio
 
-### 4. evolution-webhook
-- Recebe eventos da Evolution API
-- Processa mensagens recebidas
-- Atualiza status de mensagens
-- Dispara notificacoes em tempo real
+**Parametros de throttling**:
+- intervalo_minimo: 3000ms (3 segundos entre mensagens)
+- intervalo_maximo: 5000ms (aleatorio para parecer humano)
+- lote_maximo: 50 mensagens por execucao
 
-### 5. evolution-send-message
-- Envia mensagens (texto, midia, documentos)
-- Suporta mensagens com variaveis
+### 2. confirmation-response (Nova)
 
-### 6. evolution-connection-status
-- Verifica status da conexao
+Endpoint publico para processar resposta do paciente:
+
+- Recebe token via query param
+- Valida token e verifica se nao expirou (24h)
+- Retorna dados da consulta para exibir na pagina
+- Permite acao de confirmar ou recusar
+- Atualiza status na tabela confirmacoes_agenda
+- Atualiza status_consulta na tabela consultas (confirmada ou cancelada)
+- Notifica clinica via clinica_notificacoes
 
 ---
 
-## Fase 3: Novas Paginas (Frontend)
+## Fase 3: Pagina Publica de Confirmacao
 
-### Rotas na Clinica
-```text
-/clinica/omnichannel              -> Dashboard Omnichannel
-/clinica/omnichannel/filas        -> Gestao de Filas
-/clinica/omnichannel/agentes      -> Painel de Agentes
-/clinica/omnichannel/atendimentos -> Painel de Atendimentos
-/clinica/omnichannel/contatos     -> Gestao de Contatos
-/clinica/omnichannel/relatorios   -> Relatorios e Metricas
-/clinica/omnichannel/configuracoes -> Configuracoes
+### Rota: /confirmar-consulta/:token
+
+Pagina publica (sem autenticacao) que sera acessada pelo paciente ao clicar no link:
+
+**Layout**:
+- Logo da clinica (opcional)
+- Card com dados da consulta:
+  - Nome do paciente
+  - Nome do medico + especialidade
+  - Data e hora
+  - Local (endereco)
+  - Lembrete: "Chegue 15 minutos antes"
+- Dois botoes grandes:
+  - Confirmar Presenca (verde)
+  - Nao Poderei Comparecer (vermelho)
+- Feedback visual apos acao
+- Mensagem de agradecimento
+
+**Estados**:
+- loading: Carregando dados
+- valid: Exibindo formulario
+- confirmed: Consulta confirmada com sucesso
+- declined: Consulta recusada
+- expired: Link expirado
+- error: Erro ao processar
+
+---
+
+## Fase 4: Pagina Principal - OmniConfirmacaoAgenda
+
+### Rota: /clinica/omnichannel/confirmacao-agenda
+
+### Estrutura da Pagina
+
+**1. Dashboard de Metricas (Cards)**
+
+Cards modernos com gradientes (seguindo padrao existente):
+- Total Enviadas (azul)
+- Confirmadas (verde)
+- Recusadas (vermelho)
+- Aguardando Resposta (amarelo)
+- Taxa de Confirmacao (% com indicador de tendencia)
+- Falhas de Envio (rose)
+
+**2. Filtros**
+
+- Periodo: Hoje, Amanha, Proximos 7 dias, Proximos 30 dias
+- Medico (select com lista de medicos da clinica)
+- Status da consulta (aguardando_pagamento, confirmada, etc)
+- Status da confirmacao (pendente, enviada, confirmada, recusada)
+
+**3. Configuracao de Envio**
+
+Card lateral com:
+- Selecionar Fila de Envio (dropdown de omni_filas conectadas)
+- Intervalo entre mensagens (slider: 3-10 segundos)
+- Mensagem personalizada (textarea com variaveis disponiveis)
+
+Variaveis disponiveis:
+- {{nome_paciente}}
+- {{nome_medico}}
+- {{especialidade}}
+- {{data}}
+- {{horario}}
+- {{local}}
+- {{link_confirmacao}}
+
+Mensagem padrao:
+```
+Ola {{nome_paciente}}! 
+
+Lembramos que voce tem uma consulta agendada:
+
+Medico: {{nome_medico}} ({{especialidade}})
+Data: {{data}} as {{horario}}
+Local: {{local}}
+
+Por favor, chegue 15 minutos antes do horario.
+
+Confirme sua presenca clicando no link abaixo:
+{{link_confirmacao}}
+
+Clinica XYZ
 ```
 
-### Componentes Principais
+**4. Lista de Consultas para Envio**
 
-**1. OmniDashboard** - Visao geral
-- Cards: Total atendimentos, clientes unicos, msgs enviadas/recebidas, TMA
-- Grafico por hora/dia
-- Atendimentos por fila/canal
-- Performance dos agentes
+Tabela com checkbox para selecao:
+- [ ] Selecionar todos
+- Paciente (nome)
+- Telefone
+- Medico
+- Data/Hora
+- Status Consulta
+- Status Confirmacao
+- Acoes (enviar individual, ver detalhes)
 
-**2. OmniFilas** - Gestao de filas
-- Lista de filas com status de conexao
-- Modal para criar/editar fila
-- Abas: Conexao, Configuracoes, Mensagens, Webhooks
-- Conexao com QR Code
+**5. Botao de Envio em Lote**
 
-**3. OmniPainelAgentes** - Monitoramento em tempo real
-- Lista de agentes por fila
-- Status atual (online/pausa/offline)
-- Metricas: atendimentos hoje, msgs enviadas/recebidas, TMA
-- Funcoes: pausar, transferir, monitorar
+- "Enviar Confirmacao para Selecionados (X)"
+- Barra de progresso durante envio
+- Toast com resultado: "X enviadas, Y falhas"
 
-**4. OmniPainelAtendimentos** - Lista de atendimentos
-- Filtros por status, agente, fila, periodo
-- Acoes: atribuir, transferir, finalizar
-- Indicadores visuais de tempo de espera
+**6. Historico de Envios**
 
-**5. OmniContatos** - CRM de contatos
-- Lista paginada com busca
-- Campos: nome, telefone, documento, etiquetas
-- Vinculacao com pacientes do sistema
-- Exportar/importar
-
-**6. OmniChat** - Interface de atendimento (para atendentes)
-- Sidebar com lista de atendimentos
-- Area de mensagens
-- Painel lateral com dados do contato
-- Respostas rapidas, transferir, finalizar
+Aba ou accordion com:
+- Lista de confirmacoes enviadas
+- Filtros por status
+- Detalhes de cada envio (horario, resposta, etc)
 
 ---
 
-## Fase 4: Sistema de Permissoes
+## Fase 5: Graficos e Visualizacoes
 
-### Novas Permissoes para usuarios_clinica
-- "omnichannel_dashboard" - Ver dashboard
-- "omnichannel_filas" - Gerenciar filas
-- "omnichannel_agentes" - Ver painel agentes
-- "omnichannel_atendimentos" - Ver todos atendimentos
-- "omnichannel_contatos" - Gerenciar contatos
-- "omnichannel_atender" - Realizar atendimentos
-- "omnichannel_configuracoes" - Configuracoes avancadas
+### Graficos no Dashboard
 
-### Atualizacao do ClinicaUsuarios
-- Adicionar checkbox para cada permissao omnichannel
-- Permissoes controlam visibilidade no menu
+1. **Grafico de Area**: Confirmacoes por hora/dia
+   - Linha para enviadas
+   - Linha para confirmadas
+   - Linha para recusadas
 
----
+2. **Grafico de Pizza/Donut**: Distribuicao por status
+   - Confirmadas vs Recusadas vs Sem resposta
 
-## Fase 5: Integracao Realtime
-
-### Channels Supabase
-- omni_atendimentos_{clinica_id} - Novos atendimentos
-- omni_mensagens_{atendimento_id} - Mensagens em tempo real
-- omni_agentes_{clinica_id} - Status dos agentes
-- omni_typing_{atendimento_id} - Indicador de digitacao
-
-### Notificacoes
-- Som ao receber nova mensagem
-- Badge com contador no menu
-- Toast para novos atendimentos
+3. **Grafico de Barras**: Performance por medico
+   - Taxa de confirmacao por medico
 
 ---
 
-## Fase 6: Hooks Customizados
+## Detalhes Tecnicos
 
-### useOmniChannel
-- Gerenciar estado global do omnichannel
-- Conectar/desconectar instancias
-- Enviar mensagens
+### Sincronizacao com Consultas
 
-### useOmniAtendimentos
-- CRUD de atendimentos
-- Transferencias
-- Finalizacao
+Quando paciente confirma:
+```sql
+UPDATE consultas SET status_consulta = 'confirmada' WHERE id = consulta_id;
+UPDATE confirmacoes_agenda SET status = 'confirmada', data_resposta = now() WHERE token = token;
+```
 
-### useOmniMensagens
-- Buscar mensagens de um atendimento
-- Enviar mensagens
-- Marcar como lido
+Quando paciente recusa:
+```sql
+UPDATE consultas SET status_consulta = 'cancelada' WHERE id = consulta_id;
+UPDATE confirmacoes_agenda SET status = 'recusada', data_resposta = now() WHERE token = token;
+```
 
-### useOmniAgentes
-- Status dos agentes
-- Pausas
-- Distribuicao
+### Prevencao de Bloqueio do WhatsApp
 
-### useOmniFilas
-- CRUD de filas
-- Configuracoes
+1. Delay aleatorio entre 3-5 segundos por mensagem
+2. Maximo de 50 mensagens por lote
+3. Pausas maiores a cada 20 mensagens (10-15 segundos)
+4. Horario comercial apenas (configuravel por fila)
+5. Limite diario por instancia (configuravel)
+
+### Seguranca
+
+- Tokens de confirmacao com UUID v4 (dificil de adivinhar)
+- Tokens expiram em 24h antes da consulta
+- Rate limiting na pagina publica
+- Nao expor dados sensiveis no link
+
+---
+
+## Arquivos a Criar/Modificar
+
+### Novos Arquivos
+
+1. `src/pages/clinica/omnichannel/OmniConfirmacaoAgenda.tsx` - Pagina principal
+2. `src/pages/ConfirmarConsulta.tsx` - Pagina publica de confirmacao
+3. `src/components/clinica/omnichannel/confirmacao/ConfirmacaoMetricsCards.tsx` - Cards do dashboard
+4. `src/components/clinica/omnichannel/confirmacao/ConfirmacaoEnvioConfig.tsx` - Config de envio
+5. `src/components/clinica/omnichannel/confirmacao/ConfirmacaoConsultasList.tsx` - Lista de consultas
+6. `src/hooks/useConfirmacaoAgenda.ts` - Hook para gerenciar confirmacoes
+7. `supabase/functions/send-confirmation-batch/index.ts` - Edge function envio
+8. `supabase/functions/confirmation-response/index.ts` - Edge function resposta
+9. `supabase/migrations/XXXX_create_confirmacoes_agenda.sql` - Migration
+
+### Arquivos a Modificar
+
+1. `src/App.tsx` - Adicionar rotas
+2. `src/components/clinica/ClinicaSidebar.tsx` - Adicionar link no menu omnichannel (se houver submenu)
+3. `supabase/config.toml` - Registrar novas edge functions
 
 ---
 
 ## Ordem de Implementacao
 
-**Sprint 1: Fundacao (Banco + Edge Functions)**
-1. Criar migrations para todas as tabelas
-2. Implementar edge functions da Evolution API
-3. Configurar webhooks
+**Sprint 1: Fundacao**
+1. Criar migration para tabela confirmacoes_agenda
+2. Criar edge function send-confirmation-batch
+3. Criar edge function confirmation-response
 
-**Sprint 2: Interface Administrativa**
-1. Pagina de Filas (criar/editar/conectar)
-2. Pagina de Contatos
-3. Dashboard basico
+**Sprint 2: Pagina Publica**
+4. Criar pagina ConfirmarConsulta.tsx
+5. Adicionar rota publica no App.tsx
 
-**Sprint 3: Atendimento**
-1. Painel de Atendimentos
-2. Interface de Chat para atendentes
-3. Sistema de filas e distribuicao
+**Sprint 3: Pagina Principal**
+6. Criar hook useConfirmacaoAgenda
+7. Criar componentes de UI (cards, lista, config)
+8. Criar pagina OmniConfirmacaoAgenda.tsx
+9. Adicionar rota no App.tsx
 
-**Sprint 4: Monitoramento**
-1. Painel de Agentes
-2. Relatorios
-3. Metricas em tempo real
-
-**Sprint 5: Refinamentos**
-1. Permissoes detalhadas
-2. Mensagens rapidas
-3. Integracao com CRM existente
-4. Notificacoes push
+**Sprint 4: Refinamentos**
+10. Implementar graficos
+11. Adicionar historico de envios
+12. Testes e ajustes finais
 
 ---
 
-## Secrets Necessarios
+## Consideracoes de UX
 
-Serao necessarios os seguintes secrets no Supabase:
-- **EVOLUTION_API_URL**: URL do servidor Evolution API
-- **EVOLUTION_API_KEY**: API Key global da Evolution
-
----
-
-## Consideracoes Tecnicas
-
-### Isolamento de Dados
-- Todas as tabelas terao clinica_id obrigatorio
-- RLS policies para garantir isolamento
-- Cada clinica gerencia suas proprias filas e instancias
-
-### Performance
-- Indexar campos de busca frequente (telefone, status, created_at)
-- Paginacao em todas as listagens
-- Realtime apenas para dados criticos
-
-### Seguranca
-- Webhook com validacao de origem
-- Tokens de instancia hasheados no banco
-- Rate limiting nas edge functions
-
----
-
-## Proximo Passo
-
-Confirme a aprovacao deste plano para iniciar a implementacao. Comecaremos pela Fase 1 (estrutura do banco de dados) e Fase 2 (edge functions), que sao a fundacao do sistema.
+- Cards devem seguir exatamente o padrao visual do OmniDashAtendimentos (gradientes, icones, cores)
+- Graficos devem usar a mesma paleta de cores CHART_COLORS
+- Feedback visual claro durante envio (barra de progresso, contagem)
+- Mensagens de erro amigaveis
+- Mobile-first para a pagina publica de confirmacao
+- Botoes grandes e claros na pagina do paciente
