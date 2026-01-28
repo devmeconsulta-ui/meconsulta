@@ -86,7 +86,10 @@ function AtendimentoItem({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
+          <Button 
+            size="icon" 
+            className="h-8 w-8 rounded-full bg-amber-400 hover:bg-amber-500 text-amber-900"
+          >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
