@@ -60,12 +60,9 @@ export default function OmniDashboard() {
   return (
     <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
       {/* Header fixo no topo - abaixo do ClinicaHeader */}
-      <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background">
+      <div className="sticky top-0 z-30 bg-background border-b border-border">
         <OmniHeader />
       </div>
-
-      {/* Espaçador para compensar o header fixo + padding original do layout */}
-      <div className="h-[calc(4rem+56px)] lg:h-[calc(1.5rem+56px)]" />
 
       {/* Conteúdo com scroll */}
       <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
