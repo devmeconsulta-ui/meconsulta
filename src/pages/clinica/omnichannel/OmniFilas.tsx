@@ -686,19 +686,42 @@ export default function OmniFilas() {
                       {fila.ativo ? "Ativa" : "Inativa"}
                     </Badge>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="icon"
+                      className="border-primary text-primary hover:bg-primary/10"
                       onClick={() => setEditingFila(fila)}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteFila(fila.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Excluir fila</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Tem certeza que deseja excluir a fila "{fila.nome}"?
+                            Esta ação não pode ser desfeita.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteFila(fila.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               ))}
@@ -706,8 +729,279 @@ export default function OmniFilas() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Edição de Fila */}
+      <Dialog open={!!editingFila} onOpenChange={(open) => !open && setEditingFila(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Fila: {editingFila?.nome}</DialogTitle>
+          </DialogHeader>
+          {editingFila && (
+            <EditarFilaForm
+              fila={editingFila}
+              instancias={instancias}
+              onSave={async (data) => {
+                await updateFila(editingFila.id, data);
+                setEditingFila(null);
+              }}
+              onCancel={() => setEditingFila(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
         </div>
       </div>
     </div>
+  );
+}
+
+// Componente de formulário de edição
+function EditarFilaForm({
+  fila,
+  instancias,
+  onSave,
+  onCancel,
+}: {
+  fila: OmniFila;
+  instancias: any[];
+  onSave: (data: any) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const horario = fila.horario_funcionamento as any || {};
+  
+  const [formData, setFormData] = useState({
+    nome: fila.nome,
+    descricao: fila.descricao || "",
+    cor: fila.cor,
+    instancia_id: fila.instancia_id || "",
+    mensagem_boas_vindas: fila.mensagem_boas_vindas || "",
+    mensagem_fora_horario: fila.mensagem_fora_horario || "",
+    mensagem_fechamento: fila.mensagem_fechamento || "",
+    atendimentos_max_agente: fila.atendimentos_max_agente || 5,
+    estrategia_distribuicao: fila.estrategia_distribuicao || "round_robin",
+    horario_inicio: horario.inicio || "08:00",
+    horario_fim: horario.fim || "18:00",
+    dias_semana: horario.dias_semana || [1, 2, 3, 4, 5],
+    ativo: fila.ativo,
+  });
+  const [saving, setSaving] = useState(false);
+
+  const CORES_FILA = [
+    "#3b82f6", "#10b981", "#f59e0b", "#ef4444",
+    "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16",
+  ];
+
+  const handleSubmit = async () => {
+    setSaving(true);
+    await onSave({
+      nome: formData.nome,
+      descricao: formData.descricao,
+      cor: formData.cor,
+      instancia_id: formData.instancia_id || null,
+      mensagem_boas_vindas: formData.mensagem_boas_vindas,
+      mensagem_fora_horario: formData.mensagem_fora_horario,
+      mensagem_fechamento: formData.mensagem_fechamento,
+      atendimentos_max_agente: formData.atendimentos_max_agente,
+      estrategia_distribuicao: formData.estrategia_distribuicao,
+      horario_funcionamento: {
+        inicio: formData.horario_inicio,
+        fim: formData.horario_fim,
+        dias_semana: formData.dias_semana,
+      },
+      ativo: formData.ativo,
+    });
+    setSaving(false);
+  };
+
+  return (
+    <Tabs defaultValue="geral" className="pt-4">
+      <TabsList className="grid w-full grid-cols-3">
+        <TabsTrigger value="geral">Geral</TabsTrigger>
+        <TabsTrigger value="mensagens">Mensagens</TabsTrigger>
+        <TabsTrigger value="horario">Horário</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="geral" className="space-y-4 pt-4">
+        <div className="flex items-center justify-between">
+          <Label>Fila Ativa</Label>
+          <Switch
+            checked={formData.ativo}
+            onCheckedChange={(checked) => setFormData({ ...formData, ativo: checked })}
+          />
+        </div>
+
+        <div>
+          <Label>Nome da Fila *</Label>
+          <Input
+            value={formData.nome}
+            onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+          />
+        </div>
+
+        <div>
+          <Label>Descrição</Label>
+          <Textarea
+            value={formData.descricao}
+            onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+          />
+        </div>
+
+        <div>
+          <Label>Cor</Label>
+          <div className="flex gap-2 mt-2">
+            {CORES_FILA.map((cor) => (
+              <button
+                key={cor}
+                type="button"
+                className={`w-8 h-8 rounded-full border-2 ${
+                  formData.cor === cor ? "border-foreground" : "border-transparent"
+                }`}
+                style={{ backgroundColor: cor }}
+                onClick={() => setFormData({ ...formData, cor })}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <Label>Instância WhatsApp</Label>
+          <Select
+            value={formData.instancia_id}
+            onValueChange={(v) => setFormData({ ...formData, instancia_id: v })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione uma instância" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Nenhuma</SelectItem>
+              {instancias.map((inst) => (
+                <SelectItem key={inst.id} value={inst.id}>
+                  {inst.nome}{" "}
+                  {inst.status === "connected" && (
+                    <span className="text-green-600">(Conectada)</span>
+                  )}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label>Estratégia de Distribuição</Label>
+          <Select
+            value={formData.estrategia_distribuicao}
+            onValueChange={(v) => setFormData({ ...formData, estrategia_distribuicao: v })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="round_robin">Round Robin</SelectItem>
+              <SelectItem value="menos_ocupado">Menos Ocupado</SelectItem>
+              <SelectItem value="aleatorio">Aleatório</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label>Máx. Atendimentos por Agente</Label>
+          <Input
+            type="number"
+            min={1}
+            max={20}
+            value={formData.atendimentos_max_agente}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                atendimentos_max_agente: parseInt(e.target.value) || 5,
+              })
+            }
+          />
+        </div>
+      </TabsContent>
+
+      <TabsContent value="mensagens" className="space-y-4 pt-4">
+        <div>
+          <Label>Mensagem de Boas-vindas</Label>
+          <Textarea
+            value={formData.mensagem_boas_vindas}
+            onChange={(e) => setFormData({ ...formData, mensagem_boas_vindas: e.target.value })}
+          />
+        </div>
+
+        <div>
+          <Label>Mensagem Fora do Horário</Label>
+          <Textarea
+            value={formData.mensagem_fora_horario}
+            onChange={(e) => setFormData({ ...formData, mensagem_fora_horario: e.target.value })}
+          />
+        </div>
+
+        <div>
+          <Label>Mensagem de Fechamento</Label>
+          <Textarea
+            value={formData.mensagem_fechamento}
+            onChange={(e) => setFormData({ ...formData, mensagem_fechamento: e.target.value })}
+          />
+        </div>
+      </TabsContent>
+
+      <TabsContent value="horario" className="space-y-4 pt-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>Horário Início</Label>
+            <Input
+              type="time"
+              value={formData.horario_inicio}
+              onChange={(e) => setFormData({ ...formData, horario_inicio: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label>Horário Fim</Label>
+            <Input
+              type="time"
+              value={formData.horario_fim}
+              onChange={(e) => setFormData({ ...formData, horario_fim: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label>Dias da Semana</Label>
+          <div className="flex gap-2 mt-2">
+            {["D", "S", "T", "Q", "Q", "S", "S"].map((dia, idx) => (
+              <button
+                key={idx}
+                type="button"
+                className={`w-10 h-10 rounded-full border ${
+                  formData.dias_semana.includes(idx)
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted"
+                }`}
+                onClick={() => {
+                  const dias = formData.dias_semana.includes(idx)
+                    ? formData.dias_semana.filter((d) => d !== idx)
+                    : [...formData.dias_semana, idx];
+                  setFormData({ ...formData, dias_semana: dias });
+                }}
+              >
+                {dia}
+              </button>
+            ))}
+          </div>
+        </div>
+      </TabsContent>
+
+      <div className="flex justify-end gap-2 pt-4">
+        <Button variant="outline" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button onClick={handleSubmit} disabled={saving}>
+          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Salvar Alterações
+        </Button>
+      </div>
+    </Tabs>
   );
 }
