@@ -254,10 +254,10 @@ export default function ClinicaCRM() {
           /* ===== KANBAN - Scroll contido dentro da área ===== */
           <DragDropContext onDragEnd={handleDragEnd}>
             <div 
-              className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden pb-2 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent"
+              className="h-full overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              <div className="flex gap-3 md:gap-4 h-full min-w-max">
+              <div className="inline-flex gap-3 md:gap-4 h-full">
                 {etapas.map((etapa, index) => (
                   <div
                     key={etapa.id}
