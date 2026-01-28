@@ -55,81 +55,90 @@ export default function OmniDashboard() {
   }
 
   return (
-    <div className="-m-6 flex flex-col min-h-[calc(100vh-64px)]">
+    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
       {/* Header com navegação - fixo */}
-      <div className="sticky top-0 z-50">
+      <div className="shrink-0">
         <OmniHeader />
       </div>
 
-      <div className="px-6 pt-6 pb-6 space-y-6 flex-1 overflow-auto">
-        {/* Tabs e Filtros */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full lg:w-auto">
-            <TabsList>
-              <TabsTrigger value="atendimentos" className="px-6">Atendimentos</TabsTrigger>
-              <TabsTrigger value="integracoes" className="px-6">Integrações</TabsTrigger>
-            </TabsList>
-          </Tabs>
+      {/* Conteúdo com scroll */}
+      <div className="flex-1 overflow-auto">
+        <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+          {/* Tabs e Filtros */}
+          <div className="flex flex-col gap-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="w-full sm:w-auto">
+                <TabsTrigger value="atendimentos" className="flex-1 sm:flex-none sm:px-6 text-xs sm:text-sm">
+                  Atendimentos
+                </TabsTrigger>
+                <TabsTrigger value="integracoes" className="flex-1 sm:flex-none sm:px-6 text-xs sm:text-sm">
+                  Integrações
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
 
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Fila</span>
-              <Select value={filaFilter} onValueChange={setFilaFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Todas" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas</SelectItem>
-                  {filas.map((fila) => (
-                    <SelectItem key={fila.id} value={fila.id}>{fila.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+              <div className="flex gap-3 flex-1">
+                <div className="flex flex-col gap-1 flex-1 sm:flex-none">
+                  <span className="text-xs text-muted-foreground">Fila</span>
+                  <Select value={filaFilter} onValueChange={setFilaFilter}>
+                    <SelectTrigger className="w-full sm:w-32">
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas</SelectItem>
+                      {filas.map((fila) => (
+                        <SelectItem key={fila.id} value={fila.id}>{fila.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-col gap-1 flex-1 sm:flex-none">
+                  <span className="text-xs text-muted-foreground">Período</span>
+                  <Select value={periodo} onValueChange={setPeriodo}>
+                    <SelectTrigger className="w-full sm:w-32">
+                      <SelectValue placeholder="Hoje" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hoje">Hoje</SelectItem>
+                      <SelectItem value="ontem">Ontem</SelectItem>
+                      <SelectItem value="7dias">Últimos 7 dias</SelectItem>
+                      <SelectItem value="30dias">Últimos 30 dias</SelectItem>
+                      <SelectItem value="mes">Este mês</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button onClick={handleRefresh} className="w-full sm:w-auto">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Atualizar
+              </Button>
             </div>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Período</span>
-              <Select value={periodo} onValueChange={setPeriodo}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Hoje" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="hoje">Hoje</SelectItem>
-                  <SelectItem value="ontem">Ontem</SelectItem>
-                  <SelectItem value="7dias">Últimos 7 dias</SelectItem>
-                  <SelectItem value="30dias">Últimos 30 dias</SelectItem>
-                  <SelectItem value="mes">Este mês</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button onClick={handleRefresh} className="mt-5">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Atualizar
-            </Button>
           </div>
+
+          {/* Conteúdo das Tabs */}
+          {activeTab === "atendimentos" && (
+            <OmniDashAtendimentos 
+              atendimentos={atendimentos}
+              mensagens={mensagens}
+              filas={filas}
+              periodo={periodo}
+              filaFilter={filaFilter}
+            />
+          )}
+
+          {activeTab === "integracoes" && (
+            <OmniDashIntegracoes 
+              instancias={instancias}
+              mensagens={mensagens}
+              filas={filas}
+              periodo={periodo}
+              filaFilter={filaFilter}
+            />
+          )}
         </div>
-
-        {/* Conteúdo das Tabs */}
-        {activeTab === "atendimentos" && (
-          <OmniDashAtendimentos 
-            atendimentos={atendimentos}
-            mensagens={mensagens}
-            filas={filas}
-            periodo={periodo}
-            filaFilter={filaFilter}
-          />
-        )}
-
-        {activeTab === "integracoes" && (
-          <OmniDashIntegracoes 
-            instancias={instancias}
-            mensagens={mensagens}
-            filas={filas}
-            periodo={periodo}
-            filaFilter={filaFilter}
-          />
-        )}
       </div>
     </div>
   );
