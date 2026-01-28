@@ -54,7 +54,7 @@ function AudioPlayer({ url }: { url: string }) {
   };
 
   return (
-    <div className="bg-emerald-600/20 rounded-2xl p-3 flex items-center gap-3 min-w-[200px]">
+    <div className="bg-primary/20 rounded-2xl p-3 flex items-center gap-3 min-w-[200px]">
       <audio
         ref={audioRef}
         src={url}
@@ -65,7 +65,7 @@ function AudioPlayer({ url }: { url: string }) {
       <Button
         variant="ghost"
         size="icon"
-        className="h-10 w-10 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white"
+        className="h-10 w-10 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground"
         onClick={togglePlay}
       >
         {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
@@ -78,7 +78,7 @@ function AudioPlayer({ url }: { url: string }) {
           />
         </div>
         <div className="flex justify-between mt-1">
-          <span className="text-xs text-emerald-800">
+          <span className="text-xs text-muted-foreground">
             {formatTime(currentTime)} / {formatTime(duration || 0)}
           </span>
         </div>
@@ -214,8 +214,8 @@ function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
         className={cn(
           "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm",
           isOutgoing
-            ? "bg-[#d9fdd3] text-gray-900 rounded-br-md"
-            : "bg-white text-gray-900 rounded-bl-md"
+            ? "bg-primary/15 text-foreground rounded-br-md"
+            : "bg-card text-foreground rounded-bl-md border"
         )}
       >
         {renderContent()}
@@ -259,22 +259,22 @@ export function VisualizarConversaModal({
           Visualização da conversa com {contactName}
         </DialogDescription>
         
-        {/* WhatsApp-style Header */}
-        <div className="bg-[#075E54] text-white px-4 py-3 flex items-center gap-3 shrink-0">
+        {/* Chat Header */}
+        <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3 shrink-0">
           <Avatar className="h-10 w-10 border-2 border-white/20">
-            <AvatarFallback className="bg-[#25D366] text-white font-semibold">
+            <AvatarFallback className="bg-primary-foreground/20 text-primary-foreground font-semibold">
               {getInitials(contactName)}
             </AvatarFallback>
           </Avatar>
           
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-base truncate">{contactName}</h3>
-            <div className="flex items-center gap-2 text-xs text-white/70">
+            <div className="flex items-center gap-2 text-xs text-primary-foreground/70">
               {contactPhone && <span>{contactPhone}</span>}
               {atendimento.fila?.nome && (
                 <>
                   <span>•</span>
-                  <Badge variant="secondary" className="bg-white/20 text-white hover:bg-white/30 text-[10px] px-1.5 py-0">
+                  <Badge variant="secondary" className="bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 text-[10px] px-1.5 py-0">
                     {atendimento.fila.nome}
                   </Badge>
                 </>
@@ -287,7 +287,7 @@ export function VisualizarConversaModal({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 text-white hover:bg-white/10 rounded-full"
+                className="h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 rounded-full"
                 onClick={onTransferir}
                 title="Transferir conversa"
               >
@@ -297,7 +297,7 @@ export function VisualizarConversaModal({
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 text-white hover:bg-white/10 rounded-full"
+              className="h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 rounded-full"
               title="Ligar"
             >
               <Phone className="h-5 w-5" />
@@ -305,7 +305,7 @@ export function VisualizarConversaModal({
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 text-white hover:bg-white/10 rounded-full"
+              className="h-9 w-9 text-primary-foreground hover:bg-primary-foreground/10 rounded-full"
               title="Mais opções"
             >
               <MoreVertical className="h-5 w-5" />
@@ -324,7 +324,7 @@ export function VisualizarConversaModal({
         >
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full gap-3">
-              <div className="animate-spin h-10 w-10 border-4 border-[#25D366] border-t-transparent rounded-full" />
+              <div className="animate-spin h-10 w-10 border-4 border-primary border-t-transparent rounded-full" />
               <p className="text-sm text-gray-500">Carregando mensagens...</p>
             </div>
           ) : mensagens.length === 0 ? (
