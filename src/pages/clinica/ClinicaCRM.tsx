@@ -156,10 +156,13 @@ export default function ClinicaCRM() {
 
   return (
     <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
-      {/* Header fixo no topo - usa top negativo para compensar o padding do layout */}
-      <div className="sticky top-0 z-30 bg-background pt-16 lg:pt-6">
+      {/* Header fixo no topo */}
+      <div className="fixed top-16 lg:top-0 left-0 lg:left-64 right-0 z-30 bg-background">
         <OmniHeader />
       </div>
+
+      {/* Espaçador para compensar o header fixo */}
+      <div className="h-[calc(4rem+56px)] lg:h-14" />
 
       {/* Conteúdo do CRM - rola normalmente */}
       <div className="px-3 md:px-6 py-4">
