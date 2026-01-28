@@ -93,7 +93,7 @@ function AtendimentoItem({
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-56 z-[100] bg-popover border shadow-lg">
           <DropdownMenuItem onClick={() => onTransferir(atendimento)}>
             <ArrowRightLeft className="h-4 w-4 mr-2" />
             Transferir
@@ -179,7 +179,7 @@ export function FilaAccordion({
   };
 
   return (
-    <div className="border rounded-lg bg-card overflow-hidden">
+    <div className="border rounded-lg bg-card">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-muted/30">
         <button
