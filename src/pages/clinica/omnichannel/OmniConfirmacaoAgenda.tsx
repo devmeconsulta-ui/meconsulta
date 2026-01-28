@@ -56,8 +56,10 @@ import {
   Timer,
   Users,
 } from "lucide-react";
-import { format, addDays, isToday, isTomorrow, startOfDay, endOfDay } from "date-fns";
+import { format, addDays, isToday, isTomorrow, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AreaChart,
   Area,
@@ -130,6 +132,15 @@ export default function OmniConfirmacaoAgenda() {
   const [modoEnvio, setModoEnvio] = useState<"agora" | "agendar">("agora");
   const [horarioAgendado, setHorarioAgendado] = useState("06:00");
 
+  // Filtros globais para dashboard/histórico/gráficos
+  const [globalPeriodo, setGlobalPeriodo] = useState<string>("todos");
+  const [globalMedico, setGlobalMedico] = useState<string>("todos");
+  const [globalStatus, setGlobalStatus] = useState<string>("todos");
+  const [globalDateRange, setGlobalDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
+
   // Carregar automaticamente consultas de amanhã ao montar
   useEffect(() => {
     setFilterPeriodo("amanha");
@@ -181,15 +192,104 @@ export default function OmniConfirmacaoAgenda() {
   // Lista de médicos para filtro - usa a lista de médicos da clínica
   const medicos = medicosClinica;
 
+  // Confirmações filtradas para dashboard/histórico/gráficos
+  const confirmacoesFiltradas = useMemo(() => {
+    let result = [...confirmacoes];
+    const hoje = new Date();
+
+    // Filtro por período
+    if (globalPeriodo !== "todos") {
+      if (globalPeriodo === "hoje") {
+        result = result.filter((c: any) => c.created_at && isToday(parseISO(c.created_at)));
+      } else if (globalPeriodo === "ultimos7") {
+        const limite = subDays(hoje, 7);
+        result = result.filter((c: any) => c.created_at && parseISO(c.created_at) >= limite);
+      } else if (globalPeriodo === "ultimos30") {
+        const limite = subDays(hoje, 30);
+        result = result.filter((c: any) => c.created_at && parseISO(c.created_at) >= limite);
+      } else if (globalPeriodo === "mesAtual") {
+        const inicio = startOfMonth(hoje);
+        const fim = endOfMonth(hoje);
+        result = result.filter((c: any) => 
+          c.created_at && isWithinInterval(parseISO(c.created_at), { start: inicio, end: fim })
+        );
+      } else if (globalPeriodo === "mesAnterior") {
+        const mesAnterior = subMonths(hoje, 1);
+        const inicio = startOfMonth(mesAnterior);
+        const fim = endOfMonth(mesAnterior);
+        result = result.filter((c: any) => 
+          c.created_at && isWithinInterval(parseISO(c.created_at), { start: inicio, end: fim })
+        );
+      } else if (globalPeriodo === "personalizado" && globalDateRange.from) {
+        const inicio = startOfDay(globalDateRange.from);
+        const fim = globalDateRange.to ? endOfDay(globalDateRange.to) : endOfDay(globalDateRange.from);
+        result = result.filter((c: any) => 
+          c.created_at && isWithinInterval(parseISO(c.created_at), { start: inicio, end: fim })
+        );
+      }
+    }
+
+    // Filtro por médico
+    if (globalMedico !== "todos") {
+      result = result.filter((c: any) => c.consulta?.medico?.id === globalMedico);
+    }
+
+    // Filtro por status
+    if (globalStatus !== "todos") {
+      result = result.filter((c: any) => c.status === globalStatus);
+    }
+
+    return result;
+  }, [confirmacoes, globalPeriodo, globalMedico, globalStatus, globalDateRange]);
+
+  // Métricas filtradas
+  const metricsFiltradas = useMemo(() => {
+    const total = confirmacoesFiltradas.length;
+    const enviadas = confirmacoesFiltradas.filter((c: any) => c.status === "enviada").length;
+    const confirmadas = confirmacoesFiltradas.filter((c: any) => c.status === "confirmada").length;
+    const recusadas = confirmacoesFiltradas.filter((c: any) => c.status === "recusada").length;
+    const aguardando = enviadas; // enviadas = aguardando resposta
+    const erros = confirmacoesFiltradas.filter((c: any) => c.status === "erro").length;
+    const taxaConfirmacao = 
+      total > 0
+        ? Math.round(
+            (confirmadas / confirmacoesFiltradas.filter((c: any) =>
+              ["confirmada", "recusada"].includes(c.status)
+            ).length) * 100
+          ) || 0
+        : 0;
+
+    return { total, enviadas, confirmadas, recusadas, aguardando, erros, taxaConfirmacao };
+  }, [confirmacoesFiltradas]);
+
   // Dados para gráficos
   const pieData = useMemo(() => {
     return [
-      { name: "Confirmadas", value: metrics.confirmadas, color: "#10b981" },
-      { name: "Aguardando", value: metrics.aguardando, color: "#f59e0b" },
-      { name: "Recusadas", value: metrics.recusadas, color: "#ef4444" },
-      { name: "Erros", value: metrics.erros, color: "#6366f1" },
+      { name: "Confirmadas", value: metricsFiltradas.confirmadas, color: "#10b981" },
+      { name: "Aguardando", value: metricsFiltradas.aguardando, color: "#f59e0b" },
+      { name: "Recusadas", value: metricsFiltradas.recusadas, color: "#ef4444" },
+      { name: "Erros", value: metricsFiltradas.erros, color: "#6366f1" },
     ].filter((d) => d.value > 0);
-  }, [metrics]);
+  }, [metricsFiltradas]);
+
+  // Label para o período selecionado
+  const getPeriodoLabel = () => {
+    switch (globalPeriodo) {
+      case "hoje": return "Hoje";
+      case "ultimos7": return "Últimos 7 dias";
+      case "ultimos30": return "Últimos 30 dias";
+      case "mesAtual": return "Mês atual";
+      case "mesAnterior": return "Mês anterior";
+      case "personalizado": 
+        if (globalDateRange.from && globalDateRange.to) {
+          return `${format(globalDateRange.from, "dd/MM")} - ${format(globalDateRange.to, "dd/MM")}`;
+        } else if (globalDateRange.from) {
+          return format(globalDateRange.from, "dd/MM/yyyy");
+        }
+        return "Selecionar período";
+      default: return "Todos";
+    }
+  };
 
   // Handlers
   const handleSelectAll = (checked: boolean) => {
@@ -267,6 +367,120 @@ export default function OmniConfirmacaoAgenda() {
           </div>
         </div>
 
+        {/* Filtros Globais */}
+        <Card className="bg-muted/30 border-dashed">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Filter className="h-4 w-4" />
+                Filtros:
+              </div>
+              
+              {/* Filtro de Período */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9">
+                    <CalendarDays className="h-4 w-4 mr-2" />
+                    {getPeriodoLabel()}
+                    <ChevronDown className="h-3 w-3 ml-2 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="p-2 space-y-1">
+                    {[
+                      { value: "todos", label: "Todos os períodos" },
+                      { value: "hoje", label: "Hoje" },
+                      { value: "ultimos7", label: "Últimos 7 dias" },
+                      { value: "ultimos30", label: "Últimos 30 dias" },
+                      { value: "mesAtual", label: "Mês atual" },
+                      { value: "mesAnterior", label: "Mês anterior" },
+                    ].map((opt) => (
+                      <Button
+                        key={opt.value}
+                        variant={globalPeriodo === opt.value ? "default" : "ghost"}
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setGlobalPeriodo(opt.value);
+                          setGlobalDateRange({ from: undefined, to: undefined });
+                        }}
+                      >
+                        {opt.label}
+                      </Button>
+                    ))}
+                    <div className="border-t pt-2 mt-2">
+                      <p className="text-xs text-muted-foreground mb-2 px-2">Período personalizado:</p>
+                      <CalendarComponent
+                        mode="range"
+                        selected={globalDateRange}
+                        onSelect={(range: any) => {
+                          setGlobalDateRange(range || { from: undefined, to: undefined });
+                          if (range?.from) {
+                            setGlobalPeriodo("personalizado");
+                          }
+                        }}
+                        numberOfMonths={2}
+                        locale={ptBR}
+                        className="rounded-md border"
+                      />
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* Filtro de Médico */}
+              <Select value={globalMedico} onValueChange={setGlobalMedico}>
+                <SelectTrigger className="w-[200px] h-9">
+                  <Stethoscope className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Médico" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os médicos</SelectItem>
+                  {medicos.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Filtro de Status */}
+              <Select value={globalStatus} onValueChange={setGlobalStatus}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os status</SelectItem>
+                  <SelectItem value="enviada">Enviada</SelectItem>
+                  <SelectItem value="confirmada">Confirmada</SelectItem>
+                  <SelectItem value="recusada">Recusada</SelectItem>
+                  <SelectItem value="erro">Erro</SelectItem>
+                  <SelectItem value="agendada">Agendada</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Botão limpar filtros */}
+              {(globalPeriodo !== "todos" || globalMedico !== "todos" || globalStatus !== "todos") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => {
+                    setGlobalPeriodo("todos");
+                    setGlobalMedico("todos");
+                    setGlobalStatus("todos");
+                    setGlobalDateRange({ from: undefined, to: undefined });
+                  }}
+                >
+                  <XCircle className="h-4 w-4 mr-1" />
+                  Limpar
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Dashboard Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/50 border-blue-200 dark:border-blue-800">
@@ -277,7 +491,7 @@ export default function OmniConfirmacaoAgenda() {
                     Total Enviadas
                   </p>
                   <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                    {metrics.total}
+                    {metricsFiltradas.total}
                   </p>
                 </div>
                 <div className="h-10 w-10 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center">
@@ -295,7 +509,7 @@ export default function OmniConfirmacaoAgenda() {
                     Confirmadas
                   </p>
                   <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
-                    {metrics.confirmadas}
+                    {metricsFiltradas.confirmadas}
                   </p>
                 </div>
                 <div className="h-10 w-10 rounded-full bg-emerald-200 dark:bg-emerald-800 flex items-center justify-center">
@@ -313,7 +527,7 @@ export default function OmniConfirmacaoAgenda() {
                     Recusadas
                   </p>
                   <p className="text-2xl font-bold text-rose-700 dark:text-rose-300">
-                    {metrics.recusadas}
+                    {metricsFiltradas.recusadas}
                   </p>
                 </div>
                 <div className="h-10 w-10 rounded-full bg-rose-200 dark:bg-rose-800 flex items-center justify-center">
@@ -331,7 +545,7 @@ export default function OmniConfirmacaoAgenda() {
                     Aguardando
                   </p>
                   <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">
-                    {metrics.aguardando}
+                    {metricsFiltradas.aguardando}
                   </p>
                 </div>
                 <div className="h-10 w-10 rounded-full bg-amber-200 dark:bg-amber-800 flex items-center justify-center">
@@ -349,7 +563,7 @@ export default function OmniConfirmacaoAgenda() {
                     Taxa Confirmação
                   </p>
                   <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">
-                    {metrics.taxaConfirmacao}%
+                    {metricsFiltradas.taxaConfirmacao}%
                   </p>
                 </div>
                 <div className="h-10 w-10 rounded-full bg-violet-200 dark:bg-violet-800 flex items-center justify-center">
@@ -367,7 +581,7 @@ export default function OmniConfirmacaoAgenda() {
                     Falhas
                   </p>
                   <p className="text-2xl font-bold text-red-700 dark:text-red-300">
-                    {metrics.erros}
+                    {metricsFiltradas.erros}
                   </p>
                 </div>
                 <div className="h-10 w-10 rounded-full bg-red-200 dark:bg-red-800 flex items-center justify-center">
@@ -843,14 +1057,16 @@ export default function OmniConfirmacaoAgenda() {
                             Carregando...
                           </TableCell>
                         </TableRow>
-                      ) : confirmacoes.length === 0 ? (
+                      ) : confirmacoesFiltradas.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center py-8">
-                            Nenhuma confirmação enviada ainda
+                            {confirmacoes.length > 0 
+                              ? "Nenhum resultado para os filtros selecionados"
+                              : "Nenhuma confirmação enviada ainda"}
                           </TableCell>
                         </TableRow>
                       ) : (
-                        confirmacoes.slice(0, 50).map((conf: any) => (
+                        confirmacoesFiltradas.slice(0, 50).map((conf: any) => (
                           <TableRow key={conf.id}>
                             <TableCell className="font-medium">
                               {conf.consulta?.paciente?.nome || "—"}
@@ -953,14 +1169,14 @@ export default function OmniConfirmacaoAgenda() {
                       <span className="text-muted-foreground">
                         Total de confirmações
                       </span>
-                      <span className="font-bold">{metrics.total}</span>
+                      <span className="font-bold">{metricsFiltradas.total}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">
                         Taxa de confirmação
                       </span>
                       <span className="font-bold text-emerald-600">
-                        {metrics.taxaConfirmacao}%
+                        {metricsFiltradas.taxaConfirmacao}%
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -968,7 +1184,7 @@ export default function OmniConfirmacaoAgenda() {
                         Aguardando resposta
                       </span>
                       <span className="font-bold text-amber-600">
-                        {metrics.aguardando}
+                        {metricsFiltradas.aguardando}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
