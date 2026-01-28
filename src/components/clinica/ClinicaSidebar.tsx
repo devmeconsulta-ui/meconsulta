@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
   LayoutDashboard, 
@@ -17,24 +17,34 @@ import {
   X,
   LucideIcon,
   MessageSquare,
-  MessageCircle,
+  Headset,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUnreadChatMessages } from "@/hooks/useUnreadChatMessages";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface MenuItem {
   icon: LucideIcon;
   label: string;
   path: string;
-  permission?: string; // If set, requires this permission
+  permission?: string;
 }
 
+interface MenuGroup {
+  icon: LucideIcon;
+  label: string;
+  permission?: string;
+  items: MenuItem[];
+}
+
+// Itens regulares do menu
 const menuItems: MenuItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/clinica", permission: "dashboard" },
-  { icon: MessageCircle, label: "Atendimentos", path: "/clinica/omnichannel", permission: "omnichannel_dashboard" },
   { icon: Stethoscope, label: "Médicos", path: "/clinica/medicos" },
   { icon: Calendar, label: "Consultas", path: "/clinica/consultas", permission: "consultas" },
   { icon: Users, label: "Pacientes", path: "/clinica/pacientes", permission: "pacientes" },
@@ -44,18 +54,41 @@ const menuItems: MenuItem[] = [
   { icon: Wallet, label: "Dados Bancários", path: "/clinica/dados-bancarios" },
   { icon: Star, label: "Avaliações", path: "/clinica/avaliacoes" },
   { icon: User, label: "Usuários da Clínica", path: "/clinica/usuarios" },
-  { icon: MessageSquare, label: "Chat Interno", path: "/clinica/chat", permission: "dashboard" },
   { icon: Settings, label: "Configurações", path: "/clinica/configuracoes" },
 ];
+
+// Grupo de Atendimento (submenu)
+const atendimentoGroup: MenuGroup = {
+  icon: Headset,
+  label: "Atendimento",
+  permission: "omnichannel_dashboard",
+  items: [
+    { icon: LayoutDashboard, label: "Dashboard", path: "/clinica/omnichannel", permission: "omnichannel_dashboard" },
+    { icon: MessageSquare, label: "Chat Interno", path: "/clinica/chat", permission: "dashboard" },
+  ],
+};
 
 export function ClinicaSidebar() {
   const { logout, currentUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [atendimentoOpen, setAtendimentoOpen] = useState(false);
   
   // Obter ID da clínica do usuário atual
   const clinicaId = currentUser?.clinicaId || null;
   const { unreadCount } = useUnreadChatMessages({ clinicaId });
+
+  // Auto-expand atendimento group if on any of its routes
+  useEffect(() => {
+    const isOnAtendimentoRoute = atendimentoGroup.items.some(
+      item => location.pathname === item.path || location.pathname.startsWith(item.path + "/")
+    ) || location.pathname.startsWith("/clinica/omnichannel");
+    
+    if (isOnAtendimentoRoute) {
+      setAtendimentoOpen(true);
+    }
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -68,18 +101,27 @@ export function ClinicaSidebar() {
 
   // Filter menu items based on permissions
   const visibleMenuItems = menuItems.filter((item) => {
-    // If user is owner (no permissoes), show all
     if (!isEmployee) return true;
-    
-    // If item has no permission requirement, check if user is owner or has specific access
-    if (!item.permission) {
-      // Only owners can see: Médicos, Dados Bancários, Avaliações, Usuários, Configurações
-      return false;
-    }
-    
-    // Check if user has required permission
+    if (!item.permission) return false;
     return userPermissions.includes(item.permission);
   });
+
+  // Check if atendimento group should be visible
+  const showAtendimentoGroup = !isEmployee || 
+    (atendimentoGroup.permission && userPermissions.includes(atendimentoGroup.permission)) ||
+    atendimentoGroup.items.some(item => item.permission && userPermissions.includes(item.permission));
+
+  // Filter atendimento items based on permissions
+  const visibleAtendimentoItems = atendimentoGroup.items.filter((item) => {
+    if (!isEmployee) return true;
+    if (!item.permission) return false;
+    return userPermissions.includes(item.permission);
+  });
+
+  // Check if any atendimento route is active
+  const isAtendimentoActive = atendimentoGroup.items.some(
+    item => location.pathname === item.path || location.pathname.startsWith(item.path + "/")
+  ) || location.pathname.startsWith("/clinica/omnichannel");
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -100,18 +142,100 @@ export function ClinicaSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {visibleMenuItems.map((item) => {
-          const isChatItem = item.path === "/clinica/chat";
-          
-          return (
+        {/* Dashboard item (first) */}
+        <NavLink
+          to="/clinica"
+          end
+          onClick={() => setMobileOpen(false)}
+          className={({ isActive }) =>
+            cn(
+              "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+              isActive
+                ? "bg-primary text-primary-foreground shadow-lg"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )
+          }
+        >
+          <LayoutDashboard className="w-5 h-5" />
+          Dashboard
+        </NavLink>
+
+        {/* Atendimento Group (collapsible submenu) */}
+        {showAtendimentoGroup && visibleAtendimentoItems.length > 0 && (
+          <Collapsible open={atendimentoOpen} onOpenChange={setAtendimentoOpen}>
+            <CollapsibleTrigger asChild>
+              <button
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                  isAtendimentoActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Headset className="w-5 h-5" />
+                Atendimento
+                {unreadCount > 0 && (
+                  <Badge 
+                    variant="destructive" 
+                    className="ml-auto mr-2 h-5 min-w-[20px] flex items-center justify-center text-xs px-1.5"
+                  >
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Badge>
+                )}
+                {atendimentoOpen ? (
+                  <ChevronDown className={cn("w-4 h-4 ml-auto", unreadCount > 0 && "ml-0")} />
+                ) : (
+                  <ChevronRight className={cn("w-4 h-4 ml-auto", unreadCount > 0 && "ml-0")} />
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pl-4 space-y-1 mt-1">
+              {visibleAtendimentoItems.map((item) => {
+                const isChatItem = item.path === "/clinica/chat";
+                
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.path === "/clinica/omnichannel"}
+                    onClick={() => setMobileOpen(false)}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                        isActive
+                          ? "bg-primary text-primary-foreground shadow-lg"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )
+                    }
+                  >
+                    <item.icon className="w-4 h-4" />
+                    {item.label}
+                    {isChatItem && unreadCount > 0 && (
+                      <Badge 
+                        variant="destructive" 
+                        className="ml-auto h-5 min-w-[20px] flex items-center justify-center text-xs px-1.5"
+                      >
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </Badge>
+                    )}
+                  </NavLink>
+                );
+              })}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* Other menu items (excluding Dashboard which is already rendered) */}
+        {visibleMenuItems
+          .filter(item => item.path !== "/clinica") // Exclude Dashboard
+          .map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
-              end={item.path === "/clinica"}
               onClick={() => setMobileOpen(false)}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative",
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
                   isActive
                     ? "bg-primary text-primary-foreground shadow-lg"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -120,17 +244,8 @@ export function ClinicaSidebar() {
             >
               <item.icon className="w-5 h-5" />
               {item.label}
-              {isChatItem && unreadCount > 0 && (
-                <Badge 
-                  variant="destructive" 
-                  className="ml-auto h-5 min-w-[20px] flex items-center justify-center text-xs px-1.5"
-                >
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </Badge>
-              )}
             </NavLink>
-          );
-        })}
+          ))}
       </nav>
 
       {/* User info */}
