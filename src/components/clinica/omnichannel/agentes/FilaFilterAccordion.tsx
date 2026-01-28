@@ -185,9 +185,30 @@ export function FilaFilterAccordion({
                                 </p>
                               </div>
                             </div>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  size="icon" 
+                                  className="h-7 w-7 rounded-full bg-amber-400 hover:bg-amber-500 text-amber-900 shrink-0"
+                                >
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48 z-[100] bg-popover border shadow-lg">
+                                <DropdownMenuItem>
+                                  Transferir
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  Visualizar conversa
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  Alterar etiqueta
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                  Encerrar atendimento
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         ))
                       )}
