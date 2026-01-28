@@ -54,8 +54,10 @@ serve(async (req) => {
 
     const clinica_id = instanciaData.clinica_id;
 
-    // Processar eventos - normalizar para maiúsculo
-    const eventNormalized = event?.toUpperCase?.() || event;
+    // Processar eventos - normalizar para maiúsculo e substituir . por _
+    const eventNormalized = (event?.toUpperCase?.() || event)?.replace?.(/\./g, "_") || event;
+    
+    console.log(`Event normalized: ${eventNormalized}`);
     
     switch (eventNormalized) {
       case "CONNECTION_UPDATE": {
