@@ -175,13 +175,20 @@ serve(async (req) => {
 
         if (!atendimento) {
           // Buscar fila padrão associada à instância
-          const { data: fila } = await supabase
+          console.log(`Looking for fila with instancia_id: ${instanciaData.id}`);
+          
+          const { data: fila, error: filaError } = await supabase
             .from("omni_filas")
-            .select("id")
+            .select("id, nome")
             .eq("instancia_id", instanciaData.id)
             .eq("ativo", true)
             .limit(1)
             .single();
+          
+          if (filaError) {
+            console.log(`Fila query error:`, filaError.code, filaError.message);
+          }
+          console.log(`Found fila:`, fila ? `${fila.id} - ${fila.nome}` : "none");
 
           // Criar novo atendimento
           const { data: novoAtendimento, error: atendimentoError } = await supabase
