@@ -161,8 +161,9 @@ export default function ClinicaCRM() {
         <OmniHeader />
       </div>
 
-      {/* Conteúdo com scroll */}
-      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6">
+      {/* Conteúdo com scroll interno */}
+      <div className="flex-1 overflow-auto">
+        <div className="p-3 md:p-6 flex flex-col h-full">
       {/* Header */}
       <div className="flex flex-col gap-3 mb-4 md:mb-6">
         {/* Title + Funnel Select + Config */}
@@ -378,6 +379,7 @@ export default function ClinicaCRM() {
           </div>
         </DragDropContext>
       )}
+        </div>
       </div>
 
       {/* Modals */}
