@@ -155,17 +155,15 @@ export default function ClinicaCRM() {
   }
 
   return (
-    <>
-      {/* Header fixo fora do fluxo de scroll */}
-      <div className="fixed top-16 lg:top-0 left-0 lg:left-64 right-0 z-20 bg-background">
+    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
+      {/* Header com navegação - fixo no topo */}
+      <div className="shrink-0">
         <OmniHeader />
       </div>
 
-      {/* Container principal com margin-top para compensar header fixo */}
-      <div className="flex flex-col h-[calc(100vh-64px-80px)] lg:h-[calc(100vh-80px)] mt-16">
-        {/* Área de conteúdo do CRM */}
-        <div className="flex flex-col flex-1 min-h-0">
-        {/* Header */}
+      {/* Conteúdo do CRM */}
+      <div className="flex-1 flex flex-col min-h-0 px-3 md:px-6 py-4">
+        {/* Header do CRM */}
         <div className="flex flex-col gap-3 mb-4 md:mb-6 shrink-0">
           {/* Title + Funnel Select + Config */}
           <div className="flex items-center gap-2 md:gap-4">
@@ -378,7 +376,6 @@ export default function ClinicaCRM() {
             </div>
           </DragDropContext>
         )}
-        </div>
       </div>
 
       {/* Modals */}
@@ -455,6 +452,6 @@ export default function ClinicaCRM() {
           }}
         />
       )}
-    </>
+    </div>
   );
 }
