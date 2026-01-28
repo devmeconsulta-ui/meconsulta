@@ -225,6 +225,24 @@ export function useOmniFilas(clinicaId: string | null) {
     }
   };
 
+  const deleteInstancia = async (instanciaId: string) => {
+    try {
+      const response = await supabase.functions.invoke("evolution-delete-instance", {
+        body: { instancia_id: instanciaId },
+      });
+
+      if (response.error) throw response.error;
+
+      await Promise.all([fetchInstancias(), fetchFilas()]);
+      toast.success("Instância excluída com sucesso");
+      return true;
+    } catch (error) {
+      console.error("Error deleting instancia:", error);
+      toast.error("Erro ao excluir instância");
+      return false;
+    }
+  };
+
   const checkConnectionStatus = async (instanciaId: string) => {
     try {
       const response = await supabase.functions.invoke("evolution-connection-status", {
@@ -252,6 +270,7 @@ export function useOmniFilas(clinicaId: string | null) {
     createInstancia,
     connectInstancia,
     disconnectInstancia,
+    deleteInstancia,
     checkConnectionStatus,
   };
 }

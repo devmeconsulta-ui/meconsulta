@@ -15,6 +15,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -68,6 +79,7 @@ export default function OmniFilas() {
     createInstancia,
     connectInstancia,
     disconnectInstancia,
+    deleteInstancia,
     checkConnectionStatus,
   } = useOmniFilas(clinicaId);
 
@@ -77,6 +89,13 @@ export default function OmniFilas() {
   const [qrCodeData, setQrCodeData] = useState<{ instanciaId: string; qrcode: string } | null>(null);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [creatingInstancia, setCreatingInstancia] = useState(false);
+  const [deletingInstanciaId, setDeletingInstanciaId] = useState<string | null>(null);
+
+  const handleDeleteInstancia = async (instanciaId: string) => {
+    setDeletingInstanciaId(instanciaId);
+    await deleteInstancia(instanciaId);
+    setDeletingInstanciaId(null);
+  };
 
   const [novaFilaData, setNovaFilaData] = useState({
     nome: "",
@@ -575,6 +594,41 @@ export default function OmniFilas() {
                       >
                         <RefreshCw className="h-4 w-4" />
                       </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            disabled={deletingInstanciaId === instancia.id}
+                          >
+                            {deletingInstanciaId === instancia.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir instância</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja excluir a instância "{instancia.nome}"?
+                              Esta ação irá desconectar o WhatsApp e excluir a instância permanentemente.
+                              As filas vinculadas serão desvinculadas automaticamente.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteInstancia(instancia.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </CardContent>
                 </Card>
