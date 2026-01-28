@@ -817,6 +817,89 @@ export type Database = {
         }
         Relationships: []
       }
+      confirmacoes_agenda: {
+        Row: {
+          clinica_id: string
+          consulta_id: string
+          created_at: string
+          data_envio: string | null
+          data_resposta: string | null
+          erro_descricao: string | null
+          fila_id: string | null
+          id: string
+          link_confirmacao: string | null
+          mensagem_enviada: string | null
+          paciente_id: string | null
+          status: string
+          telefone: string
+          token_confirmacao: string
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          clinica_id: string
+          consulta_id: string
+          created_at?: string
+          data_envio?: string | null
+          data_resposta?: string | null
+          erro_descricao?: string | null
+          fila_id?: string | null
+          id?: string
+          link_confirmacao?: string | null
+          mensagem_enviada?: string | null
+          paciente_id?: string | null
+          status?: string
+          telefone: string
+          token_confirmacao: string
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          clinica_id?: string
+          consulta_id?: string
+          created_at?: string
+          data_envio?: string | null
+          data_resposta?: string | null
+          erro_descricao?: string | null
+          fila_id?: string | null
+          id?: string
+          link_confirmacao?: string | null
+          mensagem_enviada?: string | null
+          paciente_id?: string | null
+          status?: string
+          telefone?: string
+          token_confirmacao?: string
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "confirmacoes_agenda_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "confirmacoes_agenda_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "confirmacoes_agenda_fila_id_fkey"
+            columns: ["fila_id"]
+            isOneToOne: false
+            referencedRelation: "omni_filas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "confirmacoes_agenda_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consulta_procedimentos: {
         Row: {
           consulta_id: string
