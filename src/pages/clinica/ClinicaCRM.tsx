@@ -155,231 +155,227 @@ export default function ClinicaCRM() {
   }
 
   return (
-    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
+    <div className="flex flex-col h-[calc(100vh-64px)] -m-4 sm:-m-6">
       {/* Header fixo */}
       <div className="shrink-0">
         <OmniHeader />
       </div>
 
-      {/* Conteúdo com scroll interno */}
-      <div className="flex-1 overflow-auto">
-        <div className="p-3 md:p-6 flex flex-col h-full">
-      {/* Header */}
-      <div className="flex flex-col gap-3 mb-4 md:mb-6">
-        {/* Title + Funnel Select + Config */}
-        <div className="flex items-center gap-2 md:gap-4">
-          <h1 className="text-lg md:text-2xl font-bold text-foreground">CRM</h1>
-          
-          <Select
-            value={funilSelecionado || ""}
-            onValueChange={setFunilSelecionado}
-          >
-            <SelectTrigger className="flex-1 md:w-[200px] md:flex-none h-9 text-sm">
-              <SelectValue placeholder="Selecione funil" />
-            </SelectTrigger>
-            <SelectContent>
-              {funis.map(funil => (
-                <SelectItem key={funil.id} value={funil.id}>
-                  {funil.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Conteúdo com scroll interno - contido na área do CRM */}
+      <div className="flex-1 min-h-0 p-3 md:p-6 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex flex-col gap-3 mb-4 md:mb-6 shrink-0">
+          {/* Title + Funnel Select + Config */}
+          <div className="flex items-center gap-2 md:gap-4">
+            <h1 className="text-lg md:text-2xl font-bold text-foreground">CRM</h1>
+            
+            <Select
+              value={funilSelecionado || ""}
+              onValueChange={setFunilSelecionado}
+            >
+              <SelectTrigger className="flex-1 md:w-[200px] md:flex-none h-9 text-sm">
+                <SelectValue placeholder="Selecione funil" />
+              </SelectTrigger>
+              <SelectContent>
+                {funis.map(funil => (
+                  <SelectItem key={funil.id} value={funil.id}>
+                    {funil.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setFunilModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Funil
-              </DropdownMenuItem>
-              {funilAtual && (
-                <>
-                  <DropdownMenuItem onClick={() => {
-                    setFunilParaEditar(funilAtual.id);
-                    setFunilModalOpen(true);
-                  }}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Configurar Funil
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setEtapaModalOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nova Etapa
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Stats - Compact on mobile */}
-        {funilSelecionado && (
-          <div className="flex items-center gap-4 text-xs md:text-sm">
-            <div className="flex items-center gap-1.5">
-              <Target className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary" />
-              <span className="font-semibold">{estatisticas.totalLeads}</span>
-              <span className="text-muted-foreground hidden sm:inline">leads</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <DollarSign className="h-3.5 w-3.5 md:h-4 md:w-4 text-green-500" />
-              <span className="font-semibold">
-                R$ {estatisticas.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Board */}
-      {!funilSelecionado ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
-          <Users className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground mb-4" />
-          <h2 className="text-lg md:text-xl font-semibold mb-2">Nenhum funil selecionado</h2>
-          <p className="text-sm md:text-base text-muted-foreground mb-4">
-            Crie seu primeiro funil para começar
-          </p>
-          <Button onClick={() => setFunilModalOpen(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Criar Funil
-          </Button>
-        </div>
-      ) : (
-        /* ===== KANBAN - Horizontal scroll for all screen sizes ===== */
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div 
-            className="flex-1 overflow-x-auto overflow-y-hidden pb-4 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent"
-            style={{ 
-              WebkitOverflowScrolling: 'touch',
-            }}
-          >
-            <div className="flex gap-3 md:gap-4 h-full">
-              {etapas.map((etapa, index) => (
-                <div
-                  key={etapa.id}
-                  className="flex flex-col w-[280px] md:w-80 flex-shrink-0 bg-muted/30 rounded-xl"
-                >
-                  {/* Column Header */}
-                  <div
-                    className="p-2.5 md:p-3 border-b flex items-center justify-between rounded-t-xl"
-                    style={{ borderTop: `3px solid ${etapa.cor}` }}
-                  >
-                    <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-                      <div
-                        className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: etapa.cor }}
-                      />
-                      <h3 className="font-semibold text-xs md:text-sm truncate">{etapa.nome}</h3>
-                      <Badge variant="secondary" className="text-[10px] md:text-xs px-1.5">
-                        {leadsPorEtapa[etapa.id]?.length || 0}
-                      </Badge>
-                    </div>
-                    
-                    <div className="flex items-center gap-0.5 flex-shrink-0">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-background z-50">
-                          <DropdownMenuItem onClick={() => {
-                            setEtapaParaEditar(etapa);
-                            setEtapaModalOpen(true);
-                          }}>
-                            <Settings className="h-4 w-4 mr-2" />
-                            Configurar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      
-                      {etapa.pode_criar && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => setAgendaModalOpen(true)}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Column Stats */}
-                  <div className="px-2.5 md:px-3 py-1.5 md:py-2 text-[10px] md:text-xs text-muted-foreground border-b">
-                    R$ {(estatisticas.leadsPorEtapa[index]?.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </div>
-
-                  {/* Cards */}
-                  <Droppable droppableId={etapa.id}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className={cn(
-                          "flex-1 p-2 space-y-2 overflow-y-auto transition-colors scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent",
-                          snapshot.isDraggingOver && "bg-primary/5"
-                        )}
-                        style={{ maxHeight: 'calc(100vh - 280px)' }}
-                      >
-                        {leadsPorEtapa[etapa.id]?.map((lead, leadIndex) => (
-                          <Draggable
-                            key={lead.id}
-                            draggableId={lead.id}
-                            index={leadIndex}
-                          >
-                            {(provided, snapshot) => (
-                              <CrmLeadCard
-                                lead={lead}
-                                isDragging={snapshot.isDragging}
-                                onClick={() => {
-                                  setLeadParaDetalhes(lead);
-                                  setLeadDetalhesOpen(true);
-                                }}
-                                onQuickGanho={() => marcarGanho.mutate(lead.id)}
-                                onQuickPerdido={() => marcarPerdido.mutate({ id: lead.id })}
-                                innerRef={provided.innerRef}
-                                draggableProps={provided.draggableProps}
-                                dragHandleProps={provided.dragHandleProps}
-                              />
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
-                        
-                        {/* Empty state */}
-                        {(!leadsPorEtapa[etapa.id] || leadsPorEtapa[etapa.id].length === 0) && (
-                          <div className="text-center py-6 md:py-8 text-muted-foreground text-xs md:text-sm">
-                            Nenhum lead
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </Droppable>
-                </div>
-              ))}
-
-              {/* Add Column Button */}
-              <div className="flex-shrink-0 w-[280px] md:w-80">
-                <Button
-                  variant="ghost"
-                  className="w-full h-12 border-2 border-dashed"
-                  onClick={() => setEtapaModalOpen(true)}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  <span className="text-xs md:text-sm">Adicionar Etapa</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9">
+                  <Settings className="h-4 w-4" />
                 </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setFunilModalOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Funil
+                </DropdownMenuItem>
+                {funilAtual && (
+                  <>
+                    <DropdownMenuItem onClick={() => {
+                      setFunilParaEditar(funilAtual.id);
+                      setFunilModalOpen(true);
+                    }}>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Configurar Funil
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setEtapaModalOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Nova Etapa
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Stats - Compact on mobile */}
+          {funilSelecionado && (
+            <div className="flex items-center gap-4 text-xs md:text-sm">
+              <div className="flex items-center gap-1.5">
+                <Target className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary" />
+                <span className="font-semibold">{estatisticas.totalLeads}</span>
+                <span className="text-muted-foreground hidden sm:inline">leads</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <DollarSign className="h-3.5 w-3.5 md:h-4 md:w-4 text-green-500" />
+                <span className="font-semibold">
+                  R$ {estatisticas.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
+                </span>
               </div>
             </div>
-          </div>
-        </DragDropContext>
-      )}
+          )}
         </div>
+
+        {/* Board */}
+        {!funilSelecionado ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+            <Users className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground mb-4" />
+            <h2 className="text-lg md:text-xl font-semibold mb-2">Nenhum funil selecionado</h2>
+            <p className="text-sm md:text-base text-muted-foreground mb-4">
+              Crie seu primeiro funil para começar
+            </p>
+            <Button onClick={() => setFunilModalOpen(true)} size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Funil
+            </Button>
+          </div>
+        ) : (
+          /* ===== KANBAN - Scroll contido dentro da área ===== */
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <div 
+              className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden pb-2 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              <div className="flex gap-3 md:gap-4 h-full min-w-max">
+                {etapas.map((etapa, index) => (
+                  <div
+                    key={etapa.id}
+                    className="flex flex-col w-[280px] md:w-80 flex-shrink-0 bg-muted/30 rounded-xl"
+                  >
+                    {/* Column Header */}
+                    <div
+                      className="p-2.5 md:p-3 border-b flex items-center justify-between rounded-t-xl"
+                      style={{ borderTop: `3px solid ${etapa.cor}` }}
+                    >
+                      <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+                        <div
+                          className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: etapa.cor }}
+                        />
+                        <h3 className="font-semibold text-xs md:text-sm truncate">{etapa.nome}</h3>
+                        <Badge variant="secondary" className="text-[10px] md:text-xs px-1.5">
+                          {leadsPorEtapa[etapa.id]?.length || 0}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center gap-0.5 flex-shrink-0">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-background z-50">
+                            <DropdownMenuItem onClick={() => {
+                              setEtapaParaEditar(etapa);
+                              setEtapaModalOpen(true);
+                            }}>
+                              <Settings className="h-4 w-4 mr-2" />
+                              Configurar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        
+                        {etapa.pode_criar && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setAgendaModalOpen(true)}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Column Stats */}
+                    <div className="px-2.5 md:px-3 py-1.5 md:py-2 text-[10px] md:text-xs text-muted-foreground border-b">
+                      R$ {(estatisticas.leadsPorEtapa[index]?.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </div>
+
+                    {/* Cards */}
+                    <Droppable droppableId={etapa.id}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                          className={cn(
+                            "flex-1 p-2 space-y-2 overflow-y-auto transition-colors scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent",
+                            snapshot.isDraggingOver && "bg-primary/5"
+                          )}
+                          style={{ maxHeight: 'calc(100vh - 320px)' }}
+                        >
+                          {leadsPorEtapa[etapa.id]?.map((lead, leadIndex) => (
+                            <Draggable
+                              key={lead.id}
+                              draggableId={lead.id}
+                              index={leadIndex}
+                            >
+                              {(provided, snapshot) => (
+                                <CrmLeadCard
+                                  lead={lead}
+                                  isDragging={snapshot.isDragging}
+                                  onClick={() => {
+                                    setLeadParaDetalhes(lead);
+                                    setLeadDetalhesOpen(true);
+                                  }}
+                                  onQuickGanho={() => marcarGanho.mutate(lead.id)}
+                                  onQuickPerdido={() => marcarPerdido.mutate({ id: lead.id })}
+                                  innerRef={provided.innerRef}
+                                  draggableProps={provided.draggableProps}
+                                  dragHandleProps={provided.dragHandleProps}
+                                />
+                              )}
+                            </Draggable>
+                          ))}
+                          {provided.placeholder}
+                          
+                          {/* Empty state */}
+                          {(!leadsPorEtapa[etapa.id] || leadsPorEtapa[etapa.id].length === 0) && (
+                            <div className="text-center py-6 md:py-8 text-muted-foreground text-xs md:text-sm">
+                              Nenhum lead
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </Droppable>
+                  </div>
+                ))}
+
+                {/* Add Column Button */}
+                <div className="flex-shrink-0 w-[280px] md:w-80">
+                  <Button
+                    variant="ghost"
+                    className="w-full h-12 border-2 border-dashed"
+                    onClick={() => setEtapaModalOpen(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    <span className="text-xs md:text-sm">Adicionar Etapa</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </DragDropContext>
+        )}
       </div>
 
       {/* Modals */}
