@@ -64,7 +64,6 @@ const atendimentoGroup: MenuGroup = {
   permission: "omnichannel_dashboard",
   items: [
     { icon: LayoutDashboard, label: "Dashboard", path: "/clinica/omnichannel", permission: "omnichannel_dashboard" },
-    { icon: MessageSquare, label: "Chat Interno", path: "/clinica/chat", permission: "dashboard" },
   ],
 };
 
