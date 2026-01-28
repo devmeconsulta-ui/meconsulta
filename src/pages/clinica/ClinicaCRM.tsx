@@ -155,17 +155,16 @@ export default function ClinicaCRM() {
   }
 
   return (
-    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)] overflow-hidden">
-      {/* Header com navegação - fixo no topo, não rola */}
-      <div className="shrink-0">
+    <div className="-m-4 sm:-m-6">
+      {/* Header fixo no topo */}
+      <div className="sticky top-0 z-30 bg-background -mx-4 sm:-mx-6">
         <OmniHeader />
       </div>
 
-      {/* Conteúdo do CRM - área com overflow controlado */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Header do CRM - não rola */}
-        <div className="px-3 md:px-6 pt-4 shrink-0">
-          <div className="flex flex-col gap-3 mb-4">
+      {/* Conteúdo do CRM - rola normalmente */}
+      <div className="px-3 md:px-6 py-4">
+        {/* Header do CRM */}
+        <div className="flex flex-col gap-3 mb-4">
             {/* Title + Funnel Select + Config */}
             <div className="flex items-center gap-2 md:gap-4">
               <h1 className="text-lg md:text-2xl font-bold text-foreground">CRM</h1>
@@ -379,7 +378,6 @@ export default function ClinicaCRM() {
             </div>
           </DragDropContext>
         )}
-        </div>
       </div>
 
       {/* Modals */}
