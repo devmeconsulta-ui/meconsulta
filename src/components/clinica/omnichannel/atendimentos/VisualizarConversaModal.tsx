@@ -2,20 +2,21 @@ import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
-  X,
   ArrowRightLeft,
   Download,
   Play,
   Pause,
   Check,
   CheckCheck,
+  Phone,
+  MoreVertical,
+  MessageCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -53,7 +54,7 @@ function AudioPlayer({ url }: { url: string }) {
   };
 
   return (
-    <div className="bg-muted rounded-lg p-3 flex items-center gap-3 min-w-[200px]">
+    <div className="bg-emerald-600/20 rounded-2xl p-3 flex items-center gap-3 min-w-[200px]">
       <audio
         ref={audioRef}
         src={url}
@@ -64,36 +65,31 @@ function AudioPlayer({ url }: { url: string }) {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 rounded-full"
+        className="h-10 w-10 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white"
         onClick={togglePlay}
       >
-        {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
       </Button>
       <div className="flex-1">
-        <div className="h-1 bg-muted-foreground/30 rounded-full overflow-hidden">
+        <div className="h-1.5 bg-white/30 rounded-full overflow-hidden">
           <div
-            className="h-full bg-primary transition-all"
+            className="h-full bg-white transition-all"
             style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
           />
         </div>
         <div className="flex justify-between mt-1">
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-emerald-800">
             {formatTime(currentTime)} / {formatTime(duration || 0)}
           </span>
         </div>
       </div>
-      <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
-        <a href={url} download>
-          <Download className="h-3 w-3" />
-        </a>
-      </Button>
     </div>
   );
 }
 
 function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
   const isOutgoing = mensagem.direcao === "saida";
-  const formattedTime = format(new Date(mensagem.created_at), "dd/MM/yyyy · HH:mm:ss", {
+  const formattedTime = format(new Date(mensagem.created_at), "HH:mm", {
     locale: ptBR,
   });
 
@@ -105,17 +101,21 @@ function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
             <img
               src={mensagem.arquivo_url || ""}
               alt="Imagem"
-              className="rounded-lg max-w-[250px] cursor-pointer hover:opacity-90"
+              className="rounded-lg max-w-[280px] cursor-pointer hover:opacity-90 transition-opacity"
             />
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>{mensagem.arquivo_nome || "Sem nome"}</span>
-              <Button variant="ghost" size="icon" className="h-5 w-5" asChild>
-                <a href={mensagem.arquivo_url || ""} download>
-                  <Download className="h-3 w-3" />
-                </a>
-              </Button>
+            <div className="flex items-center justify-between">
+              <span className="text-xs opacity-70">{mensagem.arquivo_nome || ""}</span>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] opacity-70">{formattedTime}</span>
+                {isOutgoing && (
+                  mensagem.status === "lida" ? (
+                    <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
+                  ) : (
+                    <CheckCheck className="h-3.5 w-3.5 opacity-60" />
+                  )
+                )}
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">{formattedTime}</p>
           </div>
         );
 
@@ -123,7 +123,16 @@ function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
         return (
           <div className="space-y-2">
             <AudioPlayer url={mensagem.arquivo_url || ""} />
-            <p className="text-xs text-muted-foreground">{formattedTime}</p>
+            <div className="flex items-center justify-end gap-1">
+              <span className="text-[10px] opacity-70">{formattedTime}</span>
+              {isOutgoing && (
+                mensagem.status === "lida" ? (
+                  <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
+                ) : (
+                  <CheckCheck className="h-3.5 w-3.5 opacity-60" />
+                )
+              )}
+            </div>
           </div>
         );
 
@@ -133,40 +142,64 @@ function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
             <video
               src={mensagem.arquivo_url || ""}
               controls
-              className="rounded-lg max-w-[250px]"
+              className="rounded-lg max-w-[280px]"
             />
-            <p className="text-xs text-muted-foreground">{formattedTime}</p>
+            <div className="flex items-center justify-end gap-1">
+              <span className="text-[10px] opacity-70">{formattedTime}</span>
+              {isOutgoing && (
+                mensagem.status === "lida" ? (
+                  <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
+                ) : (
+                  <CheckCheck className="h-3.5 w-3.5 opacity-60" />
+                )
+              )}
+            </div>
           </div>
         );
 
       case "documento":
         return (
           <div className="space-y-2">
-            <div className="flex items-center gap-2 bg-muted rounded-lg p-3">
-              <span className="text-sm">{mensagem.arquivo_nome || "Documento"}</span>
-              <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
+            <div className="flex items-center gap-3 bg-black/5 rounded-xl p-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                <Download className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{mensagem.arquivo_nome || "Documento"}</p>
+                <p className="text-xs opacity-60">Documento</p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                 <a href={mensagem.arquivo_url || ""} download>
                   <Download className="h-4 w-4" />
                 </a>
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">{formattedTime}</p>
+            <div className="flex items-center justify-end gap-1">
+              <span className="text-[10px] opacity-70">{formattedTime}</span>
+              {isOutgoing && (
+                mensagem.status === "lida" ? (
+                  <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
+                ) : (
+                  <CheckCheck className="h-3.5 w-3.5 opacity-60" />
+                )
+              )}
+            </div>
           </div>
         );
 
       default:
         return (
-          <div className="space-y-1">
-            <p className="text-sm whitespace-pre-wrap">{mensagem.conteudo}</p>
-            <div className="flex items-center justify-end gap-1">
-              <span className="text-xs text-muted-foreground">{formattedTime}</span>
+          <div>
+            <p className="text-[15px] whitespace-pre-wrap leading-relaxed">{mensagem.conteudo}</p>
+            <div className="flex items-center justify-end gap-1 mt-1">
+              <span className="text-[10px] opacity-70">{formattedTime}</span>
               {isOutgoing && (
                 mensagem.status === "lida" ? (
-                  <CheckCheck className="h-3 w-3 text-blue-500" />
+                  <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
                 ) : mensagem.status === "entregue" ? (
-                  <CheckCheck className="h-3 w-3 text-muted-foreground" />
+                  <CheckCheck className="h-3.5 w-3.5 opacity-60" />
                 ) : (
-                  <Check className="h-3 w-3 text-muted-foreground" />
+                  <Check className="h-3.5 w-3.5 opacity-60" />
                 )
               )}
             </div>
@@ -176,24 +209,27 @@ function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
   };
 
   return (
-    <div
-      className={cn(
-        "flex",
-        isOutgoing ? "justify-end" : "justify-start"
-      )}
-    >
+    <div className={cn("flex", isOutgoing ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[70%] rounded-lg p-3",
+          "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm",
           isOutgoing
-            ? "bg-green-100 text-green-900 rounded-br-none"
-            : "bg-white border shadow-sm rounded-bl-none"
+            ? "bg-[#d9fdd3] text-gray-900 rounded-br-md"
+            : "bg-white text-gray-900 rounded-bl-md"
         )}
       >
         {renderContent()}
       </div>
     </div>
   );
+}
+
+function getInitials(name: string) {
+  const parts = name.split(" ");
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
 }
 
 export function VisualizarConversaModal({
@@ -213,20 +249,45 @@ export function VisualizarConversaModal({
 
   if (!atendimento) return null;
 
+  const contactName = atendimento.contato?.nome || "Desconhecido";
+  const contactPhone = atendimento.contato?.telefone || "";
+
   return (
     <Dialog open={open} onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 gap-0">
-        {/* Header */}
-        <div className="bg-primary text-primary-foreground p-4 flex items-center justify-between rounded-t-lg">
-          <DialogTitle className="text-lg font-semibold">
-            Visualizar Conversa
-          </DialogTitle>
-          <div className="flex items-center gap-2">
+      <DialogContent className="max-w-2xl h-[85vh] flex flex-col p-0 gap-0 overflow-hidden [&>button]:hidden">
+        <DialogDescription className="sr-only">
+          Visualização da conversa com {contactName}
+        </DialogDescription>
+        
+        {/* WhatsApp-style Header */}
+        <div className="bg-[#075E54] text-white px-4 py-3 flex items-center gap-3 shrink-0">
+          <Avatar className="h-10 w-10 border-2 border-white/20">
+            <AvatarFallback className="bg-[#25D366] text-white font-semibold">
+              {getInitials(contactName)}
+            </AvatarFallback>
+          </Avatar>
+          
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-base truncate">{contactName}</h3>
+            <div className="flex items-center gap-2 text-xs text-white/70">
+              {contactPhone && <span>{contactPhone}</span>}
+              {atendimento.fila?.nome && (
+                <>
+                  <span>•</span>
+                  <Badge variant="secondary" className="bg-white/20 text-white hover:bg-white/30 text-[10px] px-1.5 py-0">
+                    {atendimento.fila.nome}
+                  </Badge>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
             {onTransferir && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-primary-foreground hover:bg-primary-foreground/20"
+                className="h-9 w-9 text-white hover:bg-white/10 rounded-full"
                 onClick={onTransferir}
                 title="Transferir conversa"
               >
@@ -236,41 +297,63 @@ export function VisualizarConversaModal({
             <Button
               variant="ghost"
               size="icon"
-              className="text-primary-foreground hover:bg-primary-foreground/20"
-              onClick={onClose}
+              className="h-9 w-9 text-white hover:bg-white/10 rounded-full"
+              title="Ligar"
             >
-              <X className="h-5 w-5" />
+              <Phone className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-white hover:bg-white/10 rounded-full"
+              title="Mais opções"
+            >
+              <MoreVertical className="h-5 w-5" />
             </Button>
           </div>
         </div>
 
-        {/* Info Bar */}
-        <div className="px-6 py-3 border-b flex items-center justify-between bg-background">
-          <span className="text-sm font-medium text-primary">
-            {atendimento.fila?.nome || "Sem fila"}
-          </span>
-          <span className="text-sm">
-            <span className="text-muted-foreground">Cliente:</span>{" "}
-            <span className="font-medium">{atendimento.contato?.nome || "Desconhecido"}</span>
-          </span>
-        </div>
-
-        {/* Messages Area */}
+        {/* Messages Area - WhatsApp background pattern */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#e5ddd5]"
+          className="flex-1 overflow-y-auto p-4 space-y-3"
+          style={{
+            backgroundColor: "#ECE5DD",
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8c4be' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }}
         >
           {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+            <div className="flex flex-col items-center justify-center h-full gap-3">
+              <div className="animate-spin h-10 w-10 border-4 border-[#25D366] border-t-transparent rounded-full" />
+              <p className="text-sm text-gray-500">Carregando mensagens...</p>
             </div>
           ) : mensagens.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              Nenhuma mensagem nesta conversa
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-500">
+              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                <MessageCircle className="h-8 w-8 text-gray-400" />
+              </div>
+              <p className="text-sm">Nenhuma mensagem nesta conversa</p>
             </div>
           ) : (
-            mensagens.map((msg) => <MessageBubble key={msg.id} mensagem={msg} />)
+            <>
+              {/* Date separator */}
+              <div className="flex justify-center mb-4">
+                <span className="bg-white/80 text-gray-600 text-xs px-3 py-1 rounded-lg shadow-sm">
+                  {format(new Date(mensagens[0]?.created_at || new Date()), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                </span>
+              </div>
+              {mensagens.map((msg) => (
+                <MessageBubble key={msg.id} mensagem={msg} />
+              ))}
+            </>
           )}
+        </div>
+
+        {/* Footer info */}
+        <div className="bg-[#F0F2F5] px-4 py-3 text-center border-t shrink-0">
+          <p className="text-xs text-gray-500">
+            Visualização somente leitura • Protocolo #{atendimento.protocolo}
+          </p>
         </div>
       </DialogContent>
     </Dialog>
