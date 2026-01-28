@@ -107,42 +107,52 @@ export default function OmniContatos() {
     setCreatingConversa(contato.id);
     try {
       // Check if there's already an open atendimento for this contact
-      const { data: existingAtendimento } = await supabase
+      const existingResult = await (supabase
         .from("omni_atendimentos")
         .select("id")
         .eq("clinica_id", clinicaId)
         .eq("contato_id", contato.id)
         .in("status", ["aguardando", "em_atendimento"])
-        .maybeSingle();
+        .maybeSingle() as unknown as Promise<{ data: { id: string } | null; error: Error | null }>);
 
-      if (existingAtendimento) {
-        // Navigate to existing conversation
+      if (existingResult.data) {
         toast.info("Atendimento já existe, abrindo conversa...");
-        navigate(`/clinica/omnichannel/atendimentos?atendimento=${existingAtendimento.id}`);
+        navigate(`/clinica/omnichannel/atendimentos?atendimento=${existingResult.data.id}`);
         return;
       }
 
+      // Get the usuarios_clinica record for the current user
+      let agenteId: string | null = null;
+      
+      // @ts-ignore - Supabase type instantiation issue
+      const ucResult = await supabase.from("usuarios_clinica").select("id").eq("clinica_id", clinicaId).eq("usuario_id", currentUser.id);
+      
+      if (ucResult.data && ucResult.data.length > 0) {
+        agenteId = (ucResult.data[0] as any).id;
+      }
+
       // Create new atendimento
-      const { data: newAtendimento, error } = await supabase
+      const insertResult = await (supabase
         .from("omni_atendimentos")
         .insert({
           clinica_id: clinicaId,
           contato_id: contato.id,
-          agente_id: currentUser.id,
-          status: "em_atendimento",
+          agente_id: agenteId,
+          status: agenteId ? "em_atendimento" : "aguardando",
           canal: "whatsapp",
           prioridade: "normal",
           data_abertura: new Date().toISOString(),
         })
         .select("id")
-        .single();
+        .single() as unknown as Promise<{ data: { id: string } | null; error: Error | null }>);
 
-      if (error) throw error;
+      if (insertResult.error) throw insertResult.error;
+      if (!insertResult.data) throw new Error("No data returned");
 
       toast.success("Conversa iniciada!");
-      navigate(`/clinica/omnichannel/atendimentos?atendimento=${newAtendimento.id}`);
-    } catch (error) {
-      console.error("Error creating atendimento:", error);
+      navigate(`/clinica/omnichannel/atendimentos?atendimento=${insertResult.data.id}`);
+    } catch (err) {
+      console.error("Error creating atendimento:", err);
       toast.error("Erro ao criar conversa");
     } finally {
       setCreatingConversa(null);
