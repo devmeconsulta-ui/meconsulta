@@ -65,12 +65,12 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
         .from("confirmacoes_agenda")
         .select(`
           *,
-          consulta:consultas(
+          consulta:consultas!confirmacoes_agenda_consulta_id_fkey(
             id,
             data_hora,
             status_consulta,
-            paciente:pacientes(id, nome, telefone),
-            medico:medicos(id, nome, especialidade)
+            paciente:pacientes!consultas_paciente_id_fkey(id, nome, telefone),
+            medico:medicos!consultas_medico_id_fkey(id, nome, especialidade)
           )
         `)
         .eq("clinica_id", clinicaId)
@@ -135,7 +135,8 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
           status_pagamento,
           paciente:pacientes!consultas_paciente_id_fkey(id, nome, telefone),
           medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
-          local:locais_atendimento!consultas_local_id_fkey(id, nome_local)
+          local:locais_atendimento!consultas_local_id_fkey(id, nome_local),
+          clinica:clinicas!consultas_clinica_id_fkey(id, nome_fantasia)
         `)
         .eq("clinica_id", clinicaId)
         .not("paciente_id", "is", null) // Apenas consultas com paciente vinculado
