@@ -77,6 +77,7 @@ import OmniAgentes from "./pages/clinica/omnichannel/OmniAgentes";
 import OmniFilas from "./pages/clinica/omnichannel/OmniFilas";
 import OmniAtendimentos from "./pages/clinica/omnichannel/OmniAtendimentos";
 import OmniContatos from "./pages/clinica/omnichannel/OmniContatos";
+import OmniRelatorios from "./pages/clinica/omnichannel/OmniRelatorios";
 
 const queryClient = new QueryClient();
 
@@ -136,6 +137,7 @@ const App = () => (
               <Route path="omnichannel/filas" element={<OmniFilas />} />
               <Route path="omnichannel/atendimentos" element={<OmniAtendimentos />} />
               <Route path="omnichannel/contatos" element={<OmniContatos />} />
+              <Route path="omnichannel/relatorios" element={<OmniRelatorios />} />
               <Route path="medicos" element={<ClinicaMedicos />} />
               <Route path="consultas" element={<ClinicaConsultas />} />
               <Route path="pacientes" element={<ClinicaPacientes />} />
