@@ -83,15 +83,15 @@ Deno.serve(async (req: Request) => {
 
     const instanceName = fila.instancia.evolution_instance_name;
 
-    // Buscar dados das consultas
+    // Buscar dados das consultas - usando FK explícita para evitar ambiguidade
     const { data: consultas, error: consultasError } = await supabase
       .from("consultas")
       .select(`
         id,
         data_hora,
-        paciente:pacientes(id, nome, telefone),
-        medico:medicos(id, nome, especialidade),
-        local:locais_atendimento(id, nome_local, endereco, cidade, estado)
+        paciente:pacientes!consultas_paciente_id_fkey(id, nome, telefone),
+        medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
+        local:locais_atendimento!consultas_local_id_fkey(id, nome_local, endereco, cidade, estado)
       `)
       .in("id", consultasToProcess);
 
