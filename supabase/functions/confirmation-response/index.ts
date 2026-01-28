@@ -43,23 +43,29 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Buscar confirmação pelo token
+    // Buscar confirmação pelo token - usando FK explícita para evitar ambiguidade
     const { data: confirmacao, error: confirmacaoError } = await supabase
       .from("confirmacoes_agenda")
       .select(`
         *,
-        consulta:consultas(
+        consulta:consultas!confirmacoes_agenda_consulta_id_fkey(
           id,
           data_hora,
           status_consulta,
-          paciente:pacientes(id, nome),
-          medico:medicos(id, nome, especialidade),
-          local:locais_atendimento(id, nome_local, endereco, cidade, estado),
-          clinica:clinicas(id, nome_fantasia, logo_url)
+          paciente:pacientes!consultas_paciente_id_fkey(id, nome),
+          medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
+          local:locais_atendimento!consultas_local_id_fkey(id, nome_local, endereco, cidade, estado),
+          clinica:clinicas!consultas_clinica_id_fkey(id, nome_fantasia, logo_url)
         )
       `)
       .eq("token_confirmacao", token)
       .single();
+
+    console.log("Buscando token:", token);
+    console.log("Confirmação encontrada:", confirmacao ? "sim" : "não");
+    if (confirmacaoError) {
+      console.log("Erro:", confirmacaoError.message);
+    }
 
     if (confirmacaoError || !confirmacao) {
       return new Response(
