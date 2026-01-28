@@ -385,13 +385,13 @@ export default function OmniConfirmacaoAgenda() {
                     <ChevronDown className="h-3 w-3 ml-2 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <div className="p-2 space-y-1">
+                <PopoverContent className="w-[280px] p-2" align="start">
+                  <div className="space-y-1">
                     {[
-                      { value: "todos", label: "Todos os períodos" },
+                      { value: "todos", label: "Todos" },
                       { value: "hoje", label: "Hoje" },
-                      { value: "ultimos7", label: "Últimos 7 dias" },
-                      { value: "ultimos30", label: "Últimos 30 dias" },
+                      { value: "ultimos7", label: "7 dias" },
+                      { value: "ultimos30", label: "30 dias" },
                       { value: "mesAtual", label: "Mês atual" },
                       { value: "mesAnterior", label: "Mês anterior" },
                     ].map((opt) => (
@@ -399,7 +399,7 @@ export default function OmniConfirmacaoAgenda() {
                         key={opt.value}
                         variant={globalPeriodo === opt.value ? "default" : "ghost"}
                         size="sm"
-                        className="w-full justify-start"
+                        className="w-full justify-start text-sm h-8"
                         onClick={() => {
                           setGlobalPeriodo(opt.value);
                           setGlobalDateRange({ from: undefined, to: undefined });
@@ -409,7 +409,7 @@ export default function OmniConfirmacaoAgenda() {
                       </Button>
                     ))}
                     <div className="border-t pt-2 mt-2">
-                      <p className="text-xs text-muted-foreground mb-2 px-2">Período personalizado:</p>
+                      <p className="text-xs text-muted-foreground mb-2">Personalizado:</p>
                       <CalendarComponent
                         mode="range"
                         selected={globalDateRange}
@@ -419,9 +419,9 @@ export default function OmniConfirmacaoAgenda() {
                             setGlobalPeriodo("personalizado");
                           }
                         }}
-                        numberOfMonths={2}
+                        numberOfMonths={1}
                         locale={ptBR}
-                        className="rounded-md border"
+                        className="rounded-md border text-sm"
                       />
                     </div>
                   </div>
