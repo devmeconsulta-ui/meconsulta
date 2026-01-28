@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmacaoAgenda } from "@/hooks/useConfirmacaoAgenda";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -49,8 +51,12 @@ import {
   Settings2,
   History,
   BarChart3,
+  Search,
+  CalendarDays,
+  Timer,
+  Users,
 } from "lucide-react";
-import { format, addDays, isToday, isTomorrow } from "date-fns";
+import { format, addDays, isToday, isTomorrow, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   AreaChart,
@@ -115,10 +121,18 @@ export default function OmniConfirmacaoAgenda() {
   const [selectedFila, setSelectedFila] = useState<string>("");
   const [mensagemTemplate, setMensagemTemplate] = useState(MENSAGEM_PADRAO);
   const [intervaloEnvio, setIntervaloEnvio] = useState([4]); // segundos
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filterPeriodo, setFilterPeriodo] = useState<string>("proximos7");
+  const [filterPeriodo, setFilterPeriodo] = useState<string>("amanha");
   const [filterMedico, setFilterMedico] = useState<string>("todos");
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Novos estados para agendamento
+  const [modoEnvio, setModoEnvio] = useState<"agora" | "agendar">("agora");
+  const [horarioAgendado, setHorarioAgendado] = useState("06:00");
+
+  // Carregar automaticamente consultas de amanhã ao montar
+  useEffect(() => {
+    setFilterPeriodo("amanha");
+  }, []);
 
   // Filtrar consultas disponíveis
   const consultasFiltradas = useMemo(() => {
@@ -130,6 +144,12 @@ export default function OmniConfirmacaoAgenda() {
       result = result.filter((c: any) => isToday(new Date(c.data_hora)));
     } else if (filterPeriodo === "amanha") {
       result = result.filter((c: any) => isTomorrow(new Date(c.data_hora)));
+    } else if (filterPeriodo === "proximos3") {
+      const limite = addDays(hoje, 3);
+      result = result.filter((c: any) => {
+        const dataConsulta = new Date(c.data_hora);
+        return dataConsulta >= startOfDay(hoje) && dataConsulta <= endOfDay(limite);
+      });
     } else if (filterPeriodo === "proximos7") {
       const limite = addDays(hoje, 7);
       result = result.filter((c: any) => new Date(c.data_hora) <= limite);
@@ -149,6 +169,7 @@ export default function OmniConfirmacaoAgenda() {
       result = result.filter(
         (c: any) =>
           c.paciente?.nome?.toLowerCase().includes(term) ||
+          c.paciente?.telefone?.includes(term) ||
           c.medico?.nome?.toLowerCase().includes(term)
       );
     }
@@ -407,6 +428,70 @@ export default function OmniConfirmacaoAgenda() {
                     )}
                   </div>
 
+                  {/* Modo de envio */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium">Quando enviar?</label>
+                    <RadioGroup value={modoEnvio} onValueChange={(v) => setModoEnvio(v as "agora" | "agendar")}>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="agora" id="agora" />
+                        <Label htmlFor="agora" className="text-sm cursor-pointer">
+                          Enviar agora
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="agendar" id="agendar" />
+                        <Label htmlFor="agendar" className="text-sm cursor-pointer">
+                          Agendar envio
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                    
+                    {modoEnvio === "agendar" && (
+                      <div className="space-y-2 pl-6">
+                        <label className="text-xs text-muted-foreground">Horário do envio</label>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={horarioAgendado === "06:00" ? "default" : "outline"}
+                            onClick={() => setHorarioAgendado("06:00")}
+                            className="flex-1"
+                          >
+                            <Timer className="h-3 w-3 mr-1" />
+                            6h
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={horarioAgendado === "07:00" ? "default" : "outline"}
+                            onClick={() => setHorarioAgendado("07:00")}
+                            className="flex-1"
+                          >
+                            7h
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={horarioAgendado === "08:00" ? "default" : "outline"}
+                            onClick={() => setHorarioAgendado("08:00")}
+                            className="flex-1"
+                          >
+                            8h
+                          </Button>
+                        </div>
+                        <Input
+                          type="time"
+                          value={horarioAgendado}
+                          onChange={(e) => setHorarioAgendado(e.target.value)}
+                          className="text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          As mensagens serão enviadas automaticamente no horário selecionado
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Intervalo */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium">
@@ -432,7 +517,7 @@ export default function OmniConfirmacaoAgenda() {
                     <Textarea
                       value={mensagemTemplate}
                       onChange={(e) => setMensagemTemplate(e.target.value)}
-                      rows={10}
+                      rows={8}
                       className="text-xs"
                     />
                     <p className="text-xs text-muted-foreground">
@@ -459,6 +544,11 @@ export default function OmniConfirmacaoAgenda() {
                           ({sendProgress.current}/{sendProgress.total})
                         </span>
                       </>
+                    ) : modoEnvio === "agendar" ? (
+                      <>
+                        <Clock className="h-4 w-4 mr-2" />
+                        Agendar {selectedConsultas.length} para {horarioAgendado}
+                      </>
                     ) : (
                       <>
                         <Send className="h-4 w-4 mr-2" />
@@ -480,76 +570,132 @@ export default function OmniConfirmacaoAgenda() {
               {/* Lista de consultas */}
               <Card className="lg:col-span-2">
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      Consultas Disponíveis ({consultasFiltradas.length})
-                    </CardTitle>
-                  </div>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        Consultas Disponíveis ({consultasFiltradas.length})
+                      </CardTitle>
+                      <Badge variant="outline" className="text-xs">
+                        {selectedConsultas.length} selecionadas
+                      </Badge>
+                    </div>
 
-                  {/* Filtros */}
-                  <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm" className="gap-2">
-                        <Filter className="h-4 w-4" />
-                        Filtros
-                        <ChevronDown
-                          className={`h-4 w-4 transition-transform ${
-                            filtersOpen ? "rotate-180" : ""
-                          }`}
-                        />
+                    {/* Filtros rápidos por período */}
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant={filterPeriodo === "hoje" ? "default" : "outline"}
+                        onClick={() => setFilterPeriodo("hoje")}
+                        className="h-8"
+                      >
+                        <CalendarDays className="h-3 w-3 mr-1" />
+                        Hoje
+                        {filterPeriodo !== "hoje" && consultasDisponiveis.filter((c: any) => isToday(new Date(c.data_hora))).length > 0 && (
+                          <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+                            {consultasDisponiveis.filter((c: any) => isToday(new Date(c.data_hora))).length}
+                          </Badge>
+                        )}
                       </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <Button
+                        size="sm"
+                        variant={filterPeriodo === "amanha" ? "default" : "outline"}
+                        onClick={() => setFilterPeriodo("amanha")}
+                        className="h-8"
+                      >
+                        <CalendarDays className="h-3 w-3 mr-1" />
+                        Amanhã
+                        {filterPeriodo !== "amanha" && consultasDisponiveis.filter((c: any) => isTomorrow(new Date(c.data_hora))).length > 0 && (
+                          <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+                            {consultasDisponiveis.filter((c: any) => isTomorrow(new Date(c.data_hora))).length}
+                          </Badge>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={filterPeriodo === "proximos3" ? "default" : "outline"}
+                        onClick={() => setFilterPeriodo("proximos3")}
+                        className="h-8"
+                      >
+                        Próx. 3 dias
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={filterPeriodo === "proximos7" ? "default" : "outline"}
+                        onClick={() => setFilterPeriodo("proximos7")}
+                        className="h-8"
+                      >
+                        Próx. 7 dias
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={filterPeriodo === "todos" ? "default" : "outline"}
+                        onClick={() => setFilterPeriodo("todos")}
+                        className="h-8"
+                      >
+                        Todos
+                      </Button>
+                    </div>
+
+                    {/* Busca e filtro por médico */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder="Buscar paciente ou médico..."
+                          placeholder="Buscar por paciente, telefone..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-9"
                         />
-                        <Select
-                          value={filterPeriodo}
-                          onValueChange={setFilterPeriodo}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Período" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="hoje">Hoje</SelectItem>
-                            <SelectItem value="amanha">Amanhã</SelectItem>
-                            <SelectItem value="proximos7">
-                              Próximos 7 dias
-                            </SelectItem>
-                            <SelectItem value="proximos30">
-                              Próximos 30 dias
-                            </SelectItem>
-                            <SelectItem value="todos">Todos</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select
-                          value={filterMedico}
-                          onValueChange={setFilterMedico}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Médico" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="todos">Todos os médicos</SelectItem>
-                            {medicos.map((m) => (
-                              <SelectItem key={m.id} value={m.id}>
-                                {m.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                       </div>
-                    </CollapsibleContent>
-                  </Collapsible>
+                      <Select
+                        value={filterMedico}
+                        onValueChange={setFilterMedico}
+                      >
+                        <SelectTrigger>
+                          <Stethoscope className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <SelectValue placeholder="Filtrar por médico" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todos os médicos</SelectItem>
+                          {medicos.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Ações rápidas */}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSelectAll(true)}
+                        disabled={consultasFiltradas.length === 0}
+                        className="h-8"
+                      >
+                        <Users className="h-3 w-3 mr-1" />
+                        Selecionar todos ({consultasFiltradas.length})
+                      </Button>
+                      {selectedConsultas.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setSelectedConsultas([])}
+                          className="h-8"
+                        >
+                          Limpar seleção
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="rounded-md border overflow-hidden">
+                  <div className="rounded-md border overflow-hidden max-h-[500px] overflow-y-auto">
                     <Table>
-                      <TableHeader>
+                      <TableHeader className="sticky top-0 bg-background z-10">
                         <TableRow>
                           <TableHead className="w-12">
                             <Checkbox
@@ -577,12 +723,19 @@ export default function OmniConfirmacaoAgenda() {
                         ) : consultasFiltradas.length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={5} className="text-center py-8">
-                              Nenhuma consulta disponível para confirmação
+                              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                                <Calendar className="h-8 w-8 opacity-50" />
+                                <p>Nenhuma consulta disponível para este período</p>
+                                <p className="text-xs">Tente selecionar outro período ou remover os filtros</p>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ) : (
                           consultasFiltradas.map((consulta) => (
-                            <TableRow key={consulta.id}>
+                            <TableRow 
+                              key={consulta.id}
+                              className={selectedConsultas.includes(consulta.id) ? "bg-primary/5" : ""}
+                            >
                               <TableCell>
                                 <Checkbox
                                   checked={selectedConsultas.includes(consulta.id)}
