@@ -64,17 +64,6 @@ serve(async (req) => {
         integration: "WHATSAPP-BAILEYS",
         token: EVOLUTION_API_KEY,
         qrcode: true,
-        webhookUrl: webhookUrl,
-        webhookByEvents: true,
-        webhookBase64: true,
-        webhookEvents: [
-          "MESSAGES_UPSERT",
-          "MESSAGES_UPDATE",
-          "MESSAGES_DELETE",
-          "CONNECTION_UPDATE",
-          "QRCODE_UPDATED",
-          "SEND_MESSAGE",
-        ],
       }),
     });
 
@@ -90,6 +79,44 @@ serve(async (req) => {
 
     console.log("Evolution instance created:", evolutionData);
 
+    // Configurar webhook separadamente (Evolution API v2)
+    console.log(`Configuring webhook for instance: ${evolutionInstanceName}`);
+    
+    const webhookConfig = {
+      webhook: {
+        enabled: true,
+        url: webhookUrl,
+        webhookByEvents: true,
+        webhookBase64: false,
+        events: [
+          "MESSAGES_UPSERT",
+          "MESSAGES_UPDATE",
+          "MESSAGES_DELETE",
+          "MESSAGES_SET",
+          "CONNECTION_UPDATE",
+          "SEND_MESSAGE",
+        ],
+      },
+    };
+
+    const webhookResponse = await fetch(`${EVOLUTION_API_URL}/webhook/set/${evolutionInstanceName}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": EVOLUTION_API_KEY,
+      },
+      body: JSON.stringify(webhookConfig),
+    });
+
+    const webhookData = await webhookResponse.json();
+
+    if (!webhookResponse.ok) {
+      console.warn("Webhook configuration warning:", webhookData);
+      // Não falha se o webhook não configurar, apenas loga o aviso
+    } else {
+      console.log("Webhook configured successfully:", webhookData);
+    }
+
     // Salvar instância no banco de dados
     const { data: instancia, error: dbError } = await supabase
       .from("omni_instancias")
@@ -103,6 +130,8 @@ serve(async (req) => {
         configuracoes: {
           integration: "WHATSAPP-BAILEYS",
           created_at_evolution: evolutionData,
+          webhook_config: webhookConfig,
+          webhook_configured: webhookResponse.ok,
         },
       })
       .select()
@@ -123,6 +152,8 @@ serve(async (req) => {
         success: true,
         instancia,
         evolution_data: evolutionData,
+        webhook_configured: webhookResponse.ok,
+        webhook_data: webhookData,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
