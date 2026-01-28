@@ -238,7 +238,112 @@ export function FilaFilterAccordion({
             );
           })}
 
-          {filas.length === 0 && (
+          {/* Atendimentos sem fila */}
+          {(() => {
+            const semFilaAtendimentos = atendimentos.filter(
+              (a) => !a.fila_id && a.status !== "finalizado"
+            );
+            const semFilaCount = semFilaAtendimentos.length;
+            const semFilaExpanded = expandedFilas.includes("sem_fila");
+
+            if (semFilaCount === 0 && filas.length > 0) return null;
+
+            return (
+              <Collapsible
+                open={semFilaExpanded}
+                onOpenChange={() => toggleExpanded("sem_fila")}
+              >
+                <div className="rounded-lg border bg-background border-dashed border-muted-foreground/30">
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-gray-400" />
+                        <span className="text-sm font-medium truncate text-muted-foreground">
+                          Sem Fila
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {semFilaCount > 0 && (
+                          <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-2 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                            {semFilaCount}
+                          </span>
+                        )}
+                        {semFilaExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
+
+                  <CollapsibleContent>
+                    <div className="max-h-64 overflow-y-auto">
+                      {semFilaAtendimentos.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-4">
+                          Nenhum atendimento sem fila
+                        </p>
+                      ) : (
+                        semFilaAtendimentos.map((atendimento) => (
+                          <div
+                            key={atendimento.id}
+                            className="flex items-center justify-between px-3 py-2.5 border-t hover:bg-muted/30 cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <MessageCircle className="w-4 h-4 text-muted-foreground shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                  {atendimento.contato?.nome || "Contato"}
+                                </p>
+                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <span>⏱</span>
+                                  {formatTimeAgo(atendimento.data_abertura)}
+                                </p>
+                              </div>
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  size="icon" 
+                                  className="h-7 w-7 rounded-full bg-amber-400 hover:bg-amber-500 text-amber-900 shrink-0"
+                                >
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48 z-[100] bg-popover border shadow-lg">
+                                <DropdownMenuItem onClick={() => onTransferir?.(atendimento)}>
+                                  <ArrowRightLeft className="w-4 h-4 mr-2" />
+                                  Transferir
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onVisualizarConversa?.(atendimento)}>
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  Visualizar conversa
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <Tag className="w-4 h-4 mr-2" />
+                                  Alterar etiqueta
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => onEncerrar?.(atendimento)}
+                                >
+                                  <XCircle className="w-4 h-4 mr-2" />
+                                  Encerrar atendimento
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+            );
+          })()}
+
+          {filas.length === 0 && atendimentos.filter((a) => !a.fila_id && a.status !== "finalizado").length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
               Nenhuma fila configurada
             </p>

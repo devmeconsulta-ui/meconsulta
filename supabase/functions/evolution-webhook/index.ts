@@ -151,6 +151,22 @@ serve(async (req) => {
           console.log(`Contact found: ${contato.id}`);
         }
 
+        // Buscar fila padrão associada à instância (mover para antes)
+        console.log(`Looking for fila with instancia_id: ${instanciaData.id}`);
+        
+        const { data: fila, error: filaError } = await supabase
+          .from("omni_filas")
+          .select("id, nome")
+          .eq("instancia_id", instanciaData.id)
+          .eq("ativo", true)
+          .limit(1)
+          .single();
+        
+        if (filaError && filaError.code !== "PGRST116") {
+          console.log(`Fila query error:`, filaError.code, filaError.message);
+        }
+        console.log(`Found fila:`, fila ? `${fila.id} - ${fila.nome}` : "none");
+
         // Buscar atendimento ativo ou criar um novo
         let { data: atendimento } = await supabase
           .from("omni_atendimentos")
@@ -163,23 +179,7 @@ serve(async (req) => {
           .single();
 
         if (!atendimento) {
-          // Buscar fila padrão associada à instância
-          console.log(`Looking for fila with instancia_id: ${instanciaData.id}`);
-          
-          const { data: fila, error: filaError } = await supabase
-            .from("omni_filas")
-            .select("id, nome")
-            .eq("instancia_id", instanciaData.id)
-            .eq("ativo", true)
-            .limit(1)
-            .single();
-          
-          if (filaError && filaError.code !== "PGRST116") {
-            console.log(`Fila query error:`, filaError.code, filaError.message);
-          }
-          console.log(`Found fila:`, fila ? `${fila.id} - ${fila.nome}` : "none");
-
-          // Criar novo atendimento
+          // Criar novo atendimento com a fila já buscada
           const { data: novoAtendimento, error: atendimentoError } = await supabase
             .from("omni_atendimentos")
             .insert({
@@ -197,9 +197,19 @@ serve(async (req) => {
             break;
           }
           atendimento = novoAtendimento;
-          console.log(`Atendimento created: ${atendimento.id}`);
+          console.log(`Atendimento created: ${atendimento.id}, fila: ${fila?.nome || 'none'}`);
         } else {
           console.log(`Atendimento found: ${atendimento.id}`);
+          
+          // Se o atendimento existente não tem fila mas deveria ter, atualizar
+          if (!atendimento.fila_id && fila?.id) {
+            console.log(`Updating atendimento ${atendimento.id} with fila ${fila.nome}`);
+            await supabase
+              .from("omni_atendimentos")
+              .update({ fila_id: fila.id })
+              .eq("id", atendimento.id);
+            atendimento.fila_id = fila.id;
+          }
         }
 
         // Verificar se a mensagem já existe (evitar duplicatas)
