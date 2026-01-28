@@ -61,6 +61,14 @@ interface Paciente {
   cpf: string | null;
 }
 
+interface OmniContato {
+  id: string;
+  nome: string;
+  telefone: string;
+  documento: string | null;
+  email: string | null;
+}
+
 interface LocalAtendimento {
   id: string;
   nome_local: string;
@@ -119,6 +127,7 @@ export function AgendaInternaModal({
   const [selectedPaciente, setSelectedPaciente] = useState<Paciente | null>(null);
   const [showNewPatient, setShowNewPatient] = useState(false);
   const [showHistorico, setShowHistorico] = useState(false);
+  const [omniContatos, setOmniContatos] = useState<OmniContato[]>([]);
   const [historicoConsultas, setHistoricoConsultas] = useState<any[]>([]);
   const [useCpf, setUseCpf] = useState(true);
   const [hasDesconto, setHasDesconto] = useState(false);
@@ -302,6 +311,7 @@ export function AgendaInternaModal({
   }
 
   async function searchPacientes(term: string) {
+    // Search patients
     const query = supabase
       .from("pacientes")
       .select("id, nome, telefone, cpf")
@@ -313,11 +323,43 @@ export function AgendaInternaModal({
 
     const { data } = await query.limit(10);
     setPacientes(data || []);
+
+    // Also search omni_contatos if clinicaId is available
+    if (clinicaId && term && term.length >= 2) {
+      const phoneQuery = term.replace(/\D/g, "");
+      let contatosQuery = supabase
+        .from("omni_contatos")
+        .select("id, nome, telefone, documento, email")
+        .eq("clinica_id", clinicaId);
+
+      if (phoneQuery.length >= 4) {
+        contatosQuery = contatosQuery.ilike("telefone", `%${phoneQuery}%`);
+      } else {
+        contatosQuery = contatosQuery.ilike("nome", `%${term}%`);
+      }
+
+      const { data: contatosData } = await contatosQuery.limit(5);
+      setOmniContatos(contatosData || []);
+    } else {
+      setOmniContatos([]);
+    }
   }
 
   function handleSearchChange(value: string) {
     setSearchTerm(value);
     searchPacientes(value);
+  }
+
+  function selectContato(contato: OmniContato) {
+    setSelectedPaciente(null);
+    setShowNewPatient(true);
+    setFormData({
+      ...formData,
+      nome: contato.nome,
+      telefone: contato.telefone || "",
+      cpf: contato.documento || "",
+    });
+    setOmniContatos([]);
   }
 
   function selectPaciente(paciente: Paciente) {
@@ -585,6 +627,28 @@ export function AgendaInternaModal({
                           <p className="text-xs text-muted-foreground flex items-center gap-1">
                             <Lock className="h-3 w-3" />
                             {maskPhone(paciente.telefone)}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Contatos do Omnichannel */}
+                  {omniContatos.length > 0 && searchTerm && (
+                    <div className="border rounded-lg max-h-32 overflow-y-auto bg-background shadow-lg border-primary/30">
+                      <div className="px-2 py-1 bg-primary/10 text-xs font-medium text-primary">
+                        Contatos Cadastrados
+                      </div>
+                      {omniContatos.map((contato) => (
+                        <button
+                          key={contato.id}
+                          type="button"
+                          className="w-full p-2 text-left hover:bg-muted transition-colors border-b last:border-b-0 text-sm"
+                          onClick={() => selectContato(contato)}
+                        >
+                          <p className="font-medium">{contato.nome}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {contato.telefone} {contato.email && `• ${contato.email}`}
                           </p>
                         </button>
                       ))}

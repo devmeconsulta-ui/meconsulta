@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,13 +37,17 @@ import {
   MessageSquare,
   Link2,
   Loader2,
+  Upload,
+  Download,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
+import { ImportarContatosModal } from "@/components/clinica/omnichannel/ImportarContatosModal";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import * as XLSX from "xlsx";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
@@ -74,6 +77,7 @@ export default function OmniContatos() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [showNovoContato, setShowNovoContato] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingContato, setEditingContato] = useState<OmniContato | null>(null);
 
   const [formData, setFormData] = useState({
@@ -85,6 +89,35 @@ export default function OmniContatos() {
     empresa: "",
     observacoes: "",
   });
+
+  // Export function
+  const handleExportContatos = () => {
+    if (contatos.length === 0) {
+      toast.error("Não há contatos para exportar");
+      return;
+    }
+
+    const exportData = contatos.map(c => ({
+      "Nome": c.nome,
+      "Telefone": c.telefone,
+      "CPF/CNPJ": c.documento || "",
+      "E-mail": c.email || "",
+      "Instagram": c.instagram || "",
+      "Empresa": c.empresa || "",
+      "Observações": c.observacoes || "",
+      "Data Cadastro": format(new Date(c.created_at), "dd/MM/yyyy", { locale: ptBR }),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const colWidths = Object.keys(exportData[0]).map(k => ({ wch: Math.max(k.length + 2, 18) }));
+    worksheet["!cols"] = colWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Contatos");
+    
+    XLSX.writeFile(workbook, `contatos_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    toast.success("Contatos exportados com sucesso!");
+  };
 
   const { data: contatos = [], isLoading } = useQuery({
     queryKey: ["omni-contatos", clinicaId],
@@ -237,6 +270,15 @@ export default function OmniContatos() {
             Gerencie os contatos do atendimento
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={handleExportContatos} className="flex-1 sm:flex-none">
+            <Download className="h-4 w-4 mr-2" />
+            Exportar
+          </Button>
+          <Button variant="outline" onClick={() => setShowImportModal(true)} className="flex-1 sm:flex-none">
+            <Upload className="h-4 w-4 mr-2" />
+            Importar
+          </Button>
         <Dialog
           open={showNovoContato || !!editingContato}
           onOpenChange={(open) => {
@@ -359,7 +401,21 @@ export default function OmniContatos() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
+
+      {/* Modal de Importação */}
+      {clinicaId && (
+        <ImportarContatosModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          clinicaId={clinicaId}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["omni-contatos"] });
+            setShowImportModal(false);
+          }}
+        />
+      )}
 
       {/* Busca */}
       <Card>
