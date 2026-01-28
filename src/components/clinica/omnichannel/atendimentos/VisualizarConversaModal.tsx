@@ -86,7 +86,7 @@ function AudioPlayer({ url }: { url: string }) {
   );
 }
 
-function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
+function MessageBubble({ mensagem, agenteNome }: { mensagem: OmniMensagem; agenteNome?: string }) {
   const isOutgoing = mensagem.direcao === "saida";
   const formattedTime = format(new Date(mensagem.created_at), "HH:mm", {
     locale: ptBR,
@@ -217,6 +217,9 @@ function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
             : "bg-card text-foreground rounded-bl-md border"
         )}
       >
+        {isOutgoing && agenteNome && (
+          <p className="text-xs font-bold text-primary mb-1">{agenteNome}</p>
+        )}
         {renderContent()}
       </div>
     </div>
@@ -335,7 +338,7 @@ export function VisualizarConversaModal({
                 </span>
               </div>
               {mensagens.map((msg) => (
-                <MessageBubble key={msg.id} mensagem={msg} />
+                <MessageBubble key={msg.id} mensagem={msg} agenteNome={atendimento.agente?.nome} />
               ))}
             </>
           )}
