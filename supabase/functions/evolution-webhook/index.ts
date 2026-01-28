@@ -54,8 +54,10 @@ serve(async (req) => {
 
     const clinica_id = instanciaData.clinica_id;
 
-    // Processar eventos
-    switch (event) {
+    // Processar eventos - normalizar para maiúsculo
+    const eventNormalized = event?.toUpperCase?.() || event;
+    
+    switch (eventNormalized) {
       case "CONNECTION_UPDATE": {
         const state = data?.state || data?.connection;
         let status: string = "disconnected";
