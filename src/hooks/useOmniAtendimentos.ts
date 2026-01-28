@@ -258,7 +258,10 @@ export function useOmniMensagens(atendimentoId: string | null) {
   const [loading, setLoading] = useState(true);
 
   const fetchMensagens = useCallback(async () => {
-    if (!atendimentoId) return;
+    if (!atendimentoId) {
+      setLoading(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase
@@ -279,10 +282,12 @@ export function useOmniMensagens(atendimentoId: string | null) {
   useEffect(() => {
     fetchMensagens();
 
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates for this specific atendimento
     if (atendimentoId) {
+      console.log(`[Realtime] Subscribing to omni_mensagens for atendimento: ${atendimentoId}`);
+      
       const channel = supabase
-        .channel(`omni_mensagens_${atendimentoId}`)
+        .channel(`omni_mensagens_realtime_${atendimentoId}`)
         .on(
           "postgres_changes",
           {
@@ -292,7 +297,13 @@ export function useOmniMensagens(atendimentoId: string | null) {
             filter: `atendimento_id=eq.${atendimentoId}`,
           },
           (payload) => {
-            setMensagens((prev) => [...prev, payload.new as OmniMensagem]);
+            console.log("[Realtime] New message received:", payload.new);
+            setMensagens((prev) => {
+              // Avoid duplicates
+              const exists = prev.some((m) => m.id === payload.new.id);
+              if (exists) return prev;
+              return [...prev, payload.new as OmniMensagem];
+            });
           }
         )
         .on(
@@ -304,14 +315,18 @@ export function useOmniMensagens(atendimentoId: string | null) {
             filter: `atendimento_id=eq.${atendimentoId}`,
           },
           (payload) => {
+            console.log("[Realtime] Message updated:", payload.new);
             setMensagens((prev) =>
               prev.map((m) => (m.id === payload.new.id ? (payload.new as OmniMensagem) : m))
             );
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          console.log(`[Realtime] Subscription status for mensagens: ${status}`);
+        });
 
       return () => {
+        console.log(`[Realtime] Unsubscribing from omni_mensagens for atendimento: ${atendimentoId}`);
         supabase.removeChannel(channel);
       };
     }
