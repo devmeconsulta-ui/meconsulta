@@ -81,6 +81,16 @@ import OmniRelatorios from "./pages/clinica/omnichannel/OmniRelatorios";
 import OmniConfirmacaoAgenda from "./pages/clinica/omnichannel/OmniConfirmacaoAgenda";
 import OmniNotificacoes from "./pages/clinica/omnichannel/OmniNotificacoes";
 
+// Atendente pages
+import { AtendenteLayout } from "./components/atendente/AtendenteLayout";
+import AtendenteDashboard from "./pages/atendente/AtendenteDashboard";
+import AtendenteChat from "./pages/atendente/AtendenteChat";
+import AtendenteAtendimentos from "./pages/atendente/AtendenteAtendimentos";
+import AtendenteContatos from "./pages/atendente/AtendenteContatos";
+import AtendenteConfirmacaoAgenda from "./pages/atendente/AtendenteConfirmacaoAgenda";
+import AtendenteCRM from "./pages/atendente/AtendenteCRM";
+import AtendenteChatInterno from "./pages/atendente/AtendenteChatInterno";
+
 // Public pages
 import ConfirmarConsulta from "./pages/ConfirmarConsulta";
 
@@ -158,6 +168,17 @@ const App = () => (
               <Route path="usuarios" element={<ClinicaUsuarios />} />
               <Route path="chat" element={<ClinicaChat />} />
               <Route path="configuracoes" element={<ClinicaConfiguracoes />} />
+            </Route>
+
+            {/* Atendente routes */}
+            <Route path="/atendente" element={<AtendenteLayout />}>
+              <Route index element={<AtendenteDashboard />} />
+              <Route path="chat" element={<AtendenteChat />} />
+              <Route path="atendimentos" element={<AtendenteAtendimentos />} />
+              <Route path="contatos" element={<AtendenteContatos />} />
+              <Route path="confirmacao-agenda" element={<AtendenteConfirmacaoAgenda />} />
+              <Route path="crm" element={<AtendenteCRM />} />
+              <Route path="chat-interno" element={<AtendenteChatInterno />} />
             </Route>
 
             {/* Admin routes */}
