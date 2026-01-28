@@ -77,8 +77,13 @@ export function ClinicaLayout() {
     <div className="min-h-screen flex bg-background">
       <ClinicaSidebar />
       <div className="flex-1 flex flex-col lg:ml-64">
-        <ClinicaHeader clinicaData={clinicaData} />
-        <main className="flex-1 p-4 sm:p-6 overflow-auto pt-16 lg:pt-6">
+        {/* Header fixo */}
+        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-card">
+          <ClinicaHeader clinicaData={clinicaData} />
+        </div>
+        {/* Espaçador para o header fixo */}
+        <div className="h-16" />
+        <main className="flex-1 p-4 sm:p-6 overflow-auto">
           {dataLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />

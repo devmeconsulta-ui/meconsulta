@@ -260,11 +260,9 @@ export default function OmniAgentes() {
 
   if (loading) {
     return (
-      <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
-        <div className="shrink-0">
-          <OmniHeader />
-        </div>
-        <div className="flex items-center justify-center flex-1">
+      <div className="space-y-6">
+        <OmniHeader />
+        <div className="flex items-center justify-center h-[calc(100vh-250px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
@@ -272,14 +270,11 @@ export default function OmniAgentes() {
   }
 
   return (
-    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
-      {/* Header fixo */}
-      <div className="shrink-0">
-        <OmniHeader />
-      </div>
+    <div className="space-y-6">
+      <OmniHeader />
 
-      {/* Conteúdo com scroll */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* Conteúdo */}
+      <div className="flex gap-4">
         {/* Left Sidebar - Filas Filter (hidden on mobile) */}
         <div className="hidden lg:block">
           <FilaFilterAccordion

@@ -43,14 +43,9 @@ export default function OmniDashboard() {
 
   if (loading) {
     return (
-      <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
-        {/* Header fixo no topo - abaixo do ClinicaHeader */}
-        <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background">
-          <OmniHeader />
-        </div>
-        {/* Espaçador */}
-        <div className="h-[calc(4rem+56px)] lg:h-[calc(1.5rem+56px)]" />
-        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+      <div className="space-y-6">
+        <OmniHeader />
+        <div className="flex items-center justify-center h-[calc(100vh-250px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
@@ -58,17 +53,11 @@ export default function OmniDashboard() {
   }
 
   return (
-    <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
-      {/* Header fixo no topo - abaixo do ClinicaHeader (h-16 = 64px) */}
-      <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background border-b border-border">
-        <OmniHeader />
-      </div>
+    <div className="space-y-6">
+      <OmniHeader />
 
-      {/* Espaçador para compensar o header fixo (OmniHeader ~56px) */}
-      <div className="h-14" />
-
-      {/* Conteúdo com scroll */}
-      <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      {/* Conteúdo */}
+      <div className="space-y-4 sm:space-y-6">
           {/* Tabs e Filtros */}
           <div className="flex flex-col gap-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

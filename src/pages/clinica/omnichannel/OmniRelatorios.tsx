@@ -206,12 +206,9 @@ export default function OmniRelatorios() {
 
   if (loading) {
     return (
-      <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
-        <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background border-b border-border">
-          <OmniHeader />
-        </div>
-        <div className="h-14" />
-        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+      <div className="space-y-6">
+        <OmniHeader />
+        <div className="flex items-center justify-center h-[calc(100vh-250px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
@@ -219,15 +216,10 @@ export default function OmniRelatorios() {
   }
 
   return (
-    <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
-      {/* Header fixo */}
-      <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background border-b border-border">
-        <OmniHeader />
-      </div>
+    <div className="space-y-6">
+      <OmniHeader />
 
-      <div className="h-14" />
-
-      <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-6">
+      <div className="space-y-6">
         {/* Header da página */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>

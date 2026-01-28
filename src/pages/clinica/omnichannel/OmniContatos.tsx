@@ -316,11 +316,9 @@ export default function OmniContatos() {
 
   if (isLoading) {
     return (
-      <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
-        <div className="shrink-0">
-          <OmniHeader />
-        </div>
-        <div className="flex items-center justify-center flex-1">
+      <div className="space-y-6">
+        <OmniHeader />
+        <div className="flex items-center justify-center h-[calc(100vh-250px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
@@ -328,15 +326,11 @@ export default function OmniContatos() {
   }
 
   return (
-    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
-      {/* Header fixo */}
-      <div className="shrink-0">
-        <OmniHeader />
-      </div>
+    <div className="space-y-6">
+      <OmniHeader />
 
-      {/* Conteúdo com scroll */}
-      <div className="flex-1 overflow-auto">
-        <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      {/* Conteúdo */}
+      <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Contatos</h1>
@@ -737,7 +731,6 @@ export default function OmniContatos() {
           }}
         />
       )}
-        </div>
       </div>
     </div>
   );
