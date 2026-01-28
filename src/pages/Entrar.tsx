@@ -127,20 +127,21 @@ export default function Entrar() {
 
       if (clinicaUserData) {
         // Clinic user login successful
-        // If user has clinica_id, redirect to clinica area, otherwise medico area
+        // If user has clinica_id, redirect to atendente area
         if (clinicaUserData.clinica_id) {
           await setCurrentUser({
             id: clinicaUserData.id,
             nome: clinicaUserData.nome,
             email: clinicaUserData.email || "",
-            tipo: "clinica", // Access clinica area
+            tipo: "clinica", // Access clinica/atendente area
             papel: "atendente",
             clinicaId: clinicaUserData.clinica_id,
             medicoId: clinicaUserData.medico_id,
             todosMedicos: clinicaUserData.todos_medicos || false,
             permissoes: clinicaUserData.permissoes || [],
           });
-          navigate("/clinica");
+          // Redireciona para o painel do atendente
+          navigate("/atendente");
         } else {
           // Legacy: user linked to doctor only (no clinica_id)
           await setCurrentUser({
