@@ -106,6 +106,7 @@ export default function OmniConfirmacaoAgenda() {
     confirmacoes,
     consultasDisponiveis,
     filas,
+    medicosClinica,
     metrics,
     isLoadingConfirmacoes,
     isLoadingConsultas,
@@ -177,16 +178,8 @@ export default function OmniConfirmacaoAgenda() {
     return result;
   }, [consultasDisponiveis, filterPeriodo, filterMedico, searchTerm]);
 
-  // Lista de médicos para filtro
-  const medicos = useMemo(() => {
-    const medicosMap = new Map();
-    (consultasDisponiveis as any[]).forEach((c: any) => {
-      if (c.medico?.id) {
-        medicosMap.set(c.medico.id, c.medico);
-      }
-    });
-    return Array.from(medicosMap.values());
-  }, [consultasDisponiveis]);
+  // Lista de médicos para filtro - usa a lista de médicos da clínica
+  const medicos = medicosClinica;
 
   // Dados para gráficos
   const pieData = useMemo(() => {
