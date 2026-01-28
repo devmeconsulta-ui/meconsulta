@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -39,11 +40,14 @@ import {
   Loader2,
   Upload,
   Download,
+  ExternalLink,
+  UserCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
 import { ImportarContatosModal } from "@/components/clinica/omnichannel/ImportarContatosModal";
+import { VincularPacienteModal } from "@/components/clinica/omnichannel/VincularPacienteModal";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -71,14 +75,17 @@ interface OmniContato {
 }
 
 export default function OmniContatos() {
-  const { clinicaData } = useOutletContext<ClinicaContext>();
+  const { clinicaData, currentUser } = useOutletContext<ClinicaContext>();
   const clinicaId = clinicaData?.id || null;
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [showNovoContato, setShowNovoContato] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingContato, setEditingContato] = useState<OmniContato | null>(null);
+  const [vincularContato, setVincularContato] = useState<OmniContato | null>(null);
+  const [creatingConversa, setCreatingConversa] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     nome: "",
@@ -89,6 +96,63 @@ export default function OmniContatos() {
     empresa: "",
     observacoes: "",
   });
+
+  // Criar nova conversa/atendimento
+  const handleNovaConversa = async (contato: OmniContato) => {
+    if (!clinicaId || !currentUser) {
+      toast.error("Erro ao criar conversa");
+      return;
+    }
+
+    setCreatingConversa(contato.id);
+    try {
+      // Check if there's already an open atendimento for this contact
+      const { data: existingAtendimento } = await supabase
+        .from("omni_atendimentos")
+        .select("id")
+        .eq("clinica_id", clinicaId)
+        .eq("contato_id", contato.id)
+        .in("status", ["aguardando", "em_atendimento"])
+        .maybeSingle();
+
+      if (existingAtendimento) {
+        // Navigate to existing conversation
+        toast.info("Atendimento já existe, abrindo conversa...");
+        navigate(`/clinica/omnichannel/atendimentos?atendimento=${existingAtendimento.id}`);
+        return;
+      }
+
+      // Create new atendimento
+      const { data: newAtendimento, error } = await supabase
+        .from("omni_atendimentos")
+        .insert({
+          clinica_id: clinicaId,
+          contato_id: contato.id,
+          agente_id: currentUser.id,
+          status: "em_atendimento",
+          canal: "whatsapp",
+          prioridade: "normal",
+          data_abertura: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (error) throw error;
+
+      toast.success("Conversa iniciada!");
+      navigate(`/clinica/omnichannel/atendimentos?atendimento=${newAtendimento.id}`);
+    } catch (error) {
+      console.error("Error creating atendimento:", error);
+      toast.error("Erro ao criar conversa");
+    } finally {
+      setCreatingConversa(null);
+    }
+  };
+
+  // Ver paciente vinculado
+  const handleVerPaciente = (pacienteId: string) => {
+    navigate(`/clinica/pacientes?paciente=${pacienteId}`);
+  };
 
   // Export function
   const handleExportContatos = () => {
@@ -473,10 +537,28 @@ export default function OmniContatos() {
                           <Edit className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <MessageSquare className="h-4 w-4 mr-2" />
+                        <DropdownMenuItem 
+                          onClick={() => handleNovaConversa(contato)}
+                          disabled={creatingConversa === contato.id}
+                        >
+                          {creatingConversa === contato.id ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                          )}
                           Nova Conversa
                         </DropdownMenuItem>
+                        {contato.paciente_id ? (
+                          <DropdownMenuItem onClick={() => handleVerPaciente(contato.paciente_id!)}>
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Ver Paciente
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onClick={() => setVincularContato(contato)}>
+                            <Link2 className="h-4 w-4 mr-2" />
+                            Vincular Paciente
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           className="text-destructive"
                           onClick={() => deleteMutation.mutate(contato.id)}
@@ -536,7 +618,15 @@ export default function OmniContatos() {
                           )}
                         </div>
                         <div>
-                          <p className="font-medium">{contato.nome}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{contato.nome}</p>
+                            {contato.paciente_id && (
+                              <Badge variant="outline" className="text-xs bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300">
+                                <UserCheck className="h-3 w-3 mr-1" />
+                                Vinculado
+                              </Badge>
+                            )}
+                          </div>
                           {contato.documento && (
                             <p className="text-xs text-muted-foreground">
                               {contato.documento}
@@ -583,17 +673,24 @@ export default function OmniContatos() {
                             <Edit className="h-4 w-4 mr-2" />
                             Editar
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <MessageSquare className="h-4 w-4 mr-2" />
+                          <DropdownMenuItem 
+                            onClick={() => handleNovaConversa(contato)}
+                            disabled={creatingConversa === contato.id}
+                          >
+                            {creatingConversa === contato.id ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                            )}
                             Nova Conversa
                           </DropdownMenuItem>
                           {contato.paciente_id ? (
-                            <DropdownMenuItem>
-                              <Link2 className="h-4 w-4 mr-2" />
+                            <DropdownMenuItem onClick={() => handleVerPaciente(contato.paciente_id!)}>
+                              <ExternalLink className="h-4 w-4 mr-2" />
                               Ver Paciente
                             </DropdownMenuItem>
                           ) : (
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setVincularContato(contato)}>
                               <Link2 className="h-4 w-4 mr-2" />
                               Vincular Paciente
                             </DropdownMenuItem>
@@ -615,6 +712,21 @@ export default function OmniContatos() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Modal Vincular Paciente */}
+      {vincularContato && (
+        <VincularPacienteModal
+          isOpen={!!vincularContato}
+          onClose={() => setVincularContato(null)}
+          contatoId={vincularContato.id}
+          contatoNome={vincularContato.nome}
+          currentPacienteId={vincularContato.paciente_id}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["omni-contatos"] });
+            setVincularContato(null);
+          }}
+        />
+      )}
         </div>
       </div>
     </div>
