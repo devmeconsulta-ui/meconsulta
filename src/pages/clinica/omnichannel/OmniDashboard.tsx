@@ -43,11 +43,14 @@ export default function OmniDashboard() {
 
   if (loading) {
     return (
-      <div className="-m-6 flex flex-col h-[calc(100vh-64px)]">
-        <div className="sticky top-0 z-50">
+      <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
+        {/* Header fixo no topo */}
+        <div className="fixed top-16 lg:top-0 left-0 lg:left-64 right-0 z-30 bg-background">
           <OmniHeader />
         </div>
-        <div className="flex items-center justify-center flex-1">
+        {/* Espaçador para compensar o header fixo */}
+        <div className="h-[calc(4rem+56px)] lg:h-14" />
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
@@ -55,15 +58,17 @@ export default function OmniDashboard() {
   }
 
   return (
-    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-64px)]">
-      {/* Header com navegação - fixo */}
-      <div className="shrink-0">
+    <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
+      {/* Header fixo no topo */}
+      <div className="fixed top-16 lg:top-0 left-0 lg:left-64 right-0 z-30 bg-background">
         <OmniHeader />
       </div>
 
+      {/* Espaçador para compensar o header fixo */}
+      <div className="h-[calc(4rem+56px)] lg:h-14" />
+
       {/* Conteúdo com scroll */}
-      <div className="flex-1 overflow-auto">
-        <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
           {/* Tabs e Filtros */}
           <div className="flex flex-col gap-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -139,7 +144,6 @@ export default function OmniDashboard() {
             />
           )}
         </div>
-      </div>
     </div>
   );
 }
