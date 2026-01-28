@@ -226,6 +226,15 @@ export default function OmniConfirmacaoAgenda() {
       return;
     }
 
+    // Calcular data de agendamento se modo for agendar
+    let agendarPara: string | null = null;
+    if (modoEnvio === "agendar") {
+      const amanha = addDays(new Date(), 1);
+      const [hora, minuto] = horarioAgendado.split(":").map(Number);
+      amanha.setHours(hora, minuto, 0, 0);
+      agendarPara = amanha.toISOString();
+    }
+
     await sendConfirmations({
       consulta_ids: selectedConsultas,
       fila_id: selectedFila,
@@ -233,6 +242,7 @@ export default function OmniConfirmacaoAgenda() {
       mensagem_template: mensagemTemplate,
       intervalo_min: (intervaloEnvio[0] - 1) * 1000,
       intervalo_max: (intervaloEnvio[0] + 1) * 1000,
+      agendar_para: agendarPara,
     });
 
     setSelectedConsultas([]);
