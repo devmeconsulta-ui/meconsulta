@@ -10,6 +10,7 @@ export function ClinicaLayout() {
   const { currentUser, isLoading } = useAuth();
   const navigate = useNavigate();
   const [clinicaData, setClinicaData] = useState<any>(null);
+  const [usuarioClinicaId, setUsuarioClinicaId] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
@@ -55,6 +56,21 @@ export function ClinicaLayout() {
           .maybeSingle();
 
         setClinicaData(data);
+        
+        // Fetch usuarioClinicaId if user is a clinic employee
+        if (currentUser.clinicaId && currentUser.email) {
+          const { data: usuarioClinica } = await supabase
+            .from("usuarios_clinica")
+            .select("id")
+            .eq("clinica_id", clinicaId)
+            .eq("email", currentUser.email)
+            .eq("ativo", true)
+            .maybeSingle();
+          
+          if (usuarioClinica) {
+            setUsuarioClinicaId(usuarioClinica.id);
+          }
+        }
       }
       
       setDataLoading(false);
@@ -89,7 +105,7 @@ export function ClinicaLayout() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <Outlet context={{ clinicaData, currentUser }} />
+            <Outlet context={{ clinicaData, currentUser: { ...currentUser, usuarioClinicaId } }} />
           )}
         </main>
       </div>
