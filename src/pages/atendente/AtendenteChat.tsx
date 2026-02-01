@@ -46,6 +46,7 @@ import { format, isToday, isYesterday, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { TransferirAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/TransferirAtendimentoModal";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AtendenteContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
@@ -156,7 +157,44 @@ export default function AtendenteChat() {
   };
 
   // Get agentes for transfer modal
-  const [agentes, setAgentes] = useState<Array<{ id: string; nome: string }>>([]);
+  const [agentes, setAgentes] = useState<Array<{ id: string; nome: string; atendimentos_count?: number }>>([]);
+  
+  // Load agentes for transfer modal
+  useEffect(() => {
+    const loadAgentes = async () => {
+      if (!clinicaId) return;
+      
+      const { data: usuariosData } = await supabase
+        .from("usuarios_clinica")
+        .select("id, nome")
+        .eq("clinica_id", clinicaId)
+        .eq("ativo", true);
+      
+      if (usuariosData) {
+        // Count atendimentos per agent
+        const { data: atendimentosData } = await supabase
+          .from("omni_atendimentos")
+          .select("agente_id")
+          .eq("clinica_id", clinicaId)
+          .in("status", ["aguardando", "em_atendimento"]);
+        
+        const countByAgent = (atendimentosData || []).reduce((acc, a) => {
+          if (a.agente_id) {
+            acc[a.agente_id] = (acc[a.agente_id] || 0) + 1;
+          }
+          return acc;
+        }, {} as Record<string, number>);
+        
+        setAgentes(
+          usuariosData.map((u) => ({
+            ...u,
+            atendimentos_count: countByAgent[u.id] || 0,
+          }))
+        );
+      }
+    };
+    loadAgentes();
+  }, [clinicaId]);
 
   const loading = loadingAtendimentos;
 

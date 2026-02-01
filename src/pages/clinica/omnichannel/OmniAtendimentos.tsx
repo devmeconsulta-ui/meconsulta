@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,41 +93,42 @@ export default function OmniAtendimentos() {
   const [agentes, setAgentes] = useState<Array<{ id: string; nome: string; atendimentos_count?: number }>>([]);
   
   // Load agentes on mount
-  useState(() => {
-    const loadAgentes = async () => {
-      if (!clinicaId) return;
-      
-      const { data: usuariosData } = await supabase
-        .from("usuarios_clinica")
-        .select("id, nome")
+  const loadAgentes = useCallback(async () => {
+    if (!clinicaId) return;
+    
+    const { data: usuariosData } = await supabase
+      .from("usuarios_clinica")
+      .select("id, nome")
+      .eq("clinica_id", clinicaId)
+      .eq("ativo", true);
+    
+    if (usuariosData) {
+      // Count atendimentos per agent
+      const { data: atendimentosData } = await supabase
+        .from("omni_atendimentos")
+        .select("agente_id")
         .eq("clinica_id", clinicaId)
-        .eq("ativo", true);
+        .in("status", ["aguardando", "em_atendimento"]);
       
-      if (usuariosData) {
-        // Count atendimentos per agent
-        const { data: atendimentosData } = await supabase
-          .from("omni_atendimentos")
-          .select("agente_id")
-          .eq("clinica_id", clinicaId)
-          .in("status", ["aguardando", "em_atendimento"]);
-        
-        const countByAgent = (atendimentosData || []).reduce((acc, a) => {
-          if (a.agente_id) {
-            acc[a.agente_id] = (acc[a.agente_id] || 0) + 1;
-          }
-          return acc;
-        }, {} as Record<string, number>);
-        
-        setAgentes(
-          usuariosData.map((u) => ({
-            ...u,
-            atendimentos_count: countByAgent[u.id] || 0,
-          }))
-        );
-      }
-    };
+      const countByAgent = (atendimentosData || []).reduce((acc, a) => {
+        if (a.agente_id) {
+          acc[a.agente_id] = (acc[a.agente_id] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>);
+      
+      setAgentes(
+        usuariosData.map((u) => ({
+          ...u,
+          atendimentos_count: countByAgent[u.id] || 0,
+        }))
+      );
+    }
+  }, [clinicaId]);
+
+  useEffect(() => {
     loadAgentes();
-  });
+  }, [loadAgentes]);
 
   const handleVisualizarConversa = (atendimento: OmniAtendimento) => {
     setSelectedAtendimento(atendimento);

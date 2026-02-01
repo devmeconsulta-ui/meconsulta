@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOutletContext } from "react-router-dom";
 import { useChatClinica, Conversa, Mensagem } from "@/hooks/useChatClinica";
@@ -7,6 +7,7 @@ import { ChatMessages } from "@/components/clinica/chat/ChatMessages";
 import { ChatInput } from "@/components/clinica/chat/ChatInput";
 import { NovaConversaModal } from "@/components/clinica/chat/NovaConversaModal";
 import { OmniHeader } from "@/components/clinica/omnichannel/OmniHeader";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Hash, Users, Menu, X, Archive, ArchiveRestore, Trash2, Pin, PinOff, Search, PanelLeftClose, PanelLeft } from "lucide-react";
@@ -49,6 +50,47 @@ export default function ClinicaChat() {
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const sidebarPanelRef = useRef<ImperativePanelHandle | null>(null);
+  const [atendimentosCount, setAtendimentosCount] = useState(0);
+  
+  // Fetch atendimentos count for OmniHeader badge
+  useEffect(() => {
+    const fetchAtendimentosCount = async () => {
+      if (!clinicaData?.id) return;
+      
+      const { count } = await supabase
+        .from("omni_atendimentos")
+        .select("*", { count: "exact", head: true })
+        .eq("clinica_id", clinicaData.id)
+        .in("status", ["aguardando", "em_atendimento"]);
+      
+      setAtendimentosCount(count || 0);
+    };
+    
+    fetchAtendimentosCount();
+    
+    // Subscribe to real-time updates
+    if (clinicaData?.id) {
+      const channel = supabase
+        .channel(`chat_atendimentos_${clinicaData.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "omni_atendimentos",
+            filter: `clinica_id=eq.${clinicaData.id}`,
+          },
+          () => {
+            fetchAtendimentosCount();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [clinicaData?.id]);
 
   const {
     conversas,
@@ -124,7 +166,7 @@ export default function ClinicaChat() {
     <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
       {/* Header fixo no topo - abaixo do ClinicaHeader */}
       <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background">
-        <OmniHeader />
+        <OmniHeader atendimentosCount={atendimentosCount} />
       </div>
 
       {/* Espaçador para compensar o header fixo */}
