@@ -73,10 +73,16 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
   const statusFilter = options.status;
   const agenteIdFilter = options.agenteId;
   const filaIdFilter = options.filaId;
+  
+  // Create stable string representations for dependency tracking
+  const statusKey = statusFilter?.join(",") || "";
+  const agenteKey = agenteIdFilter || "";
+  const filaKey = filaIdFilter || "";
 
   const [atendimentos, setAtendimentos] = useState<OmniAtendimento[]>([]);
   const [mensagens, setMensagens] = useState<OmniMensagem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasFetched, setHasFetched] = useState(false);
 
   const fetchAtendimentos = useCallback(async () => {
     if (!clinicaId) {
@@ -113,6 +119,7 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
 
       if (error) throw error;
       setAtendimentos((data || []) as OmniAtendimento[]);
+      setHasFetched(true);
 
       // Fetch all mensagens for dashboard metrics
       if (data && data.length > 0) {
@@ -133,7 +140,7 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
     } finally {
       setLoading(false);
     }
-  }, [clinicaId, statusFilter, agenteIdFilter, filaIdFilter]);
+  }, [clinicaId, statusKey, agenteKey, filaKey]);
 
   useEffect(() => {
     fetchAtendimentos();
