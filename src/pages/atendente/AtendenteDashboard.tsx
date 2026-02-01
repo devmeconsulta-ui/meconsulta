@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +29,10 @@ const quotes = [
 ];
 
 export default function AtendenteDashboard() {
-  const { clinicaData, usuarioClinicaData } = useOutletContext<AtendenteContext>();
+  const context = useOutletContext<AtendenteContext>();
+  const clinicaData = context?.clinicaData;
+  const usuarioClinicaData = context?.usuarioClinicaData;
+  
   const clinicaId = clinicaData?.id || null;
   const agenteId = usuarioClinicaData?.id;
 
@@ -37,11 +40,14 @@ export default function AtendenteDashboard() {
   const [statusAgente, setStatusAgente] = useState<"disponivel" | "pausa" | "offline">("disponivel");
   const [quote] = useState(() => quotes[Math.floor(Math.random() * quotes.length)]);
 
-  const { filas, loading: loadingFilas } = useOmniFilas(clinicaId);
-  const { atendimentos, loading: loadingAtendimentos } = useOmniAtendimentos(clinicaId, {
+  // Use memoized options to prevent infinite loops
+  const atendimentosOptions = useMemo(() => ({
     agenteId: agenteId,
-    status: ["aguardando", "em_atendimento"],
-  });
+    status: ["aguardando", "em_atendimento"] as string[],
+  }), [agenteId]);
+
+  const { filas, loading: loadingFilas } = useOmniFilas(clinicaId);
+  const { atendimentos, loading: loadingAtendimentos } = useOmniAtendimentos(clinicaId, atendimentosOptions);
 
   // Atualizar hora a cada segundo
   useEffect(() => {
@@ -51,7 +57,9 @@ export default function AtendenteDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  const loading = loadingFilas || loadingAtendimentos;
+  // Wait for context to be ready
+  const dataReady = clinicaData !== null && clinicaData !== undefined;
+  const loading = !dataReady || loadingFilas || loadingAtendimentos;
 
   // Contar atendimentos por fila
   const getAtendimentosFilaCount = (filaId: string) => {
