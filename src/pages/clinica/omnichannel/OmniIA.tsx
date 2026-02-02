@@ -89,6 +89,14 @@ interface ClinicaContext {
   currentUser: { id: string; nome: string } | null;
 }
 
+interface AcaoFollowUp {
+  id: string;
+  tempo_minutos: number;
+  acao: "mensagem" | "encerrar" | "transferir";
+  mensagem: string;
+  ativa: boolean;
+}
+
 interface AgenteIA {
   id: string;
   nome: string;
@@ -114,10 +122,8 @@ interface AgenteIA {
   timezone: string;
   tempo_resposta: number;
   limite_interacoes: number;
-  // Inatividade
-  tempo_inatividade: number;
-  acao_inatividade: string;
-  mensagem_inatividade: string;
+  // Follow-ups de inatividade
+  acoes_followup: AcaoFollowUp[];
   // Transferência
   palavras_chave_transferencia: string[];
   fila_transferencia: string;
@@ -228,9 +234,15 @@ export default function OmniIA() {
       timezone: "America/Sao_Paulo",
       tempo_resposta: 5,
       limite_interacoes: 0,
-      tempo_inatividade: 5,
-      acao_inatividade: "mensagem",
-      mensagem_inatividade: "Olá! Notei que você ficou um tempo sem responder. Posso ajudar em algo mais?",
+      acoes_followup: [
+        {
+          id: "1",
+          tempo_minutos: 5,
+          acao: "mensagem",
+          mensagem: "Olá! Notei que você ficou um tempo sem responder. Posso ajudar em algo mais?",
+          ativa: true
+        }
+      ],
       palavras_chave_transferencia: ["humano", "atendente", "pessoa real"],
       fila_transferencia: ""
     }
@@ -327,9 +339,7 @@ export default function OmniIA() {
       timezone: "America/Sao_Paulo",
       tempo_resposta: 5,
       limite_interacoes: 0,
-      tempo_inatividade: 5,
-      acao_inatividade: "mensagem",
-      mensagem_inatividade: "",
+      acoes_followup: [],
       palavras_chave_transferencia: [],
       fila_transferencia: ""
     };
@@ -1522,60 +1532,166 @@ export default function OmniIA() {
                         <TabsContent value="inatividade" className="pt-4">
                           <Card>
                             <CardContent className="p-6 space-y-4">
-                              <div className="flex items-center gap-2 mb-4">
-                                <Clock className="w-5 h-5 text-purple-500" />
-                                <h3 className="font-semibold">Configurar ações de inatividade</h3>
+                              <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-5 h-5 text-purple-500" />
+                                  <h3 className="font-semibold">Ações de Follow-up (Inatividade)</h3>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (!selectedAgente) return;
+                                    const novaAcao: AcaoFollowUp = {
+                                      id: Math.random().toString(),
+                                      tempo_minutos: 5,
+                                      acao: "mensagem",
+                                      mensagem: "",
+                                      ativa: true
+                                    };
+                                    setSelectedAgente(prev => prev ? {
+                                      ...prev,
+                                      acoes_followup: [...(prev.acoes_followup || []), novaAcao]
+                                    } : null);
+                                  }}
+                                  className="gap-1"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                  Adicionar Follow-up
+                                </Button>
                               </div>
                               
-                              <div className="space-y-4">
-                                <div className="space-y-2">
-                                  <Label>Tempo de inatividade (minutos)</Label>
-                                  <Select
-                                    value={String(selectedAgente?.tempo_inatividade || 5)}
-                                    onValueChange={(value) => setSelectedAgente(prev => prev ? { ...prev, tempo_inatividade: Number(value) } : null)}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="2">2 minutos</SelectItem>
-                                      <SelectItem value="5">5 minutos</SelectItem>
-                                      <SelectItem value="10">10 minutos</SelectItem>
-                                      <SelectItem value="15">15 minutos</SelectItem>
-                                      <SelectItem value="30">30 minutos</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                
-                                <div className="space-y-2">
-                                  <Label>Ação após inatividade</Label>
-                                  <Select
-                                    value={selectedAgente?.acao_inatividade || "mensagem"}
-                                    onValueChange={(value) => setSelectedAgente(prev => prev ? { ...prev, acao_inatividade: value } : null)}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="mensagem">Enviar mensagem</SelectItem>
-                                      <SelectItem value="encerrar">Encerrar atendimento</SelectItem>
-                                      <SelectItem value="transferir">Transferir para humano</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                
-                                <div className="space-y-2">
-                                  <Label>Mensagem de inatividade</Label>
-                                  <Textarea
-                                    value={selectedAgente?.mensagem_inatividade || ""}
-                                    onChange={(e) => setSelectedAgente(prev => prev ? { ...prev, mensagem_inatividade: e.target.value } : null)}
-                                    placeholder="Olá! Notei que você ficou um tempo sem responder..."
-                                    rows={3}
-                                  />
-                                </div>
-                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                Configure ações automáticas quando o cliente ficar sem responder. A IA disparará essas mensagens na sequência configurada.
+                              </p>
                               
-                              <div className="flex justify-end">
+                              {(!selectedAgente?.acoes_followup || selectedAgente.acoes_followup.length === 0) ? (
+                                <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                                  <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                  <p>Nenhuma ação de follow-up configurada</p>
+                                  <p className="text-sm">Clique em "Adicionar Follow-up" para criar</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-4">
+                                  {selectedAgente.acoes_followup.map((acao, index) => (
+                                    <Card key={acao.id} className="border-l-4" style={{ borderLeftColor: acao.ativa ? "#10b981" : "#94a3b8" }}>
+                                      <CardContent className="p-4 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2">
+                                            <Badge variant="outline" className="text-xs">
+                                              Follow-up #{index + 1}
+                                            </Badge>
+                                            <Switch
+                                              checked={acao.ativa}
+                                              onCheckedChange={(checked) => {
+                                                setSelectedAgente(prev => prev ? {
+                                                  ...prev,
+                                                  acoes_followup: prev.acoes_followup.map(a => 
+                                                    a.id === acao.id ? { ...a, ativa: checked } : a
+                                                  )
+                                                } : null);
+                                              }}
+                                            />
+                                            <span className="text-xs text-muted-foreground">
+                                              {acao.ativa ? "Ativo" : "Inativo"}
+                                            </span>
+                                          </div>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-destructive hover:text-destructive"
+                                            onClick={() => {
+                                              setSelectedAgente(prev => prev ? {
+                                                ...prev,
+                                                acoes_followup: prev.acoes_followup.filter(a => a.id !== acao.id)
+                                              } : null);
+                                            }}
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-2 gap-3">
+                                          <div className="space-y-1">
+                                            <Label className="text-xs">Tempo de inatividade</Label>
+                                            <Select
+                                              value={String(acao.tempo_minutos)}
+                                              onValueChange={(value) => {
+                                                setSelectedAgente(prev => prev ? {
+                                                  ...prev,
+                                                  acoes_followup: prev.acoes_followup.map(a => 
+                                                    a.id === acao.id ? { ...a, tempo_minutos: Number(value) } : a
+                                                  )
+                                                } : null);
+                                              }}
+                                            >
+                                              <SelectTrigger className="h-9">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="2">2 minutos</SelectItem>
+                                                <SelectItem value="5">5 minutos</SelectItem>
+                                                <SelectItem value="10">10 minutos</SelectItem>
+                                                <SelectItem value="15">15 minutos</SelectItem>
+                                                <SelectItem value="30">30 minutos</SelectItem>
+                                                <SelectItem value="60">1 hora</SelectItem>
+                                                <SelectItem value="120">2 horas</SelectItem>
+                                                <SelectItem value="1440">24 horas</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          
+                                          <div className="space-y-1">
+                                            <Label className="text-xs">Ação</Label>
+                                            <Select
+                                              value={acao.acao}
+                                              onValueChange={(value: "mensagem" | "encerrar" | "transferir") => {
+                                                setSelectedAgente(prev => prev ? {
+                                                  ...prev,
+                                                  acoes_followup: prev.acoes_followup.map(a => 
+                                                    a.id === acao.id ? { ...a, acao: value } : a
+                                                  )
+                                                } : null);
+                                              }}
+                                            >
+                                              <SelectTrigger className="h-9">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="mensagem">Enviar mensagem</SelectItem>
+                                                <SelectItem value="encerrar">Encerrar atendimento</SelectItem>
+                                                <SelectItem value="transferir">Transferir para humano</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
+                                        
+                                        {acao.acao === "mensagem" && (
+                                          <div className="space-y-1">
+                                            <Label className="text-xs">Mensagem do follow-up</Label>
+                                            <Textarea
+                                              value={acao.mensagem}
+                                              onChange={(e) => {
+                                                setSelectedAgente(prev => prev ? {
+                                                  ...prev,
+                                                  acoes_followup: prev.acoes_followup.map(a => 
+                                                    a.id === acao.id ? { ...a, mensagem: e.target.value } : a
+                                                  )
+                                                } : null);
+                                              }}
+                                              placeholder="Ex: Olá! Notei que você ficou um tempo sem responder. Posso ajudar em algo mais?"
+                                              rows={2}
+                                              className="text-sm"
+                                            />
+                                          </div>
+                                        )}
+                                      </CardContent>
+                                    </Card>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              <div className="flex justify-end pt-4">
                                 <Button onClick={handleSalvarAgente} className="bg-emerald-500 hover:bg-emerald-600">
                                   Salvar Configurações
                                 </Button>
