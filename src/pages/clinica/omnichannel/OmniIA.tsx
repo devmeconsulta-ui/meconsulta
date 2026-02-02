@@ -675,8 +675,8 @@ export default function OmniIA() {
                     <div className="mt-3 w-full">
                       <Label className="text-xs text-muted-foreground mb-1 block text-center">Fila de Operação</Label>
                       <Select
-                        value={selectedAgente?.fila_operacao || ""}
-                        onValueChange={(value) => setSelectedAgente(prev => prev ? { ...prev, fila_operacao: value } : null)}
+                        value={selectedAgente?.fila_operacao || "__none__"}
+                        onValueChange={(value) => setSelectedAgente(prev => prev ? { ...prev, fila_operacao: value === "__none__" ? "" : value } : null)}
                       >
                         <SelectTrigger className="w-full">
                           <div className="flex items-center gap-2">
@@ -685,7 +685,7 @@ export default function OmniIA() {
                           </div>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Nenhuma (desativada)</SelectItem>
+                          <SelectItem value="__none__">Nenhuma (desativada)</SelectItem>
                           {filas.map((fila) => (
                             <SelectItem key={fila.id} value={fila.id}>
                               <div className="flex items-center gap-2">
@@ -699,7 +699,7 @@ export default function OmniIA() {
                           ))}
                         </SelectContent>
                       </Select>
-                      {selectedAgente?.fila_operacao && (
+                      {selectedAgente?.fila_operacao && selectedAgente.fila_operacao !== "__none__" && (
                         <p className="text-[10px] text-emerald-600 mt-1 text-center">
                           IA ativa nesta fila
                         </p>
