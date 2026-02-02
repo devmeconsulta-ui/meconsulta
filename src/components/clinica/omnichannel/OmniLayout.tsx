@@ -3,14 +3,15 @@ import { OmniHeader } from "./OmniHeader";
 
 interface OmniLayoutProps {
   children: ReactNode;
+  clinicaId?: string;
 }
 
-export function OmniLayout({ children }: OmniLayoutProps) {
+export function OmniLayout({ children, clinicaId }: OmniLayoutProps) {
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] -m-4 sm:-m-6 overflow-hidden">
       {/* Header fixo do omnichannel */}
       <div className="flex-shrink-0 bg-background border-b border-border">
-        <OmniHeader />
+        <OmniHeader clinicaId={clinicaId} />
       </div>
       
       {/* Conteúdo com scroll independente */}
