@@ -1,91 +1,216 @@
 
-# Plano de Correção: Redirecionamento de Usuários da Clínica
+# Plano de Otimização do Omnichannel
 
-## Problema Identificado
-A usuária "ADRIELE" (e outros funcionários da clínica) está sendo forçada para a área `/atendente` (Painel de Atendimento simplificado), quando deveria ter acesso à área completa `/clinica` onde pode escolher livremente as funcionalidades conforme suas permissões.
+## Visão Geral
 
-**Dados da usuária no banco:**
-- Email: adriele@gmail.com
-- Papel: secretaria  
-- Permissoes: dashboard, consultas, locais, agenda, pacientes
+Este plano aborda todas as melhorias solicitadas para o sistema de Omnichannel, baseado na análise do código existente e nas referências visuais fornecidas.
 
-## Causa Raiz
-No arquivo `src/pages/Entrar.tsx`, linhas 128-144, todos os usuários da tabela `usuarios_clinica` são redirecionados para `/atendente`, independente do papel ou permissões.
+## Problemas Identificados e Soluções
 
-## Correção
+### 1. Lógica de Permissão Admin vs Usuário Clínica
 
-### 1. Modificar `src/pages/Entrar.tsx`
+**Problema**: Não existe diferenciação clara entre a visualização do Admin (somente leitura) e a do usuário da clínica (pode responder).
 
-**Lógica atual (problemática):**
-```text
-Se usuário está em usuarios_clinica com clinica_id -> redireciona para /atendente
-```
+**Solução**: 
+- A área Admin (`/admin`) NÃO possui rotas para o Omnichannel - isso está correto
+- A área da Clínica (`/clinica/omnichannel/whatsapp`) permite responder - isso está correto
+- Apenas adicionar o `VisualizarConversaModal` para histórico de conversas finalizadas com modo somente leitura
 
-**Nova lógica:**
-```text
-Se usuário está em usuarios_clinica com clinica_id:
-  - Se papel é "atendente" E tem APENAS permissões de atendimento -> /atendente
-  - Caso contrário (secretaria, supervisor, admin, etc.) -> /clinica
-```
+### 2. Otimização do Envio de Mensagem (Enter/Click Lento)
 
-Essa mudança permitirá que funcionários com permissões administrativas (secretaria, supervisor) acessem a área completa da clínica, enquanto atendentes puros continuam na área simplificada.
+**Problema**: O `handleSendMessage` está usando `await` para enviar mensagem, bloqueando a UI.
 
-### 2. Verificar `src/components/clinica/ClinicaLayout.tsx`
-O layout já está preparado para receber usuários de `usuarios_clinica` (verifica `currentUser.clinicaId`), então não precisa de mudanças.
+**Solução em `OmniWhatsAppChat.tsx` e `AtendenteChat.tsx`**:
+- Adicionar optimistic UI update (mostrar mensagem imediatamente antes da confirmação)
+- Usar estado `sending` corretamente para evitar duplo envio
+- Limpar input imediatamente após envio (antes do await)
+- Adicionar `useRef` para input com foco automático
 
-### 3. Verificar `src/components/clinica/ClinicaSidebar.tsx`
-Já filtra os itens do menu baseado nas permissões do usuário (`currentUser.permissoes`), então funcionará corretamente.
+### 3. Encerrar Atendimento com Reabertura Agendada
+
+**Problema**: Ao encerrar atendimento, não há opção de agendar reabertura.
+
+**Solução**:
+- Criar modal `EncerrarAtendimentoModal.tsx` com opções:
+  - Encerrar definitivamente
+  - Encerrar com mensagem pré-definida
+  - Agendar reabertura (data/hora + mensagem automática)
+- Adicionar campos na tabela `omni_atendimentos`:
+  - `data_reabertura` - Data/hora para reabrir
+  - `mensagem_reabertura` - Mensagem a ser enviada
+  - `reabertura_agendada` - Boolean
+
+### 4. Remover Atendimentos Finalizados da Lista Lateral
+
+**Problema**: Atendimentos encerrados devem sumir da lista e ir para histórico.
+
+**Solução**:
+- Já está correto! O filtro usa `status: ["aguardando", "em_atendimento"]`
+- Ao finalizar, o `setSelectedAtendimento(null)` já deseleciona
+- O fetch automático via real-time já remove da lista
+
+### 5. Funcionalidades Extras (Baseadas nos Prints)
+
+#### 5.1. Barra de Ferramentas do Chat (Ícones na Área de Input)
+**Referência**: Print 1 mostra ícones: Emoji, Anexar, Resposta Rápida, Assinatura
+
+**Adicionar em `OmniWhatsAppChat.tsx` e `AtendenteChat.tsx`**:
+- Ícone de Emoji (já existe)
+- Ícone de Anexar arquivo (já existe)
+- Ícone de Respostas Rápidas (novo - modal com templates)
+- Ícone de Assinatura (toggle para incluir assinatura automática)
+
+#### 5.2. Menu de Ações do Header (Três Pontos)
+**Referência**: Prints 4-5 mostram opções: Transferir chat, Encerrar chat, Mídias, Pesquisar
+
+**Adicionar dropdown com**:
+- Pesquisar mensagens (últimos 60 dias)
+- Ver mídias compartilhadas
+- Transferir chat
+- Encerrar atendimento
+- Oportunidades associadas (CRM)
+- Etiquetas do contato
+
+#### 5.3. Busca de Mensagens Anteriores
+**Referência**: Print 2-3 mostra painel lateral de busca
+
+**Adicionar**:
+- Botão de lupa no header
+- Painel lateral que busca em `omni_mensagens` dos últimos 60 dias
+- Filtra por atendimentos do mesmo contato
+
+#### 5.4. Assinatura Automática
+**Referência**: Print 6 mostra tooltip "Assinatura habilitada"
+
+**Implementar**:
+- Toggle de assinatura por agente
+- Assinatura anexada automaticamente ao final das mensagens de saída
+- Configuração em `omni_agentes.assinatura_texto`
+
+### 6. Transferência de Atendimento
+
+**Status**: Já implementado corretamente com modal de tabs (Agentes/Filas)
+
+**Verificar**:
+- Modal `TransferirAtendimentoModal.tsx` - OK
+- Função `handleTransferirAtendimento` - OK
+- Atualiza `agente_id`, `fila_id`, `status` - OK
+
+---
 
 ## Arquivos a Modificar
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/pages/Entrar.tsx` | Alterar lógica de redirecionamento (linhas 128-144) |
+| Arquivo | Modificações |
+|---------|--------------|
+| `src/pages/clinica/omnichannel/OmniWhatsAppChat.tsx` | Otimizar envio, adicionar menu expandido, busca de mensagens |
+| `src/pages/atendente/AtendenteChat.tsx` | Otimizar envio, adicionar ferramentas do chat |
+| `src/hooks/useOmniAtendimentos.ts` | Adicionar suporte a reabertura agendada |
+| `src/components/clinica/omnichannel/atendimentos/EncerrarAtendimentoModal.tsx` | NOVO - Modal de encerramento com opções |
+| `src/pages/clinica/omnichannel/OmniRelatorios.tsx` | Buscar atendimentos com reabertura agendada |
+
+---
 
 ## Detalhes Técnicos
 
-```typescript
-// ANTES (linha 131-144):
-if (clinicaUserData.clinica_id) {
-  // ... setCurrentUser
-  navigate("/atendente");
-}
+### Correção 1: Otimizar Envio de Mensagem
 
-// DEPOIS:
-if (clinicaUserData.clinica_id) {
-  // ... setCurrentUser
+```text
+Arquivo: OmniWhatsAppChat.tsx (linhas 303-319)
 
-  // Redirecionar baseado no papel:
-  // - Atendentes puros vão para /atendente
-  // - Outros papéis (secretaria, supervisor, admin) vão para /clinica
-  const isAtendenteOnly = 
-    clinicaUserData.papel === "atendente" && 
-    (!clinicaUserData.permissoes || 
-     clinicaUserData.permissoes.length === 0 ||
-     clinicaUserData.permissoes.every(p => 
-       ['confirmacao-agenda', 'chat', 'contatos', 'atendimentos'].includes(p)
-     ));
+ANTES:
+- await enviarMensagem(...)
+- setMessageInput("") // Depois do await
 
-  if (isAtendenteOnly) {
-    navigate("/atendente");
-  } else {
-    navigate("/clinica");
-  }
-}
+DEPOIS:
+- setMessageInput("") // Limpar imediatamente
+- Adicionar mensagem "fake" otimista ao estado local
+- await enviarMensagem(...)
+- Real-time atualiza com mensagem real
 ```
 
+### Correção 2: Adicionar Menu Expandido no Header
+
+```text
+Arquivo: OmniWhatsAppChat.tsx (linhas 503-514)
+
+Adicionar DropdownMenu com:
+- DropdownMenuItem: Pesquisar mensagens
+- DropdownMenuItem: Ver mídias
+- DropdownMenuItem: Transferir chat (já existe botão, adicionar aqui também)
+- DropdownMenuItem: Encerrar atendimento (abre modal com opções)
+- DropdownMenuSeparator
+- DropdownMenuItem: Adicionar etiqueta
+- DropdownMenuItem: Ver oportunidades (CRM)
+```
+
+### Correção 3: Criar Modal de Encerramento
+
+```text
+NOVO ARQUIVO: src/components/clinica/omnichannel/atendimentos/EncerrarAtendimentoModal.tsx
+
+Props:
+- open: boolean
+- onClose: () => void
+- atendimento: OmniAtendimento
+- onEncerrar: (motivo: string, reaberturaData?: Date, mensagemReabertura?: string) => Promise<void>
+
+UI:
+- RadioGroup: 
+  - Encerrar definitivamente
+  - Encerrar e agendar reabertura
+- Se agendar reabertura:
+  - DateTimePicker para data/hora
+  - Textarea para mensagem de reabertura
+- Select de motivo de encerramento (problema resolvido, cliente não respondeu, etc.)
+- Botão Confirmar
+```
+
+### Correção 4: Adicionar Painel de Busca
+
+```text
+Arquivo: OmniWhatsAppChat.tsx
+
+Estado novo:
+- const [searchPanelOpen, setSearchPanelOpen] = useState(false)
+- const [searchMessagesQuery, setSearchMessagesQuery] = useState("")
+- const [searchResults, setSearchResults] = useState<OmniMensagem[]>([])
+
+UI: Painel lateral que aparece sobre o chat
+- Input de busca
+- Lista de resultados com preview de mensagem
+- Clique navega para a mensagem (scroll)
+```
+
+### Correção 5: Adicionar Indicador de Assinatura
+
+```text
+Arquivo: OmniWhatsAppChat.tsx
+
+Novo ícone na barra de input:
+- PenLine icon com tooltip
+- Toggle que adiciona assinatura ao final das mensagens
+- Tooltip: "Desabilitar a assinatura funciona apenas para uma única mensagem"
+```
+
+---
+
+## Ordem de Implementação
+
+1. **Otimizar envio de mensagem** - Crítico para UX
+2. **Menu expandido no header** - Agrupa funcionalidades
+3. **Modal de encerramento com reabertura** - Nova funcionalidade
+4. **Painel de busca de mensagens** - Melhoria de produtividade
+5. **Toggle de assinatura** - Funcionalidade adicional
+
+---
+
 ## Resultado Esperado
-- Usuária ADRIELE (secretaria) -> redireciona para `/clinica`
-- Atendentes com permissões limitadas -> redireciona para `/atendente`
-- Sidebar filtra itens conforme permissões de cada usuário
-- Cada funcionário acessa apenas as funcionalidades permitidas
 
-## Bugs do Omnichannel a Verificar
-
-Também verificarei:
-1. Estrutura JSX do `OmniWhatsAppChat.tsx` - Parece estar correta
-2. Modal de transferência - Já suporta agentes e filas
-3. Contexto de `usuarioClinicaId` - Já é passado corretamente
-4. Real-time subscriptions - Implementadas localmente no componente
-
-O principal bug é o redirecionamento incorreto. Após a correção, a usuária terá acesso completo à área da clínica incluindo o omnichannel.
+Após as correções:
+- Envio de mensagem instantâneo (sem delay perceptível)
+- Menu de ações completo no header do chat
+- Opção de agendar reabertura ao encerrar
+- Atendimentos finalizados saem da lista lateral automaticamente
+- Busca de mensagens anteriores funcionando
+- Toggle de assinatura automática
+- Todas as funcionalidades mostradas nos prints disponíveis
