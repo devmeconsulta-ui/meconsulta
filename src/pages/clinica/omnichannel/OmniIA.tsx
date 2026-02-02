@@ -1309,35 +1309,42 @@ export default function OmniIA() {
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {integracoes.map((integracao) => (
-                          <Card key={integracao.id} className="text-center">
-                            <CardContent className="p-6">
-                              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center text-3xl font-bold">
-                                {integracao.icone === "11" && <span className="text-black">II</span>}
-                                {integracao.icone === "calendar" && <Calendar className="w-12 h-12 text-blue-500" />}
-                                {integracao.icone === "chat" && <MessageCircle className="w-12 h-12 text-purple-500" />}
+                          <Card key={integracao.id} className="flex flex-col h-full">
+                            <CardContent className="p-6 flex flex-col items-center text-center flex-1">
+                              <div className="w-14 h-14 mb-3 flex items-center justify-center rounded-xl bg-muted">
+                                {integracao.icone === "11" && <span className="text-xl font-bold text-foreground">II</span>}
+                                {integracao.icone === "calendar" && <Calendar className="w-8 h-8 text-blue-500" />}
+                                {integracao.icone === "chat" && <MessageCircle className="w-8 h-8 text-purple-500" />}
                               </div>
-                              <div className="flex items-center justify-center gap-2 mb-2">
-                                <h4 className="font-semibold">{integracao.nome}</h4>
+                              
+                              <div className="flex items-center justify-center gap-2 mb-1 flex-wrap">
+                                <h4 className="font-semibold text-base">{integracao.nome}</h4>
                                 {integracao.configurada && (
-                                  <Badge variant="outline" className="text-emerald-600 border-emerald-600">
+                                  <Badge variant="outline" className="text-emerald-600 border-emerald-600 text-xs">
                                     <Check className="w-3 h-3 mr-1" />
                                     Configurada
                                   </Badge>
                                 )}
                               </div>
-                              <p className="text-sm text-muted-foreground mb-4">{integracao.descricao}</p>
-                              <div className="flex gap-2">
+                              
+                              <p className="text-sm text-muted-foreground mb-4 flex-1 line-clamp-3">
+                                {integracao.descricao}
+                              </p>
+                              
+                              <div className="flex gap-2 w-full mt-auto">
                                 <Button 
                                   variant="outline"
                                   className="flex-1"
+                                  size="sm"
                                   onClick={() => handleConfigIntegracao(integracao)}
                                 >
                                   <Settings className="w-4 h-4 mr-2" />
                                   Configurar
                                 </Button>
                                 <Button
-                                  variant={integracao.ativa ? "secondary" : "default"}
+                                  variant={integracao.ativa ? "default" : "secondary"}
                                   size="icon"
+                                  className={integracao.ativa ? "bg-amber-400 hover:bg-amber-500 text-black" : ""}
                                   onClick={() => handleToggleIntegracao(integracao.id)}
                                   disabled={!integracao.configurada}
                                 >
