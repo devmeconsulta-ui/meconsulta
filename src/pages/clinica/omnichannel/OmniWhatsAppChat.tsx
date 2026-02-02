@@ -75,10 +75,19 @@ function formatWaitTime(dateStr: string): string {
 }
 
 // Componente de bolha de mensagem
-function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
+function MessageBubble({ 
+  mensagem, 
+  showSignature,
+  isFirstAgentMessage 
+}: { 
+  mensagem: OmniMensagem; 
+  showSignature?: boolean;
+  isFirstAgentMessage?: boolean;
+}) {
   const isOutgoing = mensagem.direcao === "saida";
   const formattedTime = format(new Date(mensagem.created_at), "HH:mm", { locale: ptBR });
   const isOptimistic = mensagem.id.startsWith("temp-");
+  const agenteName = mensagem.agente_nome;
 
   const renderStatus = () => {
     if (!isOutgoing) return null;
@@ -104,6 +113,20 @@ function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
           isOptimistic && "opacity-70"
         )}
       >
+        {/* Mensagem de boas-vindas na primeira mensagem do agente */}
+        {isFirstAgentMessage && isOutgoing && agenteName && (
+          <p className="text-xs italic text-gray-600 mb-1">
+            Você está sendo atendido por {agenteName}
+          </p>
+        )}
+        
+        {/* Assinatura do agente em negrito */}
+        {showSignature && isOutgoing && agenteName && !isFirstAgentMessage && (
+          <p className="text-xs font-bold text-gray-700 mb-1">
+            {agenteName}
+          </p>
+        )}
+        
         {mensagem.tipo === "audio" && mensagem.arquivo_url && (
           <audio controls src={mensagem.arquivo_url} className="max-w-[250px]" />
         )}
@@ -380,6 +403,7 @@ export default function OmniWhatsAppChat() {
       atendimento_id: selectedAtendimento.id,
       contato_id: null,
       agente_id: currentUser.usuarioClinicaId,
+      agente_nome: signatureEnabled ? currentUser.nome : null,
       tipo: "texto",
       direcao: "saida",
       conteudo: trimmedMessage,
@@ -415,7 +439,7 @@ export default function OmniWhatsAppChat() {
     } finally {
       setSending(false);
     }
-  }, [messageInput, selectedAtendimento, currentUser?.usuarioClinicaId, sending, enviarMensagem]);
+  }, [messageInput, selectedAtendimento, currentUser?.usuarioClinicaId, currentUser?.nome, sending, enviarMensagem, signatureEnabled]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -683,9 +707,20 @@ export default function OmniWhatsAppChat() {
                   </div>
                 ) : (
                   <>
-                    {allMessages.map((msg) => (
-                      <MessageBubble key={msg.id} mensagem={msg} />
-                    ))}
+                    {allMessages.map((msg, index) => {
+                      // Check if this is the first outgoing message in the conversation
+                      const isFirstAgentMessage = msg.direcao === "saida" && 
+                        allMessages.slice(0, index).every(m => m.direcao !== "saida");
+                      
+                      return (
+                        <MessageBubble 
+                          key={msg.id} 
+                          mensagem={msg} 
+                          showSignature={signatureEnabled}
+                          isFirstAgentMessage={isFirstAgentMessage}
+                        />
+                      );
+                    })}
                     <div ref={messagesEndRef} />
                   </>
                 )}
