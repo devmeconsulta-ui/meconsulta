@@ -2162,12 +2162,15 @@ export type Database = {
           data_abertura: string
           data_fechamento: string | null
           data_primeira_resposta: string | null
+          data_reabertura: string | null
           etiquetas: string[] | null
           fila_id: string | null
           id: string
+          mensagem_reabertura: string | null
           motivo_fechamento: string | null
           prioridade: string | null
           protocolo: number
+          reabertura_agendada: boolean | null
           status: string
           tempo_primeira_resposta: number | null
           tempo_total_atendimento: number | null
@@ -2186,12 +2189,15 @@ export type Database = {
           data_abertura?: string
           data_fechamento?: string | null
           data_primeira_resposta?: string | null
+          data_reabertura?: string | null
           etiquetas?: string[] | null
           fila_id?: string | null
           id?: string
+          mensagem_reabertura?: string | null
           motivo_fechamento?: string | null
           prioridade?: string | null
           protocolo?: number
+          reabertura_agendada?: boolean | null
           status?: string
           tempo_primeira_resposta?: number | null
           tempo_total_atendimento?: number | null
@@ -2210,12 +2216,15 @@ export type Database = {
           data_abertura?: string
           data_fechamento?: string | null
           data_primeira_resposta?: string | null
+          data_reabertura?: string | null
           etiquetas?: string[] | null
           fila_id?: string | null
           id?: string
+          mensagem_reabertura?: string | null
           motivo_fechamento?: string | null
           prioridade?: string | null
           protocolo?: number
+          reabertura_agendada?: boolean | null
           status?: string
           tempo_primeira_resposta?: number | null
           tempo_total_atendimento?: number | null
