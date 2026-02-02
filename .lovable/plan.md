@@ -1,179 +1,91 @@
 
+# Plano de Correção: Redirecionamento de Usuários da Clínica
 
-# Plano de Correção de Bugs - Sistema MeConsulta
+## Problema Identificado
+A usuária "ADRIELE" (e outros funcionários da clínica) está sendo forçada para a área `/atendente` (Painel de Atendimento simplificado), quando deveria ter acesso à área completa `/clinica` onde pode escolher livremente as funcionalidades conforme suas permissões.
 
-## Resumo Executivo
-Após uma varredura completa no sistema, identifiquei diversos bugs críticos que estão causando problemas de navegação, loops infinitos, erros de contexto e inconsistências na área do Omnichannel e usuários da clínica.
+**Dados da usuária no banco:**
+- Email: adriele@gmail.com
+- Papel: secretaria  
+- Permissoes: dashboard, consultas, locais, agenda, pacientes
 
----
+## Causa Raiz
+No arquivo `src/pages/Entrar.tsx`, linhas 128-144, todos os usuários da tabela `usuarios_clinica` são redirecionados para `/atendente`, independente do papel ou permissões.
 
-## Bugs Identificados
+## Correção
 
-### 1. OmniWhatsAppChat.tsx - Estrutura HTML Quebrada
-**Problema**: O arquivo tem uma estrutura de divs incorreta após as últimas edições, causando problemas de renderização e potenciais loops.
-- Linha 388: `<div className="w-80...">` está com indentação incorreta
-- A estrutura do JSX não está balanceada corretamente
-- Faltam fechamentos de tags em alguns pontos
+### 1. Modificar `src/pages/Entrar.tsx`
 
-### 2. OmniAtendimentos.tsx - useState usado incorretamente
-**Problema**: Na linha 96-130, `useState` está sendo usado como função para carregar dados iniciais, mas sem retorno correto (deveria ser `useEffect`).
-```typescript
-// ERRADO - Linha 96
-useState(() => {
-  const loadAgentes = async () => { ... };
-  loadAgentes();
-});
-```
-
-### 3. AtendenteChat.tsx - Lista de agentes não carregada
-**Problema**: O array `agentes` é declarado mas nunca preenchido, causando erro no modal de transferência.
-```typescript
-const [agentes, setAgentes] = useState<Array<{ id: string; nome: string }>>([]);
-// Nunca é populado - modal TransferirAtendimentoModal recebe array vazio
-```
-
-### 4. ClinicaChat.tsx - OmniHeader sem props necessárias
-**Problema**: O componente `ClinicaChat` renderiza `OmniHeader` sem passar a prop `atendimentosCount`, causando inconsistência.
-
-### 5. OmniLayout.tsx - Possível conflito de hooks
-**Problema**: O hook `useOmniAtendimentos` é chamado diretamente no layout, podendo causar re-renders desnecessários em todas as páginas filhas.
-
-### 6. OmniHeader.tsx - Badge sempre oculto em algumas rotas
-**Problema**: O badge do WhatsApp só mostra contagem quando recebe props, mas algumas páginas usam OmniLayout sem contexto adequado.
-
-### 7. Context Types Inconsistentes
-**Problema**: O tipo `ClinicaContext` está definido de forma diferente em vários arquivos:
-- `OmniWhatsAppChat.tsx` inclui `usuarioClinicaId`
-- `OmniAgentes.tsx` não inclui
-- `OmniContatos.tsx` não inclui
-- Isso causa erros de runtime quando propriedades são acessadas
-
-### 8. TransferirAtendimentoModal - Filas não utilizadas
-**Problema**: O modal recebe `filas` como prop mas não oferece opção de transferir para fila (apenas para agentes).
-
-### 9. Envio de mensagem com agenteId incorreto
-**Problema**: Em `OmniWhatsAppChat.tsx`, linha 304, usa `currentUser?.usuarioClinicaId` que pode não estar definido corretamente no contexto.
-
-### 10. Real-time subscriptions duplicadas
-**Problema**: Múltiplas páginas criam subscriptions para a mesma tabela `omni_atendimentos`, causando processamento desnecessário.
-
----
-
-## Plano de Correção
-
-### Fase 1: Correções Estruturais Críticas
-
-**1.1. Corrigir OmniWhatsAppChat.tsx**
-- Reorganizar estrutura HTML/JSX
-- Garantir fechamento correto de todas as divs
-- Verificar se o layout fullscreen está funcionando
-
-**1.2. Corrigir OmniAtendimentos.tsx**
-- Substituir `useState` incorreto por `useEffect` para carregar agentes
-- Adicionar lógica de cleanup adequada
-
-**1.3. Corrigir AtendenteChat.tsx**
-- Adicionar `useEffect` para carregar lista de agentes
-- Usar o mesmo padrão de OmniWhatsAppChat para buscar `usuarios_clinica`
-
-### Fase 2: Padronização de Contextos
-
-**2.1. Criar tipo ClinicaContext padronizado**
-- Definir interface única em arquivo compartilhado
-- Incluir todas as propriedades necessárias: `clinicaData`, `currentUser`, `usuarioClinicaId`
-
-**2.2. Atualizar ClinicaLayout.tsx**
-- Buscar `usuarioClinicaId` do usuário atual
-- Passar no Outlet context para todas as páginas filhas
-
-### Fase 3: Otimização de Real-time
-
-**3.1. Centralizar subscriptions no OmniLayout**
-- Mover lógica de subscription para um hook compartilhado
-- Evitar múltiplas subscriptions para mesmos dados
-
-**3.2. Implementar cache de atendimentos**
-- Usar React Query para gerenciar estado de atendimentos
-- Reduzir re-fetches desnecessários
-
-### Fase 4: Correções de UI/UX
-
-**4.1. TransferirAtendimentoModal**
-- Adicionar tabs para escolher entre transferir para agente ou para fila
-- Implementar lógica de transferência para fila
-
-**4.2. ClinicaChat OmniHeader**
-- Passar contagem correta de atendimentos
-- Usar hook ou fetch local para obter contagem
-
----
-
-## Detalhes Técnicos
-
-### Correção 1: OmniWhatsAppChat.tsx
+**Lógica atual (problemática):**
 ```text
-1. Verificar estrutura JSX e corrigir indentação
-2. Garantir que todas as divs estejam corretamente fechadas
-3. Verificar se o context está acessível
+Se usuário está em usuarios_clinica com clinica_id -> redireciona para /atendente
 ```
 
-### Correção 2: OmniAtendimentos.tsx (useState -> useEffect)
+**Nova lógica:**
 ```text
-Linha 96-130: Trocar useState(() => {...}) por useEffect(() => {...}, [clinicaId])
+Se usuário está em usuarios_clinica com clinica_id:
+  - Se papel é "atendente" E tem APENAS permissões de atendimento -> /atendente
+  - Caso contrário (secretaria, supervisor, admin, etc.) -> /clinica
 ```
 
-### Correção 3: AtendenteChat.tsx (carregar agentes)
-```text
-Adicionar useEffect para buscar agentes de usuarios_clinica
-Usar mesma lógica do OmniWhatsAppChat.tsx linhas 289-301
-```
+Essa mudança permitirá que funcionários com permissões administrativas (secretaria, supervisor) acessem a área completa da clínica, enquanto atendentes puros continuam na área simplificada.
 
-### Correção 4: ClinicaLayout.tsx (adicionar usuarioClinicaId)
-```text
-1. Buscar usuarios_clinica pelo email do currentUser
-2. Adicionar usuarioClinicaId ao context do Outlet
-```
+### 2. Verificar `src/components/clinica/ClinicaLayout.tsx`
+O layout já está preparado para receber usuários de `usuarios_clinica` (verifica `currentUser.clinicaId`), então não precisa de mudanças.
 
-### Correção 5: ClinicaChat.tsx (OmniHeader com props)
-```text
-1. Usar useOmniAtendimentos para obter contagem
-2. Ou buscar via fetch local com supabase
-3. Passar atendimentosCount para OmniHeader
-```
-
----
+### 3. Verificar `src/components/clinica/ClinicaSidebar.tsx`
+Já filtra os itens do menu baseado nas permissões do usuário (`currentUser.permissoes`), então funcionará corretamente.
 
 ## Arquivos a Modificar
 
-| Arquivo | Tipo de Correção |
-|---------|------------------|
-| `src/pages/clinica/omnichannel/OmniWhatsAppChat.tsx` | Estrutura JSX, context |
-| `src/pages/clinica/omnichannel/OmniAtendimentos.tsx` | useState -> useEffect |
-| `src/pages/atendente/AtendenteChat.tsx` | Carregar agentes |
-| `src/components/clinica/ClinicaLayout.tsx` | Adicionar usuarioClinicaId |
-| `src/pages/clinica/ClinicaChat.tsx` | Passar props para OmniHeader |
-| `src/components/clinica/omnichannel/atendimentos/TransferirAtendimentoModal.tsx` | Adicionar opção de transferir para fila |
+| Arquivo | Mudança |
+|---------|---------|
+| `src/pages/Entrar.tsx` | Alterar lógica de redirecionamento (linhas 128-144) |
 
----
+## Detalhes Técnicos
 
-## Ordem de Execução
+```typescript
+// ANTES (linha 131-144):
+if (clinicaUserData.clinica_id) {
+  // ... setCurrentUser
+  navigate("/atendente");
+}
 
-1. **OmniAtendimentos.tsx** - Correção crítica de useState
-2. **AtendenteChat.tsx** - Carregar agentes para modal
-3. **ClinicaLayout.tsx** - Adicionar usuarioClinicaId ao contexto
-4. **OmniWhatsAppChat.tsx** - Verificar estrutura e usar contexto corretamente
-5. **ClinicaChat.tsx** - Passar contagem de atendimentos para OmniHeader
-6. **TransferirAtendimentoModal.tsx** - Adicionar opção de transferir para fila
+// DEPOIS:
+if (clinicaUserData.clinica_id) {
+  // ... setCurrentUser
 
----
+  // Redirecionar baseado no papel:
+  // - Atendentes puros vão para /atendente
+  // - Outros papéis (secretaria, supervisor, admin) vão para /clinica
+  const isAtendenteOnly = 
+    clinicaUserData.papel === "atendente" && 
+    (!clinicaUserData.permissoes || 
+     clinicaUserData.permissoes.length === 0 ||
+     clinicaUserData.permissoes.every(p => 
+       ['confirmacao-agenda', 'chat', 'contatos', 'atendimentos'].includes(p)
+     ));
+
+  if (isAtendenteOnly) {
+    navigate("/atendente");
+  } else {
+    navigate("/clinica");
+  }
+}
+```
 
 ## Resultado Esperado
+- Usuária ADRIELE (secretaria) -> redireciona para `/clinica`
+- Atendentes com permissões limitadas -> redireciona para `/atendente`
+- Sidebar filtra itens conforme permissões de cada usuário
+- Cada funcionário acessa apenas as funcionalidades permitidas
 
-Após as correções:
-- Navegação do Omnichannel funcionando sem loops
-- Modal de transferência funcionando em todas as páginas
-- WhatsApp Chat abrindo e carregando dados corretamente
-- Contexto do usuário disponível em todas as páginas da clínica
-- Real-time updates funcionando de forma otimizada
-- Área do atendente com todas as funcionalidades operacionais
+## Bugs do Omnichannel a Verificar
 
+Também verificarei:
+1. Estrutura JSX do `OmniWhatsAppChat.tsx` - Parece estar correta
+2. Modal de transferência - Já suporta agentes e filas
+3. Contexto de `usuarioClinicaId` - Já é passado corretamente
+4. Real-time subscriptions - Implementadas localmente no componente
+
+O principal bug é o redirecionamento incorreto. Após a correção, a usuária terá acesso completo à área da clínica incluindo o omnichannel.
