@@ -21,20 +21,34 @@ import {
   Filter,
   Loader2,
   X,
+  Image as ImageIcon,
+  FileText,
+  Tag,
+  PenLine,
+  MessageSquareText,
+  XCircle,
 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useOmniMensagens, OmniAtendimento, OmniMensagem } from "@/hooks/useOmniAtendimentos";
 import { TransferirAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/TransferirAtendimentoModal";
+import { EncerrarAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/EncerrarAtendimentoModal";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
@@ -64,9 +78,13 @@ function formatWaitTime(dateStr: string): string {
 function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
   const isOutgoing = mensagem.direcao === "saida";
   const formattedTime = format(new Date(mensagem.created_at), "HH:mm", { locale: ptBR });
+  const isOptimistic = mensagem.id.startsWith("temp-");
 
   const renderStatus = () => {
     if (!isOutgoing) return null;
+    if (isOptimistic) {
+      return <Clock className="h-3.5 w-3.5 text-gray-400 animate-pulse" />;
+    }
     if (mensagem.status === "lida") {
       return <CheckCheck className="h-3.5 w-3.5 text-blue-500" />;
     } else if (mensagem.status === "entregue") {
@@ -82,7 +100,8 @@ function MessageBubble({ mensagem }: { mensagem: OmniMensagem }) {
           "max-w-[70%] rounded-lg px-3 py-2 shadow-sm",
           isOutgoing
             ? "bg-[#DCF8C6] text-gray-800 rounded-br-none"
-            : "bg-white text-gray-800 rounded-bl-none"
+            : "bg-white text-gray-800 rounded-bl-none",
+          isOptimistic && "opacity-70"
         )}
       >
         {mensagem.tipo === "audio" && mensagem.arquivo_url && (
@@ -176,16 +195,30 @@ export default function OmniWhatsAppChat() {
   const [messageInput, setMessageInput] = useState("");
   const [sending, setSending] = useState(false);
   const [transferirModalOpen, setTransferirModalOpen] = useState(false);
+  const [encerrarModalOpen, setEncerrarModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "waiting" | "mine">("all");
   const [waitTimeDisplay, setWaitTimeDisplay] = useState("00:00:00");
+  const [signatureEnabled, setSignatureEnabled] = useState(true);
   
   // Local state for atendimentos to avoid hook conflicts
   const [atendimentos, setAtendimentos] = useState<OmniAtendimento[]>([]);
   const [loading, setLoading] = useState(true);
+  // Optimistic messages state
+  const [optimisticMessages, setOptimisticMessages] = useState<OmniMensagem[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const { filas } = useOmniFilas(clinicaId);
   const { mensagens, loading: loadingMessages, enviarMensagem } = useOmniMensagens(selectedAtendimento?.id || null);
+
+  // Combine real messages with optimistic messages
+  const allMessages = useMemo(() => {
+    const realMessageIds = new Set(mensagens.map(m => m.id));
+    const pendingOptimistic = optimisticMessages.filter(m => !realMessageIds.has(m.id.replace("temp-", "")));
+    return [...mensagens, ...pendingOptimistic].sort((a, b) => 
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  }, [mensagens, optimisticMessages]);
 
   // Fetch atendimentos locally to avoid conflicts with OmniLayout hook
   const fetchAtendimentos = useCallback(async () => {
@@ -246,7 +279,7 @@ export default function OmniWhatsAppChat() {
   // Auto scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [mensagens]);
+  }, [allMessages]);
 
   // Update wait time every second
   useEffect(() => {
@@ -300,32 +333,71 @@ export default function OmniWhatsAppChat() {
     loadAgentes();
   }, [clinicaId]);
 
-  const handleSendMessage = async () => {
-    if (!messageInput.trim() || !selectedAtendimento || !currentUser?.usuarioClinicaId) return;
-    
+  // Optimistic message sending
+  const handleSendMessage = useCallback(async () => {
+    const trimmedMessage = messageInput.trim();
+    if (!trimmedMessage || !selectedAtendimento || !currentUser?.usuarioClinicaId) return;
+    if (sending) return; // Prevent double send
+
+    // Clear input immediately for instant feedback
+    setMessageInput("");
     setSending(true);
+
+    // Create optimistic message
+    const optimisticMsg: OmniMensagem = {
+      id: `temp-${Date.now()}`,
+      atendimento_id: selectedAtendimento.id,
+      contato_id: null,
+      agente_id: currentUser.usuarioClinicaId,
+      tipo: "texto",
+      direcao: "saida",
+      conteudo: trimmedMessage,
+      arquivo_url: null,
+      arquivo_nome: null,
+      arquivo_tipo: null,
+      whatsapp_message_id: null,
+      status: "enviada",
+      erro_descricao: null,
+      created_at: new Date().toISOString(),
+    };
+
+    // Add optimistic message immediately
+    setOptimisticMessages(prev => [...prev, optimisticMsg]);
+
+    // Focus back on input
+    inputRef.current?.focus();
+
     try {
       await enviarMensagem(
         currentUser.usuarioClinicaId,
         "texto",
-        messageInput.trim()
+        trimmedMessage
       );
-      setMessageInput("");
+      // Remove optimistic message after real message arrives (handled by allMessages memo)
     } catch (error) {
       console.error("Error sending message:", error);
+      toast.error("Erro ao enviar mensagem");
+      // Remove failed optimistic message
+      setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
+      // Restore the message to input
+      setMessageInput(trimmedMessage);
     } finally {
       setSending(false);
     }
-  };
+  }, [messageInput, selectedAtendimento, currentUser?.usuarioClinicaId, sending, enviarMensagem]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
+  }, [handleSendMessage]);
 
-  const handleFinalizarAtendimento = async () => {
+  const handleFinalizarAtendimento = async (
+    motivoFechamento: string,
+    dataReabertura?: Date,
+    mensagemReabertura?: string
+  ) => {
     if (!selectedAtendimento) return;
     
     try {
@@ -333,20 +405,35 @@ export default function OmniWhatsAppChat() {
         ? Math.floor((Date.now() - new Date(selectedAtendimento.data_abertura).getTime()) / 1000)
         : null;
 
+      const updateData: Record<string, unknown> = {
+        status: "finalizado",
+        data_fechamento: new Date().toISOString(),
+        motivo_fechamento: motivoFechamento,
+        tempo_total_atendimento: tempoTotal,
+      };
+
+      // Add reopening data if scheduled
+      if (dataReabertura) {
+        updateData.data_reabertura = dataReabertura.toISOString();
+        updateData.mensagem_reabertura = mensagemReabertura || null;
+        updateData.reabertura_agendada = true;
+      }
+
       await supabase
         .from("omni_atendimentos")
-        .update({
-          status: "finalizado",
-          data_fechamento: new Date().toISOString(),
-          motivo_fechamento: "Encerrado pelo agente",
-          tempo_total_atendimento: tempoTotal,
-        })
+        .update(updateData)
         .eq("id", selectedAtendimento.id);
 
       setSelectedAtendimento(null);
       fetchAtendimentos();
+      toast.success(
+        dataReabertura 
+          ? "Atendimento encerrado com reabertura agendada" 
+          : "Atendimento encerrado com sucesso"
+      );
     } catch (error) {
       console.error("Error finalizing atendimento:", error);
+      toast.error("Erro ao encerrar atendimento");
     }
   };
 
@@ -369,8 +456,10 @@ export default function OmniWhatsAppChat() {
         .eq("id", atendimentoId);
 
       fetchAtendimentos();
+      toast.success("Atendimento transferido com sucesso");
     } catch (error) {
       console.error("Error transferring atendimento:", error);
+      toast.error("Erro ao transferir atendimento");
     }
   };
 
@@ -490,15 +579,19 @@ export default function OmniWhatsAppChat() {
                     <p className="font-mono text-sm">{waitTimeDisplay}</p>
                   </div>
                   
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-white hover:bg-white/10"
-                    onClick={() => setTransferirModalOpen(true)}
-                    title="Transferir"
-                  >
-                    <ArrowRightLeft className="h-5 w-5" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-white hover:bg-white/10"
+                        onClick={() => setTransferirModalOpen(true)}
+                      >
+                        <ArrowRightLeft className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Transferir atendimento</TooltipContent>
+                  </Tooltip>
                   
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -506,8 +599,34 @@ export default function OmniWhatsAppChat() {
                         <MoreVertical className="h-5 w-5" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleFinalizarAtendimento}>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onClick={() => toast.info("Busca de mensagens em breve!")}>
+                        <Search className="h-4 w-4 mr-2" />
+                        Pesquisar mensagens
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.info("Ver mídias em breve!")}>
+                        <ImageIcon className="h-4 w-4 mr-2" />
+                        Ver mídias
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.info("Ver documentos em breve!")}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Ver documentos
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setTransferirModalOpen(true)}>
+                        <ArrowRightLeft className="h-4 w-4 mr-2" />
+                        Transferir chat
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.info("Etiquetas em breve!")}>
+                        <Tag className="h-4 w-4 mr-2" />
+                        Adicionar etiqueta
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={() => setEncerrarModalOpen(true)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
                         Encerrar atendimento
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -526,14 +645,14 @@ export default function OmniWhatsAppChat() {
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
                   </div>
-                ) : mensagens.length === 0 ? (
+                ) : allMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-gray-500">
                     <MessageCircle className="h-12 w-12 mb-2 opacity-50" />
                     <p className="text-sm">Nenhuma mensagem ainda</p>
                   </div>
                 ) : (
                   <>
-                    {mensagens.map((msg) => (
+                    {allMessages.map((msg) => (
                       <MessageBubble key={msg.id} mensagem={msg} />
                     ))}
                     <div ref={messagesEndRef} />
@@ -542,21 +661,68 @@ export default function OmniWhatsAppChat() {
               </div>
 
               {/* Message input */}
-              <div className="bg-[#F0F0F0] px-4 py-3 flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-700">
-                  <Smile className="h-6 w-6" />
-                </Button>
-                <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-700">
-                  <Paperclip className="h-6 w-6" />
-                </Button>
+              <div className="bg-[#F0F0F0] px-4 py-3 flex items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-700">
+                      <Smile className="h-6 w-6" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Emoji</TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-700">
+                      <Paperclip className="h-6 w-6" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Anexar arquivo</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-gray-500 hover:text-gray-700"
+                      onClick={() => toast.info("Respostas rápidas em breve!")}
+                    >
+                      <MessageSquareText className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Respostas rápidas</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className={cn(
+                        "text-gray-500 hover:text-gray-700",
+                        signatureEnabled && "text-primary hover:text-primary"
+                      )}
+                      onClick={() => {
+                        setSignatureEnabled(!signatureEnabled);
+                        toast.info(signatureEnabled ? "Assinatura desabilitada para esta mensagem" : "Assinatura habilitada");
+                      }}
+                    >
+                      <PenLine className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {signatureEnabled ? "Assinatura habilitada" : "Assinatura desabilitada"}
+                  </TooltipContent>
+                </Tooltip>
                 
                 <Input
+                  ref={inputRef}
                   placeholder="Digite uma mensagem ou / para atalhos..."
                   className="flex-1 bg-white border-0 rounded-full"
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  disabled={sending}
                 />
                 
                 {messageInput.trim() ? (
@@ -601,6 +767,14 @@ export default function OmniWhatsAppChat() {
         filas={filas}
         agentes={agentes}
         onTransferir={handleTransferirAtendimento}
+      />
+
+      {/* Encerrar Modal */}
+      <EncerrarAtendimentoModal
+        open={encerrarModalOpen}
+        onClose={() => setEncerrarModalOpen(false)}
+        atendimento={selectedAtendimento}
+        onEncerrar={handleFinalizarAtendimento}
       />
     </div>
   );

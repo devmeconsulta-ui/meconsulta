@@ -1,6 +1,5 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +10,6 @@ import {
   Send,
   Paperclip,
   Smile,
-  Phone,
   MoreVertical,
   ArrowDownCircle,
   ChevronLeft,
@@ -24,14 +22,17 @@ import {
   Check,
   CheckCheck,
   Image as ImageIcon,
-  Mic,
   Filter,
   MessageSquare,
+  FileText,
+  PenLine,
+  MessageSquareText,
 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -45,6 +46,7 @@ import { cn } from "@/lib/utils";
 import { format, isToday, isYesterday, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { TransferirAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/TransferirAtendimentoModal";
+import { EncerrarAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/EncerrarAtendimentoModal";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -62,9 +64,14 @@ export default function AtendenteChat() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAtendimento, setSelectedAtendimento] = useState<OmniAtendimento | null>(null);
   const [mensagemInput, setMensagemInput] = useState("");
+  const [sending, setSending] = useState(false);
   const [transferirModalOpen, setTransferirModalOpen] = useState(false);
+  const [encerrarModalOpen, setEncerrarModalOpen] = useState(false);
+  const [signatureEnabled, setSignatureEnabled] = useState(true);
+  const [optimisticMessages, setOptimisticMessages] = useState<OmniMensagem[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch atendimentos do agente
   const {
@@ -85,6 +92,15 @@ export default function AtendenteChat() {
     enviarMensagem,
   } = useOmniMensagens(selectedAtendimento?.id || null);
 
+  // Combine real messages with optimistic messages
+  const allMessages = useMemo(() => {
+    const realMessageIds = new Set(mensagens.map(m => m.id));
+    const pendingOptimistic = optimisticMessages.filter(m => !realMessageIds.has(m.id.replace("temp-", "")));
+    return [...mensagens, ...pendingOptimistic].sort((a, b) => 
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  }, [mensagens, optimisticMessages]);
+
   // Filtrar atendimentos por busca
   const filteredAtendimentos = useMemo(() => {
     if (!searchTerm) return atendimentos;
@@ -98,7 +114,7 @@ export default function AtendenteChat() {
   // Auto-scroll para última mensagem
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [mensagens]);
+  }, [allMessages]);
 
   // Formatar data da mensagem
   const formatMessageDate = (dateStr: string) => {
@@ -133,27 +149,108 @@ export default function AtendenteChat() {
     return `${hours}h${remainingMins > 0 ? ` ${remainingMins}min` : ""}`;
   };
 
-  // Enviar mensagem
-  const handleSendMessage = async () => {
-    if (!mensagemInput.trim() || !agenteId || !selectedAtendimento) return;
+  // Optimistic message sending
+  const handleSendMessage = useCallback(async () => {
+    const trimmedMessage = mensagemInput.trim();
+    if (!trimmedMessage || !agenteId || !selectedAtendimento) return;
+    if (sending) return; // Prevent double send
 
-    const success = await enviarMensagem(
-      agenteId,
-      "texto",
-      mensagemInput.trim()
-    );
+    // Clear input immediately for instant feedback
+    setMensagemInput("");
+    setSending(true);
 
-    if (success) {
-      setMensagemInput("");
+    // Create optimistic message
+    const optimisticMsg: OmniMensagem = {
+      id: `temp-${Date.now()}`,
+      atendimento_id: selectedAtendimento.id,
+      contato_id: null,
+      agente_id: agenteId,
+      tipo: "texto",
+      direcao: "saida",
+      conteudo: trimmedMessage,
+      arquivo_url: null,
+      arquivo_nome: null,
+      arquivo_tipo: null,
+      whatsapp_message_id: null,
+      status: "enviada",
+      erro_descricao: null,
+      created_at: new Date().toISOString(),
+    };
+
+    // Add optimistic message immediately
+    setOptimisticMessages(prev => [...prev, optimisticMsg]);
+
+    // Focus back on input
+    inputRef.current?.focus();
+
+    try {
+      await enviarMensagem(
+        agenteId,
+        "texto",
+        trimmedMessage
+      );
+      // Remove optimistic message after real message arrives (handled by allMessages memo)
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast.error("Erro ao enviar mensagem");
+      // Remove failed optimistic message
+      setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
+      // Restore the message to input
+      setMensagemInput(trimmedMessage);
+    } finally {
+      setSending(false);
     }
-  };
+  }, [mensagemInput, selectedAtendimento, agenteId, sending, enviarMensagem]);
 
-  // Encerrar atendimento
-  const handleEncerrar = async () => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  }, [handleSendMessage]);
+
+  // Encerrar atendimento with options
+  const handleEncerrar = async (
+    motivoFechamento: string,
+    dataReabertura?: Date,
+    mensagemReabertura?: string
+  ) => {
     if (!selectedAtendimento) return;
-    await finalizarAtendimento(selectedAtendimento.id, "Encerrado pelo agente");
-    setSelectedAtendimento(null);
-    toast.success("Atendimento encerrado");
+
+    try {
+      const tempoTotal = selectedAtendimento.data_abertura
+        ? Math.floor((Date.now() - new Date(selectedAtendimento.data_abertura).getTime()) / 1000)
+        : null;
+
+      const updateData: Record<string, unknown> = {
+        status: "finalizado",
+        data_fechamento: new Date().toISOString(),
+        motivo_fechamento: motivoFechamento,
+        tempo_total_atendimento: tempoTotal,
+      };
+
+      // Add reopening data if scheduled
+      if (dataReabertura) {
+        updateData.data_reabertura = dataReabertura.toISOString();
+        updateData.mensagem_reabertura = mensagemReabertura || null;
+        updateData.reabertura_agendada = true;
+      }
+
+      await supabase
+        .from("omni_atendimentos")
+        .update(updateData)
+        .eq("id", selectedAtendimento.id);
+
+      setSelectedAtendimento(null);
+      toast.success(
+        dataReabertura 
+          ? "Atendimento encerrado com reabertura agendada" 
+          : "Atendimento encerrado"
+      );
+    } catch (error) {
+      console.error("Error finalizing atendimento:", error);
+      toast.error("Erro ao encerrar atendimento");
+    }
   };
 
   // Get agentes for transfer modal
@@ -365,8 +462,33 @@ export default function AtendenteChat() {
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleEncerrar}>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => toast.info("Busca de mensagens em breve!")}>
+                    <Search className="h-4 w-4 mr-2" />
+                    Pesquisar mensagens
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info("Ver mídias em breve!")}>
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    Ver mídias
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info("Ver documentos em breve!")}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Ver documentos
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setTransferirModalOpen(true)}>
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Transferir chat
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info("Etiquetas em breve!")}>
+                    <Tag className="h-4 w-4 mr-2" />
+                    Adicionar etiqueta
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => setEncerrarModalOpen(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
                     <XCircle className="h-4 w-4 mr-2" />
                     Encerrar atendimento
                   </DropdownMenuItem>
@@ -381,7 +503,7 @@ export default function AtendenteChat() {
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : mensagens.length === 0 ? (
+            ) : allMessages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-muted-foreground text-sm">
                   Nenhuma mensagem ainda. Envie uma mensagem para iniciar a conversa.
@@ -389,10 +511,11 @@ export default function AtendenteChat() {
               </div>
             ) : (
               <div className="space-y-3">
-                {mensagens.map((msg, index) => {
+                {allMessages.map((msg, index) => {
                   const isOutgoing = msg.direcao === "saida";
+                  const isOptimistic = msg.id.startsWith("temp-");
                   const showDate = index === 0 || 
-                    format(new Date(mensagens[index - 1].created_at), "yyyy-MM-dd") !== 
+                    format(new Date(allMessages[index - 1].created_at), "yyyy-MM-dd") !== 
                     format(new Date(msg.created_at), "yyyy-MM-dd");
 
                   return (
@@ -420,7 +543,8 @@ export default function AtendenteChat() {
                             "max-w-[75%] rounded-lg p-3 shadow-sm",
                             isOutgoing
                               ? "bg-primary text-primary-foreground rounded-br-sm"
-                              : "bg-card border rounded-bl-sm"
+                              : "bg-card border rounded-bl-sm",
+                            isOptimistic && "opacity-70"
                           )}
                         >
                           {msg.tipo === "texto" && (
@@ -447,7 +571,9 @@ export default function AtendenteChat() {
                             </span>
                             
                             {isOutgoing && (
-                              msg.status === "lida" ? (
+                              isOptimistic ? (
+                                <Clock className="w-3 h-3 text-primary-foreground/70 animate-pulse" />
+                              ) : msg.status === "lida" ? (
                                 <CheckCheck className="w-3 h-3 text-blue-400" />
                               ) : msg.status === "entregue" ? (
                                 <CheckCheck className="w-3 h-3 text-primary-foreground/70" />
@@ -467,7 +593,7 @@ export default function AtendenteChat() {
           </ScrollArea>
 
           {/* Indicador de mensagens não lidas */}
-          {mensagens.length > 5 && (
+          {allMessages.length > 5 && (
             <div className="absolute bottom-20 left-1/2 -translate-x-1/2">
               <Button
                 size="sm"
@@ -484,33 +610,79 @@ export default function AtendenteChat() {
           {/* Input de mensagem */}
           <div className="p-3 border-t bg-card">
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="shrink-0">
-                <Smile className="h-5 w-5 text-muted-foreground" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="shrink-0">
+                    <Smile className="h-5 w-5 text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Emoji</TooltipContent>
+              </Tooltip>
               
-              <Button variant="ghost" size="icon" className="shrink-0">
-                <Paperclip className="h-5 w-5 text-muted-foreground" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="shrink-0">
+                    <Paperclip className="h-5 w-5 text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Anexar arquivo</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="shrink-0"
+                    onClick={() => toast.info("Respostas rápidas em breve!")}
+                  >
+                    <MessageSquareText className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Respostas rápidas</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className={cn(
+                      "shrink-0",
+                      signatureEnabled && "text-primary"
+                    )}
+                    onClick={() => {
+                      setSignatureEnabled(!signatureEnabled);
+                      toast.info(signatureEnabled ? "Assinatura desabilitada para esta mensagem" : "Assinatura habilitada");
+                    }}
+                  >
+                    <PenLine className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {signatureEnabled ? "Assinatura habilitada" : "Assinatura desabilitada"}
+                </TooltipContent>
+              </Tooltip>
 
               <Input
+                ref={inputRef}
                 placeholder="Digite uma mensagem ou / para atalhos..."
                 className="flex-1"
                 value={mensagemInput}
                 onChange={(e) => setMensagemInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
+                onKeyDown={handleKeyDown}
               />
 
               <Button
                 size="icon"
                 onClick={handleSendMessage}
-                disabled={!mensagemInput.trim()}
+                disabled={!mensagemInput.trim() || sending}
               >
-                <Send className="h-4 w-4" />
+                {sending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </div>
@@ -535,6 +707,14 @@ export default function AtendenteChat() {
         filas={filas}
         agentes={agentes}
         onTransferir={transferirAtendimento}
+      />
+
+      {/* Modal de encerrar */}
+      <EncerrarAtendimentoModal
+        open={encerrarModalOpen}
+        onClose={() => setEncerrarModalOpen(false)}
+        atendimento={selectedAtendimento}
+        onEncerrar={handleEncerrar}
       />
     </div>
   );
