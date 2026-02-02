@@ -3,6 +3,8 @@ import { useOutletContext } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useOmniFilas } from "@/hooks/useOmniFilas";
+import { Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,6 +102,7 @@ interface AgenteIA {
   site_url: string;
   descricao_produto: string;
   ativo: boolean;
+  fila_operacao: string; // Fila em que a IA irá operar
   // Configurações
   transferir_para_humano: boolean;
   usar_emojis: boolean;
@@ -150,6 +153,8 @@ export default function OmniIA() {
   const { clinicaData } = useOutletContext<ClinicaContext>();
   const { currentUser } = useAuth();
   const clinicaId = clinicaData?.id || currentUser?.clinicaId || null;
+  
+  const { filas, loading: loadingFilas } = useOmniFilas(clinicaId);
 
   const [selectedAgente, setSelectedAgente] = useState<AgenteIA | null>(null);
   const [activeSection, setActiveSection] = useState("perfil");
@@ -212,6 +217,7 @@ export default function OmniIA() {
       site_url: "",
       descricao_produto: "Clínica especializada em saúde e bem-estar.",
       ativo: true,
+      fila_operacao: "",
       transferir_para_humano: true,
       usar_emojis: true,
       assinar_nome: false,
@@ -310,6 +316,7 @@ export default function OmniIA() {
       site_url: "",
       descricao_produto: "",
       ativo: true,
+      fila_operacao: "",
       transferir_para_humano: false,
       usar_emojis: true,
       assinar_nome: false,
@@ -662,6 +669,41 @@ export default function OmniIA() {
                           <SelectItem value="mixtral-8x7b">Groq Mixtral 8x7B</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    {/* Seletor de Fila de Operação */}
+                    <div className="mt-3 w-full">
+                      <Label className="text-xs text-muted-foreground mb-1 block text-center">Fila de Operação</Label>
+                      <Select
+                        value={selectedAgente?.fila_operacao || ""}
+                        onValueChange={(value) => setSelectedAgente(prev => prev ? { ...prev, fila_operacao: value } : null)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <div className="flex items-center gap-2">
+                            <Inbox className="w-4 h-4 text-blue-600" />
+                            <SelectValue placeholder="Selecionar fila" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Nenhuma (desativada)</SelectItem>
+                          {filas.map((fila) => (
+                            <SelectItem key={fila.id} value={fila.id}>
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className="w-2 h-2 rounded-full" 
+                                  style={{ backgroundColor: fila.cor }}
+                                />
+                                {fila.nome}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedAgente?.fila_operacao && (
+                        <p className="text-[10px] text-emerald-600 mt-1 text-center">
+                          IA ativa nesta fila
+                        </p>
+                      )}
                     </div>
 
                     {/* Dropdown de agentes */}
