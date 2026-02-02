@@ -628,7 +628,7 @@ export default function OmniWhatsAppChat() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <div className="text-right mr-2">
                     <p className="text-xs text-white/70">Aberto a:</p>
                     <p className="font-mono text-sm">{waitTimeDisplay}</p>
@@ -646,6 +646,20 @@ export default function OmniWhatsAppChat() {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Transferir atendimento</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-white hover:bg-white/10 hover:text-red-300"
+                        onClick={() => setEncerrarModalOpen(true)}
+                      >
+                        <XCircle className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Encerrar atendimento</TooltipContent>
                   </Tooltip>
                   
                   <DropdownMenu>
