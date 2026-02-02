@@ -7,7 +7,8 @@ import {
   ListChecks,
   FileText,
   CalendarCheck,
-  Kanban
+  Kanban,
+  Settings
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -27,6 +28,7 @@ const navItems: NavItem[] = [
   { icon: ListChecks, label: "Filas", path: "/clinica/omnichannel/filas" },
   { icon: FileText, label: "Relatórios", path: "/clinica/omnichannel/relatorios" },
   { icon: CalendarCheck, label: "Confirmação Agenda", path: "/clinica/omnichannel/confirmacao-agenda" },
+  { icon: Settings, label: "Configurações", path: "/clinica/configuracoes" },
 ];
 
 export function OmniHeader() {

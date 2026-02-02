@@ -78,7 +78,7 @@ export function AtendenteLayout() {
       />
       
       {/* Navegação do omnichannel (estilo do OmniHeader) */}
-      <AtendenteOmniNav />
+      <AtendenteOmniNav clinicaId={clinicaData?.id} />
       
       {/* Conteúdo principal */}
       <main className="flex-1 overflow-auto p-4 sm:p-6">
