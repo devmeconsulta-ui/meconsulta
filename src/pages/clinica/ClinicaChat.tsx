@@ -166,7 +166,7 @@ export default function ClinicaChat() {
     <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
       {/* Header fixo no topo - abaixo do ClinicaHeader */}
       <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background">
-        <OmniHeader atendimentosCount={atendimentosCount} />
+        <OmniHeader />
       </div>
 
       {/* Espaçador para compensar o header fixo */}
