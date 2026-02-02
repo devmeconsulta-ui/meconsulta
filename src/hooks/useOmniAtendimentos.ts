@@ -50,6 +50,7 @@ export interface OmniMensagem {
   atendimento_id: string;
   contato_id: string | null;
   agente_id: string | null;
+  agente_nome?: string | null;
   tipo: "texto" | "imagem" | "audio" | "video" | "documento" | "localizacao" | "contato" | "sticker";
   direcao: "entrada" | "saida";
   conteudo: string | null;
@@ -273,12 +274,23 @@ export function useOmniMensagens(atendimentoId: string | null) {
     try {
       const { data, error } = await supabase
         .from("omni_mensagens")
-        .select("*")
+        .select(`
+          *,
+          agente:usuarios_clinica!agente_id(id, nome)
+        `)
         .eq("atendimento_id", atendimentoId)
         .order("created_at", { ascending: true });
 
       if (error) throw error;
-      setMensagens((data || []) as OmniMensagem[]);
+      
+      // Map agente nome to each message
+      const mensagensComAgente = (data || []).map((msg: any) => ({
+        ...msg,
+        agente_nome: msg.agente?.nome || null,
+        agente: undefined, // Remove the nested object
+      })) as OmniMensagem[];
+      
+      setMensagens(mensagensComAgente);
     } catch (error) {
       console.error("Error fetching mensagens:", error);
     } finally {
