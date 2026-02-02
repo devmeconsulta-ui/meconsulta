@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
@@ -20,7 +20,24 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   User,
   Briefcase,
@@ -53,7 +70,14 @@ import {
   Bot,
   MoreVertical,
   Pencil,
-  Upload
+  Upload,
+  Copy,
+  Check,
+  X,
+  RefreshCw,
+  Play,
+  Pause,
+  ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -87,19 +111,29 @@ interface AgenteIA {
   timezone: string;
   tempo_resposta: number;
   limite_interacoes: number;
+  // Inatividade
+  tempo_inatividade: number;
+  acao_inatividade: string;
+  mensagem_inatividade: string;
+  // Transferência
+  palavras_chave_transferencia: string[];
+  fila_transferencia: string;
 }
 
 interface Treinamento {
   id: string;
   tipo: "texto" | "website" | "video" | "documento";
   conteudo: string;
-  status: "pendente" | "treinado";
+  status: "pendente" | "treinado" | "erro";
+  created_at: string;
 }
 
 interface Intencao {
   id: string;
   nome: string;
   webhook_url: string;
+  ativa: boolean;
+  descricao: string;
 }
 
 interface Integracao {
@@ -108,6 +142,8 @@ interface Integracao {
   descricao: string;
   icone: string;
   ativa: boolean;
+  configurada: boolean;
+  api_key?: string;
 }
 
 export default function OmniIA() {
@@ -124,6 +160,43 @@ export default function OmniIA() {
   const [buscarTreinamento, setBuscarTreinamento] = useState("");
   const [buscarIntencao, setBuscarIntencao] = useState("");
   const [novoTreinamento, setNovoTreinamento] = useState("");
+  const [novoWebsiteUrl, setNovoWebsiteUrl] = useState("");
+  const [novoVideoUrl, setNovoVideoUrl] = useState("");
+  const [testarIaOpen, setTestarIaOpen] = useState(false);
+  const [chatMensagens, setChatMensagens] = useState<{role: string; content: string}[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Dialog states
+  const [editTreinamentoOpen, setEditTreinamentoOpen] = useState(false);
+  const [editTreinamento, setEditTreinamento] = useState<Treinamento | null>(null);
+  const [deleteTreinamentoOpen, setDeleteTreinamentoOpen] = useState(false);
+  const [deleteTreinamentoId, setDeleteTreinamentoId] = useState<string | null>(null);
+  
+  const [novaIntencaoOpen, setNovaIntencaoOpen] = useState(false);
+  const [novaIntencao, setNovaIntencao] = useState({ nome: "", webhook_url: "", descricao: "" });
+  const [editIntencaoOpen, setEditIntencaoOpen] = useState(false);
+  const [editIntencao, setEditIntencao] = useState<Intencao | null>(null);
+  const [deleteIntencaoOpen, setDeleteIntencaoOpen] = useState(false);
+  const [deleteIntencaoId, setDeleteIntencaoId] = useState<string | null>(null);
+  
+  const [configIntegracaoOpen, setConfigIntegracaoOpen] = useState(false);
+  const [integracaoSelecionada, setIntegracaoSelecionada] = useState<Integracao | null>(null);
+  const [integracaoApiKey, setIntegracaoApiKey] = useState("");
+  
+  const [deleteAgenteOpen, setDeleteAgenteOpen] = useState(false);
+  
+  // Inatividade config
+  const [inativodadeConfigOpen, setInativodadeConfigOpen] = useState(false);
+  
+  // Webhooks config
+  const [webhooksConfigOpen, setWebhooksConfigOpen] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [webhookEventos, setWebhookEventos] = useState<string[]>([]);
+  
+  // Transferência config
+  const [transferenciaConfigOpen, setTransferenciaConfigOpen] = useState(false);
+  const [palavrasChave, setPalavrasChave] = useState("");
 
   const [agentes, setAgentes] = useState<AgenteIA[]>([
     {
@@ -148,7 +221,12 @@ export default function OmniIA() {
       busca_treinamento: false,
       timezone: "America/Sao_Paulo",
       tempo_resposta: 5,
-      limite_interacoes: 0
+      limite_interacoes: 0,
+      tempo_inatividade: 5,
+      acao_inatividade: "mensagem",
+      mensagem_inatividade: "Olá! Notei que você ficou um tempo sem responder. Posso ajudar em algo mais?",
+      palavras_chave_transferencia: ["humano", "atendente", "pessoa real"],
+      fila_transferencia: ""
     }
   ]);
 
@@ -156,8 +234,9 @@ export default function OmniIA() {
     {
       id: "1",
       tipo: "texto",
-      conteudo: "Mensagem da IA (natural e persuasiva): Perfeito! Como prometido,...",
-      status: "treinado"
+      conteudo: "Mensagem da IA (natural e persuasiva): Perfeito! Como prometido, estou aqui para ajudar com suas dúvidas sobre nossos serviços.",
+      status: "treinado",
+      created_at: new Date().toISOString()
     }
   ]);
 
@@ -165,38 +244,52 @@ export default function OmniIA() {
     {
       id: "1",
       nome: "INTERAGIU COM A IA",
-      webhook_url: "https://example.com/webhook/interagiu"
+      webhook_url: "https://example.com/webhook/interagiu",
+      ativa: true,
+      descricao: "Dispara quando o usuário interage com a IA"
     },
     {
       id: "2",
       nome: "INTENÇÃO: novo lead",
-      webhook_url: "https://example.com/webhook/novo-lead"
+      webhook_url: "https://example.com/webhook/novo-lead",
+      ativa: true,
+      descricao: "Dispara quando um novo lead é identificado"
     }
   ]);
 
-  const integracoes: Integracao[] = [
+  const [integracoes, setIntegracoes] = useState<Integracao[]>([
     {
       id: "1",
       nome: "ElevenLabs",
       descricao: "Com ElevenLabs você dá a capacidade do seu agente responder seus clientes em áudio, tornando ainda mais humanizado.",
       icone: "11",
-      ativa: false
+      ativa: false,
+      configurada: false
     },
     {
       id: "2",
       nome: "Google Calendar",
       descricao: "Com google calendar sua agente será capaz de agendar reuniões, criar link da chamada e já enviar os convites.",
       icone: "calendar",
-      ativa: true
+      ativa: true,
+      configurada: true
     },
     {
       id: "3",
       nome: "Plug Chat",
       descricao: "Caso sua IA ainda não consiga responder algumas perguntas, permita direcionar o atendimento a um humano.",
       icone: "chat",
-      ativa: false
+      ativa: false,
+      configurada: false
     }
-  ];
+  ]);
+
+  // Initialize selected agente
+  useEffect(() => {
+    if (!selectedAgente && agentes.length > 0) {
+      setSelectedAgente(agentes[0]);
+    }
+  }, [agentes, selectedAgente]);
 
   const handleCriarAgente = () => {
     if (!novoAgenteNome.trim()) {
@@ -226,7 +319,12 @@ export default function OmniIA() {
       busca_treinamento: false,
       timezone: "America/Sao_Paulo",
       tempo_resposta: 5,
-      limite_interacoes: 0
+      limite_interacoes: 0,
+      tempo_inatividade: 5,
+      acao_inatividade: "mensagem",
+      mensagem_inatividade: "",
+      palavras_chave_transferencia: [],
+      fila_transferencia: ""
     };
 
     setAgentes(prev => [...prev, novoAgente]);
@@ -236,23 +334,201 @@ export default function OmniIA() {
     toast.success("Agente criado com sucesso!");
   };
 
+  const handleDeleteAgente = () => {
+    if (!selectedAgente) return;
+    
+    setAgentes(prev => prev.filter(a => a.id !== selectedAgente.id));
+    setSelectedAgente(agentes.length > 1 ? agentes.find(a => a.id !== selectedAgente.id) || null : null);
+    setDeleteAgenteOpen(false);
+    toast.success("Agente excluído com sucesso!");
+  };
+
   const handleSalvarAgente = () => {
     if (!selectedAgente) return;
     setAgentes(prev => prev.map(a => a.id === selectedAgente.id ? selectedAgente : a));
     toast.success("Alterações salvas!");
   };
 
-  const handleAdicionarTreinamento = () => {
-    if (!novoTreinamento.trim()) return;
+  const handleToggleAgenteAtivo = () => {
+    if (!selectedAgente) return;
+    const updated = { ...selectedAgente, ativo: !selectedAgente.ativo };
+    setSelectedAgente(updated);
+    setAgentes(prev => prev.map(a => a.id === updated.id ? updated : a));
+    toast.success(updated.ativo ? "Agente ativado!" : "Agente desativado!");
+  };
+
+  // Treinamentos handlers
+  const handleAdicionarTreinamento = (tipo: Treinamento["tipo"], conteudo: string) => {
+    if (!conteudo.trim()) {
+      toast.error("Digite o conteúdo do treinamento");
+      return;
+    }
     
     setTreinamentos(prev => [...prev, {
       id: Math.random().toString(),
-      tipo: treinamentoTab as Treinamento["tipo"],
-      conteudo: novoTreinamento,
-      status: "pendente"
+      tipo,
+      conteudo,
+      status: "pendente",
+      created_at: new Date().toISOString()
     }]);
+    
     setNovoTreinamento("");
-    toast.success("Treinamento cadastrado!");
+    setNovoWebsiteUrl("");
+    setNovoVideoUrl("");
+    toast.success("Treinamento cadastrado! Processando...");
+    
+    // Simulate training
+    setTimeout(() => {
+      setTreinamentos(prev => prev.map(t => 
+        t.status === "pendente" ? { ...t, status: "treinado" as const } : t
+      ));
+      toast.success("Treinamento concluído!");
+    }, 2000);
+  };
+
+  const handleEditTreinamento = () => {
+    if (!editTreinamento) return;
+    setTreinamentos(prev => prev.map(t => t.id === editTreinamento.id ? editTreinamento : t));
+    setEditTreinamentoOpen(false);
+    setEditTreinamento(null);
+    toast.success("Treinamento atualizado!");
+  };
+
+  const handleDeleteTreinamento = () => {
+    if (!deleteTreinamentoId) return;
+    setTreinamentos(prev => prev.filter(t => t.id !== deleteTreinamentoId));
+    setDeleteTreinamentoOpen(false);
+    setDeleteTreinamentoId(null);
+    toast.success("Treinamento excluído!");
+  };
+
+  const handleRetrainTreinamento = (id: string) => {
+    setTreinamentos(prev => prev.map(t => 
+      t.id === id ? { ...t, status: "pendente" as const } : t
+    ));
+    toast.info("Reprocessando treinamento...");
+    
+    setTimeout(() => {
+      setTreinamentos(prev => prev.map(t => 
+        t.id === id ? { ...t, status: "treinado" as const } : t
+      ));
+      toast.success("Treinamento reprocessado!");
+    }, 2000);
+  };
+
+  // Intenções handlers
+  const handleCriarIntencao = () => {
+    if (!novaIntencao.nome.trim() || !novaIntencao.webhook_url.trim()) {
+      toast.error("Preencha nome e URL do webhook");
+      return;
+    }
+    
+    setIntencoes(prev => [...prev, {
+      id: Math.random().toString(),
+      ...novaIntencao,
+      ativa: true
+    }]);
+    
+    setNovaIntencaoOpen(false);
+    setNovaIntencao({ nome: "", webhook_url: "", descricao: "" });
+    toast.success("Intenção criada com sucesso!");
+  };
+
+  const handleEditIntencaoSave = () => {
+    if (!editIntencao) return;
+    setIntencoes(prev => prev.map(i => i.id === editIntencao.id ? editIntencao : i));
+    setEditIntencaoOpen(false);
+    setEditIntencao(null);
+    toast.success("Intenção atualizada!");
+  };
+
+  const handleDeleteIntencao = () => {
+    if (!deleteIntencaoId) return;
+    setIntencoes(prev => prev.filter(i => i.id !== deleteIntencaoId));
+    setDeleteIntencaoOpen(false);
+    setDeleteIntencaoId(null);
+    toast.success("Intenção excluída!");
+  };
+
+  const handleToggleIntencao = (id: string) => {
+    setIntencoes(prev => prev.map(i => 
+      i.id === id ? { ...i, ativa: !i.ativa } : i
+    ));
+  };
+
+  // Integração handlers
+  const handleConfigIntegracao = (integracao: Integracao) => {
+    setIntegracaoSelecionada(integracao);
+    setIntegracaoApiKey(integracao.api_key || "");
+    setConfigIntegracaoOpen(true);
+  };
+
+  const handleSalvarIntegracao = () => {
+    if (!integracaoSelecionada) return;
+    
+    setIntegracoes(prev => prev.map(i => 
+      i.id === integracaoSelecionada.id 
+        ? { ...i, ativa: true, configurada: true, api_key: integracaoApiKey }
+        : i
+    ));
+    
+    setConfigIntegracaoOpen(false);
+    setIntegracaoSelecionada(null);
+    setIntegracaoApiKey("");
+    toast.success("Integração configurada com sucesso!");
+  };
+
+  const handleToggleIntegracao = (id: string) => {
+    setIntegracoes(prev => prev.map(i => 
+      i.id === id ? { ...i, ativa: !i.ativa } : i
+    ));
+  };
+
+  // Testar IA
+  const handleEnviarMensagemTeste = async () => {
+    if (!chatInput.trim()) return;
+    
+    const userMsg = { role: "user", content: chatInput };
+    setChatMensagens(prev => [...prev, userMsg]);
+    setChatInput("");
+    setIsLoading(true);
+    
+    // Simulate AI response
+    setTimeout(() => {
+      const aiResponse = { 
+        role: "assistant", 
+        content: `Olá! Sou o ${selectedAgente?.nome || "Assistente"}. ${selectedAgente?.comportamento || "Como posso ajudar você hoje?"}`
+      };
+      setChatMensagens(prev => [...prev, aiResponse]);
+      setIsLoading(false);
+    }, 1500);
+  };
+
+  // Salvar configs de inatividade
+  const handleSalvarInatividade = () => {
+    handleSalvarAgente();
+    setInativodadeConfigOpen(false);
+    toast.success("Configurações de inatividade salvas!");
+  };
+
+  // Salvar webhooks
+  const handleSalvarWebhooks = () => {
+    toast.success("Webhooks configurados com sucesso!");
+    setWebhooksConfigOpen(false);
+  };
+
+  // Salvar transferência
+  const handleSalvarTransferencia = () => {
+    if (selectedAgente) {
+      const updated = {
+        ...selectedAgente,
+        palavras_chave_transferencia: palavrasChave.split(",").map(p => p.trim()).filter(Boolean)
+      };
+      setSelectedAgente(updated);
+      setAgentes(prev => prev.map(a => a.id === updated.id ? updated : a));
+    }
+    setTransferenciaConfigOpen(false);
+    toast.success("Regras de transferência salvas!");
   };
 
   const menuItems = [
@@ -350,6 +626,16 @@ export default function OmniIA() {
                     <h3 className="font-semibold text-lg">{selectedAgente?.nome || agentes[0]?.nome}</h3>
                     <p className="text-sm text-muted-foreground">{selectedAgente?.descricao || agentes[0]?.descricao}</p>
                     
+                    {/* Status do agente */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge variant={selectedAgente?.ativo ? "default" : "secondary"} className={selectedAgente?.ativo ? "bg-emerald-500" : ""}>
+                        {selectedAgente?.ativo ? "Ativo" : "Inativo"}
+                      </Badge>
+                      <Button variant="ghost" size="sm" onClick={handleToggleAgenteAtivo}>
+                        {selectedAgente?.ativo ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                      </Button>
+                    </div>
+                    
                     {/* Seletor de LLM configurada */}
                     <div className="mt-3 w-full">
                       <Label className="text-xs text-muted-foreground mb-1 block text-center">LLM Configurada</Label>
@@ -420,11 +706,27 @@ export default function OmniIA() {
                     ))}
                   </nav>
 
-                  {/* Botão Testar IA */}
-                  <Button className="w-full mt-6 bg-emerald-500 hover:bg-emerald-600">
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    Teste sua IA
-                  </Button>
+                  {/* Botões de ação */}
+                  <div className="mt-6 space-y-2">
+                    <Button 
+                      onClick={() => {
+                        setChatMensagens([]);
+                        setTestarIaOpen(true);
+                      }}
+                      className="w-full bg-emerald-500 hover:bg-emerald-600"
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Teste sua IA
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="w-full text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                      onClick={() => setDeleteAgenteOpen(true)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Excluir Agente
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -442,51 +744,56 @@ export default function OmniIA() {
                         <div className="space-y-2">
                           <Label>Nome do agente</Label>
                           <Input
-                            value={selectedAgente?.nome || agentes[0]?.nome || ""}
+                            value={selectedAgente?.nome || ""}
                             onChange={(e) => setSelectedAgente(prev => prev ? { ...prev, nome: e.target.value } : null)}
                             placeholder="Nome do agente"
                           />
                         </div>
                         
                         <div className="space-y-2">
-                          <Label>Comunicação</Label>
-                          <div className="flex gap-2">
-                            {["formal", "normal", "descontraida"].map((tipo) => (
-                              <Button
-                                key={tipo}
-                                variant={(selectedAgente?.comunicacao || agentes[0]?.comunicacao) === tipo ? "default" : "outline"}
-                                className={cn(
-                                  (selectedAgente?.comunicacao || agentes[0]?.comunicacao) === tipo && "bg-purple-600 hover:bg-purple-700"
-                                )}
-                                onClick={() => setSelectedAgente(prev => prev ? { ...prev, comunicacao: tipo as AgenteIA["comunicacao"] } : null)}
-                              >
-                                {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
-                              </Button>
-                            ))}
-                          </div>
+                          <Label>Descrição</Label>
+                          <Input
+                            value={selectedAgente?.descricao || ""}
+                            onChange={(e) => setSelectedAgente(prev => prev ? { ...prev, descricao: e.target.value } : null)}
+                            placeholder="Ex: Atendente da Clínica"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Comunicação</Label>
+                        <div className="flex gap-2">
+                          {["formal", "normal", "descontraida"].map((tipo) => (
+                            <Button
+                              key={tipo}
+                              variant={selectedAgente?.comunicacao === tipo ? "default" : "outline"}
+                              className={cn(
+                                selectedAgente?.comunicacao === tipo && "bg-purple-600 hover:bg-purple-700"
+                              )}
+                              onClick={() => setSelectedAgente(prev => prev ? { ...prev, comunicacao: tipo as AgenteIA["comunicacao"] } : null)}
+                            >
+                              {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
+                            </Button>
+                          ))}
                         </div>
                       </div>
 
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <Label>Comportamento:</Label>
-                          <Button variant="ghost" size="sm" className="text-muted-foreground">
-                            <Clock className="w-4 h-4 mr-1" />
-                            Histórico
-                          </Button>
                         </div>
                         <p className="text-sm text-muted-foreground">
                           Descreva um pouco sobre como o agente deve se comportar durante a conversa.
                         </p>
                         <Textarea
-                          value={selectedAgente?.comportamento || agentes[0]?.comportamento || ""}
+                          value={selectedAgente?.comportamento || ""}
                           onChange={(e) => setSelectedAgente(prev => prev ? { ...prev, comportamento: e.target.value } : null)}
                           placeholder="Ex: Você é um assistente cordial que ajuda clientes..."
                           rows={8}
                           className="resize-none"
                         />
                         <div className="text-right text-sm text-muted-foreground">
-                          {(selectedAgente?.comportamento || agentes[0]?.comportamento || "").length}/3000
+                          {(selectedAgente?.comportamento || "").length}/3000
                         </div>
                       </div>
 
@@ -516,14 +823,14 @@ export default function OmniIA() {
                               onClick={() => setSelectedAgente(prev => prev ? { ...prev, finalidade: opt.id as AgenteIA["finalidade"] } : null)}
                               className={cn(
                                 "p-4 rounded-lg border-2 text-left transition-colors",
-                                (selectedAgente?.finalidade || agentes[0]?.finalidade) === opt.id
+                                selectedAgente?.finalidade === opt.id
                                   ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
                                   : "border-muted hover:border-purple-300"
                               )}
                             >
                               <opt.icon className={cn(
                                 "w-8 h-8 mb-2",
-                                (selectedAgente?.finalidade || agentes[0]?.finalidade) === opt.id ? "text-purple-600" : "text-muted-foreground"
+                                selectedAgente?.finalidade === opt.id ? "text-purple-600" : "text-muted-foreground"
                               )} />
                               <h4 className="font-semibold">{opt.label}</h4>
                               <p className="text-sm text-muted-foreground">{opt.desc}</p>
@@ -609,21 +916,16 @@ export default function OmniIA() {
                                 <span className="ml-auto text-sm text-muted-foreground">{novoTreinamento.length}/1028</span>
                               </div>
                               <Textarea
-                                placeholder="Escreva uma afirmação e tecle enter para cadastrar..."
+                                placeholder="Escreva uma afirmação e clique em cadastrar..."
                                 value={novoTreinamento}
                                 onChange={(e) => setNovoTreinamento(e.target.value)}
                                 rows={3}
                               />
-                              <div className="flex items-center justify-between mt-3">
-                                <div className="flex gap-2">
-                                  <Button variant="outline" size="icon"><Image className="w-4 h-4" /></Button>
-                                  <Button variant="outline" size="icon"><Video className="w-4 h-4" /></Button>
-                                  <Button variant="outline" size="icon"><Headphones className="w-4 h-4" /></Button>
-                                  <Button variant="outline" size="icon"><FileText className="w-4 h-4" /></Button>
-                                </div>
+                              <div className="flex justify-end mt-3">
                                 <Button 
-                                  onClick={handleAdicionarTreinamento}
+                                  onClick={() => handleAdicionarTreinamento("texto", novoTreinamento)}
                                   className="bg-orange-400 hover:bg-orange-500 text-white"
+                                  disabled={!novoTreinamento.trim()}
                                 >
                                   Cadastrar
                                 </Button>
@@ -639,28 +941,55 @@ export default function OmniIA() {
                               .map((treinamento) => (
                                 <Card key={treinamento.id}>
                                   <CardContent className="p-4 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <MessageSquare className="w-5 h-5 text-purple-600" />
-                                      <span className="truncate max-w-md">{treinamento.conteudo}</span>
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                      <MessageSquare className="w-5 h-5 text-purple-600 flex-shrink-0" />
+                                      <span className="truncate">{treinamento.conteudo}</span>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      <Badge variant={treinamento.status === "treinado" ? "default" : "secondary"} className="bg-emerald-500">
-                                        {treinamento.status === "treinado" ? "Treinado" : "Pendente"}
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      <Badge 
+                                        variant={treinamento.status === "treinado" ? "default" : treinamento.status === "erro" ? "destructive" : "secondary"} 
+                                        className={treinamento.status === "treinado" ? "bg-emerald-500" : ""}
+                                      >
+                                        {treinamento.status === "treinado" ? "Treinado" : treinamento.status === "erro" ? "Erro" : "Pendente"}
                                       </Badge>
-                                      <Button variant="ghost" size="icon">
-                                        <MoreVertical className="w-4 h-4" />
-                                      </Button>
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="icon">
+                                            <MoreVertical className="w-4 h-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem onClick={() => {
+                                            setEditTreinamento(treinamento);
+                                            setEditTreinamentoOpen(true);
+                                          }}>
+                                            <Pencil className="w-4 h-4 mr-2" />
+                                            Editar
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleRetrainTreinamento(treinamento.id)}>
+                                            <RefreshCw className="w-4 h-4 mr-2" />
+                                            Reprocessar
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem 
+                                            className="text-destructive"
+                                            onClick={() => {
+                                              setDeleteTreinamentoId(treinamento.id);
+                                              setDeleteTreinamentoOpen(true);
+                                            }}
+                                          >
+                                            <Trash2 className="w-4 h-4 mr-2" />
+                                            Excluir
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                     </div>
                                   </CardContent>
                                 </Card>
                               ))}
                           </div>
 
-                          <div className="flex items-center justify-center gap-2 pt-4">
-                            <Button variant="outline" size="icon" className="rounded-full bg-purple-500 text-white hover:bg-purple-600">
-                              1
-                            </Button>
-                            <span className="text-sm text-muted-foreground">Itens: {treinamentos.filter(t => t.tipo === "texto").length}</span>
+                          <div className="text-center text-sm text-muted-foreground">
+                            Total: {treinamentos.filter(t => t.tipo === "texto").length} treinamentos
                           </div>
                         </TabsContent>
 
@@ -671,10 +1000,51 @@ export default function OmniIA() {
                                 <Globe className="w-5 h-5 text-purple-600" />
                                 <span className="font-medium">Adicionar URL de website</span>
                               </div>
-                              <Input placeholder="https://exemplo.com/pagina" />
-                              <Button className="mt-3 bg-orange-400 hover:bg-orange-500">Importar</Button>
+                              <Input 
+                                placeholder="https://exemplo.com/pagina" 
+                                value={novoWebsiteUrl}
+                                onChange={(e) => setNovoWebsiteUrl(e.target.value)}
+                              />
+                              <Button 
+                                className="mt-3 bg-orange-400 hover:bg-orange-500"
+                                onClick={() => handleAdicionarTreinamento("website", novoWebsiteUrl)}
+                                disabled={!novoWebsiteUrl.trim()}
+                              >
+                                Importar
+                              </Button>
                             </CardContent>
                           </Card>
+                          
+                          <div className="space-y-2">
+                            {treinamentos
+                              .filter(t => t.tipo === "website")
+                              .map((t) => (
+                                <Card key={t.id}>
+                                  <CardContent className="p-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <Globe className="w-5 h-5 text-purple-600" />
+                                      <span className="truncate">{t.conteudo}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Badge className={t.status === "treinado" ? "bg-emerald-500" : ""}>
+                                        {t.status}
+                                      </Badge>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="text-destructive"
+                                        onClick={() => {
+                                          setDeleteTreinamentoId(t.id);
+                                          setDeleteTreinamentoOpen(true);
+                                        }}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                          </div>
                         </TabsContent>
 
                         <TabsContent value="video" className="space-y-4">
@@ -684,10 +1054,51 @@ export default function OmniIA() {
                                 <Video className="w-5 h-5 text-purple-600" />
                                 <span className="font-medium">Adicionar vídeo do YouTube</span>
                               </div>
-                              <Input placeholder="https://youtube.com/watch?v=..." />
-                              <Button className="mt-3 bg-orange-400 hover:bg-orange-500">Importar</Button>
+                              <Input 
+                                placeholder="https://youtube.com/watch?v=..." 
+                                value={novoVideoUrl}
+                                onChange={(e) => setNovoVideoUrl(e.target.value)}
+                              />
+                              <Button 
+                                className="mt-3 bg-orange-400 hover:bg-orange-500"
+                                onClick={() => handleAdicionarTreinamento("video", novoVideoUrl)}
+                                disabled={!novoVideoUrl.trim()}
+                              >
+                                Importar
+                              </Button>
                             </CardContent>
                           </Card>
+                          
+                          <div className="space-y-2">
+                            {treinamentos
+                              .filter(t => t.tipo === "video")
+                              .map((t) => (
+                                <Card key={t.id}>
+                                  <CardContent className="p-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <Video className="w-5 h-5 text-purple-600" />
+                                      <span className="truncate">{t.conteudo}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Badge className={t.status === "treinado" ? "bg-emerald-500" : ""}>
+                                        {t.status}
+                                      </Badge>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="text-destructive"
+                                        onClick={() => {
+                                          setDeleteTreinamentoId(t.id);
+                                          setDeleteTreinamentoOpen(true);
+                                        }}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                          </div>
                         </TabsContent>
 
                         <TabsContent value="documento" className="space-y-4">
@@ -695,9 +1106,42 @@ export default function OmniIA() {
                             <CardContent className="p-6 text-center">
                               <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                               <p className="text-muted-foreground mb-4">Arraste um documento PDF ou Word aqui</p>
-                              <Button variant="outline">Selecionar arquivo</Button>
+                              <Button variant="outline" onClick={() => toast.info("Funcionalidade de upload de documentos em breve!")}>
+                                Selecionar arquivo
+                              </Button>
                             </CardContent>
                           </Card>
+                          
+                          <div className="space-y-2">
+                            {treinamentos
+                              .filter(t => t.tipo === "documento")
+                              .map((t) => (
+                                <Card key={t.id}>
+                                  <CardContent className="p-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <FileText className="w-5 h-5 text-purple-600" />
+                                      <span className="truncate">{t.conteudo}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Badge className={t.status === "treinado" ? "bg-emerald-500" : ""}>
+                                        {t.status}
+                                      </Badge>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="text-destructive"
+                                        onClick={() => {
+                                          setDeleteTreinamentoId(t.id);
+                                          setDeleteTreinamentoOpen(true);
+                                        }}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                          </div>
                         </TabsContent>
                       </Tabs>
                     </div>
@@ -718,9 +1162,9 @@ export default function OmniIA() {
                               className="pl-9"
                             />
                           </div>
-                          <Button variant="outline">
-                            <Upload className="w-4 h-4 mr-2" />
-                            Importar
+                          <Button onClick={() => setNovaIntencaoOpen(true)}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Nova Intenção
                           </Button>
                         </div>
                       </div>
@@ -732,30 +1176,72 @@ export default function OmniIA() {
                             <Card key={intencao.id}>
                               <CardContent className="p-4">
                                 <div className="flex items-start justify-between">
-                                  <div>
+                                  <div className="flex-1">
                                     <h4 className="font-semibold flex items-center gap-2">
                                       <Target className="w-4 h-4 text-orange-500" />
                                       {intencao.nome}
+                                      <Badge variant={intencao.ativa ? "default" : "secondary"} className={intencao.ativa ? "bg-emerald-500" : ""}>
+                                        {intencao.ativa ? "Ativa" : "Inativa"}
+                                      </Badge>
                                     </h4>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      {intencao.descricao}
+                                    </p>
                                     <p className="text-sm text-muted-foreground mt-1 truncate max-w-lg">
                                       Webhook: {intencao.webhook_url}
                                     </p>
                                   </div>
-                                  <Button variant="ghost" size="icon">
-                                    <MoreVertical className="w-4 h-4" />
-                                  </Button>
+                                  <div className="flex items-center gap-2">
+                                    <Switch
+                                      checked={intencao.ativa}
+                                      onCheckedChange={() => handleToggleIntencao(intencao.id)}
+                                    />
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                          <MoreVertical className="w-4 h-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => {
+                                          setEditIntencao(intencao);
+                                          setEditIntencaoOpen(true);
+                                        }}>
+                                          <Pencil className="w-4 h-4 mr-2" />
+                                          Editar
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => {
+                                          navigator.clipboard.writeText(intencao.webhook_url);
+                                          toast.success("URL copiada!");
+                                        }}>
+                                          <Copy className="w-4 h-4 mr-2" />
+                                          Copiar URL
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem 
+                                          className="text-destructive"
+                                          onClick={() => {
+                                            setDeleteIntencaoId(intencao.id);
+                                            setDeleteIntencaoOpen(true);
+                                          }}
+                                        >
+                                          <Trash2 className="w-4 h-4 mr-2" />
+                                          Excluir
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
                                 </div>
                               </CardContent>
                             </Card>
                           ))}
                       </div>
 
-                      <div className="flex items-center justify-center gap-2 pt-4">
-                        <Button variant="outline" size="icon" className="rounded-full bg-purple-500 text-white hover:bg-purple-600">
-                          1
-                        </Button>
-                        <span className="text-sm text-muted-foreground">Itens: {intencoes.length}</span>
-                      </div>
+                      {intencoes.length === 0 && (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <Target className="w-12 h-12 mx-auto mb-4" />
+                          <p>Nenhuma intenção cadastrada</p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -778,18 +1264,34 @@ export default function OmniIA() {
                                 {integracao.icone === "calendar" && <Calendar className="w-12 h-12 text-blue-500" />}
                                 {integracao.icone === "chat" && <MessageCircle className="w-12 h-12 text-purple-500" />}
                               </div>
-                              <h4 className="font-semibold mb-2">{integracao.nome}</h4>
-                              <p className="text-sm text-muted-foreground mb-4">{integracao.descricao}</p>
-                              <Button 
-                                className={cn(
-                                  "w-full",
-                                  integracao.ativa 
-                                    ? "bg-gray-500 hover:bg-gray-600" 
-                                    : "bg-emerald-500 hover:bg-emerald-600"
+                              <div className="flex items-center justify-center gap-2 mb-2">
+                                <h4 className="font-semibold">{integracao.nome}</h4>
+                                {integracao.configurada && (
+                                  <Badge variant="outline" className="text-emerald-600 border-emerald-600">
+                                    <Check className="w-3 h-3 mr-1" />
+                                    Configurada
+                                  </Badge>
                                 )}
-                              >
-                                {integracao.ativa ? "CONFIGURAR INTEGRAÇÃO" : "ATIVAR INTEGRAÇÃO"}
-                              </Button>
+                              </div>
+                              <p className="text-sm text-muted-foreground mb-4">{integracao.descricao}</p>
+                              <div className="flex gap-2">
+                                <Button 
+                                  variant="outline"
+                                  className="flex-1"
+                                  onClick={() => handleConfigIntegracao(integracao)}
+                                >
+                                  <Settings className="w-4 h-4 mr-2" />
+                                  Configurar
+                                </Button>
+                                <Button
+                                  variant={integracao.ativa ? "secondary" : "default"}
+                                  size="icon"
+                                  onClick={() => handleToggleIntegracao(integracao.id)}
+                                  disabled={!integracao.configurada}
+                                >
+                                  {integracao.ativa ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                </Button>
+                              </div>
                             </CardContent>
                           </Card>
                         ))}
@@ -977,30 +1479,175 @@ export default function OmniIA() {
 
                         <TabsContent value="inatividade" className="pt-4">
                           <Card>
-                            <CardContent className="p-6 text-center text-muted-foreground">
-                              <Clock className="w-12 h-12 mx-auto mb-4" />
-                              <p>Configure ações automáticas após período de inatividade do usuário</p>
-                              <Button variant="outline" className="mt-4">Configurar</Button>
+                            <CardContent className="p-6 space-y-4">
+                              <div className="flex items-center gap-2 mb-4">
+                                <Clock className="w-5 h-5 text-purple-500" />
+                                <h3 className="font-semibold">Configurar ações de inatividade</h3>
+                              </div>
+                              
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <Label>Tempo de inatividade (minutos)</Label>
+                                  <Select
+                                    value={String(selectedAgente?.tempo_inatividade || 5)}
+                                    onValueChange={(value) => setSelectedAgente(prev => prev ? { ...prev, tempo_inatividade: Number(value) } : null)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="2">2 minutos</SelectItem>
+                                      <SelectItem value="5">5 minutos</SelectItem>
+                                      <SelectItem value="10">10 minutos</SelectItem>
+                                      <SelectItem value="15">15 minutos</SelectItem>
+                                      <SelectItem value="30">30 minutos</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <Label>Ação após inatividade</Label>
+                                  <Select
+                                    value={selectedAgente?.acao_inatividade || "mensagem"}
+                                    onValueChange={(value) => setSelectedAgente(prev => prev ? { ...prev, acao_inatividade: value } : null)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="mensagem">Enviar mensagem</SelectItem>
+                                      <SelectItem value="encerrar">Encerrar atendimento</SelectItem>
+                                      <SelectItem value="transferir">Transferir para humano</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <Label>Mensagem de inatividade</Label>
+                                  <Textarea
+                                    value={selectedAgente?.mensagem_inatividade || ""}
+                                    onChange={(e) => setSelectedAgente(prev => prev ? { ...prev, mensagem_inatividade: e.target.value } : null)}
+                                    placeholder="Olá! Notei que você ficou um tempo sem responder..."
+                                    rows={3}
+                                  />
+                                </div>
+                              </div>
+                              
+                              <div className="flex justify-end">
+                                <Button onClick={handleSalvarAgente} className="bg-emerald-500 hover:bg-emerald-600">
+                                  Salvar Configurações
+                                </Button>
+                              </div>
                             </CardContent>
                           </Card>
                         </TabsContent>
 
                         <TabsContent value="webhooks" className="pt-4">
                           <Card>
-                            <CardContent className="p-6 text-center text-muted-foreground">
-                              <Webhook className="w-12 h-12 mx-auto mb-4" />
-                              <p>Configure webhooks para eventos do agente</p>
-                              <Button variant="outline" className="mt-4">Configurar Webhooks</Button>
+                            <CardContent className="p-6 space-y-4">
+                              <div className="flex items-center gap-2 mb-4">
+                                <Webhook className="w-5 h-5 text-purple-500" />
+                                <h3 className="font-semibold">Configurar Webhooks</h3>
+                              </div>
+                              
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <Label>URL do Webhook</Label>
+                                  <Input
+                                    value={webhookUrl}
+                                    onChange={(e) => setWebhookUrl(e.target.value)}
+                                    placeholder="https://seu-servidor.com/webhook"
+                                  />
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <Label>Eventos para notificar</Label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                      { id: "mensagem_recebida", label: "Mensagem recebida" },
+                                      { id: "mensagem_enviada", label: "Mensagem enviada" },
+                                      { id: "atendimento_iniciado", label: "Atendimento iniciado" },
+                                      { id: "atendimento_finalizado", label: "Atendimento finalizado" },
+                                      { id: "transferencia", label: "Transferência" },
+                                      { id: "erro", label: "Erro" }
+                                    ].map((evento) => (
+                                      <label key={evento.id} className="flex items-center gap-2 p-2 border rounded hover:bg-muted cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={webhookEventos.includes(evento.id)}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setWebhookEventos(prev => [...prev, evento.id]);
+                                            } else {
+                                              setWebhookEventos(prev => prev.filter(e => e !== evento.id));
+                                            }
+                                          }}
+                                          className="rounded"
+                                        />
+                                        <span className="text-sm">{evento.label}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex justify-end">
+                                <Button onClick={handleSalvarWebhooks} className="bg-emerald-500 hover:bg-emerald-600">
+                                  Salvar Webhooks
+                                </Button>
+                              </div>
                             </CardContent>
                           </Card>
                         </TabsContent>
 
                         <TabsContent value="transferencia" className="pt-4">
                           <Card>
-                            <CardContent className="p-6 text-center text-muted-foreground">
-                              <ArrowRightLeft className="w-12 h-12 mx-auto mb-4" />
-                              <p>Defina regras para transferência automática para atendentes humanos</p>
-                              <Button variant="outline" className="mt-4">Configurar Regras</Button>
+                            <CardContent className="p-6 space-y-4">
+                              <div className="flex items-center gap-2 mb-4">
+                                <ArrowRightLeft className="w-5 h-5 text-purple-500" />
+                                <h3 className="font-semibold">Regras de transferência</h3>
+                              </div>
+                              
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <Label>Palavras-chave para transferência</Label>
+                                  <p className="text-sm text-muted-foreground">
+                                    Quando o usuário mencionar essas palavras, o atendimento será transferido para um humano.
+                                  </p>
+                                  <Textarea
+                                    value={selectedAgente?.palavras_chave_transferencia?.join(", ") || ""}
+                                    onChange={(e) => setSelectedAgente(prev => prev ? { 
+                                      ...prev, 
+                                      palavras_chave_transferencia: e.target.value.split(",").map(p => p.trim()).filter(Boolean)
+                                    } : null)}
+                                    placeholder="humano, atendente, pessoa real, falar com alguém"
+                                    rows={2}
+                                  />
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <Label>Fila de destino</Label>
+                                  <Select
+                                    value={selectedAgente?.fila_transferencia || ""}
+                                    onValueChange={(value) => setSelectedAgente(prev => prev ? { ...prev, fila_transferencia: value } : null)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecione uma fila" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="suporte">Suporte Geral</SelectItem>
+                                      <SelectItem value="vendas">Vendas</SelectItem>
+                                      <SelectItem value="financeiro">Financeiro</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              
+                              <div className="flex justify-end">
+                                <Button onClick={handleSalvarAgente} className="bg-emerald-500 hover:bg-emerald-600">
+                                  Salvar Regras
+                                </Button>
+                              </div>
                             </CardContent>
                           </Card>
                         </TabsContent>
@@ -1013,6 +1660,244 @@ export default function OmniIA() {
           </div>
         )}
       </div>
+
+      {/* Dialog: Testar IA */}
+      <Dialog open={testarIaOpen} onOpenChange={setTestarIaOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="w-5 h-5 text-purple-600" />
+              Testar {selectedAgente?.nome}
+            </DialogTitle>
+            <DialogDescription>
+              Converse com sua IA para testar o comportamento
+            </DialogDescription>
+          </DialogHeader>
+          <div className="h-80 overflow-y-auto border rounded-lg p-4 space-y-3 bg-muted/30">
+            {chatMensagens.length === 0 && (
+              <p className="text-center text-muted-foreground py-8">
+                Envie uma mensagem para começar...
+              </p>
+            )}
+            {chatMensagens.map((msg, idx) => (
+              <div key={idx} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                <div className={cn(
+                  "max-w-[80%] rounded-lg px-3 py-2",
+                  msg.role === "user" ? "bg-purple-600 text-white" : "bg-background border"
+                )}>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-background border rounded-lg px-3 py-2">
+                  <span className="animate-pulse">Digitando...</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Digite sua mensagem..."
+              onKeyDown={(e) => e.key === "Enter" && handleEnviarMensagemTeste()}
+            />
+            <Button onClick={handleEnviarMensagemTeste} disabled={isLoading || !chatInput.trim()}>
+              Enviar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Editar Treinamento */}
+      <Dialog open={editTreinamentoOpen} onOpenChange={setEditTreinamentoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Treinamento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Textarea
+              value={editTreinamento?.conteudo || ""}
+              onChange={(e) => setEditTreinamento(prev => prev ? { ...prev, conteudo: e.target.value } : null)}
+              rows={5}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTreinamentoOpen(false)}>Cancelar</Button>
+            <Button onClick={handleEditTreinamento}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Nova Intenção */}
+      <Dialog open={novaIntencaoOpen} onOpenChange={setNovaIntencaoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Intenção</DialogTitle>
+            <DialogDescription>Configure uma nova intenção com webhook</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome da Intenção</Label>
+              <Input
+                value={novaIntencao.nome}
+                onChange={(e) => setNovaIntencao(prev => ({ ...prev, nome: e.target.value }))}
+                placeholder="Ex: INTENÇÃO: agendar consulta"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Input
+                value={novaIntencao.descricao}
+                onChange={(e) => setNovaIntencao(prev => ({ ...prev, descricao: e.target.value }))}
+                placeholder="Dispara quando o usuário quer agendar..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>URL do Webhook</Label>
+              <Input
+                value={novaIntencao.webhook_url}
+                onChange={(e) => setNovaIntencao(prev => ({ ...prev, webhook_url: e.target.value }))}
+                placeholder="https://seu-servidor.com/webhook"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNovaIntencaoOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCriarIntencao}>Criar Intenção</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Editar Intenção */}
+      <Dialog open={editIntencaoOpen} onOpenChange={setEditIntencaoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Intenção</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Input
+                value={editIntencao?.nome || ""}
+                onChange={(e) => setEditIntencao(prev => prev ? { ...prev, nome: e.target.value } : null)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Input
+                value={editIntencao?.descricao || ""}
+                onChange={(e) => setEditIntencao(prev => prev ? { ...prev, descricao: e.target.value } : null)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>URL do Webhook</Label>
+              <Input
+                value={editIntencao?.webhook_url || ""}
+                onChange={(e) => setEditIntencao(prev => prev ? { ...prev, webhook_url: e.target.value } : null)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditIntencaoOpen(false)}>Cancelar</Button>
+            <Button onClick={handleEditIntencaoSave}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Configurar Integração */}
+      <Dialog open={configIntegracaoOpen} onOpenChange={setConfigIntegracaoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configurar {integracaoSelecionada?.nome}</DialogTitle>
+            <DialogDescription>{integracaoSelecionada?.descricao}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>API Key / Token</Label>
+              <Input
+                type="password"
+                value={integracaoApiKey}
+                onChange={(e) => setIntegracaoApiKey(e.target.value)}
+                placeholder="Cole sua chave de API aqui"
+              />
+            </div>
+            {integracaoSelecionada?.nome === "ElevenLabs" && (
+              <p className="text-sm text-muted-foreground">
+                Obtenha sua API Key em{" "}
+                <a href="https://elevenlabs.io" target="_blank" className="text-purple-600 hover:underline">
+                  elevenlabs.io
+                </a>
+              </p>
+            )}
+            {integracaoSelecionada?.nome === "Google Calendar" && (
+              <p className="text-sm text-muted-foreground">
+                Configure o OAuth2 do Google Calendar para permitir agendamentos.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfigIntegracaoOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSalvarIntegracao}>Salvar e Ativar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog: Excluir Treinamento */}
+      <AlertDialog open={deleteTreinamentoOpen} onOpenChange={setDeleteTreinamentoOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir treinamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O treinamento será removido permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTreinamento} className="bg-destructive text-destructive-foreground">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* AlertDialog: Excluir Intenção */}
+      <AlertDialog open={deleteIntencaoOpen} onOpenChange={setDeleteIntencaoOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir intenção?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. A intenção e seu webhook serão removidos permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteIntencao} className="bg-destructive text-destructive-foreground">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* AlertDialog: Excluir Agente */}
+      <AlertDialog open={deleteAgenteOpen} onOpenChange={setDeleteAgenteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir agente "{selectedAgente?.nome}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O agente, seus treinamentos e configurações serão removidos permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAgente} className="bg-destructive text-destructive-foreground">
+              Excluir Agente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </OmniLayout>
   );
 }
