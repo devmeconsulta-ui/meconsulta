@@ -8,12 +8,13 @@ import {
   FileText,
   CalendarCheck,
   Kanban,
-  MessageCircle
+  MessageCircle,
+  Settings2,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOmniAtendimentos } from "@/hooks/useOmniAtendimentos";
-import { useOutletContext } from "react-router-dom";
 
 interface NavItem {
   icon: React.ElementType;
@@ -121,6 +122,49 @@ export function OmniHeader({ clinicaId }: OmniHeaderProps) {
             )}
           </div>
         </NavLink>
+
+        {/* Botão IA - exclusivo da clínica */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <NavLink to="/clinica/omnichannel/integracoes">
+              <div
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 cursor-pointer font-medium text-sm",
+                  location.pathname === "/clinica/omnichannel/integracoes"
+                    ? "bg-purple-600 text-white shadow-lg"
+                    : "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:hover:bg-purple-900"
+                )}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="hidden sm:inline">IA</span>
+              </div>
+            </NavLink>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Inteligência Artificial</p>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Botão Integrações - exclusivo da clínica */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <NavLink to="/clinica/omnichannel/integracoes">
+              <div
+                className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer",
+                  location.pathname === "/clinica/omnichannel/integracoes"
+                    ? "bg-primary text-primary-foreground shadow-lg scale-105"
+                    : "border-2 border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary hover:scale-105 hover:shadow-md"
+                )}
+              >
+                <Settings2 className="w-5 h-5" />
+              </div>
+            </NavLink>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Integrações</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
