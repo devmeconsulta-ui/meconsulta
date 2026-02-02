@@ -1548,9 +1548,12 @@ export default function OmniIA() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => {
-                                    if (!selectedAgente) return;
+                                    if (!selectedAgente) {
+                                      toast.error("Selecione um agente primeiro");
+                                      return;
+                                    }
                                     const novaAcao: AcaoFollowUp = {
-                                      id: Math.random().toString(),
+                                      id: `followup-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                                       tempo_minutos: 5,
                                       acao: "mensagem",
                                       mensagem: "",
@@ -1560,6 +1563,7 @@ export default function OmniIA() {
                                       ...prev,
                                       acoes_followup: [...(prev.acoes_followup || []), novaAcao]
                                     } : null);
+                                    toast.success("Follow-up adicionado!");
                                   }}
                                   className="gap-1"
                                 >
