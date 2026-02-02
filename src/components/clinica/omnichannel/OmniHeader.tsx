@@ -126,11 +126,11 @@ export function OmniHeader({ clinicaId }: OmniHeaderProps) {
         {/* Botão IA - exclusivo da clínica */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <NavLink to="/clinica/omnichannel/integracoes">
+            <NavLink to="/clinica/omnichannel/ia">
               <div
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 cursor-pointer font-medium text-sm",
-                  location.pathname === "/clinica/omnichannel/integracoes"
+                  location.pathname === "/clinica/omnichannel/ia"
                     ? "bg-purple-600 text-white shadow-lg"
                     : "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:hover:bg-purple-900"
                 )}

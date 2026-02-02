@@ -624,167 +624,94 @@ export default function OmniIntegracoes() {
             </Card>
           </TabsContent>
 
-          {/* Inteligência Artificial */}
+          {/* Inteligência Artificial - Apenas tokens LLM */}
           <TabsContent value="ia" className="space-y-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    Configuração de IA
-                  </CardTitle>
-                  <CardDescription>
-                    Configure a inteligência artificial para responder automaticamente nas filas selecionadas
-                  </CardDescription>
-                </div>
-                <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Configurar IA
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-lg">
-                    <DialogHeader>
-                      <DialogTitle>Configurar IA para Fila</DialogTitle>
-                      <DialogDescription>
-                        Configure o token OpenAI e o comportamento da IA para uma fila específica
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label>Fila de Atendimento</Label>
-                        <Select
-                          value={novaAiConfig.fila_id}
-                          onValueChange={(value) => setNovaAiConfig(prev => ({ ...prev, fila_id: value }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione uma fila" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {filas.map((fila) => (
-                              <SelectItem key={fila.id} value={fila.id}>
-                                {fila.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Token OpenAI</Label>
-                        <Input
-                          type="password"
-                          placeholder="sk-..."
-                          value={novaAiConfig.openai_token}
-                          onChange={(e) => setNovaAiConfig(prev => ({ ...prev, openai_token: e.target.value }))}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Obtenha seu token em{" "}
-                          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                            platform.openai.com
-                          </a>
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Modelo</Label>
-                        <Select
-                          value={novaAiConfig.modelo}
-                          onValueChange={(value) => setNovaAiConfig(prev => ({ ...prev, modelo: value }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="gpt-4o-mini">GPT-4o Mini (Recomendado)</SelectItem>
-                            <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                            <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                            <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Prompt do Sistema</Label>
-                        <Textarea
-                          placeholder="Instruções para a IA..."
-                          value={novaAiConfig.prompt_sistema}
-                          onChange={(e) => setNovaAiConfig(prev => ({ ...prev, prompt_sistema: e.target.value }))}
-                          rows={4}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Defina como a IA deve se comportar e responder aos clientes
-                        </p>
-                      </div>
-                      <Button onClick={handleSalvarAiConfig} className="w-full">
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Salvar Configuração
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  Tokens de LLM
+                </CardTitle>
+                <CardDescription>
+                  Configure o token da sua LLM preferida para usar nos agentes de IA
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-6">
+                  {/* Provedor */}
+                  <div className="space-y-2">
+                    <Label>Provedor de IA</Label>
+                    <Select defaultValue="openai">
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o provedor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI (GPT-4, GPT-4o, GPT-3.5)</SelectItem>
+                        <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+                        <SelectItem value="google">Google (Gemini)</SelectItem>
+                        <SelectItem value="groq">Groq (LLaMA, Mixtral)</SelectItem>
+                        <SelectItem value="together">Together AI</SelectItem>
+                        <SelectItem value="deepseek">DeepSeek</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Token */}
+                  <div className="space-y-2">
+                    <Label>Token / API Key</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        placeholder="sk-... ou sua API key"
+                        className="flex-1"
+                      />
+                      <Button variant="outline" size="icon">
+                        <Eye className="w-4 h-4" />
                       </Button>
                     </div>
-                  </DialogContent>
-                </Dialog>
-              </CardHeader>
-              <CardContent>
-                {aiConfigs.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Bot className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="font-semibold mb-2">Nenhuma IA configurada</h3>
-                    <p className="text-muted-foreground text-sm mb-4">
-                      Configure a inteligência artificial para responder automaticamente nas filas de atendimento
+                    <p className="text-xs text-muted-foreground">
+                      Obtenha seu token no painel do provedor escolhido
                     </p>
-                    <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Configurar Primeira IA
-                    </Button>
                   </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fila</TableHead>
-                        <TableHead>Modelo</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {aiConfigs.map((config) => (
-                        <TableRow key={config.id}>
-                          <TableCell className="font-medium">{config.fila_nome}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{config.modelo}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Switch checked={config.ativo} />
-                              <span className="text-sm">
-                                {config.ativo ? "Ativo" : "Inativo"}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="icon">
-                              <Settings2 className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="text-destructive">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
+
+                  {/* Modelo padrão */}
+                  <div className="space-y-2">
+                    <Label>Modelo Padrão</Label>
+                    <Select defaultValue="gpt-4o-mini">
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                        <SelectItem value="gpt-4o-mini">GPT-4o Mini (Recomendado)</SelectItem>
+                        <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
+                        <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                        <SelectItem value="claude-3-opus">Claude 3 Opus</SelectItem>
+                        <SelectItem value="claude-3-sonnet">Claude 3 Sonnet</SelectItem>
+                        <SelectItem value="claude-3-haiku">Claude 3 Haiku</SelectItem>
+                        <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
+                        <SelectItem value="gemini-flash">Gemini Flash</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button className="w-full">
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    Salvar Configuração
+                  </Button>
+                </div>
 
                 {/* Info Box */}
-                <div className="mt-6 p-4 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
+                <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
                   <h4 className="font-semibold text-purple-800 dark:text-purple-300 mb-2 flex items-center gap-2">
                     <Sparkles className="w-4 h-4" />
-                    Como funciona a IA
+                    Sobre os Tokens
                   </h4>
                   <ul className="text-sm text-purple-600 dark:text-purple-400 space-y-1">
-                    <li>• A IA responde automaticamente às mensagens recebidas na fila configurada</li>
-                    <li>• Quando a IA não souber responder, ela transfere para um atendente humano</li>
-                    <li>• Você pode personalizar o comportamento através do prompt do sistema</li>
-                    <li>• O histórico de conversas é mantido para contexto</li>
+                    <li>• O token será usado pelos agentes de IA configurados na seção "IA"</li>
+                    <li>• Cada provedor tem seus próprios modelos e preços</li>
+                    <li>• O GPT-4o Mini é recomendado por equilibrar custo e qualidade</li>
+                    <li>• Acesse a seção "IA" no menu para criar e configurar seus agentes</li>
                   </ul>
                 </div>
               </CardContent>
