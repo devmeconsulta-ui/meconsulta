@@ -211,10 +211,41 @@ export default function OmniWhatsAppChat() {
   const { filas } = useOmniFilas(clinicaId);
   const { mensagens, loading: loadingMessages, enviarMensagem } = useOmniMensagens(selectedAtendimento?.id || null);
 
-  // Combine real messages with optimistic messages
+  // Clear optimistic messages when real messages arrive
+  useEffect(() => {
+    if (mensagens.length > 0 && optimisticMessages.length > 0) {
+      // Check if any optimistic message content matches a real message within 5 seconds
+      const now = new Date().getTime();
+      const recentRealMessages = mensagens.filter(m => {
+        const msgTime = new Date(m.created_at).getTime();
+        return now - msgTime < 10000; // 10 seconds window
+      });
+      
+      if (recentRealMessages.length > 0) {
+        setOptimisticMessages(prev => 
+          prev.filter(optMsg => {
+            // Keep optimistic if no matching real message found
+            const hasMatch = recentRealMessages.some(realMsg => 
+              realMsg.conteudo === optMsg.conteudo && 
+              realMsg.direcao === "saida"
+            );
+            return !hasMatch;
+          })
+        );
+      }
+    }
+  }, [mensagens]);
+
+  // Combine real messages with optimistic messages (avoiding duplicates by content)
   const allMessages = useMemo(() => {
-    const realMessageIds = new Set(mensagens.map(m => m.id));
-    const pendingOptimistic = optimisticMessages.filter(m => !realMessageIds.has(m.id.replace("temp-", "")));
+    // Filter out optimistic messages that match real messages by content
+    const realContents = new Set(
+      mensagens
+        .filter(m => m.direcao === "saida")
+        .map(m => m.conteudo)
+    );
+    const pendingOptimistic = optimisticMessages.filter(m => !realContents.has(m.conteudo));
+    
     return [...mensagens, ...pendingOptimistic].sort((a, b) => 
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
