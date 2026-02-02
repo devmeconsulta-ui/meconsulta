@@ -220,7 +220,7 @@ export default function OmniNotificacoes() {
   const naoLidas = notificacoes.filter(n => !n.lida).length;
 
   return (
-    <OmniLayout>
+    <OmniLayout clinicaId={clinicaId || undefined}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

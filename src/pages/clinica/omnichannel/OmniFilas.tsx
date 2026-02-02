@@ -187,7 +187,7 @@ export default function OmniFilas() {
 
   if (loading) {
     return (
-      <OmniLayout>
+      <OmniLayout clinicaId={clinicaId || undefined}>
         <div className="flex items-center justify-center h-[calc(100vh-250px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -196,7 +196,7 @@ export default function OmniFilas() {
   }
 
   return (
-    <OmniLayout>
+    <OmniLayout clinicaId={clinicaId || undefined}>
       {/* Conteúdo */}
       <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

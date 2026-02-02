@@ -342,7 +342,7 @@ export default function OmniConfirmacaoAgenda() {
   };
 
   return (
-    <OmniLayout>
+    <OmniLayout clinicaId={clinicaId || undefined}>
       <div className="space-y-6">
         {/* Header da página */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

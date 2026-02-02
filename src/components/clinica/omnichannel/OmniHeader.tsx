@@ -8,10 +8,12 @@ import {
   FileText,
   CalendarCheck,
   Kanban,
-  Settings
+  MessageCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useOmniAtendimentos } from "@/hooks/useOmniAtendimentos";
+import { useOutletContext } from "react-router-dom";
 
 interface NavItem {
   icon: React.ElementType;
@@ -28,11 +30,19 @@ const navItems: NavItem[] = [
   { icon: ListChecks, label: "Filas", path: "/clinica/omnichannel/filas" },
   { icon: FileText, label: "Relatórios", path: "/clinica/omnichannel/relatorios" },
   { icon: CalendarCheck, label: "Confirmação Agenda", path: "/clinica/omnichannel/confirmacao-agenda" },
-  { icon: Settings, label: "Configurações", path: "/clinica/configuracoes" },
 ];
 
-export function OmniHeader() {
+interface OmniHeaderProps {
+  clinicaId?: string;
+}
+
+export function OmniHeader({ clinicaId }: OmniHeaderProps) {
   const location = useLocation();
+  const { atendimentos } = useOmniAtendimentos(clinicaId || null);
+
+  // Conta atendimentos em espera e em andamento
+  const esperaCount = atendimentos?.filter(a => a.status === "aguardando").length || 0;
+  const emAndamentoCount = atendimentos?.filter(a => a.status === "em_atendimento").length || 0;
 
   return (
     <div className="bg-card border-b border-border px-4 py-3">
@@ -82,6 +92,35 @@ export function OmniHeader() {
             </Tooltip>
           );
         })}
+
+        {/* Botão WhatsApp com badge */}
+        <NavLink to="/clinica/omnichannel/whatsapp">
+          <div
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 cursor-pointer font-medium text-sm relative",
+              location.pathname === "/clinica/omnichannel/whatsapp"
+                ? "bg-primary text-primary-foreground shadow-lg"
+                : "bg-primary/10 text-primary hover:bg-primary/20"
+            )}
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>WhatsApp</span>
+            {(esperaCount > 0 || emAndamentoCount > 0) && (
+              <div className="flex items-center gap-1 ml-1">
+                {esperaCount > 0 && (
+                  <span className="bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    {esperaCount}
+                  </span>
+                )}
+                {emAndamentoCount > 0 && (
+                  <span className="bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    {emAndamentoCount}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </NavLink>
       </div>
     </div>
   );

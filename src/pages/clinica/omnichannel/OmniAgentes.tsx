@@ -260,7 +260,7 @@ export default function OmniAgentes() {
 
   if (loading) {
     return (
-      <OmniLayout>
+      <OmniLayout clinicaId={clinicaId || undefined}>
         <div className="flex items-center justify-center h-[calc(100vh-250px)]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -269,7 +269,7 @@ export default function OmniAgentes() {
   }
 
   return (
-    <OmniLayout>
+    <OmniLayout clinicaId={clinicaId || undefined}>
       {/* Conteúdo */}
       <div className="flex gap-4">
         {/* Left Sidebar - Filas Filter (hidden on mobile) */}
