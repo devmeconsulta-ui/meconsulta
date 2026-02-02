@@ -82,6 +82,7 @@ import OmniRelatorios from "./pages/clinica/omnichannel/OmniRelatorios";
 import OmniConfirmacaoAgenda from "./pages/clinica/omnichannel/OmniConfirmacaoAgenda";
 import OmniNotificacoes from "./pages/clinica/omnichannel/OmniNotificacoes";
 import OmniIntegracoes from "./pages/clinica/omnichannel/OmniIntegracoes";
+import OmniIA from "./pages/clinica/omnichannel/OmniIA";
 
 // Atendente pages
 import { AtendenteLayout } from "./components/atendente/AtendenteLayout";
@@ -160,6 +161,7 @@ const App = () => (
               <Route path="omnichannel/confirmacao-agenda" element={<OmniConfirmacaoAgenda />} />
               <Route path="omnichannel/notificacoes" element={<OmniNotificacoes />} />
               <Route path="omnichannel/integracoes" element={<OmniIntegracoes />} />
+              <Route path="omnichannel/ia" element={<OmniIA />} />
               <Route path="medicos" element={<ClinicaMedicos />} />
               <Route path="consultas" element={<ClinicaConsultas />} />
               <Route path="pacientes" element={<ClinicaPacientes />} />
