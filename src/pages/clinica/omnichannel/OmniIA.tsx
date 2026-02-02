@@ -349,9 +349,33 @@ export default function OmniIA() {
                     </div>
                     <h3 className="font-semibold text-lg">{selectedAgente?.nome || agentes[0]?.nome}</h3>
                     <p className="text-sm text-muted-foreground">{selectedAgente?.descricao || agentes[0]?.descricao}</p>
-                    <div className="flex items-center gap-1 mt-2 text-purple-600">
-                      <Sparkles className="w-4 h-4" />
-                      <span className="text-sm font-medium">{selectedAgente?.modelo || agentes[0]?.modelo}</span>
+                    
+                    {/* Seletor de LLM configurada */}
+                    <div className="mt-3 w-full">
+                      <Label className="text-xs text-muted-foreground mb-1 block text-center">LLM Configurada</Label>
+                      <Select
+                        value={selectedAgente?.modelo || agentes[0]?.modelo || "gpt-4o-mini"}
+                        onValueChange={(value) => setSelectedAgente(prev => prev ? { ...prev, modelo: value } : null)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-purple-600" />
+                            <SelectValue placeholder="Selecionar modelo" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gpt-4o">OpenAI GPT-4o</SelectItem>
+                          <SelectItem value="gpt-4o-mini">OpenAI GPT-4o mini</SelectItem>
+                          <SelectItem value="gpt-4-turbo">OpenAI GPT-4 Turbo</SelectItem>
+                          <SelectItem value="claude-3-opus">Anthropic Claude 3 Opus</SelectItem>
+                          <SelectItem value="claude-3-sonnet">Anthropic Claude 3 Sonnet</SelectItem>
+                          <SelectItem value="claude-3-haiku">Anthropic Claude 3 Haiku</SelectItem>
+                          <SelectItem value="gemini-1.5-pro">Google Gemini 1.5 Pro</SelectItem>
+                          <SelectItem value="gemini-1.5-flash">Google Gemini 1.5 Flash</SelectItem>
+                          <SelectItem value="llama-3-70b">Groq LLaMA 3 70B</SelectItem>
+                          <SelectItem value="mixtral-8x7b">Groq Mixtral 8x7B</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {/* Dropdown de agentes */}
