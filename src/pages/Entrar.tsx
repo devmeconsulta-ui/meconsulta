@@ -127,21 +127,34 @@ export default function Entrar() {
 
       if (clinicaUserData) {
         // Clinic user login successful
-        // If user has clinica_id, redirect to atendente area
         if (clinicaUserData.clinica_id) {
           await setCurrentUser({
             id: clinicaUserData.id,
             nome: clinicaUserData.nome,
             email: clinicaUserData.email || "",
-            tipo: "clinica", // Access clinica/atendente area
-            papel: "atendente",
+            tipo: "clinica",
+            papel: clinicaUserData.papel as "atendente" | "supervisor" | "admin" | "superadmin" || "atendente",
             clinicaId: clinicaUserData.clinica_id,
             medicoId: clinicaUserData.medico_id,
             todosMedicos: clinicaUserData.todos_medicos || false,
             permissoes: clinicaUserData.permissoes || [],
           });
-          // Redireciona para o painel do atendente
-          navigate("/atendente");
+
+          // Determinar redirecionamento baseado no papel e permissões
+          // Atendentes puros (só permissões de atendimento) -> /atendente
+          // Outros papéis (secretaria, supervisor, admin) -> /clinica
+          const atendentePermissoes = ['confirmacao-agenda', 'chat', 'contatos', 'atendimentos'];
+          const isAtendenteOnly = 
+            clinicaUserData.papel === "atendente" && 
+            (!clinicaUserData.permissoes || 
+             clinicaUserData.permissoes.length === 0 ||
+             clinicaUserData.permissoes.every((p: string) => atendentePermissoes.includes(p)));
+
+          if (isAtendenteOnly) {
+            navigate("/atendente");
+          } else {
+            navigate("/clinica");
+          }
         } else {
           // Legacy: user linked to doctor only (no clinica_id)
           await setCurrentUser({
