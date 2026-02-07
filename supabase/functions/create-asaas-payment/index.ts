@@ -146,7 +146,7 @@ serve(async (req) => {
     // Validate CPF before proceeding
     const cpfClean = paciente.cpf?.replace(/\D/g, '') || '';
     if (!cpfClean || !isValidCPF(cpfClean)) {
-      console.error(`CPF inválido para paciente ${paciente.id}: ${cpfClean}`);
+      console.error(`CPF inválido para paciente ${paciente.id}`);
       return new Response(
         JSON.stringify({ 
           error: 'CPF inválido. Por favor, atualize seu CPF no perfil antes de continuar.',
@@ -185,7 +185,8 @@ serve(async (req) => {
         notificationDisabled: false,
       };
 
-      console.log('Customer payload:', JSON.stringify(customerPayload));
+      // SECURITY: Log only non-sensitive info
+      console.log('Creating customer for paciente:', paciente.id);
 
       const customerResponse = await fetch(`${config.base_url}/customers`, {
         method: 'POST',
@@ -205,7 +206,8 @@ serve(async (req) => {
       }
 
       const customerResult = await customerResponse.json();
-      console.log('Customer response:', JSON.stringify(customerResult));
+      // SECURITY: Log only customer ID, not full response
+      console.log('Customer response - ID:', customerResult.id || 'error');
 
       if (!customerResponse.ok) {
         // Check if customer already exists (by CPF)
@@ -277,7 +279,8 @@ serve(async (req) => {
         postalService: false,
       };
 
-      console.log('Payment payload:', JSON.stringify(paymentPayload));
+      // SECURITY: Log only non-sensitive info
+      console.log(`Creating PIX payment for consulta ${consulta.id}, value: R$ ${consulta.valor_consulta}`);
 
       const paymentResponse = await fetch(`${config.base_url}/payments`, {
         method: 'POST',
@@ -297,7 +300,8 @@ serve(async (req) => {
       }
 
       const paymentResult = await paymentResponse.json();
-      console.log('Payment response:', JSON.stringify(paymentResult));
+      // SECURITY: Log only payment ID and status
+      console.log(`Payment response - ID: ${paymentResult.id || 'error'}, status: ${paymentResult.status || 'failed'}`);
 
       return { ok: paymentResponse.ok, result: paymentResult, dueDate: dueDateStr };
     };

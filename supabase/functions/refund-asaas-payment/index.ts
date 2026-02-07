@@ -91,7 +91,8 @@ serve(async (req) => {
     );
 
     const refundData = await refundResponse.json();
-    console.log('Resposta do estorno Asaas:', refundData);
+    // SECURITY: Log only refund ID and status
+    console.log(`Refund response - ID: ${refundData.id || 'error'}, status: ${refundData.status || 'failed'}`);
 
     if (!refundResponse.ok) {
       console.error('Erro ao estornar pagamento:', refundData);

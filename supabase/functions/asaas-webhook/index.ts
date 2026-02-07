@@ -74,7 +74,10 @@ Deno.serve(async (req) => {
     
     console.log("=== ASAAS WEBHOOK RECEIVED ===");
     console.log("Event:", payload.event);
-    console.log("Full payload:", JSON.stringify(payload, null, 2));
+    // SECURITY: Log only payment ID and status, not full payload with sensitive data
+    if (payload.payment) {
+      console.log(`Payment ID: ${payload.payment.id}, Status: ${payload.payment.status}, ExternalRef: ${payload.payment.externalReference || 'N/A'}`);
+    }
 
     const { event, payment, transfer } = payload;
 
