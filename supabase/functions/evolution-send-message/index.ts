@@ -16,11 +16,16 @@ interface SendMessageRequest {
   arquivo_tipo?: string;
 }
 
+// Declare EdgeRuntime for background tasks
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  
   try {
     const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
     const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
@@ -46,18 +51,24 @@ serve(async (req) => {
       );
     }
 
-    // Buscar atendimento com contato e instância
+    console.log(`[${Date.now() - startTime}ms] Starting message send for atendimento: ${atendimento_id}`);
+
+    // Buscar atendimento com contato e instância - OPTIMIZED QUERY
     const { data: atendimento, error: atendimentoError } = await supabase
       .from("omni_atendimentos")
       .select(`
-        *,
-        contato:omni_contatos!contato_id(*),
+        id,
+        data_abertura,
+        data_primeira_resposta,
+        contato:omni_contatos!contato_id(id, telefone),
         fila:omni_filas!fila_id(
-          instancia:omni_instancias!instancia_id(*)
+          instancia:omni_instancias!instancia_id(evolution_instance_name, status)
         )
       `)
       .eq("id", atendimento_id)
       .single();
+
+    console.log(`[${Date.now() - startTime}ms] Atendimento fetched`);
 
     if (atendimentoError || !atendimento) {
       return new Response(
@@ -80,8 +91,6 @@ serve(async (req) => {
       ? contato.telefone 
       : `${contato.telefone}@s.whatsapp.net`;
 
-    console.log(`Sending ${tipo} message to ${telefoneFormatado} via ${instancia.evolution_instance_name}`);
-
     let evolutionEndpoint = "sendText";
     let evolutionBody: any = {
       number: telefoneFormatado,
@@ -92,26 +101,22 @@ serve(async (req) => {
       case "texto":
         evolutionBody.text = conteudo;
         break;
-
       case "imagem":
         evolutionEndpoint = "sendMedia";
         evolutionBody.mediatype = "image";
         evolutionBody.media = arquivo_url;
         evolutionBody.caption = conteudo;
         break;
-
       case "audio":
         evolutionEndpoint = "sendWhatsAppAudio";
         evolutionBody.audio = arquivo_url;
         break;
-
       case "video":
         evolutionEndpoint = "sendMedia";
         evolutionBody.mediatype = "video";
         evolutionBody.media = arquivo_url;
         evolutionBody.caption = conteudo;
         break;
-
       case "documento":
         evolutionEndpoint = "sendMedia";
         evolutionBody.mediatype = "document";
@@ -119,6 +124,8 @@ serve(async (req) => {
         evolutionBody.fileName = arquivo_nome;
         break;
     }
+
+    console.log(`[${Date.now() - startTime}ms] Sending to Evolution API: ${evolutionEndpoint}`);
 
     // Enviar mensagem via Evolution API
     const sendResponse = await fetch(
@@ -134,24 +141,27 @@ serve(async (req) => {
     );
 
     const sendData = await sendResponse.json();
+    console.log(`[${Date.now() - startTime}ms] Evolution API response received`);
 
     if (!sendResponse.ok) {
       console.error("Evolution API send error:", sendData);
       
-      // Salvar mensagem com erro
-      await supabase.from("omni_mensagens").insert({
-        atendimento_id,
-        agente_id,
-        contato_id: contato.id,
-        tipo,
-        direcao: "saida",
-        conteudo,
-        arquivo_url,
-        arquivo_nome,
-        arquivo_tipo,
-        status: "erro",
-        erro_descricao: JSON.stringify(sendData),
-      });
+      // Save error message in background
+      EdgeRuntime.waitUntil(
+        supabase.from("omni_mensagens").insert({
+          atendimento_id,
+          agente_id,
+          contato_id: contato.id,
+          tipo,
+          direcao: "saida",
+          conteudo,
+          arquivo_url,
+          arquivo_nome,
+          arquivo_tipo,
+          status: "erro",
+          erro_descricao: JSON.stringify(sendData),
+        })
+      );
 
       return new Response(
         JSON.stringify({ error: "Erro ao enviar mensagem", details: sendData }),
@@ -161,50 +171,57 @@ serve(async (req) => {
 
     const messageId = sendData.key?.id || sendData.id;
 
-    // Salvar mensagem no banco
-    const { data: mensagem, error: msgError } = await supabase
-      .from("omni_mensagens")
-      .insert({
-        atendimento_id,
-        agente_id,
-        contato_id: contato.id,
-        tipo,
-        direcao: "saida",
-        conteudo,
-        arquivo_url,
-        arquivo_nome,
-        arquivo_tipo,
-        whatsapp_message_id: messageId,
-        status: "enviada",
-      })
-      .select()
-      .single();
+    // BACKGROUND TASK: Save message and update atendimento
+    EdgeRuntime.waitUntil((async () => {
+      try {
+        // Save message to DB
+        const { error: msgError } = await supabase
+          .from("omni_mensagens")
+          .insert({
+            atendimento_id,
+            agente_id,
+            contato_id: contato.id,
+            tipo,
+            direcao: "saida",
+            conteudo,
+            arquivo_url,
+            arquivo_nome,
+            arquivo_tipo,
+            whatsapp_message_id: messageId,
+            status: "enviada",
+          });
 
-    if (msgError) {
-      console.error("Error saving message to DB:", msgError);
-    }
+        if (msgError) {
+          console.error("Error saving message to DB:", msgError);
+        }
 
-    // Atualizar data da primeira resposta se ainda não tiver
-    if (!atendimento.data_primeira_resposta && agente_id) {
-      await supabase
-        .from("omni_atendimentos")
-        .update({
-          data_primeira_resposta: new Date().toISOString(),
-          agente_id,
-          status: "em_atendimento",
-          tempo_primeira_resposta: Math.floor(
-            (Date.now() - new Date(atendimento.data_abertura).getTime()) / 1000
-          ),
-        })
-        .eq("id", atendimento_id);
-    }
+        // Update first response time if not set
+        if (!atendimento.data_primeira_resposta && agente_id) {
+          await supabase
+            .from("omni_atendimentos")
+            .update({
+              data_primeira_resposta: new Date().toISOString(),
+              agente_id,
+              status: "em_atendimento",
+              tempo_primeira_resposta: Math.floor(
+                (Date.now() - new Date(atendimento.data_abertura).getTime()) / 1000
+              ),
+            })
+            .eq("id", atendimento_id);
+        }
 
-    console.log(`Message sent successfully: ${messageId}`);
+        console.log(`[Background] Message saved successfully: ${messageId}`);
+      } catch (err) {
+        console.error("[Background] Error in background task:", err);
+      }
+    })());
 
+    console.log(`[${Date.now() - startTime}ms] Returning response immediately`);
+
+    // Return immediately - DB operations run in background
     return new Response(
       JSON.stringify({
         success: true,
-        mensagem,
         whatsapp_id: messageId,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
