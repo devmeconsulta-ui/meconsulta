@@ -1,170 +1,177 @@
 
-# Plano: Ajustes do OmniHeader e Páginas de Configuração Admin
+# Plan: Fix Omnichannel Features and Add Clinic Internal Notification System
 
-## Resumo das Solicitações
+## Overview
 
-1. **Remover botão WhatsApp do painel da clínica** - O botão só deve existir no painel do atendente
-2. **Corrigir espaçamento entre OmniHeader e conteúdo** - Ajustar altura de linha
-3. **Scroll apenas no conteúdo abaixo do OmniHeader** - O header deve ficar fixo
-4. **Criar páginas de configuração no Admin** - API, Webhooks, Automações
-5. **Remover Configurações do OmniHeader** - Tirar o ícone de configurações do header omnichannel
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Modificação |
-|---------|-------------|
-| `src/components/clinica/omnichannel/OmniHeader.tsx` | Remover botão WhatsApp e ícone de Configurações |
-| `src/components/clinica/omnichannel/OmniLayout.tsx` | Corrigir scroll e espaçamento |
-| `src/pages/admin/AdminIntegracoes.tsx` | Expandir com abas (API, Webhooks, Automações) |
-| `src/App.tsx` | Não precisa alterar - já tem rota `/admin/integracoes` |
+This plan addresses three major requirements:
+1. **Fix non-functional dropdown menu items** (Search messages, View media, View documents, Transfer, Add label, End service)
+2. **Review and validate omnichannel service assignment logic** (circular, random distribution per clinic queue configuration)
+3. **Implement clinic-level read-only access with internal notification system** (clinic admin can view conversations but not respond - only notify agents)
 
 ---
 
-## Detalhes Técnicos
+## Part 1: Fix Non-Functional Menu Actions
 
-### 1. Remover Botão WhatsApp do OmniHeader (Painel Clínica)
+### Current State
+The dropdown menu in `OmniWhatsAppChat.tsx` shows placeholder toast messages like "Pesquisa de mensagens em breve!" instead of actual functionality.
 
-**Arquivo:** `src/components/clinica/omnichannel/OmniHeader.tsx`
+### Required Changes
 
-**Alterações:**
-- Remover o bloco JSX do botão WhatsApp (linhas 104-133)
-- Remover o item "Configurações" da lista `navItems` (linha 32)
-- Remover a prop `atendimentosCount` pois não será mais usada
-- Manter apenas os itens de navegação: Dashboard, Agentes, Chat, CRM, Contatos, Filas, Relatórios, Confirmação Agenda
+**1.1 Search Messages Feature**
+- Add a search panel that slides in from the right side
+- Allow searching message content within the last 60 days
+- Highlight matching messages and scroll to them on click
 
-**Resultado:** O header da clínica fica apenas com os ícones de navegação administrativa sem o botão de atendimento WhatsApp.
+**1.2 View Media (Images/Videos)**
+- Create a modal that displays all media attachments from the conversation
+- Filter `omni_mensagens` by `tipo` in ('imagem', 'video')
+- Show thumbnails in a grid layout
 
-### 2. Corrigir Espaçamento e Scroll no OmniLayout
+**1.3 View Documents**
+- Similar modal for documents
+- Filter by `tipo = 'documento'`
+- Show file name and download button
 
-**Arquivo:** `src/components/clinica/omnichannel/OmniLayout.tsx`
+**1.4 Add Label Feature**
+- Create a dropdown/modal to select from `omni_etiquetas`
+- Update `omni_atendimentos.etiquetas` array
+- Show current labels on the conversation
 
-**Problema:** A página inteira está rolando, incluindo o OmniHeader.
+**1.5 Transfer and End Service**
+- These buttons are already wired to modals - verify they work correctly
 
-**Solução:**
-```text
-ANTES:
-- div com min-h-[calc(100vh-8rem)] -m-4 sm:-m-6
-- Header sticky mas scroll na página inteira
+---
 
-DEPOIS:
-- Container com height fixo e overflow-hidden
-- OmniHeader fixo no topo com flex-shrink-0
-- Conteúdo em ScrollArea que ocupa espaço restante (flex-1 overflow-auto)
-- Espaçamento superior (gap) entre header e conteúdo
-```
+## Part 2: Validate Service Assignment Logic
 
-**Código proposto:**
-```tsx
-return (
-  <div className="flex flex-col h-[calc(100vh-8rem)] -m-4 sm:-m-6 overflow-hidden">
-    {/* Header fixo do omnichannel */}
-    <div className="flex-shrink-0 bg-background border-b border-border">
-      <OmniHeader />
-    </div>
-    
-    {/* Conteúdo com scroll independente e gap do header */}
-    <div className="flex-1 overflow-auto p-4 sm:p-6 pt-6">
-      {children}
-    </div>
-  </div>
-);
-```
+### Current Architecture
+- Queues (`omni_filas`) have a `estrategia_distribuicao` field supporting: `round_robin`, `aleatorio`, `menor_carga`
+- Services are assigned based on queue configuration
+- The `evolution-webhook` edge function handles new message routing
 
-### 3. Expandir AdminIntegracoes com Abas
+### Files to Review
+- `useOmniFilas.ts` - Queue configuration
+- `evolution-webhook` edge function - Message routing logic
+- Distribution strategies implementation
 
-**Arquivo:** `src/pages/admin/AdminIntegracoes.tsx`
+### Verification Points
+- Ensure circular (round_robin) rotates through agents sequentially
+- Ensure random (aleatorio) picks agents randomly
+- Ensure load-based (menor_carga) assigns to agent with fewest active services
+- Each agent only sees services assigned to them in "Mine" tab
 
-**Estrutura atual:**
-- Card de integração Asaas
-- Card de integração WhatsApp (webhooks básicos)
+---
 
-**Nova estrutura com abas:**
+## Part 3: Clinic Read-Only Access with Internal Notification System
+
+### Concept
+Based on the reference images provided:
+- Clinic admin (tipo="clinica") views conversations in read-only mode
+- Instead of responding, they can send "internal information messages"
+- These appear as alerts/notifications visible only to the assigned agent
+- Agents see these in real-time as highlighted internal notes
+
+### Database Changes Required
+Create a new table for internal notes:
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│  Integrações                                                │
-│  Configure as integrações do sistema                        │
-├─────────────┬──────────────┬──────────────┬─────────────────┤
-│ Pagamentos  │  Webhooks    │ Automações   │  API            │
-└─────────────┴──────────────┴──────────────┴─────────────────┘
++-------------------------------+
+| omni_notas_internas           |
++-------------------------------+
+| id (uuid, PK)                 |
+| atendimento_id (uuid, FK)     |
+| clinica_id (uuid, FK)         |
+| criado_por_usuario_id (uuid)  |
+| criado_por_nome (varchar)     |
+| destinatario_agente_id (uuid) |
+| mensagem (text)               |
+| lida (boolean, default false) |
+| created_at (timestamptz)      |
++-------------------------------+
 ```
 
-**Aba Pagamentos (existente):**
-- Configuração do Asaas (ambiente, API Key, webhook de pagamentos)
+### UI Components
 
-**Aba Webhooks (nova):**
-- Webhooks de entrada (para receber de apps externos)
-  - Endpoint: /functions/v1/external-webhook
-  - Autenticação: API Key ou Token Bearer
-  - Eventos recebidos: Lista de eventos suportados
-  
-- Webhooks de saída (para enviar para apps externos)
-  - URL de destino configurável
-  - Eventos: nova_consulta, consulta_confirmada, consulta_cancelada, pagamento_confirmado
-  - Headers customizados
-  - Retry automático (3 tentativas)
-  - Log de entregas
+**3.1 Insert Internal Note Modal**
+- Similar to the reference image provided
+- Title: "Inserir mensagem de informação"
+- Subtitle: "Mensagens de informação não serão vistas pelo cliente"
+- Text area for message
+- Cancel and "Inserir" buttons
 
-**Aba Automações (nova):**
-- Confirmação automática de consultas (WhatsApp)
-- Envio de lembretes (X horas antes)
-- Notificação de pagamento pendente
-- Follow-up pós-consulta
-- Pesquisa de satisfação
+**3.2 Agent View - Note Alert**
+- Render internal notes inline in the chat as a special "system" message
+- Styled with:
+  - Light blue/cyan background
+  - Person icon
+  - "Nome: Nome escreveu: [message]" format
+  - Timestamp
+- Notes should appear in real-time via Supabase Realtime
 
-**Aba API (nova):**
-- Documentação básica da API
-- Geração de API Keys
-- Lista de endpoints disponíveis:
-  - GET /consultas
-  - POST /consultas
-  - GET /medicos
-  - GET /pacientes
-  - etc.
-- Logs de requisições da API
+**3.3 Clinic View Mode**
+- Detect if user is clinic owner (`tipo === "clinica"`)
+- Hide message input area
+- Show "Notificar Agente" button instead
+- Display read-only conversation view
 
-### 4. Criar Componentes para Cada Aba
+### Implementation Flow
 
-**Novos arquivos:**
-- `src/components/admin/integracoes/IntegracoesPagamentos.tsx`
-- `src/components/admin/integracoes/IntegracoesWebhooks.tsx`
-- `src/components/admin/integracoes/IntegracoesAutomacoes.tsx`
-- `src/components/admin/integracoes/IntegracoesAPI.tsx`
+```text
+Clinic Admin Flow:
+1. Opens /clinica/omnichannel/whatsapp
+2. System detects tipo="clinica" (admin, not employee)
+3. Chat input is replaced with "Notificar Agente" button
+4. Admin clicks button -> Opens modal
+5. Admin writes message -> Inserts into omni_notas_internas
+6. Agent sees real-time notification alert in chat
 
-**Migração:**
-- Mover código existente do Asaas para `IntegracoesPagamentos.tsx`
-- Mover código existente do WhatsApp para `IntegracoesWebhooks.tsx`
+Agent Flow:
+1. Agent is viewing conversation
+2. Supabase Realtime subscription on omni_notas_internas
+3. New note appears as highlighted system message
+4. Agent can click to mark as read
+```
 
 ---
 
-## Ordem de Implementação
+## Technical Implementation Details
 
-1. **OmniHeader.tsx** - Remover WhatsApp e Configurações
-2. **OmniLayout.tsx** - Corrigir scroll e espaçamento
-3. **IntegracoesPagamentos.tsx** - Extrair código do Asaas
-4. **IntegracoesWebhooks.tsx** - Criar aba de webhooks expandida
-5. **IntegracoesAutomacoes.tsx** - Criar aba de automações
-6. **IntegracoesAPI.tsx** - Criar aba de documentação API
-7. **AdminIntegracoes.tsx** - Refatorar com sistema de abas
+### Files to Create
+1. `src/components/clinica/omnichannel/NotaInternaModal.tsx` - Modal for inserting notes
+2. `src/components/clinica/omnichannel/SearchMessagesPanel.tsx` - Side panel for searching
+3. `src/components/clinica/omnichannel/MediaGalleryModal.tsx` - Gallery for media
+4. `src/components/clinica/omnichannel/DocumentsModal.tsx` - Documents list modal
+5. `src/hooks/useOmniNotasInternas.ts` - Hook for managing internal notes
+
+### Files to Modify
+1. `src/pages/clinica/omnichannel/OmniWhatsAppChat.tsx`
+   - Add clinic read-only mode detection
+   - Integrate all new modals
+   - Add internal notes display in message list
+   - Wire up menu actions
+
+2. `src/hooks/useOmniAtendimentos.ts`
+   - Add method to fetch media/documents by type
+   - Add label management functions
+
+### Database Migration
+New migration to create `omni_notas_internas` table with:
+- RLS policies for clinic and agent access
+- Realtime enabled
+- Foreign key relationships
 
 ---
 
-## Resultado Esperado
+## Summary of Deliverables
 
-**Painel da Clínica:**
-- OmniHeader sem botão WhatsApp e sem Configurações
-- Scroll apenas no conteúdo, header fixo
-- Espaçamento correto entre header e conteúdo
-
-**Painel do Atendente:**
-- Mantém o chat via `/atendente/chat` (já existe e funciona)
-- Sem alterações
-
-**Painel Admin:**
-- Página de Integrações com 4 abas completas
-- Configuração de webhooks de entrada e saída
-- Automações configuráveis
-- Documentação da API com geração de chaves
-
+| Feature | Status | Action |
+|---------|--------|--------|
+| Search messages | Not working | Implement search panel |
+| View media | Not working | Implement gallery modal |
+| View documents | Not working | Implement documents modal |
+| Transfer chat | Working | Verify |
+| Add label | Not working | Implement label selector |
+| End service | Working | Verify |
+| Clinic read-only | Missing | Add detection + UI |
+| Internal notes | Missing | New table + full feature |
+| Service assignment | Needs review | Validate distribution logic |
