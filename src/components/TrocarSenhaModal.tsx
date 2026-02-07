@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Lock } from "lucide-react";
+import { secureChangePassword } from "@/lib/secureAuth";
 
 interface TrocarSenhaModalProps {
   open: boolean;
@@ -42,6 +42,15 @@ export function TrocarSenhaModal({
       return;
     }
 
+    if (novaSenha.length > 100) {
+      toast({
+        title: "Erro",
+        description: "A senha deve ter no máximo 100 caracteres.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (novaSenha !== confirmarSenha) {
       toast({
         title: "Erro",
@@ -54,21 +63,19 @@ export function TrocarSenhaModal({
     setIsLoading(true);
 
     try {
-      const { error } = await supabase
-        .from(userTable)
-        .update({
-          senha_hash: novaSenha,
-          deve_trocar_senha: false,
-        })
-        .eq("id", userId);
+      const result = await secureChangePassword(userId, userTable, novaSenha);
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error || "Erro ao alterar senha");
+      }
 
       toast({
         title: "Senha alterada",
         description: "Sua senha foi atualizada com sucesso!",
       });
 
+      setNovaSenha("");
+      setConfirmarSenha("");
       onSuccess();
     } catch (error: any) {
       toast({
@@ -104,6 +111,7 @@ export function TrocarSenhaModal({
               onChange={(e) => setNovaSenha(e.target.value)}
               placeholder="Mínimo 6 caracteres"
               disabled={isLoading}
+              maxLength={100}
             />
           </div>
 
@@ -116,6 +124,7 @@ export function TrocarSenhaModal({
               onChange={(e) => setConfirmarSenha(e.target.value)}
               placeholder="Digite novamente"
               disabled={isLoading}
+              maxLength={100}
             />
           </div>
 

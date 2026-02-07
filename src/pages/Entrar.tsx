@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import logo from "@/assets/logo.avif";
 import { SignupModal } from "@/components/SignupModal";
 import { TrocarSenhaModal } from "@/components/TrocarSenhaModal";
+import { secureLogin } from "@/lib/secureAuth";
 
 export default function Entrar() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -30,6 +30,7 @@ export default function Entrar() {
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+  
   const [trocarSenhaModal, setTrocarSenhaModal] = useState<{
     open: boolean;
     userId: string;
@@ -39,16 +40,38 @@ export default function Entrar() {
   const navigate = useNavigate();
   const { setCurrentUser } = useAuth();
 
-  const completeLogin = async (usuarioData: any) => {
+  const completeLogin = async (userData: any) => {
     await setCurrentUser({
-      id: usuarioData.id,
-      nome: usuarioData.nome,
-      email: usuarioData.email,
-      tipo: usuarioData.tipo as "admin" | "medico" | "paciente" | "clinica",
-      papel: usuarioData.papel as "atendente" | "supervisor" | "admin" | "superadmin",
+      id: userData.id,
+      nome: userData.nome,
+      email: userData.email,
+      tipo: userData.tipo as "admin" | "medico" | "paciente" | "clinica",
+      papel: userData.papel as "atendente" | "supervisor" | "admin" | "superadmin",
+      pacienteId: userData.pacienteId,
+      medicoId: userData.medicoId,
+      clinicaId: userData.clinicaId,
+      todosMedicos: userData.todosMedicos,
+      permissoes: userData.permissoes,
     });
 
-    switch (usuarioData.tipo) {
+    // Determine redirect based on user type and role
+    if (userData.isClinicaUser) {
+      const atendentePermissoes = ['confirmacao-agenda', 'chat', 'contatos', 'atendimentos'];
+      const isAtendenteOnly = 
+        userData.papel === "atendente" && 
+        (!userData.permissoes || 
+         userData.permissoes.length === 0 ||
+         userData.permissoes.every((p: string) => atendentePermissoes.includes(p)));
+
+      if (isAtendenteOnly) {
+        navigate("/atendente");
+      } else {
+        navigate("/clinica");
+      }
+      return;
+    }
+
+    switch (userData.tipo) {
       case "admin":
         navigate("/admin");
         break;
@@ -70,109 +93,44 @@ export default function Entrar() {
     e.preventDefault();
     setErro("");
 
-    if (!email.trim() || !senha.trim()) {
+    // Input validation
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedSenha = senha.trim();
+
+    if (!trimmedEmail || !trimmedSenha) {
       setErro("Por favor, preencha todos os campos.");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setErro("Por favor, insira um e-mail válido.");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // First, try to login as regular user (usuarios table)
-      const { data: usuarioData, error: usuarioError } = await supabase
-        .from("usuarios")
-        .select("id, nome, email, tipo, papel, deve_trocar_senha")
-        .eq("email", email.trim())
-        .eq("senha_hash", senha)
-        .eq("ativo", true)
-        .maybeSingle();
+      const result = await secureLogin(trimmedEmail, trimmedSenha);
 
-      if (usuarioError) {
-        console.error("Erro ao consultar usuário:", usuarioError);
-        setErro("Erro ao conectar com o servidor. Tente novamente.");
+      if (!result.success || !result.user) {
+        setErro(result.error || "E-mail ou senha inválidos.");
         return;
       }
 
-      if (usuarioData) {
-        // Check if user must change password
-        if (usuarioData.deve_trocar_senha) {
-          setTrocarSenhaModal({
-            open: true,
-            userId: usuarioData.id,
-            userTable: "usuarios",
-            userData: usuarioData,
-          });
-          return;
-        }
-
-        // Regular user login successful
-        await completeLogin(usuarioData);
+      // Check if user must change password
+      if (result.user.deveTrocarSenha) {
+        setTrocarSenhaModal({
+          open: true,
+          userId: result.user.id,
+          userTable: result.user.isClinicaUser ? "usuarios_clinica" : "usuarios",
+          userData: result.user,
+        });
         return;
       }
 
-      // If not found in usuarios, try usuarios_clinica (clinic staff)
-      const { data: clinicaUserData, error: clinicaError } = await supabase
-        .from("usuarios_clinica")
-        .select("id, nome, email, papel, medico_id, clinica_id, todos_medicos, ativo, permissoes")
-        .eq("email", email.trim())
-        .eq("senha_hash", senha)
-        .eq("ativo", true)
-        .maybeSingle();
-
-      if (clinicaError) {
-        console.error("Erro ao consultar usuário da clínica:", clinicaError);
-        setErro("Erro ao conectar com o servidor. Tente novamente.");
-        return;
-      }
-
-      if (clinicaUserData) {
-        // Clinic user login successful
-        if (clinicaUserData.clinica_id) {
-          await setCurrentUser({
-            id: clinicaUserData.id,
-            nome: clinicaUserData.nome,
-            email: clinicaUserData.email || "",
-            tipo: "clinica",
-            papel: clinicaUserData.papel as "atendente" | "supervisor" | "admin" | "superadmin" || "atendente",
-            clinicaId: clinicaUserData.clinica_id,
-            medicoId: clinicaUserData.medico_id,
-            todosMedicos: clinicaUserData.todos_medicos || false,
-            permissoes: clinicaUserData.permissoes || [],
-          });
-
-          // Determinar redirecionamento baseado no papel e permissões
-          // Atendentes puros (só permissões de atendimento) -> /atendente
-          // Outros papéis (secretaria, supervisor, admin) -> /clinica
-          const atendentePermissoes = ['confirmacao-agenda', 'chat', 'contatos', 'atendimentos'];
-          const isAtendenteOnly = 
-            clinicaUserData.papel === "atendente" && 
-            (!clinicaUserData.permissoes || 
-             clinicaUserData.permissoes.length === 0 ||
-             clinicaUserData.permissoes.every((p: string) => atendentePermissoes.includes(p)));
-
-          if (isAtendenteOnly) {
-            navigate("/atendente");
-          } else {
-            navigate("/clinica");
-          }
-        } else {
-          // Legacy: user linked to doctor only (no clinica_id)
-          await setCurrentUser({
-            id: clinicaUserData.id,
-            nome: clinicaUserData.nome,
-            email: clinicaUserData.email || "",
-            tipo: "medico", // Access medico area
-            papel: "atendente",
-            medicoId: clinicaUserData.medico_id,
-            permissoes: clinicaUserData.permissoes || [],
-          });
-          navigate("/medico");
-        }
-        return;
-      }
-
-      // No user found in either table
-      setErro("E-mail ou senha inválidos, ou usuário inativo.");
+      await completeLogin(result.user);
     } catch (err) {
       console.error("Erro inesperado:", err);
       setErro("Erro inesperado. Tente novamente.");
@@ -212,6 +170,7 @@ export default function Entrar() {
                 }}
                 autoComplete="email"
                 disabled={isLoading}
+                maxLength={255}
               />
             </div>
 
@@ -229,6 +188,7 @@ export default function Entrar() {
                 }}
                 autoComplete="current-password"
                 disabled={isLoading}
+                maxLength={100}
               />
             </div>
 

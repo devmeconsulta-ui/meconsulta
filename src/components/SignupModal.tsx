@@ -8,11 +8,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { User, ArrowLeft, Building2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { secureRegister } from "@/lib/secureAuth";
 
 type Step = "choose" | "paciente" | "clinica";
 
@@ -57,55 +57,59 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
 
   async function handlePacienteSubmit(e: React.FormEvent) {
     e.preventDefault();
+    
+    // Input validation
+    const trimmedNome = pacienteData.nome.trim();
+    const trimmedEmail = pacienteData.email.trim().toLowerCase();
+    
+    if (!trimmedNome || !trimmedEmail || !pacienteData.senha) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    if (trimmedNome.length < 2 || trimmedNome.length > 100) {
+      toast.error("Nome deve ter entre 2 e 100 caracteres");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast.error("E-mail inválido");
+      return;
+    }
+
+    if (pacienteData.senha.length < 6) {
+      toast.error("Senha deve ter no mínimo 6 caracteres");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Check if email already exists
-      const { data: existingUser } = await supabase
-        .from("usuarios")
-        .select("id")
-        .eq("email", pacienteData.email)
-        .maybeSingle();
+      const result = await secureRegister({
+        nome: trimmedNome,
+        email: trimmedEmail,
+        password: pacienteData.senha,
+        tipo: "paciente",
+        telefone: pacienteData.telefone || undefined,
+        cpf: pacienteData.cpf || undefined,
+      });
 
-      if (existingUser) {
-        toast.error("Este e-mail já está cadastrado");
+      if (!result.success || !result.user) {
+        toast.error(result.error || "Erro ao realizar cadastro");
         setLoading(false);
         return;
       }
-
-      // Create usuario
-      const { data: usuario, error: userError } = await supabase
-        .from("usuarios")
-        .insert({
-          nome: pacienteData.nome,
-          email: pacienteData.email,
-          tipo: "paciente",
-          papel: "paciente",
-          senha_hash: pacienteData.senha, // In production, hash the password
-        })
-        .select()
-        .single();
-
-      if (userError) throw userError;
-
-      // Create paciente
-      const { error: pacienteError } = await supabase.from("pacientes").insert({
-        nome: pacienteData.nome,
-        usuario_id: usuario.id,
-        telefone: pacienteData.telefone,
-        cpf: pacienteData.cpf,
-      });
-
-      if (pacienteError) throw pacienteError;
 
       toast.success("Cadastro realizado com sucesso!");
 
       // Auto login
       setCurrentUser({
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
+        id: result.user.id,
+        nome: result.user.nome,
+        email: result.user.email,
         tipo: "paciente",
+        pacienteId: result.user.pacienteId,
       });
 
       onOpenChange(false);
@@ -121,59 +125,63 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
 
   async function handleClinicaSubmit(e: React.FormEvent) {
     e.preventDefault();
+    
+    // Input validation
+    const trimmedNome = clinicaData.nomeFantasia.trim();
+    const trimmedEmail = clinicaData.email.trim().toLowerCase();
+    
+    if (!trimmedNome || !trimmedEmail || !clinicaData.senha) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    if (trimmedNome.length < 2 || trimmedNome.length > 100) {
+      toast.error("Nome deve ter entre 2 e 100 caracteres");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast.error("E-mail inválido");
+      return;
+    }
+
+    if (clinicaData.senha.length < 6) {
+      toast.error("Senha deve ter no mínimo 6 caracteres");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Check if email already exists
-      const { data: existingUser } = await supabase
-        .from("usuarios")
-        .select("id")
-        .eq("email", clinicaData.email)
-        .maybeSingle();
+      const result = await secureRegister({
+        nome: trimmedNome,
+        email: trimmedEmail,
+        password: clinicaData.senha,
+        tipo: "clinica",
+        nomeFantasia: trimmedNome,
+        razaoSocial: clinicaData.razaoSocial || undefined,
+        cnpj: clinicaData.cnpj || undefined,
+        telefone: clinicaData.telefone || undefined,
+        cidade: clinicaData.cidade || undefined,
+        estado: clinicaData.estado || undefined,
+      });
 
-      if (existingUser) {
-        toast.error("Este e-mail já está cadastrado");
+      if (!result.success || !result.user) {
+        toast.error(result.error || "Erro ao realizar cadastro");
         setLoading(false);
         return;
       }
-
-      // Create usuario
-      const { data: usuario, error: userError } = await supabase
-        .from("usuarios")
-        .insert({
-          nome: clinicaData.nomeFantasia,
-          email: clinicaData.email,
-          tipo: "clinica",
-          papel: "clinica",
-          senha_hash: clinicaData.senha,
-        })
-        .select()
-        .single();
-
-      if (userError) throw userError;
-
-      // Create clinica
-      const { error: clinicaError } = await supabase.from("clinicas").insert({
-        nome_fantasia: clinicaData.nomeFantasia,
-        razao_social: clinicaData.razaoSocial,
-        cnpj: clinicaData.cnpj,
-        email_contato: clinicaData.email,
-        telefone: clinicaData.telefone,
-        cidade: clinicaData.cidade,
-        estado: clinicaData.estado,
-        usuario_id: usuario.id,
-      });
-
-      if (clinicaError) throw clinicaError;
 
       toast.success("Cadastro realizado com sucesso!");
 
       // Auto login
       setCurrentUser({
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
+        id: result.user.id,
+        nome: result.user.nome,
+        email: result.user.email,
         tipo: "clinica",
+        clinicaId: result.user.clinicaId,
       });
 
       onOpenChange(false);
@@ -253,6 +261,7 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
                 value={pacienteData.nome}
                 onChange={(e) => setPacienteData({ ...pacienteData, nome: e.target.value })}
                 required
+                maxLength={100}
               />
             </div>
             <div>
@@ -262,6 +271,7 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
                 value={pacienteData.email}
                 onChange={(e) => setPacienteData({ ...pacienteData, email: e.target.value })}
                 required
+                maxLength={255}
               />
             </div>
             <div>
@@ -270,6 +280,7 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
                 value={pacienteData.telefone}
                 onChange={(e) => setPacienteData({ ...pacienteData, telefone: e.target.value })}
                 placeholder="(00) 00000-0000"
+                maxLength={20}
               />
             </div>
             <div>
@@ -278,6 +289,7 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
                 value={pacienteData.cpf}
                 onChange={(e) => setPacienteData({ ...pacienteData, cpf: e.target.value })}
                 placeholder="000.000.000-00"
+                maxLength={14}
               />
             </div>
             <div>
@@ -288,7 +300,9 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
                 onChange={(e) => setPacienteData({ ...pacienteData, senha: e.target.value })}
                 required
                 minLength={6}
+                maxLength={100}
               />
+              <p className="text-xs text-muted-foreground mt-1">Mínimo 6 caracteres</p>
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
@@ -316,6 +330,7 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
                 value={clinicaData.nomeFantasia}
                 onChange={(e) => setClinicaData({ ...clinicaData, nomeFantasia: e.target.value })}
                 required
+                maxLength={100}
               />
             </div>
             <div>
@@ -323,6 +338,7 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
               <Input
                 value={clinicaData.razaoSocial}
                 onChange={(e) => setClinicaData({ ...clinicaData, razaoSocial: e.target.value })}
+                maxLength={100}
               />
             </div>
             <div>
@@ -331,6 +347,7 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
                 value={clinicaData.cnpj}
                 onChange={(e) => setClinicaData({ ...clinicaData, cnpj: e.target.value })}
                 placeholder="00.000.000/0000-00"
+                maxLength={18}
               />
             </div>
             <div>
@@ -340,6 +357,7 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
                 value={clinicaData.email}
                 onChange={(e) => setClinicaData({ ...clinicaData, email: e.target.value })}
                 required
+                maxLength={255}
               />
             </div>
             <div>
@@ -348,6 +366,7 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
                 value={clinicaData.telefone}
                 onChange={(e) => setClinicaData({ ...clinicaData, telefone: e.target.value })}
                 placeholder="(00) 00000-0000"
+                maxLength={20}
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -356,6 +375,7 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
                 <Input
                   value={clinicaData.cidade}
                   onChange={(e) => setClinicaData({ ...clinicaData, cidade: e.target.value })}
+                  maxLength={50}
                 />
               </div>
               <div>
@@ -376,7 +396,9 @@ export function SignupModal({ open, onOpenChange, initialStep = "choose" }: Sign
                 onChange={(e) => setClinicaData({ ...clinicaData, senha: e.target.value })}
                 required
                 minLength={6}
+                maxLength={100}
               />
+              <p className="text-xs text-muted-foreground mt-1">Mínimo 6 caracteres</p>
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>

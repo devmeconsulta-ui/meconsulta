@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { Users, Plus, Phone, Mail, Trash2, Pencil, Eye, EyeOff, Key, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { hashPassword } from "@/lib/secureAuth";
 
 interface ClinicaContext {
   clinicaData: any;
@@ -232,6 +233,13 @@ export default function ClinicaUsuarios() {
       return;
     }
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      toast.error("E-mail inválido");
+      return;
+    }
+
     if (!formData.todosMedicos && formData.medicosIds.length === 0) {
       toast.error("Selecione pelo menos um médico ou marque 'Todos os médicos'");
       return;
@@ -242,20 +250,23 @@ export default function ClinicaUsuarios() {
       return;
     }
 
+    if (!editingUser && formData.senha.length < 6) {
+      toast.error("Senha deve ter no mínimo 6 caracteres");
+      return;
+    }
+
     // Check for email uniqueness
     const { data: existingUser, error: checkError } = await supabase
       .from("usuarios_clinica")
       .select("id, email")
-      .eq("email", formData.email.trim())
+      .eq("email", formData.email.trim().toLowerCase())
       .maybeSingle();
 
     if (checkError && checkError.code !== 'PGRST116') {
-      // PGRST116 = no rows returned, which is fine
       toast.error("Erro ao verificar e-mail");
       return;
     }
 
-    // If we found a user with this email and it's not the current editing user
     if (existingUser && (!editingUser || existingUser.id !== editingUser.id)) {
       toast.error("Este e-mail já está em uso por outro usuário");
       return;
@@ -268,10 +279,21 @@ export default function ClinicaUsuarios() {
     
     const medicosIdsToSave = formData.todosMedicos ? null : formData.medicosIds;
 
+    // Hash password if provided
+    let hashedPassword: string | undefined;
+    if (formData.senha.trim()) {
+      const hashResult = await hashPassword(formData.senha);
+      if (hashResult.error || !hashResult.hash) {
+        toast.error(hashResult.error || "Erro ao processar senha");
+        return;
+      }
+      hashedPassword = hashResult.hash;
+    }
+
     if (editingUser) {
       const updateData: any = {
-        nome: formData.nome,
-        email: formData.email?.trim() || null,
+        nome: formData.nome.trim(),
+        email: formData.email?.trim().toLowerCase() || null,
         telefone: formData.telefone || null,
         papel: formData.papel,
         ativo: formData.ativo,
@@ -282,8 +304,8 @@ export default function ClinicaUsuarios() {
         medicos_ids: medicosIdsToSave,
       };
 
-      if (formData.senha.trim()) {
-        updateData.senha_hash = formData.senha;
+      if (hashedPassword) {
+        updateData.senha_hash = hashedPassword;
       }
 
       const { error } = await supabase
@@ -302,12 +324,12 @@ export default function ClinicaUsuarios() {
         clinica_id: clinicaData.id,
         todos_medicos: formData.todosMedicos,
         medicos_ids: medicosIdsToSave,
-        nome: formData.nome,
-        email: formData.email?.trim() || null,
+        nome: formData.nome.trim(),
+        email: formData.email?.trim().toLowerCase() || null,
         telefone: formData.telefone || null,
         papel: formData.papel,
         ativo: formData.ativo,
-        senha_hash: formData.senha,
+        senha_hash: hashedPassword,
         permissoes: formData.permissoes,
       });
 

@@ -59,3 +59,12 @@ verify_jwt = false
 
 [functions.confirmation-response]
 verify_jwt = false
+
+[functions.hash-password]
+verify_jwt = false
+
+[functions.secure-auth]
+verify_jwt = false
+
+[functions.omni-ai-respond]
+verify_jwt = false
