@@ -2466,6 +2466,265 @@ export type Database = {
           },
         ]
       }
+      omni_ia_agentes: {
+        Row: {
+          acoes_followup: Json | null
+          assinar_nome: boolean
+          ativo: boolean
+          avatar_url: string | null
+          busca_treinamento: boolean
+          clinica_id: string
+          comportamento: string | null
+          comunicacao: string
+          created_at: string
+          descricao: string | null
+          descricao_produto: string | null
+          dividir_resposta: boolean
+          fila_operacao_id: string | null
+          fila_transferencia_id: string | null
+          finalidade: string
+          id: string
+          limite_interacoes: number
+          modelo: string
+          nome: string
+          palavras_chave_transferencia: string[] | null
+          permitir_lembretes: boolean
+          produto: string | null
+          restringir_temas: boolean
+          site_url: string | null
+          tempo_resposta: number
+          timezone: string
+          transferir_para_humano: boolean
+          updated_at: string
+          usar_emojis: boolean
+        }
+        Insert: {
+          acoes_followup?: Json | null
+          assinar_nome?: boolean
+          ativo?: boolean
+          avatar_url?: string | null
+          busca_treinamento?: boolean
+          clinica_id: string
+          comportamento?: string | null
+          comunicacao?: string
+          created_at?: string
+          descricao?: string | null
+          descricao_produto?: string | null
+          dividir_resposta?: boolean
+          fila_operacao_id?: string | null
+          fila_transferencia_id?: string | null
+          finalidade?: string
+          id?: string
+          limite_interacoes?: number
+          modelo?: string
+          nome: string
+          palavras_chave_transferencia?: string[] | null
+          permitir_lembretes?: boolean
+          produto?: string | null
+          restringir_temas?: boolean
+          site_url?: string | null
+          tempo_resposta?: number
+          timezone?: string
+          transferir_para_humano?: boolean
+          updated_at?: string
+          usar_emojis?: boolean
+        }
+        Update: {
+          acoes_followup?: Json | null
+          assinar_nome?: boolean
+          ativo?: boolean
+          avatar_url?: string | null
+          busca_treinamento?: boolean
+          clinica_id?: string
+          comportamento?: string | null
+          comunicacao?: string
+          created_at?: string
+          descricao?: string | null
+          descricao_produto?: string | null
+          dividir_resposta?: boolean
+          fila_operacao_id?: string | null
+          fila_transferencia_id?: string | null
+          finalidade?: string
+          id?: string
+          limite_interacoes?: number
+          modelo?: string
+          nome?: string
+          palavras_chave_transferencia?: string[] | null
+          permitir_lembretes?: boolean
+          produto?: string | null
+          restringir_temas?: boolean
+          site_url?: string | null
+          tempo_resposta?: number
+          timezone?: string
+          transferir_para_humano?: boolean
+          updated_at?: string
+          usar_emojis?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_ia_agentes_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_agentes_fila_operacao_id_fkey"
+            columns: ["fila_operacao_id"]
+            isOneToOne: false
+            referencedRelation: "omni_filas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_agentes_fila_transferencia_id_fkey"
+            columns: ["fila_transferencia_id"]
+            isOneToOne: false
+            referencedRelation: "omni_filas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_ia_conversas: {
+        Row: {
+          agente_id: string
+          atendimento_id: string
+          created_at: string
+          id: string
+          interacoes_count: number
+          mensagens: Json
+          transferido_para_humano: boolean
+          updated_at: string
+        }
+        Insert: {
+          agente_id: string
+          atendimento_id: string
+          created_at?: string
+          id?: string
+          interacoes_count?: number
+          mensagens?: Json
+          transferido_para_humano?: boolean
+          updated_at?: string
+        }
+        Update: {
+          agente_id?: string
+          atendimento_id?: string
+          created_at?: string
+          id?: string
+          interacoes_count?: number
+          mensagens?: Json
+          transferido_para_humano?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_ia_conversas_agente_id_fkey"
+            columns: ["agente_id"]
+            isOneToOne: false
+            referencedRelation: "omni_ia_agentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_conversas_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "omni_atendimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_ia_intencoes: {
+        Row: {
+          agente_id: string
+          ativa: boolean
+          clinica_id: string
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          webhook_url: string
+        }
+        Insert: {
+          agente_id: string
+          ativa?: boolean
+          clinica_id: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          webhook_url: string
+        }
+        Update: {
+          agente_id?: string
+          ativa?: boolean
+          clinica_id?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          webhook_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_ia_intencoes_agente_id_fkey"
+            columns: ["agente_id"]
+            isOneToOne: false
+            referencedRelation: "omni_ia_agentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_intencoes_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_ia_treinamentos: {
+        Row: {
+          agente_id: string
+          clinica_id: string
+          conteudo: string
+          created_at: string
+          id: string
+          status: string
+          tipo: string
+        }
+        Insert: {
+          agente_id: string
+          clinica_id: string
+          conteudo: string
+          created_at?: string
+          id?: string
+          status?: string
+          tipo: string
+        }
+        Update: {
+          agente_id?: string
+          clinica_id?: string
+          conteudo?: string
+          created_at?: string
+          id?: string
+          status?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_ia_treinamentos_agente_id_fkey"
+            columns: ["agente_id"]
+            isOneToOne: false
+            referencedRelation: "omni_ia_agentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_treinamentos_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       omni_instancias: {
         Row: {
           api_key_hash: string | null

@@ -297,6 +297,137 @@ serve(async (req) => {
           console.log(`Message saved for atendimento ${atendimento.id}, direction: ${direcao}, content: ${conteudo?.substring(0, 50)}`);
         }
 
+        // Se é mensagem de entrada (do cliente) e é texto, verificar se há IA configurada
+        if (direcao === "entrada" && tipo === "texto" && conteudo) {
+          console.log("[AI] Checking for AI agent configuration...");
+          
+          try {
+            // Chamar a edge function de IA de forma assíncrona
+            const aiResponse = await fetch(`${SUPABASE_URL}/functions/v1/omni-ai-respond`, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                atendimento_id: atendimento.id,
+                mensagem: conteudo,
+                clinica_id: clinica_id,
+              }),
+            });
+
+            if (aiResponse.ok) {
+              const aiData = await aiResponse.json();
+              
+              if (aiData.ai_active && aiData.mensagens && aiData.mensagens.length > 0) {
+                console.log(`[AI] Got ${aiData.mensagens.length} messages to send`);
+                
+                // Buscar instância para enviar mensagem
+                const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
+                const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+
+                if (EVOLUTION_API_URL && EVOLUTION_API_KEY) {
+                  const instanceName = instanciaData.evolution_instance_name;
+                  
+                  for (let i = 0; i < aiData.mensagens.length; i++) {
+                    const msgToSend = aiData.mensagens[i];
+                    
+                    // Delay entre mensagens para simular digitação
+                    if (i > 0) {
+                      await new Promise(resolve => setTimeout(resolve, 1500));
+                    }
+                    
+                    try {
+                      // Enviar mensagem via Evolution API
+                      const sendResponse = await fetch(
+                        `${EVOLUTION_API_URL}/message/sendText/${instanceName}`,
+                        {
+                          method: "POST",
+                          headers: {
+                            "apikey": EVOLUTION_API_KEY,
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({
+                            number: telefone,
+                            text: msgToSend,
+                          }),
+                        }
+                      );
+
+                      if (sendResponse.ok) {
+                        const sendData = await sendResponse.json();
+                        console.log(`[AI] Sent message ${i + 1}: ${msgToSend.substring(0, 50)}...`);
+                        
+                        // Salvar mensagem de IA no banco
+                        await supabase
+                          .from("omni_mensagens")
+                          .insert({
+                            atendimento_id: atendimento.id,
+                            contato_id: contato.id,
+                            tipo: "texto",
+                            direcao: "saida",
+                            conteudo: msgToSend,
+                            whatsapp_message_id: sendData?.key?.id,
+                            status: "enviada",
+                            agente_nome: aiData.agente_nome,
+                          });
+                      } else {
+                        console.error("[AI] Failed to send message:", await sendResponse.text());
+                      }
+                    } catch (sendError) {
+                      console.error("[AI] Error sending message:", sendError);
+                    }
+                  }
+                }
+              } else if (aiData.mensagem) {
+                // Mensagem de transferência ou similar
+                console.log(`[AI] Transfer message: ${aiData.mensagem}`);
+                
+                const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
+                const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+
+                if (EVOLUTION_API_URL && EVOLUTION_API_KEY) {
+                  const instanceName = instanciaData.evolution_instance_name;
+                  
+                  await fetch(
+                    `${EVOLUTION_API_URL}/message/sendText/${instanceName}`,
+                    {
+                      method: "POST",
+                      headers: {
+                        "apikey": EVOLUTION_API_KEY,
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        number: telefone,
+                        text: aiData.mensagem,
+                      }),
+                    }
+                  );
+                  
+                  await supabase
+                    .from("omni_mensagens")
+                    .insert({
+                      atendimento_id: atendimento.id,
+                      contato_id: contato.id,
+                      tipo: "texto",
+                      direcao: "saida",
+                      conteudo: aiData.mensagem,
+                      status: "enviada",
+                      agente_nome: aiData.agente_nome,
+                    });
+                }
+              } else {
+                console.log("[AI] No AI response or AI not active");
+              }
+            } else {
+              console.log("[AI] AI respond returned error:", aiResponse.status);
+            }
+          } catch (aiError) {
+            console.error("[AI] Error calling AI:", aiError);
+            // Não falhar o webhook por causa de erro de IA
+          }
+        }
+
         break;
       }
 

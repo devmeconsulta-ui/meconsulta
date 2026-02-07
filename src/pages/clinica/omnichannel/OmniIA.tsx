@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
-import { Inbox } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Inbox, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,7 +112,6 @@ interface AgenteIA {
   descricao_produto: string;
   ativo: boolean;
   fila_operacao: string; // Fila em que a IA irá operar
-  // Configurações
   transferir_para_humano: boolean;
   usar_emojis: boolean;
   assinar_nome: boolean;
@@ -122,9 +122,7 @@ interface AgenteIA {
   timezone: string;
   tempo_resposta: number;
   limite_interacoes: number;
-  // Follow-ups de inatividade
   acoes_followup: AcaoFollowUp[];
-  // Transferência
   palavras_chave_transferencia: string[];
   fila_transferencia: string;
 }
@@ -209,169 +207,174 @@ export default function OmniIA() {
   const [transferenciaConfigOpen, setTransferenciaConfigOpen] = useState(false);
   const [palavrasChave, setPalavrasChave] = useState("");
 
-  const [agentes, setAgentes] = useState<AgenteIA[]>([
-    {
-      id: "1",
-      nome: "Assistente Virtual",
-      descricao: "Atendente da Clínica",
-      modelo: "gpt-4o-mini",
-      avatar_url: null,
-      comunicacao: "normal",
-      comportamento: "Você é um assistente virtual de atendimento. Seja cordial e objetivo.",
-      finalidade: "suporte",
-      produto: "Clínica Médica",
-      site_url: "",
-      descricao_produto: "Clínica especializada em saúde e bem-estar.",
-      ativo: true,
-      fila_operacao: "",
-      transferir_para_humano: true,
-      usar_emojis: true,
-      assinar_nome: false,
-      restringir_temas: true,
-      dividir_resposta: true,
-      permitir_lembretes: true,
-      busca_treinamento: false,
-      timezone: "America/Sao_Paulo",
-      tempo_resposta: 5,
-      limite_interacoes: 0,
-      acoes_followup: [
-        {
-          id: "1",
-          tempo_minutos: 5,
-          acao: "mensagem",
-          mensagem: "Olá! Notei que você ficou um tempo sem responder. Posso ajudar em algo mais?",
-          ativa: true
-        }
-      ],
-      palavras_chave_transferencia: ["humano", "atendente", "pessoa real"],
-      fila_transferencia: ""
-    }
-  ]);
-
-  const [treinamentos, setTreinamentos] = useState<Treinamento[]>([
-    {
-      id: "1",
-      tipo: "texto",
-      conteudo: "Mensagem da IA (natural e persuasiva): Perfeito! Como prometido, estou aqui para ajudar com suas dúvidas sobre nossos serviços.",
-      status: "treinado",
-      created_at: new Date().toISOString()
-    }
-  ]);
-
-  const [intencoes, setIntencoes] = useState<Intencao[]>([
-    {
-      id: "1",
-      nome: "INTERAGIU COM A IA",
-      webhook_url: "https://example.com/webhook/interagiu",
-      ativa: true,
-      descricao: "Dispara quando o usuário interage com a IA"
-    },
-    {
-      id: "2",
-      nome: "INTENÇÃO: novo lead",
-      webhook_url: "https://example.com/webhook/novo-lead",
-      ativa: true,
-      descricao: "Dispara quando um novo lead é identificado"
-    }
-  ]);
+  const [agentes, setAgentes] = useState<AgenteIA[]>([]);
+  const [treinamentos, setTreinamentos] = useState<Treinamento[]>([]);
+  const [intencoes, setIntencoes] = useState<Intencao[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
 
   const [integracoes, setIntegracoes] = useState<Integracao[]>([
-    {
-      id: "1",
-      nome: "ElevenLabs",
-      descricao: "Com ElevenLabs você dá a capacidade do seu agente responder seus clientes em áudio, tornando ainda mais humanizado.",
-      icone: "11",
-      ativa: false,
-      configurada: false
-    },
-    {
-      id: "2",
-      nome: "Google Calendar",
-      descricao: "Com google calendar sua agente será capaz de agendar reuniões, criar link da chamada e já enviar os convites.",
-      icone: "calendar",
-      ativa: true,
-      configurada: true
-    },
-    {
-      id: "3",
-      nome: "Plug Chat",
-      descricao: "Caso sua IA ainda não consiga responder algumas perguntas, permita direcionar o atendimento a um humano.",
-      icone: "chat",
-      ativa: false,
-      configurada: false
-    }
+    { id: "1", nome: "ElevenLabs", descricao: "Responder em áudio humanizado.", icone: "11", ativa: false, configurada: false },
+    { id: "2", nome: "Google Calendar", descricao: "Agendar reuniões automaticamente.", icone: "calendar", ativa: true, configurada: true },
+    { id: "3", nome: "Plug Chat", descricao: "Direcionar para atendente humano.", icone: "chat", ativa: false, configurada: false }
   ]);
 
-  // Initialize selected agente
+  // Load data from database
   useEffect(() => {
-    if (!selectedAgente && agentes.length > 0) {
-      setSelectedAgente(agentes[0]);
-    }
-  }, [agentes, selectedAgente]);
+    const loadData = async () => {
+      if (!clinicaId) return;
+      setLoadingData(true);
+      
+      try {
+        // Load agents
+        const { data: agentesData } = await supabase
+          .from("omni_ia_agentes")
+          .select("*")
+          .eq("clinica_id", clinicaId)
+          .order("created_at", { ascending: false });
 
-  const handleCriarAgente = () => {
-    if (!novoAgenteNome.trim()) {
+        if (agentesData && agentesData.length > 0) {
+          const mappedAgentes = agentesData.map((a: any) => ({
+            id: a.id,
+            nome: a.nome,
+            descricao: a.descricao || "",
+            modelo: a.modelo,
+            avatar_url: a.avatar_url,
+            comunicacao: a.comunicacao,
+            comportamento: a.comportamento || "",
+            finalidade: a.finalidade,
+            produto: a.produto || "",
+            site_url: a.site_url || "",
+            descricao_produto: a.descricao_produto || "",
+            ativo: a.ativo,
+            fila_operacao: a.fila_operacao_id || "",
+            transferir_para_humano: a.transferir_para_humano,
+            usar_emojis: a.usar_emojis,
+            assinar_nome: a.assinar_nome,
+            restringir_temas: a.restringir_temas,
+            dividir_resposta: a.dividir_resposta,
+            permitir_lembretes: a.permitir_lembretes,
+            busca_treinamento: a.busca_treinamento,
+            timezone: a.timezone,
+            tempo_resposta: a.tempo_resposta,
+            limite_interacoes: a.limite_interacoes,
+            acoes_followup: (a.acoes_followup || []) as AcaoFollowUp[],
+            palavras_chave_transferencia: a.palavras_chave_transferencia || [],
+            fila_transferencia: a.fila_transferencia_id || "",
+          }));
+          setAgentes(mappedAgentes);
+          setSelectedAgente(mappedAgentes[0]);
+        }
+      } catch (error) {
+        console.error("Error loading AI data:", error);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+    
+    loadData();
+  }, [clinicaId]);
+
+  // Load treinamentos when agent is selected
+  useEffect(() => {
+    const loadTreinamentos = async () => {
+      if (!selectedAgente?.id) return;
+      
+      const { data } = await supabase
+        .from("omni_ia_treinamentos")
+        .select("*")
+        .eq("agente_id", selectedAgente.id)
+        .order("created_at", { ascending: false });
+      
+      if (data) setTreinamentos(data as Treinamento[]);
+    };
+    
+    const loadIntencoes = async () => {
+      if (!selectedAgente?.id) return;
+      
+      const { data } = await supabase
+        .from("omni_ia_intencoes")
+        .select("*")
+        .eq("agente_id", selectedAgente.id);
+      
+      if (data) setIntencoes(data as Intencao[]);
+    };
+    
+    loadTreinamentos();
+    loadIntencoes();
+  }, [selectedAgente?.id]);
+
+  const handleCriarAgente = async () => {
+    if (!novoAgenteNome.trim() || !clinicaId) {
       toast.error("Digite um nome para o agente");
       return;
     }
 
+    const { data, error } = await supabase
+      .from("omni_ia_agentes")
+      .insert({ clinica_id: clinicaId, nome: novoAgenteNome })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error("Erro ao criar agente");
+      return;
+    }
+
     const novoAgente: AgenteIA = {
-      id: Math.random().toString(),
-      nome: novoAgenteNome,
-      descricao: "Novo agente",
-      modelo: "gpt-4o-mini",
-      avatar_url: null,
-      comunicacao: "normal",
-      comportamento: "",
-      finalidade: "suporte",
-      produto: "",
-      site_url: "",
-      descricao_produto: "",
-      ativo: true,
-      fila_operacao: "",
-      transferir_para_humano: false,
-      usar_emojis: true,
-      assinar_nome: false,
-      restringir_temas: false,
-      dividir_resposta: false,
-      permitir_lembretes: false,
-      busca_treinamento: false,
-      timezone: "America/Sao_Paulo",
-      tempo_resposta: 5,
-      limite_interacoes: 0,
-      acoes_followup: [],
-      palavras_chave_transferencia: [],
-      fila_transferencia: ""
+      id: data.id, nome: data.nome, descricao: data.descricao || "", modelo: data.modelo,
+      avatar_url: data.avatar_url, comunicacao: data.comunicacao as AgenteIA["comunicacao"], 
+      comportamento: data.comportamento || "", finalidade: data.finalidade as AgenteIA["finalidade"], 
+      produto: data.produto || "", site_url: data.site_url || "",
+      descricao_produto: data.descricao_produto || "", ativo: data.ativo, fila_operacao: data.fila_operacao_id || "",
+      transferir_para_humano: data.transferir_para_humano, usar_emojis: data.usar_emojis, assinar_nome: data.assinar_nome,
+      restringir_temas: data.restringir_temas, dividir_resposta: data.dividir_resposta, permitir_lembretes: data.permitir_lembretes,
+      busca_treinamento: data.busca_treinamento, timezone: data.timezone, tempo_resposta: data.tempo_resposta,
+      limite_interacoes: data.limite_interacoes, acoes_followup: [], palavras_chave_transferencia: [], fila_transferencia: ""
     };
 
-    setAgentes(prev => [...prev, novoAgente]);
+    setAgentes(prev => [novoAgente, ...prev]);
     setSelectedAgente(novoAgente);
     setCriarAgenteOpen(false);
     setNovoAgenteNome("");
     toast.success("Agente criado com sucesso!");
   };
 
-  const handleDeleteAgente = () => {
+  const handleDeleteAgente = async () => {
     if (!selectedAgente) return;
-    
+    await supabase.from("omni_ia_agentes").delete().eq("id", selectedAgente.id);
     setAgentes(prev => prev.filter(a => a.id !== selectedAgente.id));
     setSelectedAgente(agentes.length > 1 ? agentes.find(a => a.id !== selectedAgente.id) || null : null);
     setDeleteAgenteOpen(false);
     toast.success("Agente excluído com sucesso!");
   };
 
-  const handleSalvarAgente = () => {
+  const handleSalvarAgente = async () => {
     if (!selectedAgente) return;
+    await supabase.from("omni_ia_agentes").update({
+      nome: selectedAgente.nome, descricao: selectedAgente.descricao, modelo: selectedAgente.modelo,
+      comunicacao: selectedAgente.comunicacao, comportamento: selectedAgente.comportamento,
+      finalidade: selectedAgente.finalidade, produto: selectedAgente.produto, site_url: selectedAgente.site_url,
+      descricao_produto: selectedAgente.descricao_produto, ativo: selectedAgente.ativo,
+      fila_operacao_id: selectedAgente.fila_operacao || null, transferir_para_humano: selectedAgente.transferir_para_humano,
+      usar_emojis: selectedAgente.usar_emojis, assinar_nome: selectedAgente.assinar_nome, restringir_temas: selectedAgente.restringir_temas,
+      dividir_resposta: selectedAgente.dividir_resposta, permitir_lembretes: selectedAgente.permitir_lembretes,
+      busca_treinamento: selectedAgente.busca_treinamento, tempo_resposta: selectedAgente.tempo_resposta,
+      limite_interacoes: selectedAgente.limite_interacoes, acoes_followup: JSON.parse(JSON.stringify(selectedAgente.acoes_followup)),
+      palavras_chave_transferencia: selectedAgente.palavras_chave_transferencia,
+      fila_transferencia_id: selectedAgente.fila_transferencia || null,
+    }).eq("id", selectedAgente.id);
     setAgentes(prev => prev.map(a => a.id === selectedAgente.id ? selectedAgente : a));
     toast.success("Alterações salvas!");
   };
 
-  const handleToggleAgenteAtivo = () => {
+  const handleToggleAgenteAtivo = async () => {
     if (!selectedAgente) return;
-    const updated = { ...selectedAgente, ativo: !selectedAgente.ativo };
+    const novoStatus = !selectedAgente.ativo;
+    await supabase.from("omni_ia_agentes").update({ ativo: novoStatus }).eq("id", selectedAgente.id);
+    const updated = { ...selectedAgente, ativo: novoStatus };
     setSelectedAgente(updated);
     setAgentes(prev => prev.map(a => a.id === updated.id ? updated : a));
-    toast.success(updated.ativo ? "Agente ativado!" : "Agente desativado!");
+    toast.success(novoStatus ? "Agente ativado!" : "Agente desativado!");
   };
 
   // Treinamentos handlers
