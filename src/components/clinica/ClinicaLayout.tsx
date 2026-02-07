@@ -57,8 +57,8 @@ export function ClinicaLayout() {
 
         setClinicaData(data);
         
-        // Fetch usuarioClinicaId if user is a clinic employee
-        if (currentUser.clinicaId && currentUser.email) {
+        // Fetch usuarioClinicaId for the user
+        if (currentUser.email) {
           const { data: usuarioClinica } = await supabase
             .from("usuarios_clinica")
             .select("id")
