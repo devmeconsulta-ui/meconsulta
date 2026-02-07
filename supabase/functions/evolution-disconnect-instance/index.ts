@@ -1,5 +1,7 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Hono } from "jsr:@hono/hono";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const app = new Hono();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,11 +12,11 @@ interface DisconnectInstanceRequest {
   instancia_id: string;
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+app.options("*", (c) => {
+  return c.text("ok", 200, corsHeaders);
+});
 
+app.post("/", async (c) => {
   try {
     const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
     const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
@@ -22,22 +24,16 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "Evolution API não configurada" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return c.json({ error: "Evolution API não configurada" }, 500, corsHeaders);
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const body: DisconnectInstanceRequest = await req.json();
+    const body: DisconnectInstanceRequest = await c.req.json();
     const { instancia_id } = body;
 
     if (!instancia_id) {
-      return new Response(
-        JSON.stringify({ error: "instancia_id é obrigatório" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return c.json({ error: "instancia_id é obrigatório" }, 400, corsHeaders);
     }
 
     // Buscar instância
@@ -48,10 +44,7 @@ serve(async (req) => {
       .single();
 
     if (fetchError || !instancia) {
-      return new Response(
-        JSON.stringify({ error: "Instância não encontrada" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return c.json({ error: "Instância não encontrada" }, 404, corsHeaders);
     }
 
     console.log(`Disconnecting instance: ${instancia.evolution_instance_name}`);
@@ -88,19 +81,15 @@ serve(async (req) => {
 
     console.log("Instance disconnected successfully");
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Instância desconectada com sucesso",
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return c.json({
+      success: true,
+      message: "Instância desconectada com sucesso",
+    }, 200, corsHeaders);
   } catch (error: unknown) {
     console.error("Error disconnecting instance:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: "Erro interno", details: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return c.json({ error: "Erro interno", details: message }, 500, corsHeaders);
   }
 });
+
+Deno.serve(app.fetch);

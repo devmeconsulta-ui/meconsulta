@@ -1,5 +1,7 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Hono } from "jsr:@hono/hono";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const app = new Hono();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,12 +14,11 @@ interface CreateInstanceRequest {
   instance_name?: string;
 }
 
-serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+app.options("*", (c) => {
+  return c.text("ok", 200, corsHeaders);
+});
 
+app.post("/", async (c) => {
   try {
     const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
     const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
@@ -26,22 +27,16 @@ serve(async (req) => {
 
     if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
       console.error("Evolution API credentials not configured");
-      return new Response(
-        JSON.stringify({ error: "Evolution API não configurada" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return c.json({ error: "Evolution API não configurada" }, 500, corsHeaders);
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const body: CreateInstanceRequest = await req.json();
+    const body: CreateInstanceRequest = await c.req.json();
     const { clinica_id, nome, instance_name } = body;
 
     if (!clinica_id || !nome) {
-      return new Response(
-        JSON.stringify({ error: "clinica_id e nome são obrigatórios" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return c.json({ error: "clinica_id e nome são obrigatórios" }, 400, corsHeaders);
     }
 
     // Gera um nome único para a instância
@@ -71,10 +66,7 @@ serve(async (req) => {
 
     if (!evolutionResponse.ok) {
       console.error("Evolution API error:", evolutionData);
-      return new Response(
-        JSON.stringify({ error: "Erro ao criar instância na Evolution API", details: evolutionData }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return c.json({ error: "Erro ao criar instância na Evolution API", details: evolutionData }, 500, corsHeaders);
     }
 
     console.log("Evolution instance created:", evolutionData);
@@ -139,30 +131,23 @@ serve(async (req) => {
 
     if (dbError) {
       console.error("Database error:", dbError);
-      return new Response(
-        JSON.stringify({ error: "Erro ao salvar instância no banco", details: dbError }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return c.json({ error: "Erro ao salvar instância no banco", details: dbError }, 500, corsHeaders);
     }
 
     console.log("Instance saved to database:", instancia.id);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        instancia,
-        evolution_data: evolutionData,
-        webhook_configured: webhookResponse.ok,
-        webhook_data: webhookData,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return c.json({
+      success: true,
+      instancia,
+      evolution_data: evolutionData,
+      webhook_configured: webhookResponse.ok,
+      webhook_data: webhookData,
+    }, 200, corsHeaders);
   } catch (error: unknown) {
     console.error("Error creating instance:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: "Erro interno", details: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return c.json({ error: "Erro interno", details: message }, 500, corsHeaders);
   }
 });
+
+Deno.serve(app.fetch);
