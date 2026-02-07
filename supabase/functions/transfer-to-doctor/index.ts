@@ -175,7 +175,8 @@ serve(async (req) => {
     );
 
     const transferData = await transferResponse.json();
-    console.log('Resposta da transferência Asaas:', transferData);
+    // SECURITY: Log only transfer ID and status
+    console.log(`Transfer response - ID: ${transferData.id || 'error'}, status: ${transferData.status || 'failed'}`);
 
     if (!transferResponse.ok) {
       console.error('Erro ao realizar transferência:', transferData);
