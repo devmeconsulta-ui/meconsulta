@@ -658,9 +658,9 @@ export default function OmniIA() {
                     
                     {/* Seletor de LLM configurada */}
                     <div className="mt-3 w-full">
-                      <Label className="text-xs text-muted-foreground mb-1 block text-center">LLM Configurada</Label>
+                      <Label className="text-xs text-muted-foreground mb-1 block text-center">Modelo de IA</Label>
                       <Select
-                        value={selectedAgente?.modelo || agentes[0]?.modelo || "gpt-4o-mini"}
+                        value={selectedAgente?.modelo || agentes[0]?.modelo || "gemini-3-flash"}
                         onValueChange={(value) => setSelectedAgente(prev => prev ? { ...prev, modelo: value } : null)}
                       >
                         <SelectTrigger className="w-full">
@@ -670,18 +670,19 @@ export default function OmniIA() {
                           </div>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="gpt-4o">OpenAI GPT-4o</SelectItem>
-                          <SelectItem value="gpt-4o-mini">OpenAI GPT-4o mini</SelectItem>
-                          <SelectItem value="gpt-4-turbo">OpenAI GPT-4 Turbo</SelectItem>
-                          <SelectItem value="claude-3-opus">Anthropic Claude 3 Opus</SelectItem>
-                          <SelectItem value="claude-3-sonnet">Anthropic Claude 3 Sonnet</SelectItem>
-                          <SelectItem value="claude-3-haiku">Anthropic Claude 3 Haiku</SelectItem>
-                          <SelectItem value="gemini-1.5-pro">Google Gemini 1.5 Pro</SelectItem>
-                          <SelectItem value="gemini-1.5-flash">Google Gemini 1.5 Flash</SelectItem>
-                          <SelectItem value="llama-3-70b">Groq LLaMA 3 70B</SelectItem>
-                          <SelectItem value="mixtral-8x7b">Groq Mixtral 8x7B</SelectItem>
+                          <SelectItem value="gemini-3-flash">Gemini 3 Flash ⚡ (Recomendado)</SelectItem>
+                          <SelectItem value="gemini-3-pro">Gemini 3 Pro</SelectItem>
+                          <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                          <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                          <SelectItem value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (Econômico)</SelectItem>
+                          <SelectItem value="gpt-5">GPT-5</SelectItem>
+                          <SelectItem value="gpt-5-mini">GPT-5 Mini</SelectItem>
+                          <SelectItem value="gpt-5-nano">GPT-5 Nano (Econômico)</SelectItem>
                         </SelectContent>
                       </Select>
+                      <p className="text-[10px] text-muted-foreground mt-1 text-center">
+                        Powered by Lovable AI Gateway
+                      </p>
                     </div>
 
                     {/* Seletor de Fila de Operação */}

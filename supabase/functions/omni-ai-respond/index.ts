@@ -41,17 +41,25 @@ interface AIRequest {
 
 // Mapeamento de modelos para o Lovable AI Gateway
 const MODEL_MAPPING: Record<string, string> = {
-  "gpt-4o-mini": "openai/gpt-4o-mini",
-  "gpt-4o": "openai/gpt-4o",
-  "gpt-4-turbo": "openai/gpt-4-turbo",
-  "claude-3-opus": "anthropic/claude-3-opus",
-  "claude-3-sonnet": "anthropic/claude-3-sonnet",
-  "claude-3-haiku": "anthropic/claude-3-haiku",
-  "gemini-1.5-pro": "google/gemini-1.5-pro",
-  "gemini-1.5-flash": "google/gemini-1.5-flash",
-  "gemini-2.0-flash": "google/gemini-2.0-flash",
-  "llama-3.1-70b": "groq/llama-3.1-70b-versatile",
-  "mixtral-8x7b": "groq/mixtral-8x7b-32768",
+  // Modelos Gemini (atuais)
+  "gemini-3-flash": "google/gemini-3-flash-preview",
+  "gemini-3-pro": "google/gemini-3-pro-preview",
+  "gemini-2.5-pro": "google/gemini-2.5-pro",
+  "gemini-2.5-flash": "google/gemini-2.5-flash",
+  "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
+  // Modelos GPT (atuais)
+  "gpt-5": "openai/gpt-5",
+  "gpt-5-mini": "openai/gpt-5-mini",
+  "gpt-5-nano": "openai/gpt-5-nano",
+  // Modelos legados (compatibilidade retroativa)
+  "gpt-4o-mini": "openai/gpt-5-mini",
+  "gpt-4o": "openai/gpt-5",
+  "gpt-4-turbo": "openai/gpt-5",
+  "claude-3-opus": "google/gemini-2.5-pro",
+  "claude-3-sonnet": "google/gemini-2.5-flash",
+  "claude-3-haiku": "google/gemini-2.5-flash-lite",
+  "gemini-1.5-pro": "google/gemini-2.5-pro",
+  "gemini-1.5-flash": "google/gemini-2.5-flash",
 };
 
 app.post("/", async (c) => {
@@ -99,7 +107,7 @@ app.post("/", async (c) => {
     const agenteIA = agente as AgenteIA;
     
     // Mapear modelo para o Lovable AI Gateway
-    const modeloGateway = MODEL_MAPPING[agenteIA.modelo] || "google/gemini-2.0-flash";
+    const modeloGateway = MODEL_MAPPING[agenteIA.modelo] || "google/gemini-3-flash-preview";
     console.log(`[AI] Found agent: ${agenteIA.nome}, model: ${agenteIA.modelo} -> ${modeloGateway}`);
 
     // Buscar conversa de IA existente ou criar nova
