@@ -8,7 +8,26 @@
     <meta name="author" content="MeConsulta" />
     <meta name="keywords" content="médico, consulta, especialista, saúde, agendamento, sem mensalidade">
 
-    
+    <!-- Security Headers via Meta Tags -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+    <!-- Content Security Policy - allowing necessary resources -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://memed.com.br https://*.supabase.co;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: blob: https: http:;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.memed.com.br https://*.lovable.dev https://ai.gateway.lovable.dev;
+      frame-src 'self' https://memed.com.br;
+      media-src 'self' blob:;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+      frame-ancestors 'self';
+    ">
     
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/FxraTIaFFPWpywZljRMxhT873ig1/social-images/social-1764935280702-Captura de tela 2025-12-02 225142.png">
