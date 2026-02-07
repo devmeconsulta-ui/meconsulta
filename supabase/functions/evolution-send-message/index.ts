@@ -8,7 +8,7 @@ const corsHeaders = {
 
 interface SendMessageRequest {
   atendimento_id: string;
-  agente_id?: string;
+  agente_id?: string | null;
   tipo: "texto" | "imagem" | "audio" | "video" | "documento";
   conteudo?: string;
   arquivo_url?: string;

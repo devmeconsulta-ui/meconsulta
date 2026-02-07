@@ -61,7 +61,7 @@ import { toast } from "sonner";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
-  currentUser: { id: string; nome: string; usuarioClinicaId?: string; tipo?: string } | null;
+  currentUser: { id: string; nome: string; usuarioClinicaId?: string; tipo?: string; email?: string } | null;
 }
 
 function getInitials(name: string) {
@@ -460,11 +460,20 @@ export default function OmniWhatsAppChat() {
     loadAgentes();
   }, [clinicaId]);
 
+  // Get the agent ID to use for sending messages
+  // For clinic employees: use usuarioClinicaId
+  // For clinic owners: use usuarioClinicaId if available, otherwise allow sending without agent_id
+  const getAgenteId = useCallback(() => {
+    return currentUser?.usuarioClinicaId || null;
+  }, [currentUser?.usuarioClinicaId]);
+
   // Optimistic message sending
   const handleSendMessage = useCallback(async () => {
     const trimmedMessage = messageInput.trim();
-    if (!trimmedMessage || !selectedAtendimento || !currentUser?.usuarioClinicaId) return;
+    if (!trimmedMessage || !selectedAtendimento) return;
     if (sending) return;
+
+    const agenteId = getAgenteId();
 
     setMessageInput("");
     setSending(true);
@@ -473,8 +482,8 @@ export default function OmniWhatsAppChat() {
       id: `temp-${Date.now()}`,
       atendimento_id: selectedAtendimento.id,
       contato_id: null,
-      agente_id: currentUser.usuarioClinicaId,
-      agente_nome: signatureEnabled ? currentUser.nome : null,
+      agente_id: agenteId,
+      agente_nome: signatureEnabled ? currentUser?.nome || null : null,
       tipo: "texto",
       direcao: "saida",
       conteudo: trimmedMessage,
@@ -492,7 +501,7 @@ export default function OmniWhatsAppChat() {
 
     try {
       await enviarMensagem(
-        currentUser.usuarioClinicaId,
+        agenteId,
         "texto",
         trimmedMessage
       );
@@ -504,7 +513,7 @@ export default function OmniWhatsAppChat() {
     } finally {
       setSending(false);
     }
-  }, [messageInput, selectedAtendimento, currentUser?.usuarioClinicaId, currentUser?.nome, sending, enviarMensagem, signatureEnabled]);
+  }, [messageInput, selectedAtendimento, getAgenteId, currentUser?.nome, sending, enviarMensagem, signatureEnabled]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {

@@ -352,7 +352,7 @@ export function useOmniMensagens(atendimentoId: string | null) {
   }, [atendimentoId, fetchMensagens]);
 
   const enviarMensagem = async (
-    agenteId: string,
+    agenteId: string | null,
     tipo: OmniMensagem["tipo"],
     conteudo?: string,
     arquivoUrl?: string,
