@@ -789,28 +789,28 @@ export default function OmniWhatsAppChat() {
                       Ver documentos
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    {!isClinicaAdmin && (
-                      <DropdownMenuItem onClick={() => setTransferirModalOpen(true)}>
-                        <ArrowRightLeft className="h-4 w-4 mr-2" />
-                        Transferir chat
-                      </DropdownMenuItem>
-                    )}
+                    <DropdownMenuItem onClick={() => setTransferirModalOpen(true)}>
+                      <ArrowRightLeft className="h-4 w-4 mr-2" />
+                      Transferir chat
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setEtiquetasModalOpen(true)}>
                       <Tag className="h-4 w-4 mr-2" />
                       Adicionar etiqueta
                     </DropdownMenuItem>
-                    {!isClinicaAdmin && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => setEncerrarModalOpen(true)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Encerrar atendimento
-                        </DropdownMenuItem>
-                      </>
+                    {isClinicaAdmin && (
+                      <DropdownMenuItem onClick={() => setNotaInternaModalOpen(true)}>
+                        <Bell className="h-4 w-4 mr-2" />
+                        Notificar Agente
+                      </DropdownMenuItem>
                     )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => setEncerrarModalOpen(true)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Encerrar atendimento
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -869,107 +869,90 @@ export default function OmniWhatsAppChat() {
               )}
             </div>
 
-            {/* Message input or Read-only notice for clinic admin */}
-            {isClinicaAdmin ? (
-              <div className="bg-muted px-4 py-4 flex items-center justify-center gap-3 border-t">
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Modo visualização - Você está visualizando como administrador
-                  </p>
-                  <Button 
-                    onClick={() => setNotaInternaModalOpen(true)}
-                    className="gap-2"
-                  >
-                    <Bell className="h-4 w-4" />
-                    Notificar Agente
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-muted px-4 py-3 flex items-center gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                      <Smile className="h-6 w-6" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Emoji</TooltipContent>
-                </Tooltip>
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                      <Paperclip className="h-6 w-6" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Anexar arquivo</TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="text-muted-foreground hover:text-foreground"
-                      onClick={() => toast.info("Respostas rápidas em breve!")}
-                    >
-                      <MessageSquareText className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Respostas rápidas</TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className={cn(
-                        "text-muted-foreground hover:text-foreground",
-                        signatureEnabled && "text-primary hover:text-primary"
-                      )}
-                      onClick={() => {
-                        setSignatureEnabled(!signatureEnabled);
-                        toast.info(signatureEnabled ? "Assinatura desabilitada" : "Assinatura habilitada");
-                      }}
-                    >
-                      <PenLine className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {signatureEnabled ? "Assinatura habilitada" : "Assinatura desabilitada"}
-                  </TooltipContent>
-                </Tooltip>
-                
-                <Input
-                  ref={inputRef}
-                  placeholder="Digite uma mensagem ou / para atalhos..."
-                  className="flex-1 bg-background border-0 rounded-full"
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                />
-                
-                {messageInput.trim() ? (
-                  <Button
-                    size="icon"
-                    className="bg-[#075E54] hover:bg-[#064E46] rounded-full"
-                    onClick={handleSendMessage}
-                    disabled={sending}
-                  >
-                    {sending ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <Send className="h-5 w-5" />
-                    )}
-                  </Button>
-                ) : (
+            {/* Message input */}
+            <div className="bg-muted px-4 py-3 flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                    <Mic className="h-6 w-6" />
+                    <Smile className="h-6 w-6" />
                   </Button>
-                )}
-              </div>
-            )}
+                </TooltipTrigger>
+                <TooltipContent>Emoji</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+                    <Paperclip className="h-6 w-6" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Anexar arquivo</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() => toast.info("Respostas rápidas em breve!")}
+                  >
+                    <MessageSquareText className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Respostas rápidas</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className={cn(
+                      "text-muted-foreground hover:text-foreground",
+                      signatureEnabled && "text-primary hover:text-primary"
+                    )}
+                    onClick={() => {
+                      setSignatureEnabled(!signatureEnabled);
+                      toast.info(signatureEnabled ? "Assinatura desabilitada" : "Assinatura habilitada");
+                    }}
+                  >
+                    <PenLine className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {signatureEnabled ? "Assinatura habilitada" : "Assinatura desabilitada"}
+                </TooltipContent>
+              </Tooltip>
+              
+              <Input
+                ref={inputRef}
+                placeholder="Digite uma mensagem ou / para atalhos..."
+                className="flex-1 bg-background border-0 rounded-full"
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+              />
+              
+              {messageInput.trim() ? (
+                <Button
+                  size="icon"
+                  className="bg-[#075E54] hover:bg-[#064E46] rounded-full"
+                  onClick={handleSendMessage}
+                  disabled={sending}
+                >
+                  {sending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Send className="h-5 w-5" />
+                  )}
+                </Button>
+              ) : (
+                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+                  <Mic className="h-6 w-6" />
+                </Button>
+              )}
+            </div>
           </>
         ) : (
           /* Empty state */
