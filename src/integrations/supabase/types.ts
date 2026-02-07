@@ -2662,6 +2662,64 @@ export type Database = {
           },
         ]
       }
+      omni_notas_internas: {
+        Row: {
+          atendimento_id: string
+          clinica_id: string
+          created_at: string
+          criado_por_nome: string
+          criado_por_usuario_id: string | null
+          destinatario_agente_id: string | null
+          id: string
+          lida: boolean
+          mensagem: string
+        }
+        Insert: {
+          atendimento_id: string
+          clinica_id: string
+          created_at?: string
+          criado_por_nome: string
+          criado_por_usuario_id?: string | null
+          destinatario_agente_id?: string | null
+          id?: string
+          lida?: boolean
+          mensagem: string
+        }
+        Update: {
+          atendimento_id?: string
+          clinica_id?: string
+          created_at?: string
+          criado_por_nome?: string
+          criado_por_usuario_id?: string | null
+          destinatario_agente_id?: string | null
+          id?: string
+          lida?: boolean
+          mensagem?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_notas_internas_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "omni_atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_notas_internas_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_notas_internas_destinatario_agente_id_fkey"
+            columns: ["destinatario_agente_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       omni_pausas_tipos: {
         Row: {
           ativo: boolean | null

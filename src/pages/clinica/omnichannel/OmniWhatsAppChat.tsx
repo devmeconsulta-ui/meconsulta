@@ -27,6 +27,8 @@ import {
   PenLine,
   MessageSquareText,
   XCircle,
+  Bell,
+  User,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -43,8 +45,15 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useOmniMensagens, OmniAtendimento, OmniMensagem } from "@/hooks/useOmniAtendimentos";
+import { useOmniNotasInternas, OmniNotaInterna } from "@/hooks/useOmniNotasInternas";
+import { useOmniEtiquetas } from "@/hooks/useOmniEtiquetas";
 import { TransferirAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/TransferirAtendimentoModal";
 import { EncerrarAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/EncerrarAtendimentoModal";
+import { SearchMessagesPanel } from "@/components/clinica/omnichannel/SearchMessagesPanel";
+import { MediaGalleryModal } from "@/components/clinica/omnichannel/MediaGalleryModal";
+import { DocumentsModal } from "@/components/clinica/omnichannel/DocumentsModal";
+import { EtiquetasModal } from "@/components/clinica/omnichannel/EtiquetasModal";
+import { NotaInternaModal } from "@/components/clinica/omnichannel/NotaInternaModal";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,7 +61,7 @@ import { toast } from "sonner";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
-  currentUser: { id: string; nome: string; usuarioClinicaId?: string } | null;
+  currentUser: { id: string; nome: string; usuarioClinicaId?: string; tipo?: string } | null;
 }
 
 function getInitials(name: string) {
@@ -74,7 +83,36 @@ function formatWaitTime(dateStr: string): string {
   return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
-// Componente de bolha de mensagem
+// Internal note alert component
+function NotaInternaAlert({ nota, onMarcarLida }: { nota: OmniNotaInterna; onMarcarLida?: () => void }) {
+  const formattedTime = format(new Date(nota.created_at), "HH:mm", { locale: ptBR });
+
+  return (
+    <div 
+      className={cn(
+        "flex justify-center my-2",
+        !nota.lida && "animate-pulse"
+      )}
+      onClick={onMarcarLida}
+    >
+      <div className="max-w-[85%] rounded-lg px-4 py-3 bg-sky-100 border border-sky-200 shadow-sm cursor-pointer hover:bg-sky-50 transition-colors">
+        <div className="flex items-center gap-2 mb-1">
+          <User className="h-4 w-4 text-sky-600" />
+          <span className="text-xs font-semibold text-sky-700">
+            {nota.criado_por_nome} escreveu:
+          </span>
+          <span className="text-[10px] text-sky-500 ml-auto">{formattedTime}</span>
+        </div>
+        <p className="text-sm text-sky-800">{nota.mensagem}</p>
+        {!nota.lida && (
+          <p className="text-[10px] text-sky-500 mt-1 text-right">Clique para marcar como lida</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Message bubble component
 function MessageBubble({ 
   mensagem, 
   showSignature,
@@ -92,14 +130,14 @@ function MessageBubble({
   const renderStatus = () => {
     if (!isOutgoing) return null;
     if (isOptimistic) {
-      return <Clock className="h-3.5 w-3.5 text-gray-400 animate-pulse" />;
+      return <Clock className="h-3.5 w-3.5 text-muted-foreground animate-pulse" />;
     }
     if (mensagem.status === "lida") {
-      return <CheckCheck className="h-3.5 w-3.5 text-blue-500" />;
+      return <CheckCheck className="h-3.5 w-3.5 text-primary" />;
     } else if (mensagem.status === "entregue") {
-      return <CheckCheck className="h-3.5 w-3.5 text-gray-400" />;
+      return <CheckCheck className="h-3.5 w-3.5 text-muted-foreground" />;
     }
-    return <Check className="h-3.5 w-3.5 text-gray-400" />;
+    return <Check className="h-3.5 w-3.5 text-muted-foreground" />;
   };
 
   return (
@@ -108,21 +146,21 @@ function MessageBubble({
         className={cn(
           "max-w-[70%] rounded-lg px-3 py-2 shadow-sm",
           isOutgoing
-            ? "bg-[#DCF8C6] text-gray-800 rounded-br-none"
-            : "bg-white text-gray-800 rounded-bl-none",
+            ? "bg-[#DCF8C6] text-foreground rounded-br-none"
+            : "bg-card text-foreground rounded-bl-none",
           isOptimistic && "opacity-70"
         )}
       >
-        {/* Mensagem de boas-vindas na primeira mensagem do agente */}
+        {/* Welcome message on first agent message */}
         {isFirstAgentMessage && isOutgoing && agenteName && (
-          <p className="text-xs italic text-gray-600 mb-1">
+          <p className="text-xs italic text-muted-foreground mb-1">
             Você está sendo atendido por {agenteName}
           </p>
         )}
         
-        {/* Assinatura do agente em negrito */}
+        {/* Agent signature in bold */}
         {showSignature && isOutgoing && agenteName && !isFirstAgentMessage && (
-          <p className="text-xs font-bold text-gray-700 mb-1">
+          <p className="text-xs font-bold text-foreground/80 mb-1">
             {agenteName}
           </p>
         )}
@@ -137,7 +175,7 @@ function MessageBubble({
           <video controls src={mensagem.arquivo_url} className="rounded max-w-full" />
         )}
         {mensagem.tipo === "documento" && mensagem.arquivo_url && (
-          <a href={mensagem.arquivo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+          <a href={mensagem.arquivo_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
             {mensagem.arquivo_nome || "Documento"}
           </a>
         )}
@@ -145,7 +183,7 @@ function MessageBubble({
           <p className="text-sm whitespace-pre-wrap">{mensagem.conteudo}</p>
         )}
         <div className="flex items-center justify-end gap-1 mt-1">
-          <span className="text-[10px] text-gray-500">{formattedTime}</span>
+          <span className="text-[10px] text-muted-foreground">{formattedTime}</span>
           {renderStatus()}
         </div>
       </div>
@@ -153,7 +191,7 @@ function MessageBubble({
   );
 }
 
-// Componente de item de conversa na sidebar
+// Conversation item component
 function ConversationItem({
   atendimento,
   isSelected,
@@ -172,29 +210,29 @@ function ConversationItem({
     <div
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-100 border-b border-gray-100 transition-colors",
-        isSelected && "bg-gray-100"
+        "flex items-center gap-3 p-3 cursor-pointer hover:bg-muted border-b border-border transition-colors",
+        isSelected && "bg-muted"
       )}
     >
       <div className="relative">
         <Avatar className="h-12 w-12">
           <AvatarImage src={atendimento.contato?.foto_url || undefined} />
-          <AvatarFallback className="bg-gray-200 text-gray-600">
+          <AvatarFallback className="bg-muted text-muted-foreground">
             {getInitials(contactName)}
           </AvatarFallback>
         </Avatar>
         {atendimento.status === "em_atendimento" && (
-          <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
+          <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-background" />
         )}
       </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <span className="font-medium text-sm truncate">{contactName}</span>
-          <span className="text-[11px] text-gray-500 whitespace-nowrap">{waitTime}</span>
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap">{waitTime}</span>
         </div>
         <div className="flex items-center justify-between mt-0.5">
-          <p className="text-xs text-gray-500 truncate max-w-[160px]">
+          <p className="text-xs text-muted-foreground truncate max-w-[160px]">
             {atendimento.status === "aguardando" ? "Aguardando atendimento..." : "Em atendimento"}
           </p>
           {unreadCount && unreadCount > 0 && (
@@ -203,15 +241,33 @@ function ConversationItem({
             </Badge>
           )}
         </div>
+        {/* Show labels */}
+        {atendimento.etiquetas && atendimento.etiquetas.length > 0 && (
+          <div className="flex gap-1 mt-1 flex-wrap">
+            {atendimento.etiquetas.slice(0, 2).map((tag) => (
+              <Badge key={tag} variant="secondary" className="text-[9px] h-4 px-1">
+                {tag}
+              </Badge>
+            ))}
+            {atendimento.etiquetas.length > 2 && (
+              <Badge variant="outline" className="text-[9px] h-4 px-1">
+                +{atendimento.etiquetas.length - 2}
+              </Badge>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// Componente principal do chat
+// Main chat component
 export default function OmniWhatsAppChat() {
   const { clinicaData, currentUser } = useOutletContext<ClinicaContext>();
   const clinicaId = clinicaData?.id || null;
+
+  // Check if user is clinic admin (read-only mode)
+  const isClinicaAdmin = currentUser?.tipo === "clinica";
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAtendimento, setSelectedAtendimento] = useState<OmniAtendimento | null>(null);
@@ -219,11 +275,16 @@ export default function OmniWhatsAppChat() {
   const [sending, setSending] = useState(false);
   const [transferirModalOpen, setTransferirModalOpen] = useState(false);
   const [encerrarModalOpen, setEncerrarModalOpen] = useState(false);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
+  const [mediaModalOpen, setMediaModalOpen] = useState(false);
+  const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
+  const [etiquetasModalOpen, setEtiquetasModalOpen] = useState(false);
+  const [notaInternaModalOpen, setNotaInternaModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "waiting" | "mine">("all");
   const [waitTimeDisplay, setWaitTimeDisplay] = useState("00:00:00");
   const [signatureEnabled, setSignatureEnabled] = useState(true);
   
-  // Local state for atendimentos to avoid hook conflicts
+  // Local state for atendimentos
   const [atendimentos, setAtendimentos] = useState<OmniAtendimento[]>([]);
   const [loading, setLoading] = useState(true);
   // Optimistic messages state
@@ -233,21 +294,21 @@ export default function OmniWhatsAppChat() {
   const inputRef = useRef<HTMLInputElement>(null);
   const { filas } = useOmniFilas(clinicaId);
   const { mensagens, loading: loadingMessages, enviarMensagem } = useOmniMensagens(selectedAtendimento?.id || null);
+  const { notas, criarNota, marcarComoLida } = useOmniNotasInternas(selectedAtendimento?.id || null);
+  const { etiquetas, criarEtiqueta } = useOmniEtiquetas(clinicaId);
 
   // Clear optimistic messages when real messages arrive
   useEffect(() => {
     if (mensagens.length > 0 && optimisticMessages.length > 0) {
-      // Check if any optimistic message content matches a real message within 5 seconds
       const now = new Date().getTime();
       const recentRealMessages = mensagens.filter(m => {
         const msgTime = new Date(m.created_at).getTime();
-        return now - msgTime < 10000; // 10 seconds window
+        return now - msgTime < 10000;
       });
       
       if (recentRealMessages.length > 0) {
         setOptimisticMessages(prev => 
           prev.filter(optMsg => {
-            // Keep optimistic if no matching real message found
             const hasMatch = recentRealMessages.some(realMsg => 
               realMsg.conteudo === optMsg.conteudo && 
               realMsg.direcao === "saida"
@@ -259,9 +320,8 @@ export default function OmniWhatsAppChat() {
     }
   }, [mensagens]);
 
-  // Combine real messages with optimistic messages (avoiding duplicates by content)
+  // Combine real messages with optimistic messages
   const allMessages = useMemo(() => {
-    // Filter out optimistic messages that match real messages by content
     const realContents = new Set(
       mensagens
         .filter(m => m.direcao === "saida")
@@ -274,7 +334,22 @@ export default function OmniWhatsAppChat() {
     );
   }, [mensagens, optimisticMessages]);
 
-  // Fetch atendimentos locally to avoid conflicts with OmniLayout hook
+  // Combine messages and notes for display
+  const combinedItems = useMemo(() => {
+    const items: Array<{ type: 'message' | 'note'; data: OmniMensagem | OmniNotaInterna; timestamp: number }> = [];
+    
+    allMessages.forEach(msg => {
+      items.push({ type: 'message', data: msg, timestamp: new Date(msg.created_at).getTime() });
+    });
+    
+    notas.forEach(nota => {
+      items.push({ type: 'note', data: nota, timestamp: new Date(nota.created_at).getTime() });
+    });
+    
+    return items.sort((a, b) => a.timestamp - b.timestamp);
+  }, [allMessages, notas]);
+
+  // Fetch atendimentos
   const fetchAtendimentos = useCallback(async () => {
     if (!clinicaId) {
       setLoading(false);
@@ -330,12 +405,12 @@ export default function OmniWhatsAppChat() {
     }
   }, [clinicaId, fetchAtendimentos]);
 
-  // Auto scroll to bottom when messages change
+  // Auto scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [allMessages]);
+  }, [combinedItems]);
 
-  // Update wait time every second
+  // Update wait time
   useEffect(() => {
     if (!selectedAtendimento) return;
     
@@ -352,14 +427,12 @@ export default function OmniWhatsAppChat() {
   const filteredAtendimentos = useMemo(() => {
     let filtered = atendimentos;
     
-    // Filter by tab
     if (activeTab === "waiting") {
       filtered = filtered.filter((a) => a.status === "aguardando");
     } else if (activeTab === "mine") {
       filtered = filtered.filter((a) => a.agente_id === currentUser?.usuarioClinicaId);
     }
     
-    // Filter by search
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -372,7 +445,7 @@ export default function OmniWhatsAppChat() {
     return filtered;
   }, [atendimentos, searchTerm, activeTab, currentUser?.usuarioClinicaId]);
 
-  // Agentes for transfer modal
+  // Agents for transfer modal
   const [agentes, setAgentes] = useState<Array<{ id: string; nome: string }>>([]);
   useEffect(() => {
     const loadAgentes = async () => {
@@ -391,13 +464,11 @@ export default function OmniWhatsAppChat() {
   const handleSendMessage = useCallback(async () => {
     const trimmedMessage = messageInput.trim();
     if (!trimmedMessage || !selectedAtendimento || !currentUser?.usuarioClinicaId) return;
-    if (sending) return; // Prevent double send
+    if (sending) return;
 
-    // Clear input immediately for instant feedback
     setMessageInput("");
     setSending(true);
 
-    // Create optimistic message
     const optimisticMsg: OmniMensagem = {
       id: `temp-${Date.now()}`,
       atendimento_id: selectedAtendimento.id,
@@ -416,10 +487,7 @@ export default function OmniWhatsAppChat() {
       created_at: new Date().toISOString(),
     };
 
-    // Add optimistic message immediately
     setOptimisticMessages(prev => [...prev, optimisticMsg]);
-
-    // Focus back on input
     inputRef.current?.focus();
 
     try {
@@ -428,13 +496,10 @@ export default function OmniWhatsAppChat() {
         "texto",
         trimmedMessage
       );
-      // Remove optimistic message after real message arrives (handled by allMessages memo)
     } catch (error) {
       console.error("Error sending message:", error);
       toast.error("Erro ao enviar mensagem");
-      // Remove failed optimistic message
       setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
-      // Restore the message to input
       setMessageInput(trimmedMessage);
     } finally {
       setSending(false);
@@ -467,7 +532,6 @@ export default function OmniWhatsAppChat() {
         tempo_total_atendimento: tempoTotal,
       };
 
-      // Add reopening data if scheduled
       if (dataReabertura) {
         updateData.data_reabertura = dataReabertura.toISOString();
         updateData.mensagem_reabertura = mensagemReabertura || null;
@@ -518,6 +582,45 @@ export default function OmniWhatsAppChat() {
     }
   };
 
+  const handleSaveEtiquetas = async (newEtiquetas: string[]) => {
+    if (!selectedAtendimento) return;
+
+    try {
+      await supabase
+        .from("omni_atendimentos")
+        .update({ etiquetas: newEtiquetas })
+        .eq("id", selectedAtendimento.id);
+
+      setSelectedAtendimento(prev => prev ? { ...prev, etiquetas: newEtiquetas } : null);
+      fetchAtendimentos();
+      toast.success("Etiquetas atualizadas");
+    } catch (error) {
+      console.error("Error updating etiquetas:", error);
+      toast.error("Erro ao atualizar etiquetas");
+    }
+  };
+
+  const handleEnviarNotaInterna = async (mensagem: string) => {
+    if (!selectedAtendimento || !clinicaId || !currentUser) return;
+
+    await criarNota(
+      clinicaId,
+      currentUser.id,
+      currentUser.nome,
+      selectedAtendimento.agente_id || null,
+      mensagem
+    );
+  };
+
+  const handleScrollToMessage = (messageId: string) => {
+    const element = document.getElementById(`msg-${messageId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      element.classList.add("bg-yellow-100");
+      setTimeout(() => element.classList.remove("bg-yellow-100"), 2000);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
@@ -528,223 +631,265 @@ export default function OmniWhatsAppChat() {
 
   return (
     <div className="flex h-screen bg-background -m-4 sm:-m-6">
-      {/* Sidebar - Lista de Conversas */}
+      {/* Sidebar - Conversation List */}
       <div className="w-80 border-r flex flex-col bg-card">
-          {/* Search */}
-          <div className="p-3 border-b">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Buscar"
-                className="pl-9 bg-gray-50 border-0"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {searchTerm && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
-                  onClick={() => setSearchTerm("")}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Filter tabs */}
-          <div className="flex items-center gap-1 p-2 border-b">
-            <Button
-              variant={activeTab === "all" ? "default" : "ghost"}
-              size="sm"
-              className="flex-1 h-8 text-xs"
-              onClick={() => setActiveTab("all")}
-            >
-              <Filter className="h-3 w-3 mr-1" />
-              Todos
-            </Button>
-            <Button
-              variant={activeTab === "waiting" ? "default" : "ghost"}
-              size="sm"
-              className="flex-1 h-8 text-xs"
-              onClick={() => setActiveTab("waiting")}
-            >
-              <Clock className="h-3 w-3 mr-1" />
-              Na fila
-            </Button>
-            <Button
-              variant={activeTab === "mine" ? "default" : "ghost"}
-              size="sm"
-              className="flex-1 h-8 text-xs"
-              onClick={() => setActiveTab("mine")}
-            >
-              <Users className="h-3 w-3 mr-1" />
-              Meus
-            </Button>
-          </div>
-
-          {/* Conversation list */}
-          <ScrollArea className="flex-1">
-            {filteredAtendimentos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 text-gray-400">
-                <MessageCircle className="h-10 w-10 mb-2" />
-                <p className="text-sm">Nenhuma conversa</p>
-              </div>
-            ) : (
-              filteredAtendimentos.map((atendimento) => (
-                <ConversationItem
-                  key={atendimento.id}
-                  atendimento={atendimento}
-                  isSelected={selectedAtendimento?.id === atendimento.id}
-                  onClick={() => setSelectedAtendimento(atendimento)}
-                  unreadCount={0}
-                />
-              ))
+        {/* Search */}
+        <div className="p-3 border-b">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar"
+              className="pl-9 bg-muted border-0"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+                onClick={() => setSearchTerm("")}
+              >
+                <X className="h-3 w-3" />
+              </Button>
             )}
-          </ScrollArea>
+          </div>
         </div>
 
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col bg-muted/30">
-          {selectedAtendimento ? (
-            <>
-              {/* Chat header - Blue theme */}
-              <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
-                <Avatar className="h-10 w-10 border-2 border-white/20">
-                  <AvatarImage src={selectedAtendimento.contato?.foto_url || undefined} />
-                  <AvatarFallback className="bg-gray-300 text-gray-700">
-                    {getInitials(selectedAtendimento.contato?.nome || "?")}
-                  </AvatarFallback>
-                </Avatar>
-                
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-base truncate">
-                    {selectedAtendimento.contato?.nome || selectedAtendimento.contato?.telefone}
-                  </h3>
-                  <p className="text-xs text-white/70">
-                    {selectedAtendimento.contato?.telefone}
-                    {selectedAtendimento.fila && ` • ${selectedAtendimento.fila.nome}`}
-                  </p>
+        {/* Filter tabs */}
+        <div className="flex items-center gap-1 p-2 border-b">
+          <Button
+            variant={activeTab === "all" ? "default" : "ghost"}
+            size="sm"
+            className="flex-1 h-8 text-xs"
+            onClick={() => setActiveTab("all")}
+          >
+            <Filter className="h-3 w-3 mr-1" />
+            Todos
+          </Button>
+          <Button
+            variant={activeTab === "waiting" ? "default" : "ghost"}
+            size="sm"
+            className="flex-1 h-8 text-xs"
+            onClick={() => setActiveTab("waiting")}
+          >
+            <Clock className="h-3 w-3 mr-1" />
+            Na fila
+          </Button>
+          <Button
+            variant={activeTab === "mine" ? "default" : "ghost"}
+            size="sm"
+            className="flex-1 h-8 text-xs"
+            onClick={() => setActiveTab("mine")}
+          >
+            <Users className="h-3 w-3 mr-1" />
+            Meus
+          </Button>
+        </div>
+
+        {/* Conversation list */}
+        <ScrollArea className="flex-1">
+          {filteredAtendimentos.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
+              <MessageCircle className="h-10 w-10 mb-2" />
+              <p className="text-sm">Nenhuma conversa</p>
+            </div>
+          ) : (
+            filteredAtendimentos.map((atendimento) => (
+              <ConversationItem
+                key={atendimento.id}
+                atendimento={atendimento}
+                isSelected={selectedAtendimento?.id === atendimento.id}
+                onClick={() => setSelectedAtendimento(atendimento)}
+                unreadCount={0}
+              />
+            ))
+          )}
+        </ScrollArea>
+      </div>
+
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col bg-muted/30 relative">
+        {selectedAtendimento ? (
+          <>
+            {/* Chat header */}
+            <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
+              <Avatar className="h-10 w-10 border-2 border-white/20">
+                <AvatarImage src={selectedAtendimento.contato?.foto_url || undefined} />
+                <AvatarFallback className="bg-muted text-foreground">
+                  {getInitials(selectedAtendimento.contato?.nome || "?")}
+                </AvatarFallback>
+              </Avatar>
+              
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-base truncate">
+                  {selectedAtendimento.contato?.nome || selectedAtendimento.contato?.telefone}
+                </h3>
+                <p className="text-xs text-white/70">
+                  {selectedAtendimento.contato?.telefone}
+                  {selectedAtendimento.fila && ` • ${selectedAtendimento.fila.nome}`}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <div className="text-right mr-2">
+                  <p className="text-xs text-white/70">Aberto a:</p>
+                  <p className="font-mono text-sm">{waitTimeDisplay}</p>
                 </div>
+                
+                {!isClinicaAdmin && (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-white hover:bg-white/10"
+                          onClick={() => setTransferirModalOpen(true)}
+                        >
+                          <ArrowRightLeft className="h-5 w-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Transferir atendimento</TooltipContent>
+                    </Tooltip>
 
-                <div className="flex items-center gap-1">
-                  <div className="text-right mr-2">
-                    <p className="text-xs text-white/70">Aberto a:</p>
-                    <p className="font-mono text-sm">{waitTimeDisplay}</p>
-                  </div>
-                  
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-white hover:bg-white/10"
-                        onClick={() => setTransferirModalOpen(true)}
-                      >
-                        <ArrowRightLeft className="h-5 w-5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Transferir atendimento</TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-white hover:bg-white/10 hover:text-red-300"
-                        onClick={() => setEncerrarModalOpen(true)}
-                      >
-                        <XCircle className="h-5 w-5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Encerrar atendimento</TooltipContent>
-                  </Tooltip>
-                  
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
-                        <MoreVertical className="h-5 w-5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuItem onClick={() => toast.info("Busca de mensagens em breve!")}>
-                        <Search className="h-4 w-4 mr-2" />
-                        Pesquisar mensagens
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => toast.info("Ver mídias em breve!")}>
-                        <ImageIcon className="h-4 w-4 mr-2" />
-                        Ver mídias
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => toast.info("Ver documentos em breve!")}>
-                        <FileText className="h-4 w-4 mr-2" />
-                        Ver documentos
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-white hover:bg-white/10 hover:text-red-300"
+                          onClick={() => setEncerrarModalOpen(true)}
+                        >
+                          <XCircle className="h-5 w-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Encerrar atendimento</TooltipContent>
+                    </Tooltip>
+                  </>
+                )}
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                      <MoreVertical className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={() => setSearchPanelOpen(true)}>
+                      <Search className="h-4 w-4 mr-2" />
+                      Pesquisar mensagens
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setMediaModalOpen(true)}>
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Ver mídias
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setDocumentsModalOpen(true)}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Ver documentos
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {!isClinicaAdmin && (
                       <DropdownMenuItem onClick={() => setTransferirModalOpen(true)}>
                         <ArrowRightLeft className="h-4 w-4 mr-2" />
                         Transferir chat
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => toast.info("Etiquetas em breve!")}>
-                        <Tag className="h-4 w-4 mr-2" />
-                        Adicionar etiqueta
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={() => setEncerrarModalOpen(true)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Encerrar atendimento
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                    )}
+                    <DropdownMenuItem onClick={() => setEtiquetasModalOpen(true)}>
+                      <Tag className="h-4 w-4 mr-2" />
+                      Adicionar etiqueta
+                    </DropdownMenuItem>
+                    {!isClinicaAdmin && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => setEncerrarModalOpen(true)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Encerrar atendimento
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
+            </div>
 
-              {/* Messages area */}
-              <div
-                className="flex-1 overflow-y-auto p-4 space-y-2"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8c4be' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-                }}
-              >
-                {loadingMessages ? (
-                  <div className="flex items-center justify-center h-full">
-                    <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
-                  </div>
-                ) : allMessages.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                    <MessageCircle className="h-12 w-12 mb-2 opacity-50" />
-                    <p className="text-sm">Nenhuma mensagem ainda</p>
-                  </div>
-                ) : (
-                  <>
-                    {allMessages.map((msg, index) => {
-                      // Check if this is the first outgoing message in the conversation
-                      const isFirstAgentMessage = msg.direcao === "saida" && 
-                        allMessages.slice(0, index).every(m => m.direcao !== "saida");
-                      
+            {/* Messages area */}
+            <div
+              className="flex-1 overflow-y-auto p-4 space-y-2"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8c4be' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+              }}
+            >
+              {loadingMessages ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : combinedItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <MessageCircle className="h-12 w-12 mb-2 opacity-50" />
+                  <p className="text-sm">Nenhuma mensagem ainda</p>
+                </div>
+              ) : (
+                <>
+                  {combinedItems.map((item, index) => {
+                    if (item.type === 'note') {
+                      const nota = item.data as OmniNotaInterna;
                       return (
+                        <NotaInternaAlert
+                          key={`note-${nota.id}`}
+                          nota={nota}
+                          onMarcarLida={!nota.lida ? () => marcarComoLida(nota.id) : undefined}
+                        />
+                      );
+                    }
+                    
+                    const msg = item.data as OmniMensagem;
+                    // Check if this is the first outgoing message
+                    const previousMessages = combinedItems.slice(0, index)
+                      .filter(i => i.type === 'message')
+                      .map(i => i.data as OmniMensagem);
+                    const isFirstAgentMessage = msg.direcao === "saida" && 
+                      previousMessages.every(m => m.direcao !== "saida");
+                    
+                    return (
+                      <div key={msg.id} id={`msg-${msg.id}`} className="transition-colors duration-500">
                         <MessageBubble 
-                          key={msg.id} 
                           mensagem={msg} 
                           showSignature={signatureEnabled}
                           isFirstAgentMessage={isFirstAgentMessage}
                         />
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
-                  </>
-                )}
-              </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
 
-              {/* Message input */}
-              <div className="bg-[#F0F0F0] px-4 py-3 flex items-center gap-2">
+            {/* Message input or Read-only notice for clinic admin */}
+            {isClinicaAdmin ? (
+              <div className="bg-muted px-4 py-4 flex items-center justify-center gap-3 border-t">
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Modo visualização - Você está visualizando como administrador
+                  </p>
+                  <Button 
+                    onClick={() => setNotaInternaModalOpen(true)}
+                    className="gap-2"
+                  >
+                    <Bell className="h-4 w-4" />
+                    Notificar Agente
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-muted px-4 py-3 flex items-center gap-2">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-700">
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
                       <Smile className="h-6 w-6" />
                     </Button>
                   </TooltipTrigger>
@@ -753,7 +898,7 @@ export default function OmniWhatsAppChat() {
                 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-700">
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
                       <Paperclip className="h-6 w-6" />
                     </Button>
                   </TooltipTrigger>
@@ -765,7 +910,7 @@ export default function OmniWhatsAppChat() {
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="text-gray-500 hover:text-gray-700"
+                      className="text-muted-foreground hover:text-foreground"
                       onClick={() => toast.info("Respostas rápidas em breve!")}
                     >
                       <MessageSquareText className="h-5 w-5" />
@@ -780,12 +925,12 @@ export default function OmniWhatsAppChat() {
                       variant="ghost" 
                       size="icon" 
                       className={cn(
-                        "text-gray-500 hover:text-gray-700",
+                        "text-muted-foreground hover:text-foreground",
                         signatureEnabled && "text-primary hover:text-primary"
                       )}
                       onClick={() => {
                         setSignatureEnabled(!signatureEnabled);
-                        toast.info(signatureEnabled ? "Assinatura desabilitada para esta mensagem" : "Assinatura habilitada");
+                        toast.info(signatureEnabled ? "Assinatura desabilitada" : "Assinatura habilitada");
                       }}
                     >
                       <PenLine className="h-5 w-5" />
@@ -799,7 +944,7 @@ export default function OmniWhatsAppChat() {
                 <Input
                   ref={inputRef}
                   placeholder="Digite uma mensagem ou / para atalhos..."
-                  className="flex-1 bg-white border-0 rounded-full"
+                  className="flex-1 bg-background border-0 rounded-full"
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -819,25 +964,34 @@ export default function OmniWhatsAppChat() {
                     )}
                   </Button>
                 ) : (
-                  <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-700">
+                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
                     <Mic className="h-6 w-6" />
                   </Button>
                 )}
               </div>
-            </>
-          ) : (
-            /* Empty state when no chat selected */
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-500 bg-[#F0F2F5]">
-              <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center mb-4">
-                <MessageCircle className="h-12 w-12 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-light text-gray-600 mb-2">Nenhum chat selecionado</h3>
-              <p className="text-sm text-gray-400">
-                Selecione uma conversa da lista para visualizar as mensagens
-              </p>
+            )}
+          </>
+        ) : (
+          /* Empty state */
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground bg-muted/50">
+            <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-4">
+              <MessageCircle className="h-12 w-12 text-muted-foreground/50" />
             </div>
-          )}
-        </div>
+            <h3 className="text-xl font-light text-foreground/70 mb-2">Nenhum chat selecionado</h3>
+            <p className="text-sm text-muted-foreground">
+              Selecione uma conversa da lista para visualizar as mensagens
+            </p>
+          </div>
+        )}
+
+        {/* Search Messages Panel */}
+        <SearchMessagesPanel
+          open={searchPanelOpen}
+          onClose={() => setSearchPanelOpen(false)}
+          mensagens={allMessages}
+          onMessageClick={handleScrollToMessage}
+        />
+      </div>
 
       {/* Transfer Modal */}
       <TransferirAtendimentoModal
@@ -849,12 +1003,46 @@ export default function OmniWhatsAppChat() {
         onTransferir={handleTransferirAtendimento}
       />
 
-      {/* Encerrar Modal */}
+      {/* End Service Modal */}
       <EncerrarAtendimentoModal
         open={encerrarModalOpen}
         onClose={() => setEncerrarModalOpen(false)}
         atendimento={selectedAtendimento}
         onEncerrar={handleFinalizarAtendimento}
+      />
+
+      {/* Media Gallery Modal */}
+      <MediaGalleryModal
+        open={mediaModalOpen}
+        onClose={() => setMediaModalOpen(false)}
+        mensagens={allMessages}
+      />
+
+      {/* Documents Modal */}
+      <DocumentsModal
+        open={documentsModalOpen}
+        onClose={() => setDocumentsModalOpen(false)}
+        mensagens={allMessages}
+      />
+
+      {/* Labels Modal */}
+      <EtiquetasModal
+        open={etiquetasModalOpen}
+        onClose={() => setEtiquetasModalOpen(false)}
+        etiquetas={etiquetas}
+        selectedEtiquetas={selectedAtendimento?.etiquetas || []}
+        onSave={handleSaveEtiquetas}
+        onCreateEtiqueta={async (nome, cor) => {
+          await criarEtiqueta(nome, cor);
+        }}
+      />
+
+      {/* Internal Note Modal */}
+      <NotaInternaModal
+        open={notaInternaModalOpen}
+        onClose={() => setNotaInternaModalOpen(false)}
+        onEnviar={handleEnviarNotaInterna}
+        agenteNome={selectedAtendimento?.agente?.nome}
       />
     </div>
   );
