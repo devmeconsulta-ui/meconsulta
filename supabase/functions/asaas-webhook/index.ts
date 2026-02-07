@@ -30,6 +30,47 @@ interface AsaasWebhookPayload {
   };
 }
 
+// Function to verify payment status with Asaas API
+async function verifyPaymentWithAsaas(
+  paymentId: string,
+  expectedStatus: string,
+  apiKey: string,
+  baseUrl: string
+): Promise<{ valid: boolean; actualStatus?: string; error?: string }> {
+  try {
+    console.log(`Verifying payment ${paymentId} with Asaas API...`);
+    
+    const response = await fetch(`${baseUrl}/payments/${paymentId}`, {
+      headers: {
+        'access_token': apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      console.error(`Asaas API returned ${response.status} for payment ${paymentId}`);
+      return { valid: false, error: `API returned ${response.status}` };
+    }
+
+    const paymentData = await response.json();
+    const actualStatus = paymentData.status;
+    
+    console.log(`Payment ${paymentId}: webhook claims ${expectedStatus}, API returns ${actualStatus}`);
+    
+    // For CONFIRMED/RECEIVED events, check if payment is actually confirmed
+    if (expectedStatus === 'CONFIRMED' || expectedStatus === 'RECEIVED') {
+      const validStatuses = ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'];
+      if (!validStatuses.includes(actualStatus)) {
+        return { valid: false, actualStatus };
+      }
+    }
+    
+    return { valid: true, actualStatus };
+  } catch (error) {
+    console.error(`Error verifying payment with Asaas:`, error);
+    return { valid: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
 // Function to trigger automatic transfer to doctor/clinic
 async function triggerAutomaticTransfer(consultaId: string, supabaseUrl: string, supabaseServiceKey: string) {
   try {
@@ -51,7 +92,7 @@ async function triggerAutomaticTransfer(consultaId: string, supabaseUrl: string,
       return { success: false, error: result.error || 'Transfer failed' };
     }
 
-    console.log(`Transfer successful for consulta ${consultaId}:`, result);
+    console.log(`Transfer successful for consulta ${consultaId}`);
     return { success: true, data: result };
   } catch (error) {
     console.error(`Error triggering transfer for consulta ${consultaId}:`, error);
@@ -70,6 +111,24 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // SECURITY: Validate webhook token from URL query parameter
+    const url = new URL(req.url);
+    const webhookToken = url.searchParams.get('token');
+    const expectedToken = Deno.env.get('ASAAS_WEBHOOK_TOKEN');
+    
+    // If token is configured, validate it
+    if (expectedToken && webhookToken !== expectedToken) {
+      console.error('Invalid or missing webhook token');
+      return new Response(
+        JSON.stringify({ success: false, error: "Forbidden - invalid token" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Log client IP for security audit
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    console.log(`Webhook request from IP: ${clientIp}`);
+
     const payload: AsaasWebhookPayload = await req.json();
     
     console.log("=== ASAAS WEBHOOK RECEIVED ===");
@@ -83,7 +142,7 @@ Deno.serve(async (req) => {
 
     // Handle transfer events
     if (event.startsWith("TRANSFER_")) {
-      console.log(`Transfer event received: ${event}`, transfer);
+      console.log(`Transfer event received: ${event}`);
       
       if (transfer?.externalReference) {
         // Log the transfer event
@@ -108,6 +167,49 @@ Deno.serve(async (req) => {
         JSON.stringify({ success: true, message: "No payment data" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // For critical payment events, verify with Asaas API
+    if (event === "PAYMENT_CONFIRMED" || event === "PAYMENT_RECEIVED") {
+      // Fetch Asaas config to get API key
+      const { data: asaasConfig, error: configError } = await supabase
+        .from('config_asaas')
+        .select('api_key, base_url')
+        .eq('ativo', true)
+        .maybeSingle();
+
+      if (!configError && asaasConfig) {
+        const verification = await verifyPaymentWithAsaas(
+          payment.id,
+          payment.status,
+          asaasConfig.api_key,
+          asaasConfig.base_url
+        );
+
+        if (!verification.valid) {
+          console.error(`Payment verification FAILED for ${payment.id}`);
+          console.error(`Webhook claimed: ${payment.status}, API returned: ${verification.actualStatus || verification.error}`);
+          
+          // Log the suspicious activity
+          if (payment.externalReference) {
+            await supabase.from("consultas_eventos").insert({
+              consulta_id: payment.externalReference,
+              tipo_evento: "webhook_verification_failed",
+              descricao: `Webhook rejeitado: status não verificado (webhook: ${payment.status}, API: ${verification.actualStatus || 'erro'})`,
+              usuario_tipo: "sistema",
+            });
+          }
+          
+          return new Response(
+            JSON.stringify({ success: false, error: "Payment verification failed" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        console.log(`Payment ${payment.id} verified successfully`);
+      } else {
+        console.warn('Could not verify payment - Asaas config not found');
+      }
     }
 
     // Find the consultation by externalReference (consulta ID) or asaas_payment_id
