@@ -1,13 +1,9 @@
-import { Hono } from "jsr:@hono/hono";
-import { cors } from "jsr:@hono/hono/cors";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const app = new Hono();
-
-app.use("/*", cors({
-  origin: "*",
-  allowHeaders: ["authorization", "x-client-info", "apikey", "content-type"],
-}));
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 interface AgenteIA {
   id: string;
@@ -62,7 +58,11 @@ const MODEL_MAPPING: Record<string, string> = {
   "gemini-1.5-flash": "google/gemini-2.5-flash",
 };
 
-app.post("/", async (c) => {
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -87,10 +87,15 @@ app.post("/", async (c) => {
 
     if (atendimentoError || !atendimento) {
       console.error("Atendimento not found:", atendimentoError);
-      return c.json({ error: "Atendimento not found" }, 404);
+      return new Response(JSON.stringify({ error: "Atendimento not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Buscar agente de IA configurado para a fila
+    console.log(`[AI] Looking for AI agent for fila_id: ${atendimento.fila_id}`);
+    
     const { data: agente, error: agenteError } = await supabase
       .from("omni_ia_agentes")
       .select("*")
@@ -100,8 +105,10 @@ app.post("/", async (c) => {
       .single();
 
     if (agenteError || !agente) {
-      console.log("[AI] No active AI agent configured for this queue");
-      return c.json({ ai_active: false });
+      console.log("[AI] No active AI agent configured for this queue, error:", agenteError?.message);
+      return new Response(JSON.stringify({ ai_active: false }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const agenteIA = agente as AgenteIA;
@@ -140,7 +147,9 @@ app.post("/", async (c) => {
     // Verificar se já foi transferido para humano
     if (conversa.transferido_para_humano) {
       console.log("[AI] Conversa already transferred to human");
-      return c.json({ ai_active: false, reason: "transferred" });
+      return new Response(JSON.stringify({ ai_active: false, reason: "transferred" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Verificar limite de interações
@@ -151,11 +160,13 @@ app.post("/", async (c) => {
         await transferirParaHumano(supabase, atendimento_id, agenteIA, conversa.id);
       }
       
-      return c.json({ ai_active: false, reason: "limit_reached" });
+      return new Response(JSON.stringify({ ai_active: false, reason: "limit_reached" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Verificar palavras-chave de transferência
-    if (agenteIA.palavras_chave_transferencia.length > 0) {
+    if (agenteIA.palavras_chave_transferencia && agenteIA.palavras_chave_transferencia.length > 0) {
       const mensagemLower = mensagem.toLowerCase();
       const deveTransferir = agenteIA.palavras_chave_transferencia.some(
         (palavra) => mensagemLower.includes(palavra.toLowerCase())
@@ -165,10 +176,12 @@ app.post("/", async (c) => {
         console.log("[AI] Transfer keyword detected, transferring to human");
         await transferirParaHumano(supabase, atendimento_id, agenteIA, conversa.id);
         
-        return c.json({ 
+        return new Response(JSON.stringify({ 
           ai_active: false, 
           reason: "transfer_keyword",
           mensagem: "Entendido! Vou transferir você para um atendente humano. Aguarde um momento..."
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     }
@@ -200,7 +213,7 @@ app.post("/", async (c) => {
         model: modeloGateway,
         messages: [
           { role: "system", content: systemPrompt },
-          ...historicoMensagens.slice(-20), // Últimas 20 mensagens para contexto
+          ...historicoMensagens.slice(-20),
         ],
       }),
     });
@@ -210,7 +223,10 @@ app.post("/", async (c) => {
       console.error("AI Gateway error:", aiResponse.status, errorText);
       
       if (aiResponse.status === 429) {
-        return c.json({ error: "Rate limited", ai_active: false }, 429);
+        return new Response(JSON.stringify({ error: "Rate limited", ai_active: false }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
       
       throw new Error(`AI Gateway error: ${aiResponse.status}`);
@@ -223,7 +239,6 @@ app.post("/", async (c) => {
 
     // Processar resposta baseado nas configurações
     if (!agenteIA.usar_emojis) {
-      // Remover emojis
       respostaIA = respostaIA.replace(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '');
     }
 
@@ -247,13 +262,11 @@ app.post("/", async (c) => {
     let mensagensParaEnviar: string[] = [];
     
     if (agenteIA.dividir_resposta && respostaIA.length > 300) {
-      // Dividir em parágrafos ou sentenças
       const paragrafos = respostaIA.split(/\n\n+/).filter(p => p.trim());
       
       if (paragrafos.length > 1) {
         mensagensParaEnviar = paragrafos;
       } else {
-        // Dividir em sentenças se não houver parágrafos
         const sentencas = respostaIA.match(/[^.!?]+[.!?]+/g) || [respostaIA];
         let mensagemAtual = "";
         
@@ -271,24 +284,22 @@ app.post("/", async (c) => {
       mensagensParaEnviar = [respostaIA];
     }
 
-    return c.json({ 
+    return new Response(JSON.stringify({ 
       ai_active: true, 
       mensagens: mensagensParaEnviar,
       agente_nome: agenteIA.nome,
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error) {
     console.error("[AI] Error:", error);
-    return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      500
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
-
-app.options("/", (c) => c.text("", 204));
-
-Deno.serve(app.fetch);
 
 function buildSystemPrompt(agente: AgenteIA, treinamentos: Treinamento[], contato: any): string {
   const estilos = {
@@ -341,14 +352,13 @@ Se o cliente perguntar sobre outros assuntos, educadamente redirecione a convers
 `;
   }
 
-  if (agente.transferir_para_humano && agente.palavras_chave_transferencia.length > 0) {
+  if (agente.transferir_para_humano && agente.palavras_chave_transferencia && agente.palavras_chave_transferencia.length > 0) {
     prompt += `Se o cliente mencionar palavras como: ${agente.palavras_chave_transferencia.join(", ")}, 
 você deve indicar que vai transferir para um atendente humano.
 
 `;
   }
 
-  // Adicionar treinamentos como contexto
   if (treinamentos.length > 0) {
     prompt += `## Base de Conhecimento
 `;
@@ -359,7 +369,6 @@ você deve indicar que vai transferir para um atendente humano.
     }
   }
 
-  // Adicionar info do contato
   if (contato) {
     prompt += `## Informações do Cliente
 Nome: ${contato.nome || "Não informado"}
@@ -384,13 +393,11 @@ async function transferirParaHumano(
   agente: AgenteIA, 
   conversaId: string
 ) {
-  // Marcar conversa como transferida
   await supabase
     .from("omni_ia_conversas")
     .update({ transferido_para_humano: true })
     .eq("id", conversaId);
 
-  // Se tiver fila de transferência configurada, transferir
   if (agente.fila_transferencia_id) {
     await supabase
       .from("omni_atendimentos")
@@ -401,7 +408,6 @@ async function transferirParaHumano(
       })
       .eq("id", atendimentoId);
   } else {
-    // Apenas remover agente e colocar em aguardando
     await supabase
       .from("omni_atendimentos")
       .update({
