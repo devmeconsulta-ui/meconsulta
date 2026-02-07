@@ -1,10 +1,13 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Hono } from "jsr:@hono/hono";
+import { cors } from "jsr:@hono/hono/cors";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const app = new Hono();
+
+app.use("/*", cors({
+  origin: "*",
+  allowHeaders: ["authorization", "x-client-info", "apikey", "content-type"],
+}));
 
 interface AgenteIA {
   id: string;
@@ -36,11 +39,22 @@ interface AIRequest {
   clinica_id: string;
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+// Mapeamento de modelos para o Lovable AI Gateway
+const MODEL_MAPPING: Record<string, string> = {
+  "gpt-4o-mini": "openai/gpt-4o-mini",
+  "gpt-4o": "openai/gpt-4o",
+  "gpt-4-turbo": "openai/gpt-4-turbo",
+  "claude-3-opus": "anthropic/claude-3-opus",
+  "claude-3-sonnet": "anthropic/claude-3-sonnet",
+  "claude-3-haiku": "anthropic/claude-3-haiku",
+  "gemini-1.5-pro": "google/gemini-1.5-pro",
+  "gemini-1.5-flash": "google/gemini-1.5-flash",
+  "gemini-2.0-flash": "google/gemini-2.0-flash",
+  "llama-3.1-70b": "groq/llama-3.1-70b-versatile",
+  "mixtral-8x7b": "groq/mixtral-8x7b-32768",
+};
 
+app.post("/", async (c) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -65,10 +79,7 @@ serve(async (req) => {
 
     if (atendimentoError || !atendimento) {
       console.error("Atendimento not found:", atendimentoError);
-      return new Response(JSON.stringify({ error: "Atendimento not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return c.json({ error: "Atendimento not found" }, 404);
     }
 
     // Buscar agente de IA configurado para a fila
@@ -82,13 +93,14 @@ serve(async (req) => {
 
     if (agenteError || !agente) {
       console.log("[AI] No active AI agent configured for this queue");
-      return new Response(JSON.stringify({ ai_active: false }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return c.json({ ai_active: false });
     }
 
     const agenteIA = agente as AgenteIA;
-    console.log(`[AI] Found agent: ${agenteIA.nome}, model: ${agenteIA.modelo}`);
+    
+    // Mapear modelo para o Lovable AI Gateway
+    const modeloGateway = MODEL_MAPPING[agenteIA.modelo] || "google/gemini-2.0-flash";
+    console.log(`[AI] Found agent: ${agenteIA.nome}, model: ${agenteIA.modelo} -> ${modeloGateway}`);
 
     // Buscar conversa de IA existente ou criar nova
     let { data: conversa } = await supabase
@@ -120,9 +132,7 @@ serve(async (req) => {
     // Verificar se já foi transferido para humano
     if (conversa.transferido_para_humano) {
       console.log("[AI] Conversa already transferred to human");
-      return new Response(JSON.stringify({ ai_active: false, reason: "transferred" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return c.json({ ai_active: false, reason: "transferred" });
     }
 
     // Verificar limite de interações
@@ -133,9 +143,7 @@ serve(async (req) => {
         await transferirParaHumano(supabase, atendimento_id, agenteIA, conversa.id);
       }
       
-      return new Response(JSON.stringify({ ai_active: false, reason: "limit_reached" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return c.json({ ai_active: false, reason: "limit_reached" });
     }
 
     // Verificar palavras-chave de transferência
@@ -149,12 +157,10 @@ serve(async (req) => {
         console.log("[AI] Transfer keyword detected, transferring to human");
         await transferirParaHumano(supabase, atendimento_id, agenteIA, conversa.id);
         
-        return new Response(JSON.stringify({ 
+        return c.json({ 
           ai_active: false, 
           reason: "transfer_keyword",
           mensagem: "Entendido! Vou transferir você para um atendente humano. Aguarde um momento..."
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     }
@@ -173,9 +179,9 @@ serve(async (req) => {
     const historicoMensagens = (conversa.mensagens as any[]) || [];
     historicoMensagens.push({ role: "user", content: mensagem });
 
-    console.log(`[AI] Calling Lovable AI Gateway with model: ${agenteIA.modelo || "google/gemini-3-flash-preview"}`);
+    console.log(`[AI] Calling Lovable AI Gateway with model: ${modeloGateway}`);
 
-    // Chamar a IA
+    // Chamar a IA via Lovable AI Gateway
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -183,7 +189,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: agenteIA.modelo || "google/gemini-3-flash-preview",
+        model: modeloGateway,
         messages: [
           { role: "system", content: systemPrompt },
           ...historicoMensagens.slice(-20), // Últimas 20 mensagens para contexto
@@ -196,10 +202,7 @@ serve(async (req) => {
       console.error("AI Gateway error:", aiResponse.status, errorText);
       
       if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited", ai_active: false }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return c.json({ error: "Rate limited", ai_active: false }, 429);
       }
       
       throw new Error(`AI Gateway error: ${aiResponse.status}`);
@@ -260,22 +263,24 @@ serve(async (req) => {
       mensagensParaEnviar = [respostaIA];
     }
 
-    return new Response(JSON.stringify({ 
+    return c.json({ 
       ai_active: true, 
       mensagens: mensagensParaEnviar,
       agente_nome: agenteIA.nome,
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error) {
     console.error("[AI] Error:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500
     );
   }
 });
+
+app.options("/", (c) => c.text("", 204));
+
+Deno.serve(app.fetch);
 
 function buildSystemPrompt(agente: AgenteIA, treinamentos: Treinamento[], contato: any): string {
   const estilos = {
