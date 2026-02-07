@@ -3471,11 +3471,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_clinica_id: { Args: { _user_id: string }; Returns: string }
+      get_user_medico_id: { Args: { _user_id: string }; Returns: string }
+      get_user_paciente_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_admin_user: { Args: { _user_id: string }; Returns: boolean }
+      user_belongs_to_clinica: {
+        Args: { _clinica_id: string; _user_id: string }
         Returns: boolean
       }
     }
