@@ -1115,7 +1115,7 @@ export default function OmniWhatsAppChat() {
               ) : (
                 <AudioRecorder 
                   onSendAudio={handleSendAudio}
-                  disabled={sending || isClinicaAdmin}
+                  disabled={sending}
                 />
               )}
             </div>
