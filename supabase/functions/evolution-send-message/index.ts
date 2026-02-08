@@ -171,7 +171,7 @@ serve(async (req) => {
 
     const messageId = sendData.key?.id || sendData.id;
 
-    // BACKGROUND TASK: Save message and update atendimento
+    // BACKGROUND TASK: Save message, update atendimento, and pause AI if human is responding
     EdgeRuntime.waitUntil((async () => {
       try {
         // Save message to DB
@@ -208,6 +208,48 @@ serve(async (req) => {
               ),
             })
             .eq("id", atendimento_id);
+        }
+
+        // ========== PAUSAR IA QUANDO HUMANO RESPONDE ==========
+        // Se um operador humano está enviando mensagem, pausar a IA
+        console.log("[AI-PAUSE] Human operator sent message, checking if AI should pause...");
+        
+        // Buscar a conversa de IA ativa para este atendimento
+        const { data: conversaIA } = await supabase
+          .from("omni_ia_conversas")
+          .select("id, humano_assumiu, agente_id")
+          .eq("atendimento_id", atendimento_id)
+          .single();
+
+        if (conversaIA && !conversaIA.humano_assumiu) {
+          // Verificar configuração do agente
+          const { data: agenteConfig } = await supabase
+            .from("omni_ia_agentes")
+            .select("pausar_quando_humano_responde")
+            .eq("id", conversaIA.agente_id)
+            .single();
+
+          const deveParar = agenteConfig?.pausar_quando_humano_responde ?? true;
+
+          if (deveParar) {
+            // Marcar que humano assumiu - IA para de responder
+            await supabase
+              .from("omni_ia_conversas")
+              .update({
+                humano_assumiu: true,
+                humano_assumiu_em: new Date().toISOString(),
+                transferido_para_humano: true,
+              })
+              .eq("id", conversaIA.id);
+
+            console.log(`[AI-PAUSE] Human took over atendimento ${atendimento_id}, AI will stop responding`);
+          } else {
+            console.log("[AI-PAUSE] Agent configured to NOT pause when human responds");
+          }
+        } else if (conversaIA?.humano_assumiu) {
+          console.log("[AI-PAUSE] AI already paused for this conversation");
+        } else {
+          console.log("[AI-PAUSE] No AI conversation found for this atendimento");
         }
 
         console.log(`[Background] Message saved successfully: ${messageId}`);

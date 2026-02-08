@@ -574,79 +574,9 @@ Deno.serve(async (req) => {
           console.log(`SEND_MESSAGE saved for atendimento ${atendimento.id}, content: ${conteudo?.substring(0, 50)}`);
         }
 
-        // ========== PAUSAR IA QUANDO HUMANO RESPONDE ==========
-        // Verificar se essa mensagem foi enviada pela nossa IA ou por um humano
-        // Usamos duas estratégias:
-        // 1. Verificar se já existe uma mensagem com agente_nome e mesmo conteúdo (IA salvou antes)
-        // 2. Verificar se existe uma mensagem recente com agente_nome no mesmo atendimento
-        console.log("[AI-PAUSE] Checking if human sent this message...");
-        
-        // Estratégia 1: Buscar mensagem com mesmo conteúdo e agente_nome (IA pode ter salvo antes)
-        const { data: msgIA } = await supabase
-          .from("omni_mensagens")
-          .select("id, agente_nome")
-          .eq("atendimento_id", atendimento.id)
-          .eq("conteudo", conteudo)
-          .not("agente_nome", "is", null)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-        
-        if (msgIA?.agente_nome) {
-          console.log("[AI-PAUSE] Message was sent by AI agent (matched by content), not marking as human takeover");
-          break;
-        }
-        
-        // Estratégia 2: Verificar se houve mensagem da IA nos últimos 10 segundos (race condition)
-        const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
-        const { data: recentAIMsg } = await supabase
-          .from("omni_mensagens")
-          .select("id, agente_nome, conteudo")
-          .eq("atendimento_id", atendimento.id)
-          .eq("direcao", "saida")
-          .not("agente_nome", "is", null)
-          .gte("created_at", tenSecondsAgo)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-        
-        // Se existe mensagem recente da IA com conteúdo similar, é da IA
-        if (recentAIMsg?.agente_nome) {
-          console.log("[AI-PAUSE] Recent AI message found, not marking as human takeover");
-          break;
-        }
-        
-        // Buscar a conversa de IA ativa para este atendimento
-        const { data: conversaIA } = await supabase
-          .from("omni_ia_conversas")
-          .select("id, humano_assumiu, agente_id")
-          .eq("atendimento_id", atendimento.id)
-          .single();
-
-        if (conversaIA && !conversaIA.humano_assumiu) {
-          // Verificar configuração do agente
-          const { data: agenteConfig } = await supabase
-            .from("omni_ia_agentes")
-            .select("pausar_quando_humano_responde")
-            .eq("id", conversaIA.agente_id)
-            .single();
-
-          const deveParar = agenteConfig?.pausar_quando_humano_responde ?? true;
-
-          if (deveParar) {
-            // Marcar que humano assumiu - IA para de responder
-            await supabase
-              .from("omni_ia_conversas")
-              .update({
-                humano_assumiu: true,
-                humano_assumiu_em: new Date().toISOString(),
-                transferido_para_humano: true,
-              })
-              .eq("id", conversaIA.id);
-
-            console.log(`[AI-PAUSE] Human took over atendimento ${atendimento.id}, AI will stop responding`);
-          }
-        }
+        // Nota: A lógica de pausar IA quando humano responde está no evolution-send-message
+        // (quando um operador envia mensagem pelo painel), não aqui no webhook
+        // Isso evita falsos positivos quando a própria IA envia mensagens
 
         break;
       }
