@@ -10,7 +10,6 @@ import {
   Send,
   Paperclip,
   Smile,
-  Mic,
   MoreVertical,
   ArrowRightLeft,
   Clock,
@@ -56,6 +55,7 @@ import { DocumentsModal } from "@/components/clinica/omnichannel/DocumentsModal"
 import { EtiquetasModal } from "@/components/clinica/omnichannel/EtiquetasModal";
 import { NotaInternaModal } from "@/components/clinica/omnichannel/NotaInternaModal";
 import { TypingBubble } from "@/components/clinica/omnichannel/TypingIndicator";
+import { AudioRecorder } from "@/components/clinica/omnichannel/AudioRecorder";
 import { useTypingIndicator, useAITypingIndicator } from "@/hooks/useTypingIndicator";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 import { cn } from "@/lib/utils";
@@ -544,6 +544,77 @@ export default function OmniWhatsAppChat() {
       handleSendMessage();
     }
   }, [handleSendMessage]);
+
+  // Handle audio sending
+  const handleSendAudio = useCallback(async (audioBlob: Blob, duration: number) => {
+    if (!selectedAtendimento) return;
+    
+    const agenteId = getAgenteId();
+    if (!agenteId) {
+      toast.error("Não foi possível identificar o agente");
+      return;
+    }
+
+    try {
+      // Upload audio to Supabase storage
+      const fileName = `audio_${Date.now()}.ogg`;
+      const filePath = `omni/${selectedAtendimento.clinica_id}/${selectedAtendimento.id}/${fileName}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("omni-files")
+        .upload(filePath, audioBlob, {
+          contentType: audioBlob.type,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error("Error uploading audio:", uploadError);
+        toast.error("Erro ao fazer upload do áudio");
+        return;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from("omni-files")
+        .getPublicUrl(filePath);
+
+      // Create optimistic message
+      const optimisticMsg: OmniMensagem = {
+        id: `temp-audio-${Date.now()}`,
+        atendimento_id: selectedAtendimento.id,
+        contato_id: null,
+        agente_id: agenteId,
+        agente_nome: signatureEnabled ? currentUser?.nome || null : null,
+        tipo: "audio",
+        direcao: "saida",
+        conteudo: null,
+        arquivo_url: publicUrl,
+        arquivo_nome: fileName,
+        arquivo_tipo: audioBlob.type,
+        whatsapp_message_id: null,
+        status: "enviada",
+        erro_descricao: null,
+        created_at: new Date().toISOString(),
+      };
+
+      setOptimisticMessages(prev => [...prev, optimisticMsg]);
+
+      // Send audio message
+      await enviarMensagem(
+        agenteId,
+        "audio",
+        undefined,
+        publicUrl,
+        fileName,
+        audioBlob.type
+      );
+
+      toast.success("Áudio enviado");
+    } catch (error) {
+      console.error("Error sending audio:", error);
+      toast.error("Erro ao enviar áudio");
+    }
+  }, [selectedAtendimento, getAgenteId, currentUser?.nome, signatureEnabled, enviarMensagem]);
 
   const handleFinalizarAtendimento = async (
     motivoFechamento: string,
@@ -1042,9 +1113,10 @@ export default function OmniWhatsAppChat() {
                   )}
                 </Button>
               ) : (
-                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                  <Mic className="h-6 w-6" />
-                </Button>
+                <AudioRecorder 
+                  onSendAudio={handleSendAudio}
+                  disabled={sending || isClinicaAdmin}
+                />
               )}
             </div>
           </>
