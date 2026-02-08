@@ -229,7 +229,7 @@ export function AudioRecorder({ onSendAudio, disabled }: AudioRecorderProps) {
     <Button 
       variant="ghost" 
       size="icon" 
-      className="text-muted-foreground hover:text-foreground"
+      className="text-foreground hover:text-primary hover:bg-primary/10"
       onClick={startRecording}
       disabled={disabled}
     >
