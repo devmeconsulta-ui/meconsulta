@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.omni-ai-respond]
 verify_jwt = false
+
+[functions.omni-process-followups]
+verify_jwt = false

@@ -1409,8 +1409,8 @@ export default function OmniIA() {
                               { 
                                 id: "dividir_resposta", 
                                 icon: Split, 
-                                label: "Dividir resposta em partes",
-                                desc: "Em caso da mensagem ficar grande, o agente pode separar em várias mensagens.",
+                                label: "Dividir resposta longa em partes",
+                                desc: "Se a resposta for muito longa (mais de 700 caracteres), divide em no máximo 3 mensagens separadas por parágrafos. Mantenha desativado para respostas mais concisas.",
                                 field: "dividir_resposta"
                               },
                               { 

@@ -2589,30 +2589,42 @@ export type Database = {
           agente_id: string
           atendimento_id: string
           created_at: string
+          followup_executados: Json | null
+          followup_pendentes: Json | null
           id: string
           interacoes_count: number
           mensagens: Json
           transferido_para_humano: boolean
+          ultima_interacao: string | null
+          ultima_mensagem_cliente: string | null
           updated_at: string
         }
         Insert: {
           agente_id: string
           atendimento_id: string
           created_at?: string
+          followup_executados?: Json | null
+          followup_pendentes?: Json | null
           id?: string
           interacoes_count?: number
           mensagens?: Json
           transferido_para_humano?: boolean
+          ultima_interacao?: string | null
+          ultima_mensagem_cliente?: string | null
           updated_at?: string
         }
         Update: {
           agente_id?: string
           atendimento_id?: string
           created_at?: string
+          followup_executados?: Json | null
+          followup_pendentes?: Json | null
           id?: string
           interacoes_count?: number
           mensagens?: Json
           transferido_para_humano?: boolean
+          ultima_interacao?: string | null
+          ultima_mensagem_cliente?: string | null
           updated_at?: string
         }
         Relationships: [
