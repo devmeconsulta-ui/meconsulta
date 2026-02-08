@@ -1,274 +1,201 @@
 
-# Plano: IA com Agendamento Automático de Consultas
+# Plano de Correção: Sistema de Agendamento IA WhatsApp
 
-## Objetivo
-Transformar a IA em uma assistente inteligente capaz de:
-- Buscar profissionais disponíveis na clínica
-- Consultar horários livres em tempo real
-- Identificar/cadastrar pacientes automaticamente
-- Agendar consultas diretamente no sistema
-- Distribuir atendimentos entre atendentes (round-robin)
-- Sugerir alternativas quando não houver disponibilidade
+## Problemas Identificados
+
+### 1. IA Não Verifica Sucesso do Agendamento
+A IA envia a confirmação ANTES de verificar se a consulta foi realmente criada no banco. Se houver erro, o paciente recebe confirmação falsa.
+
+### 2. IA Busca Horário Recém-Agendado
+Após agendar, a IA busca horários novamente e não encontra o slot (porque foi marcado como indisponível), fazendo parecer que não agendou.
+
+### 3. Coleta Incompleta de Dados
+A IA só pede CPF, mas o modal de agendamento interno coleta: nome, telefone, CPF, tipo de atendimento, local, etc.
+
+### 4. Não Puxa Dados do Cadastro Existente
+Se o paciente já tem cadastro, a IA deveria usar os dados automaticamente sem pedir novamente.
 
 ---
 
-## Arquitetura da Solução
+## Solucao Proposta
+
+### Fase 1: Verificacao Pos-Agendamento (Critico)
+
+**Arquivo**: `supabase/functions/omni-ai-actions/index.ts`
+
+Adicionar verificacao de sucesso apos inserir a consulta:
 
 ```text
-+----------------+     +---------------------+     +------------------+
-|   WhatsApp     | --> | omni-ai-respond     | --> | omni-ai-actions  |
-|   (Paciente)   |     | (Processa intenção) |     | (Executa ações)  |
-+----------------+     +---------------------+     +------------------+
-                                |                          |
-                                v                          v
-                    +---------------------+     +------------------+
-                    |  Lovable AI Gateway |     |   Supabase DB    |
-                    |  (Gera resposta)    |     |  (Consultas,     |
-                    +---------------------+     |   Pacientes,     |
-                                                |   Slots, etc)    |
-                                                +------------------+
+1. Inserir consulta no banco
+2. VERIFICAR se consulta existe com SELECT
+3. Se nao encontrar -> retornar erro "Agendamento falhou"
+4. Se encontrar -> retornar confirmacao com dados verificados
 ```
 
----
+### Fase 2: Fluxo de Coleta de Dados Completo
 
-## Fase 1: Configurações no Banco de Dados
+**Arquivo**: `supabase/functions/omni-ai-respond/index.ts`
 
-### 1.1 Nova coluna na tabela `omni_ia_agentes`
-Adicionar campo `permitir_agendamento` (boolean) para habilitar/desabilitar a funcionalidade por agente.
-
-### 1.2 Nova tabela `omni_ia_agendamentos_config`
-Configurações específicas de agendamento por agente:
-- `agente_id` - Referência ao agente
-- `tipos_atendimento` - Particular, Convênio, ambos
-- `valor_padrao` - Valor padrão se não encontrar
-- `distribuicao_atendentes` - Modo de distribuição (round-robin, fixa, etc.)
-- `mensagens_confirmacao` - Templates customizáveis
-- `exigir_cpf` - Se CPF é obrigatório
-- `permitir_encaixe` - Permitir encaixes em horários lotados
-- `antecedencia_minima_horas` - Mínimo de horas para agendar
-- `antecedencia_maxima_dias` - Máximo de dias no futuro
-
----
-
-## Fase 2: Nova Edge Function `omni-ai-actions`
-
-Responsável por executar ações no sistema. A IA não faz queries diretamente - ela solicita ações estruturadas.
-
-### 2.1 Ações Disponíveis
-
-| Ação | Descrição |
-|------|-----------|
-| `buscar_medicos` | Lista médicos/especialidades disponíveis |
-| `buscar_horarios` | Consulta slots disponíveis |
-| `buscar_paciente` | Busca paciente por CPF/telefone |
-| `criar_paciente` | Cadastra novo paciente |
-| `agendar_consulta` | Cria consulta no sistema |
-| `cancelar_consulta` | Cancela consulta existente |
-| `listar_consultas_paciente` | Histórico do paciente |
-
-### 2.2 Fluxo de Execução
+Atualizar o prompt do agente para seguir o fluxo do modal interno:
 
 ```text
-1. IA detecta intenção de agendamento
-2. IA gera JSON com ação desejada
-3. omni-ai-respond parseia resposta
-4. Chama omni-ai-actions com a ação
-5. Resultado é injetado no contexto da IA
-6. IA formata resposta humanizada
+FLUXO CORRETO:
+1. Perguntar especialidade/medico
+2. Buscar horarios disponiveis
+3. Confirmar horario escolhido
+4. Verificar cadastro (buscar_paciente pelo telefone)
+5. Se NAO encontrar cadastro:
+   a) Pedir NOME COMPLETO
+   b) Pedir CPF (se exigir_cpf)
+   c) Criar cadastro (criar_paciente)
+6. Se ENCONTRAR cadastro:
+   - Confirmar: "Voce e [NOME], correto?"
+   - Usar dados existentes
+7. Perguntar tipo de atendimento (Particular/Convenio)
+8. Finalizar agendamento
 ```
 
----
+### Fase 3: Melhoria no Buscar Paciente
 
-## Fase 3: Modificações no `omni-ai-respond`
+**Arquivo**: `supabase/functions/omni-ai-actions/index.ts`
 
-### 3.1 System Prompt Expandido
-Adicionar instruções específicas para agendamento:
-- Como coletar dados do paciente
-- Quando buscar horários
-- Como apresentar opções
-- Fluxo de confirmação
+A funcao `buscar_paciente` ja recebe `contato_telefone` automaticamente. Modificar para:
 
-### 3.2 Detecção de Intenções
-A IA usará um formato especial para solicitar ações:
+1. Primeiro buscar pelo telefone do WhatsApp (ja disponivel)
+2. Se encontrar, retornar dados completos
+3. Se nao encontrar, indicar que precisa coletar dados
 
-```json
-{"action": "buscar_horarios", "params": {"especialidade": "Cardiologia", "data": "2026-02-10"}}
-```
+### Fase 4: Prevenir Busca Duplicada de Horarios
 
-### 3.3 Contexto Enriquecido
-Injetar dados da clínica no prompt:
-- Lista de especialidades disponíveis
-- Horários de funcionamento
-- Políticas de agendamento
-- Convênios aceitos
+**Arquivo**: `supabase/functions/omni-ai-respond/index.ts`
 
----
-
-## Fase 4: Interface de Configuração (OmniIA.tsx)
-
-### 4.1 Nova Seção "Agendamento"
-- Toggle para ativar agendamento automático
-- Seleção de tipos de atendimento
-- Configuração de distribuição
-- Templates de mensagens
-- Regras de antecedência
-
-### 4.2 Campos de Configuração
-- Exigir CPF para agendar
-- Permitir encaixes
-- Valor padrão de consulta
-- Horário mínimo/máximo
-
----
-
-## Fase 5: Fluxo Completo de Agendamento
-
-### Cenário: Novo Paciente
+Adicionar instrucao no prompt:
 
 ```text
-Paciente: "Oi, quero marcar uma consulta"
-IA: "Olá! Claro, posso te ajudar. Qual especialidade você precisa?"
-
-Paciente: "Cardiologia"
-[IA executa: buscar_medicos(especialidade=Cardiologia)]
-IA: "Temos 2 cardiologistas: Dr. João Silva e Dra. Maria Santos. Tem preferência?"
-
-Paciente: "Tanto faz, o que tiver horário primeiro"
-[IA executa: buscar_horarios(especialidade=Cardiologia, limit=5)]
-IA: "Temos esses horários disponíveis:
-- Ter 11/02 às 09:00 com Dr. João
-- Ter 11/02 às 10:30 com Dra. Maria
-Qual prefere?"
-
-Paciente: "09:00 terça"
-IA: "Perfeito! Para confirmar o agendamento, preciso de alguns dados.
-Qual seu nome completo?"
-
-Paciente: "Carlos Eduardo Souza"
-IA: "E seu CPF?"
-
-Paciente: "123.456.789-00"
-[IA executa: buscar_paciente(cpf=12345678900)]
-# Não encontrado - vai criar novo
-IA: "Confirma os dados?
-- Nome: Carlos Eduardo Souza
-- CPF: 123.456.789-00
-- Telefone: (11) 99999-9999 (captado do WhatsApp)
-- Data: Ter 11/02 às 09:00
-- Médico: Dr. João Silva
-- Valor: R$ 250,00 (particular)"
-
-Paciente: "Confirma"
-[IA executa: criar_paciente(...)]
-[IA executa: agendar_consulta(...)]
-IA: "Pronto! Sua consulta foi agendada. Você receberá uma confirmação por WhatsApp 24h antes. Até lá!"
-```
-
-### Cenário: Paciente Existente
-
-```text
-Paciente: "Oi"
-[Sistema já tem telefone do contato]
-[IA executa: buscar_paciente(telefone=11999999999)]
-IA: "Olá Carlos! Tudo bem? Como posso te ajudar?"
+APOS AGENDAR COM SUCESSO:
+- NAO busque horarios novamente
+- NAO confirme disponibilidade novamente  
+- Finalize a conversa com a mascara de confirmacao
 ```
 
 ---
 
-## Detalhes Técnicos
+## Detalhes Tecnicos
 
-### Arquivos a Criar/Modificar
+### Modificacoes em `omni-ai-actions/index.ts`
 
-| Arquivo | Ação |
-|---------|------|
-| `supabase/functions/omni-ai-actions/index.ts` | CRIAR - Nova edge function |
-| `supabase/functions/omni-ai-respond/index.ts` | MODIFICAR - Integrar ações |
-| `src/pages/clinica/omnichannel/OmniIA.tsx` | MODIFICAR - UI de config |
-| `supabase/migrations/xxx.sql` | CRIAR - Schema de config |
-| `supabase/config.toml` | MODIFICAR - Registrar function |
-
-### Estrutura da Edge Function `omni-ai-actions`
+**Funcao `agendarConsulta`** (linha ~490-600):
 
 ```typescript
-interface ActionRequest {
-  action: string;
-  params: Record<string, any>;
-  clinica_id: string;
-  contato_telefone?: string;
-}
+// APOS inserir consulta, adicionar verificacao:
 
-interface ActionResponse {
-  success: boolean;
-  data?: any;
-  error?: string;
-  message?: string; // Mensagem formatada para a IA
+const { data: consulta, error: consultaError } = await supabase
+  .from("consultas")
+  .insert({...})
+  .select("id, data_hora, ...")
+  .single();
+
+if (consultaError) throw consultaError;
+
+// NOVA VERIFICACAO - Garantir que foi criada
+const { data: consultaVerificada, error: verifyError } = await supabase
+  .from("consultas")
+  .select("id, data_hora, medico:medicos!consultas_medico_id_fkey(nome)")
+  .eq("id", consulta.id)
+  .single();
+
+if (verifyError || !consultaVerificada) {
+  console.error("[agendarConsulta] Verification failed:", verifyError);
+  return { 
+    success: false, 
+    error: "Nao foi possivel confirmar o agendamento. Por favor, tente novamente." 
+  };
 }
 ```
 
-### Ações Detalhadas
-
-#### `buscar_medicos`
-- Input: `{ especialidade?: string, nome?: string }`
-- Output: Lista de médicos com nome, especialidade, valor
-
-#### `buscar_horarios`
-- Input: `{ medico_id?: string, especialidade?: string, data_inicio: string, data_fim?: string, limit?: number }`
-- Output: Lista de slots disponíveis formatados
-
-#### `buscar_paciente`
-- Input: `{ cpf?: string, telefone?: string, nome?: string }`
-- Output: Dados do paciente ou null
-
-#### `criar_paciente`
-- Input: `{ nome: string, cpf?: string, telefone: string, data_nascimento?: string }`
-- Output: ID do paciente criado
-
-#### `agendar_consulta`
-- Input: `{ paciente_id: string, slot_id?: string, medico_id: string, data_hora: string, tipo_atendimento: string, convenio_id?: string, valor?: number }`
-- Output: Dados da consulta criada
-
----
-
-## Segurança e Validações
-
-1. **Validação de CPF** - Verificar formato válido
-2. **Conflito de Horários** - Checar se slot ainda está disponível antes de confirmar
-3. **Antecedência Mínima** - Não permitir agendamento muito próximo
-4. **Limite Diário** - Opcional: limitar agendamentos por paciente
-5. **Bloqueio de Duplicatas** - Não agendar se já tem consulta próxima
-
----
-
-## Distribuição de Atendentes (Round-Robin)
-
-Para consultas agendadas pela IA, o campo `usuario_clinica_id` será preenchido automaticamente usando lógica de distribuição:
+**Funcao `buscarPaciente`** (linha ~325-371):
 
 ```typescript
-async function getProximoAtendente(clinicaId: string): Promise<string | null> {
-  // Buscar atendentes ativos
-  // Contar agendamentos do dia
-  // Retornar o com menos atendimentos
+// Modificar para buscar automaticamente pelo telefone do contato
+async function buscarPaciente(supabase, clinicaId, params, contato_telefone) {
+  // Se nenhum param foi passado, usar telefone do WhatsApp
+  if (!params.cpf && !params.telefone && !params.nome && contato_telefone) {
+    params.telefone = contato_telefone;
+  }
+  
+  // ... resto da logica existente
+  
+  // Retornar mais dados quando encontrar
+  return {
+    success: true,
+    data: {
+      id: data.id,
+      nome: data.nome,
+      cpf: data.cpf,
+      telefone: data.telefone || data.celular,
+      email: data.email,
+      data_nascimento: data.data_nascimento,
+      tem_cadastro: true,  // NOVO CAMPO
+    },
+    message: `Encontrei seu cadastro: ${data.nome}. Podemos continuar!`,
+  };
 }
+```
+
+### Modificacoes em `omni-ai-respond/index.ts`
+
+**Funcao `buildSystemPrompt`** (linha ~668-901):
+
+Atualizar a secao de agendamento para incluir:
+
+```typescript
+### FLUXO OBRIGATORIO DE AGENDAMENTO:
+
+PASSO 1 - IDENTIFICAR PACIENTE:
+- Use buscar_paciente SEM parametros (buscara pelo telefone do WhatsApp automaticamente)
+- Se encontrar cadastro: "Ola [NOME]! Vi que voce ja tem cadastro conosco."
+- Se NAO encontrar: Continuar para coleta de dados
+
+PASSO 2 - COLETA DE DADOS (se nao tiver cadastro):
+a) Perguntar NOME COMPLETO
+b) Perguntar CPF (apenas digitos)
+c) Usar criar_paciente com os dados
+
+PASSO 3 - ESPECIALIDADE/MEDICO:
+- Perguntar qual especialidade ou medico deseja
+
+PASSO 4 - BUSCAR HORARIOS:
+- Usar buscar_horarios com data especifica
+- Apresentar 3-5 opcoes
+
+PASSO 5 - TIPO DE ATENDIMENTO:
+- Perguntar: "Sera Particular ou Convenio?"
+- Se convenio, usar buscar_convenios e confirmar qual
+
+PASSO 6 - FINALIZAR:
+- Usar agendar_consulta com TODOS os dados
+- Aguardar confirmacao de sucesso
+- Enviar mascara de confirmacao
+
+### APOS AGENDAMENTO COM SUCESSO:
+- NUNCA busque horarios novamente
+- NUNCA duvide do agendamento que acabou de fazer
+- Finalize cordialmente a conversa
 ```
 
 ---
 
-## Estimativa de Implementação
+## Resumo das Alteracoes
 
-1. **Migration + Tabela de Config** - 30 min
-2. **Edge Function omni-ai-actions** - 2h
-3. **Modificar omni-ai-respond** - 1.5h
-4. **Interface de Configuração** - 1h
-5. **Testes e Ajustes** - 1h
+| Arquivo | Alteracao |
+|---------|-----------|
+| `omni-ai-actions/index.ts` | Verificacao pos-agendamento, melhoria buscar_paciente |
+| `omni-ai-respond/index.ts` | Fluxo completo no prompt, prevenir busca duplicada |
 
-**Total estimado: ~6 horas de desenvolvimento**
+## Resultado Esperado
 
----
-
-## Próximos Passos Após Aprovação
-
-1. Criar migration com nova coluna e tabela de config
-2. Implementar `omni-ai-actions` com todas as ações
-3. Modificar `omni-ai-respond` para detectar e executar ações
-4. Atualizar interface de configuração
-5. Testar fluxo completo end-to-end
+1. Consultas serao verificadas antes de confirmar ao paciente
+2. IA coletara todos os dados necessarios em sequencia
+3. Pacientes com cadastro terao dados puxados automaticamente
+4. IA nao ficara "confusa" apos agendar com sucesso
+5. Paridade total com agendamentos manuais do painel
