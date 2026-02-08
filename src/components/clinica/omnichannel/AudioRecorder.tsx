@@ -227,13 +227,12 @@ export function AudioRecorder({ onSendAudio, disabled }: AudioRecorderProps) {
   // Default: show mic button
   return (
     <Button 
-      variant="ghost" 
-      size="icon" 
-      className="text-foreground hover:text-primary hover:bg-primary/10"
+      size="icon"
+      className="h-9 w-9 bg-[#075E54] hover:bg-[#064E46] text-white rounded-full"
       onClick={startRecording}
       disabled={disabled}
     >
-      <Mic className="h-6 w-6" />
+      <Mic className="h-5 w-5" />
     </Button>
   );
 }
