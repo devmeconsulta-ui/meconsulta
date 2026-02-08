@@ -29,6 +29,7 @@ import {
   Bell,
   User,
   Bot,
+  Plus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -56,6 +57,7 @@ import { EtiquetasModal } from "@/components/clinica/omnichannel/EtiquetasModal"
 import { NotaInternaModal } from "@/components/clinica/omnichannel/NotaInternaModal";
 import { TypingBubble } from "@/components/clinica/omnichannel/TypingIndicator";
 import { AudioRecorder } from "@/components/clinica/omnichannel/AudioRecorder";
+import { NovoAtendimentoModal } from "@/components/clinica/omnichannel/NovoAtendimentoModal";
 import { useTypingIndicator, useAITypingIndicator } from "@/hooks/useTypingIndicator";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 import { cn } from "@/lib/utils";
@@ -283,6 +285,7 @@ export default function OmniWhatsAppChat() {
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [etiquetasModalOpen, setEtiquetasModalOpen] = useState(false);
   const [notaInternaModalOpen, setNotaInternaModalOpen] = useState(false);
+  const [novoAtendimentoModalOpen, setNovoAtendimentoModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "waiting" | "mine">("all");
   const [waitTimeDisplay, setWaitTimeDisplay] = useState("00:00:00");
   const [signatureEnabled, setSignatureEnabled] = useState(true);
@@ -832,6 +835,21 @@ export default function OmniWhatsAppChat() {
             <Users className="h-3 w-3 mr-1" />
             Meus
           </Button>
+          
+          {/* New conversation button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => setNovoAtendimentoModalOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Novo atendimento</TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Conversation list */}
@@ -1193,6 +1211,25 @@ export default function OmniWhatsAppChat() {
         onEnviar={handleEnviarNotaInterna}
         agenteNome={selectedAtendimento?.agente?.nome}
       />
+
+      {/* New Atendimento Modal */}
+      {clinicaId && (
+        <NovoAtendimentoModal
+          open={novoAtendimentoModalOpen}
+          onOpenChange={setNovoAtendimentoModalOpen}
+          clinicaId={clinicaId}
+          onAtendimentoCriado={(atendimentoId) => {
+            fetchAtendimentos();
+            // Select the newly created atendimento
+            setTimeout(() => {
+              const newAtendimento = atendimentos.find(a => a.id === atendimentoId);
+              if (newAtendimento) {
+                setSelectedAtendimento(newAtendimento);
+              }
+            }, 500);
+          }}
+        />
+      )}
     </div>
   );
 }
