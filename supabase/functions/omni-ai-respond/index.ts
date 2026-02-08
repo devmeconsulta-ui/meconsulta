@@ -403,6 +403,8 @@ Deno.serve(async (req) => {
     if (toolCalls && toolCalls.length > 0 && agenteIA.permitir_agendamento) {
       console.log(`[AI] Processing ${toolCalls.length} tool calls for scheduling`);
       
+      const toolResults: { tool_call_id: string; role: string; content: string }[] = [];
+      
       for (const toolCall of toolCalls) {
         const functionName = toolCall.function?.name;
         let functionArgs: Record<string, any> = {};
@@ -437,11 +439,146 @@ Deno.serve(async (req) => {
           const actionResult = await actionResponse.json();
           console.log(`[AI] Action result:`, actionResult);
 
-          // Add tool result to conversation and call AI again for final response
-          if (actionResult.message) {
-            // Append the action result to response
-            respostaIA = actionResult.message;
+          // Store tool result for follow-up call
+          toolResults.push({
+            tool_call_id: toolCall.id,
+            role: "tool",
+            content: JSON.stringify(actionResult),
+          });
+        } else {
+          toolResults.push({
+            tool_call_id: toolCall.id,
+            role: "tool",
+            content: JSON.stringify({ success: false, error: "Action failed" }),
+          });
+        }
+      }
+      
+      // Make a follow-up call to the AI with the tool results so it can generate a proper response
+      if (toolResults.length > 0) {
+        console.log(`[AI] Making follow-up call with ${toolResults.length} tool results`);
+        
+        const followUpMessages = [
+          { role: "system", content: systemPrompt },
+          ...historicoMensagens.slice(-20),
+          aiMessage, // Include the assistant message with tool_calls
+          ...toolResults, // Include tool results
+        ];
+        
+        const followUpResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: modeloGateway,
+            messages: followUpMessages,
+            tools, // Keep tools available for multi-step actions
+            tool_choice: "auto",
+          }),
+        });
+        
+        if (followUpResponse.ok) {
+          const followUpData = await followUpResponse.json();
+          const followUpMessage = followUpData.choices?.[0]?.message;
+          
+          // Check if AI wants to call more tools (multi-step flow)
+          const moreToolCalls = followUpMessage?.tool_calls;
+          if (moreToolCalls && moreToolCalls.length > 0) {
+            console.log(`[AI] Follow-up requires ${moreToolCalls.length} more tool calls`);
+            
+            // Process additional tool calls recursively (limit to prevent infinite loops)
+            const maxDepth = 5;
+            let currentDepth = 0;
+            let currentMessage = followUpMessage;
+            let currentMessages = [...followUpMessages];
+            
+            while (currentMessage?.tool_calls && currentMessage.tool_calls.length > 0 && currentDepth < maxDepth) {
+              currentDepth++;
+              console.log(`[AI] Processing tool calls depth ${currentDepth}`);
+              
+              const nestedToolResults: { tool_call_id: string; role: string; content: string }[] = [];
+              
+              for (const nestedToolCall of currentMessage.tool_calls) {
+                const nestedFunctionName = nestedToolCall.function?.name;
+                let nestedFunctionArgs: Record<string, any> = {};
+                
+                try {
+                  nestedFunctionArgs = JSON.parse(nestedToolCall.function?.arguments || "{}");
+                } catch (e) {
+                  continue;
+                }
+                
+                console.log(`[AI] Nested action (depth ${currentDepth}): ${nestedFunctionName}`, nestedFunctionArgs);
+                
+                const nestedActionResponse = await fetch(`${SUPABASE_URL}/functions/v1/omni-ai-actions`, {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    action: nestedFunctionName,
+                    params: nestedFunctionArgs,
+                    clinica_id: clinica_id,
+                    contato_telefone: atendimento.contato?.telefone,
+                    atendimento_id: atendimento_id,
+                    agente_id: agenteIA.id,
+                  }),
+                });
+                
+                if (nestedActionResponse.ok) {
+                  const nestedResult = await nestedActionResponse.json();
+                  console.log(`[AI] Nested action result:`, nestedResult);
+                  nestedToolResults.push({
+                    tool_call_id: nestedToolCall.id,
+                    role: "tool",
+                    content: JSON.stringify(nestedResult),
+                  });
+                } else {
+                  nestedToolResults.push({
+                    tool_call_id: nestedToolCall.id,
+                    role: "tool",
+                    content: JSON.stringify({ success: false, error: "Action failed" }),
+                  });
+                }
+              }
+              
+              // Add current message and results to conversation
+              currentMessages = [...currentMessages, currentMessage, ...nestedToolResults];
+              
+              // Call AI again
+              const nextResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: modeloGateway,
+                  messages: currentMessages,
+                  tools,
+                  tool_choice: "auto",
+                }),
+              });
+              
+              if (nextResponse.ok) {
+                const nextData = await nextResponse.json();
+                currentMessage = nextData.choices?.[0]?.message;
+              } else {
+                break;
+              }
+            }
+            
+            // Use final message content
+            respostaIA = currentMessage?.content || respostaIA;
+          } else {
+            // No more tool calls, use the follow-up response
+            respostaIA = followUpMessage?.content || respostaIA;
           }
+        } else {
+          console.error("[AI] Follow-up call failed:", await followUpResponse.text());
         }
       }
     }
