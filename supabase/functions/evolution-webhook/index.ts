@@ -574,6 +574,44 @@ Deno.serve(async (req) => {
           console.log(`SEND_MESSAGE saved for atendimento ${atendimento.id}, content: ${conteudo?.substring(0, 50)}`);
         }
 
+        // ========== PAUSAR IA QUANDO HUMANO RESPONDE ==========
+        // Se uma mensagem foi enviada externamente (não pela nossa IA), 
+        // marcar como "humano assumiu" para a IA parar de responder
+        // Verificar se foi uma mensagem enviada pela IA (tem agente_nome) ou por humano
+        console.log("[AI-PAUSE] Checking if human sent this message...");
+        
+        // Buscar a conversa de IA ativa para este atendimento
+        const { data: conversaIA } = await supabase
+          .from("omni_ia_conversas")
+          .select("id, humano_assumiu, agente_id")
+          .eq("atendimento_id", atendimento.id)
+          .single();
+
+        if (conversaIA && !conversaIA.humano_assumiu) {
+          // Verificar configuração do agente
+          const { data: agenteConfig } = await supabase
+            .from("omni_ia_agentes")
+            .select("pausar_quando_humano_responde")
+            .eq("id", conversaIA.agente_id)
+            .single();
+
+          const deveParar = agenteConfig?.pausar_quando_humano_responde ?? true;
+
+          if (deveParar) {
+            // Marcar que humano assumiu - IA para de responder
+            await supabase
+              .from("omni_ia_conversas")
+              .update({
+                humano_assumiu: true,
+                humano_assumiu_em: new Date().toISOString(),
+                transferido_para_humano: true,
+              })
+              .eq("id", conversaIA.id);
+
+            console.log(`[AI-PAUSE] Human took over atendimento ${atendimento.id}, AI will stop responding`);
+          }
+        }
+
         break;
       }
 

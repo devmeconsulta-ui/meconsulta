@@ -2651,6 +2651,8 @@ export type Database = {
       omni_ia_agentes: {
         Row: {
           acoes_followup: Json | null
+          antecedencia_maxima_dias: number | null
+          antecedencia_minima_horas: number | null
           assinar_nome: boolean
           ativo: boolean
           avatar_url: string | null
@@ -2662,6 +2664,7 @@ export type Database = {
           descricao: string | null
           descricao_produto: string | null
           dividir_resposta: boolean
+          exigir_cpf: boolean | null
           fila_operacao_id: string | null
           fila_transferencia_id: string | null
           finalidade: string
@@ -2670,19 +2673,24 @@ export type Database = {
           modelo: string
           nome: string
           palavras_chave_transferencia: string[] | null
+          pausar_quando_humano_responde: boolean | null
           permitir_agendamento: boolean | null
+          permitir_cancelamento: boolean | null
           permitir_lembretes: boolean
           produto: string | null
           restringir_temas: boolean
           site_url: string | null
           tempo_resposta: number
           timezone: string
+          tipos_atendimento: string[] | null
           transferir_para_humano: boolean
           updated_at: string
           usar_emojis: boolean
         }
         Insert: {
           acoes_followup?: Json | null
+          antecedencia_maxima_dias?: number | null
+          antecedencia_minima_horas?: number | null
           assinar_nome?: boolean
           ativo?: boolean
           avatar_url?: string | null
@@ -2694,6 +2702,7 @@ export type Database = {
           descricao?: string | null
           descricao_produto?: string | null
           dividir_resposta?: boolean
+          exigir_cpf?: boolean | null
           fila_operacao_id?: string | null
           fila_transferencia_id?: string | null
           finalidade?: string
@@ -2702,19 +2711,24 @@ export type Database = {
           modelo?: string
           nome: string
           palavras_chave_transferencia?: string[] | null
+          pausar_quando_humano_responde?: boolean | null
           permitir_agendamento?: boolean | null
+          permitir_cancelamento?: boolean | null
           permitir_lembretes?: boolean
           produto?: string | null
           restringir_temas?: boolean
           site_url?: string | null
           tempo_resposta?: number
           timezone?: string
+          tipos_atendimento?: string[] | null
           transferir_para_humano?: boolean
           updated_at?: string
           usar_emojis?: boolean
         }
         Update: {
           acoes_followup?: Json | null
+          antecedencia_maxima_dias?: number | null
+          antecedencia_minima_horas?: number | null
           assinar_nome?: boolean
           ativo?: boolean
           avatar_url?: string | null
@@ -2726,6 +2740,7 @@ export type Database = {
           descricao?: string | null
           descricao_produto?: string | null
           dividir_resposta?: boolean
+          exigir_cpf?: boolean | null
           fila_operacao_id?: string | null
           fila_transferencia_id?: string | null
           finalidade?: string
@@ -2734,13 +2749,16 @@ export type Database = {
           modelo?: string
           nome?: string
           palavras_chave_transferencia?: string[] | null
+          pausar_quando_humano_responde?: boolean | null
           permitir_agendamento?: boolean | null
+          permitir_cancelamento?: boolean | null
           permitir_lembretes?: boolean
           produto?: string | null
           restringir_temas?: boolean
           site_url?: string | null
           tempo_resposta?: number
           timezone?: string
+          tipos_atendimento?: string[] | null
           transferir_para_humano?: boolean
           updated_at?: string
           usar_emojis?: boolean
@@ -2776,6 +2794,8 @@ export type Database = {
           created_at: string
           followup_executados: Json | null
           followup_pendentes: Json | null
+          humano_assumiu: boolean | null
+          humano_assumiu_em: string | null
           id: string
           interacoes_count: number
           mensagens: Json
@@ -2790,6 +2810,8 @@ export type Database = {
           created_at?: string
           followup_executados?: Json | null
           followup_pendentes?: Json | null
+          humano_assumiu?: boolean | null
+          humano_assumiu_em?: string | null
           id?: string
           interacoes_count?: number
           mensagens?: Json
@@ -2804,6 +2826,8 @@ export type Database = {
           created_at?: string
           followup_executados?: Json | null
           followup_pendentes?: Json | null
+          humano_assumiu?: boolean | null
+          humano_assumiu_em?: string | null
           id?: string
           interacoes_count?: number
           mensagens?: Json

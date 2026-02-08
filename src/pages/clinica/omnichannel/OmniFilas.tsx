@@ -779,64 +779,7 @@ function EditarFilaForm({
     ativo: fila.ativo,
   });
 
-  // Agendamento automático config
-  const [agendamentoConfig, setAgendamentoConfig] = useState({
-    permitir_agendamento: false,
-    tipos_atendimento: ["particular"] as string[],
-    exigir_cpf: true,
-    antecedencia_minima_horas: 2,
-    antecedencia_maxima_dias: 30,
-    permitir_cancelamento: true,
-    usar_ia: true,
-  });
-
-  const [loadingAgendamento, setLoadingAgendamento] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  // Load agendamento config
-  useEffect(() => {
-    let isMounted = true;
-    
-    const loadAgendamentoConfig = async () => {
-      try {
-        const { data, error } = await (supabase as any)
-          .from("omni_ia_agendamentos_config")
-          .select("*")
-          .eq("fila_id", fila.id)
-          .maybeSingle();
-
-        if (error) {
-          console.error("Erro ao carregar config de agendamento:", error);
-          if (isMounted) setLoadingAgendamento(false);
-          return;
-        }
-
-        if (data && isMounted) {
-          const configData = data as any;
-          setAgendamentoConfig({
-            permitir_agendamento: configData.permitir_agendamento || false,
-            tipos_atendimento: configData.tipos_atendimento || ["particular"],
-            exigir_cpf: configData.exigir_cpf ?? true,
-            antecedencia_minima_horas: configData.antecedencia_minima_horas || 2,
-            antecedencia_maxima_dias: configData.antecedencia_maxima_dias || 30,
-            permitir_cancelamento: configData.permitir_cancelamento ?? true,
-            usar_ia: true,
-          });
-        }
-      } catch (error) {
-        console.error("Erro ao carregar config de agendamento:", error);
-        toast.error("Erro ao carregar configurações de agendamento");
-      } finally {
-        if (isMounted) setLoadingAgendamento(false);
-      }
-    };
-
-    loadAgendamentoConfig();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [fila.id]);
 
   const CORES_FILA = [
     "#3b82f6", "#10b981", "#f59e0b", "#ef4444",
@@ -865,76 +808,15 @@ function EditarFilaForm({
       ativo: formData.ativo,
     });
 
-    // Save agendamento config
-    try {
-      const { data: existingConfig, error: fetchError } = await (supabase as any)
-        .from("omni_ia_agendamentos_config")
-        .select("id")
-        .eq("fila_id", fila.id)
-        .maybeSingle();
-
-      if (fetchError) {
-        console.error("Erro ao buscar config existente:", fetchError);
-        toast.error("Erro ao salvar configurações de agendamento");
-        setSaving(false);
-        return;
-      }
-
-      if (existingConfig) {
-        const { error: updateError } = await (supabase as any)
-          .from("omni_ia_agendamentos_config")
-          .update({
-            permitir_agendamento: agendamentoConfig.permitir_agendamento,
-            tipos_atendimento: agendamentoConfig.tipos_atendimento,
-            exigir_cpf: agendamentoConfig.exigir_cpf,
-            antecedencia_minima_horas: agendamentoConfig.antecedencia_minima_horas,
-            antecedencia_maxima_dias: agendamentoConfig.antecedencia_maxima_dias,
-            permitir_cancelamento: agendamentoConfig.permitir_cancelamento,
-          })
-          .eq("id", existingConfig.id);
-          
-        if (updateError) {
-          console.error("Erro ao atualizar config:", updateError);
-          toast.error("Erro ao atualizar configurações");
-        }
-      } else {
-        const { error: insertError } = await (supabase as any)
-          .from("omni_ia_agendamentos_config")
-          .insert({
-            fila_id: fila.id,
-            clinica_id: fila.clinica_id,
-            agente_id: null,
-            permitir_agendamento: agendamentoConfig.permitir_agendamento,
-            tipos_atendimento: agendamentoConfig.tipos_atendimento,
-            exigir_cpf: agendamentoConfig.exigir_cpf,
-            antecedencia_minima_horas: agendamentoConfig.antecedencia_minima_horas,
-            antecedencia_maxima_dias: agendamentoConfig.antecedencia_maxima_dias,
-            permitir_cancelamento: agendamentoConfig.permitir_cancelamento,
-          });
-          
-        if (insertError) {
-          console.error("Erro ao inserir config:", insertError);
-          toast.error("Erro ao criar configurações");
-        }
-      }
-    } catch (error) {
-      console.error("Erro ao salvar config de agendamento:", error);
-      toast.error("Erro inesperado ao salvar configurações");
-    }
-
     setSaving(false);
   };
 
   return (
     <Tabs defaultValue="geral" className="pt-4">
-      <TabsList className="grid w-full grid-cols-4">
+      <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="geral">Geral</TabsTrigger>
         <TabsTrigger value="mensagens">Mensagens</TabsTrigger>
         <TabsTrigger value="horario">Horário</TabsTrigger>
-        <TabsTrigger value="agendamento" className="flex items-center gap-1">
-          <Calendar className="h-3 w-3" />
-          Agendamento
-        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="geral" className="space-y-4 pt-4">
@@ -1107,127 +989,6 @@ function EditarFilaForm({
             ))}
           </div>
         </div>
-      </TabsContent>
-
-      <TabsContent value="agendamento" className="space-y-4 pt-4">
-        {loadingAgendamento ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Bot className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">Agendamento Automático por IA</p>
-                  <p className="text-sm text-muted-foreground">
-                    Permitir que a IA agende consultas automaticamente nesta fila
-                  </p>
-                </div>
-              </div>
-              <Switch
-                checked={agendamentoConfig.permitir_agendamento}
-                onCheckedChange={(checked) =>
-                  setAgendamentoConfig({ ...agendamentoConfig, permitir_agendamento: checked })
-                }
-              />
-            </div>
-
-            {agendamentoConfig.permitir_agendamento && (
-              <div className="space-y-4 animate-in fade-in-50 slide-in-from-top-2">
-                <div>
-                  <Label>Tipos de Atendimento Permitidos</Label>
-                  <div className="flex gap-2 mt-2">
-                    {["particular", "convenio"].map((tipo) => (
-                      <button
-                        key={tipo}
-                        type="button"
-                        className={`px-4 py-2 rounded-full border text-sm capitalize ${
-                          agendamentoConfig.tipos_atendimento.includes(tipo)
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-muted border-border"
-                        }`}
-                        onClick={() => {
-                          const tipos = agendamentoConfig.tipos_atendimento.includes(tipo)
-                            ? agendamentoConfig.tipos_atendimento.filter((t) => t !== tipo)
-                            : [...agendamentoConfig.tipos_atendimento, tipo];
-                          setAgendamentoConfig({ ...agendamentoConfig, tipos_atendimento: tipos });
-                        }}
-                      >
-                        {tipo === "particular" ? "Particular" : "Convênio"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Exigir CPF do Paciente</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Solicitar CPF antes de confirmar o agendamento
-                    </p>
-                  </div>
-                  <Switch
-                    checked={agendamentoConfig.exigir_cpf}
-                    onCheckedChange={(checked) =>
-                      setAgendamentoConfig({ ...agendamentoConfig, exigir_cpf: checked })
-                    }
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Antecedência Mínima (horas)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={agendamentoConfig.antecedencia_minima_horas}
-                      onChange={(e) =>
-                        setAgendamentoConfig({
-                          ...agendamentoConfig,
-                          antecedencia_minima_horas: parseInt(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label>Antecedência Máxima (dias)</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={365}
-                      value={agendamentoConfig.antecedencia_maxima_dias}
-                      onChange={(e) =>
-                        setAgendamentoConfig({
-                          ...agendamentoConfig,
-                          antecedencia_maxima_dias: parseInt(e.target.value) || 30,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Permitir Cancelamento</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Paciente pode cancelar consulta via WhatsApp
-                    </p>
-                  </div>
-                  <Switch
-                    checked={agendamentoConfig.permitir_cancelamento}
-                    onCheckedChange={(checked) =>
-                      setAgendamentoConfig({ ...agendamentoConfig, permitir_cancelamento: checked })
-                    }
-                  />
-                </div>
-              </div>
-            )}
-          </>
-        )}
       </TabsContent>
 
       <div className="flex justify-end gap-2 pt-4">

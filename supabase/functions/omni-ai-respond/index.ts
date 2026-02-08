@@ -176,10 +176,10 @@ Deno.serve(async (req) => {
       conversa = novaConversa;
     }
 
-    // Verificar se já foi transferido para humano
-    if (conversa.transferido_para_humano) {
-      console.log("[AI] Conversa already transferred to human");
-      return new Response(JSON.stringify({ ai_active: false, reason: "transferred" }), {
+    // Verificar se já foi transferido para humano ou se humano assumiu
+    if (conversa.transferido_para_humano || conversa.humano_assumiu) {
+      console.log("[AI] Conversa already handled by human, AI stopping");
+      return new Response(JSON.stringify({ ai_active: false, reason: "human_takeover" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
