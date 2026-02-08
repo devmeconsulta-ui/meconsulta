@@ -302,49 +302,37 @@ Deno.serve(async (req) => {
     };
 
     // Send typing indicator to WhatsApp (para o cliente ver "escrevendo...")
-    const sendWhatsAppTyping = async (isTyping: boolean) => {
+    // Note: Using fire-and-forget pattern to avoid blocking
+    const sendWhatsAppTyping = (isTyping: boolean) => {
       if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !instanceName || !clientPhone) {
         return;
       }
       
-      try {
-        // Evolution API presence endpoint
-        const response = await fetch(
-          `${EVOLUTION_API_URL}/chat/updatePresence/${instanceName}`,
-          {
-            method: "POST",
-            headers: {
-              "apikey": EVOLUTION_API_KEY,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              number: clientPhone,
-              presence: isTyping ? "composing" : "paused",
-            }),
-          }
-        );
-        
-        if (response.ok) {
-          console.log(`[AI] WhatsApp typing indicator sent: ${isTyping ? "composing" : "paused"}`);
-        } else {
-          const errText = await response.text();
-          console.log(`[AI] WhatsApp typing failed: ${response.status} - ${errText}`);
+      // Fire-and-forget - don't await
+      fetch(
+        `${EVOLUTION_API_URL}/chat/updatePresence/${instanceName}`,
+        {
+          method: "POST",
+          headers: {
+            "apikey": EVOLUTION_API_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            number: clientPhone,
+            presence: isTyping ? "composing" : "paused",
+          }),
         }
-      } catch (err) {
-        console.error("[AI] Error sending WhatsApp typing:", err);
-      }
+      ).catch(() => {}); // Ignore errors silently
     };
 
-    // Start typing indicators (both internal and WhatsApp)
-    await Promise.all([
-      broadcastTypingInternal(true),
-      sendWhatsAppTyping(true),
-    ]);
+    // Start typing indicators (fire-and-forget, non-blocking)
+    broadcastTypingInternal(true);
+    sendWhatsAppTyping(true);
 
-    // Aplicar tempo de resposta (delay) se configurado
-    if (agenteIA.tempo_resposta && agenteIA.tempo_resposta > 0) {
-      console.log(`[AI] Waiting ${agenteIA.tempo_resposta} seconds before responding...`);
-      await new Promise(resolve => setTimeout(resolve, agenteIA.tempo_resposta * 1000));
+    // Aplicar tempo de resposta (delay) APENAS se > 0 e de forma não-bloqueante para a primeira resposta
+    const tempoResposta = agenteIA.tempo_resposta || 0;
+    if (tempoResposta > 0) {
+      console.log(`[AI] Will apply ${tempoResposta}s delay before sending response`);
     }
 
     // Build tools for scheduling if enabled
@@ -367,11 +355,9 @@ Deno.serve(async (req) => {
       }),
     });
 
-    // Stop typing indicators after AI responds
-    await Promise.all([
-      broadcastTypingInternal(false),
-      sendWhatsAppTyping(false),
-    ]);
+    // Stop typing indicators (fire-and-forget)
+    broadcastTypingInternal(false);
+    sendWhatsAppTyping(false);
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
