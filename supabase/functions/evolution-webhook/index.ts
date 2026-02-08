@@ -575,10 +575,25 @@ Deno.serve(async (req) => {
         }
 
         // ========== PAUSAR IA QUANDO HUMANO RESPONDE ==========
-        // Se uma mensagem foi enviada externamente (não pela nossa IA), 
-        // marcar como "humano assumiu" para a IA parar de responder
-        // Verificar se foi uma mensagem enviada pela IA (tem agente_nome) ou por humano
+        // Verificar se essa mensagem foi enviada pela nossa IA ou por um humano
+        // A IA salva mensagens com agente_nome preenchido - se não tiver, foi humano
         console.log("[AI-PAUSE] Checking if human sent this message...");
+        
+        // Pequeno delay para garantir que a mensagem da IA já foi salva (se for da IA)
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Verificar se a mensagem que acabou de ser salva tem agente_nome (enviada pela IA)
+        const { data: msgSalva } = await supabase
+          .from("omni_mensagens")
+          .select("id, agente_nome")
+          .eq("whatsapp_message_id", messageId)
+          .single();
+        
+        // Se a mensagem tem agente_nome, foi enviada pela IA - não marcar como humano
+        if (msgSalva?.agente_nome) {
+          console.log("[AI-PAUSE] Message was sent by AI agent, not marking as human takeover");
+          break;
+        }
         
         // Buscar a conversa de IA ativa para este atendimento
         const { data: conversaIA } = await supabase

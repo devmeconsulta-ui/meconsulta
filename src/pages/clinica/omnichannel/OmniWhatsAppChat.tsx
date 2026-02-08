@@ -29,6 +29,7 @@ import {
   XCircle,
   Bell,
   User,
+  Bot,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -285,6 +286,7 @@ export default function OmniWhatsAppChat() {
   const [activeTab, setActiveTab] = useState<"all" | "waiting" | "mine">("all");
   const [waitTimeDisplay, setWaitTimeDisplay] = useState("00:00:00");
   const [signatureEnabled, setSignatureEnabled] = useState(true);
+  const [iaConversaStatus, setIaConversaStatus] = useState<{ humano_assumiu: boolean; id: string } | null>(null);
   
   // Local state for atendimentos
   const [atendimentos, setAtendimentos] = useState<OmniAtendimento[]>([]);
@@ -642,6 +644,50 @@ export default function OmniWhatsAppChat() {
     );
   };
 
+  // Fetch IA conversation status when atendimento changes
+  useEffect(() => {
+    const fetchIaConversaStatus = async () => {
+      if (!selectedAtendimento?.id) {
+        setIaConversaStatus(null);
+        return;
+      }
+      
+      const { data } = await supabase
+        .from("omni_ia_conversas")
+        .select("id, humano_assumiu")
+        .eq("atendimento_id", selectedAtendimento.id)
+        .single();
+      
+      setIaConversaStatus(data || null);
+    };
+    
+    fetchIaConversaStatus();
+  }, [selectedAtendimento?.id]);
+
+  const handleReativarIA = async () => {
+    if (!iaConversaStatus?.id) {
+      toast.error("Não há conversa de IA para reativar");
+      return;
+    }
+
+    try {
+      await supabase
+        .from("omni_ia_conversas")
+        .update({
+          humano_assumiu: false,
+          humano_assumiu_em: null,
+          transferido_para_humano: false,
+        })
+        .eq("id", iaConversaStatus.id);
+
+      setIaConversaStatus(prev => prev ? { ...prev, humano_assumiu: false } : null);
+      toast.success("IA reativada! Ela voltará a responder na próxima mensagem do cliente.");
+    } catch (error) {
+      console.error("Error reactivating AI:", error);
+      toast.error("Erro ao reativar IA");
+    }
+  };
+
   const handleScrollToMessage = (messageId: string) => {
     const element = document.getElementById(`msg-${messageId}`);
     if (element) {
@@ -831,6 +877,12 @@ export default function OmniWhatsAppChat() {
                       <DropdownMenuItem onClick={() => setNotaInternaModalOpen(true)}>
                         <Bell className="h-4 w-4 mr-2" />
                         Notificar Agente
+                      </DropdownMenuItem>
+                    )}
+                    {iaConversaStatus?.humano_assumiu && (
+                      <DropdownMenuItem onClick={handleReativarIA}>
+                        <Bot className="h-4 w-4 mr-2" />
+                        Reativar IA
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
