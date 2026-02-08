@@ -98,6 +98,16 @@ interface AcaoFollowUp {
   ativa: boolean;
 }
 
+interface AgendamentoConfig {
+  permitir_agendamento: boolean;
+  permitir_cancelamento: boolean;
+  pausar_quando_humano_responde: boolean;
+  tipos_atendimento: string[];
+  exigir_cpf: boolean;
+  antecedencia_minima_horas: number;
+  antecedencia_maxima_dias: number;
+}
+
 interface AgenteIA {
   id: string;
   nome: string;
@@ -125,6 +135,8 @@ interface AgenteIA {
   acoes_followup: AcaoFollowUp[];
   palavras_chave_transferencia: string[];
   fila_transferencia: string;
+  // Agendamento config
+  agendamento: AgendamentoConfig;
 }
 
 interface Treinamento {
@@ -260,6 +272,15 @@ export default function OmniIA() {
             acoes_followup: (a.acoes_followup || []) as AcaoFollowUp[],
             palavras_chave_transferencia: a.palavras_chave_transferencia || [],
             fila_transferencia: a.fila_transferencia_id || "",
+            agendamento: {
+              permitir_agendamento: a.permitir_agendamento || false,
+              permitir_cancelamento: a.permitir_cancelamento ?? true,
+              pausar_quando_humano_responde: a.pausar_quando_humano_responde ?? true,
+              tipos_atendimento: a.tipos_atendimento || ["particular"],
+              exigir_cpf: a.exigir_cpf ?? true,
+              antecedencia_minima_horas: a.antecedencia_minima_horas || 2,
+              antecedencia_maxima_dias: a.antecedencia_maxima_dias || 30,
+            },
           }));
           setAgentes(mappedAgentes);
           setSelectedAgente(mappedAgentes[0]);
@@ -329,7 +350,16 @@ export default function OmniIA() {
       transferir_para_humano: data.transferir_para_humano, usar_emojis: data.usar_emojis, assinar_nome: data.assinar_nome,
       restringir_temas: data.restringir_temas, dividir_resposta: data.dividir_resposta, permitir_lembretes: data.permitir_lembretes,
       busca_treinamento: data.busca_treinamento, timezone: data.timezone, tempo_resposta: data.tempo_resposta,
-      limite_interacoes: data.limite_interacoes, acoes_followup: [], palavras_chave_transferencia: [], fila_transferencia: ""
+      limite_interacoes: data.limite_interacoes, acoes_followup: [], palavras_chave_transferencia: [], fila_transferencia: "",
+      agendamento: {
+        permitir_agendamento: false,
+        permitir_cancelamento: true,
+        pausar_quando_humano_responde: true,
+        tipos_atendimento: ["particular"],
+        exigir_cpf: true,
+        antecedencia_minima_horas: 2,
+        antecedencia_maxima_dias: 30,
+      },
     };
 
     setAgentes(prev => [novoAgente, ...prev]);
@@ -350,6 +380,8 @@ export default function OmniIA() {
 
   const handleSalvarAgente = async () => {
     if (!selectedAgente) return;
+    
+    // Salvar dados do agente
     await supabase.from("omni_ia_agentes").update({
       nome: selectedAgente.nome, descricao: selectedAgente.descricao, modelo: selectedAgente.modelo,
       comunicacao: selectedAgente.comunicacao, comportamento: selectedAgente.comportamento,
@@ -362,7 +394,16 @@ export default function OmniIA() {
       limite_interacoes: selectedAgente.limite_interacoes, acoes_followup: JSON.parse(JSON.stringify(selectedAgente.acoes_followup)),
       palavras_chave_transferencia: selectedAgente.palavras_chave_transferencia,
       fila_transferencia_id: selectedAgente.fila_transferencia || null,
+      // Campos de agendamento
+      permitir_agendamento: selectedAgente.agendamento.permitir_agendamento,
+      permitir_cancelamento: selectedAgente.agendamento.permitir_cancelamento,
+      pausar_quando_humano_responde: selectedAgente.agendamento.pausar_quando_humano_responde,
+      tipos_atendimento: selectedAgente.agendamento.tipos_atendimento,
+      exigir_cpf: selectedAgente.agendamento.exigir_cpf,
+      antecedencia_minima_horas: selectedAgente.agendamento.antecedencia_minima_horas,
+      antecedencia_maxima_dias: selectedAgente.agendamento.antecedencia_maxima_dias,
     }).eq("id", selectedAgente.id);
+    
     setAgentes(prev => prev.map(a => a.id === selectedAgente.id ? selectedAgente : a));
     toast.success("Alterações salvas!");
   };
@@ -555,6 +596,7 @@ export default function OmniIA() {
     { id: "perfil", label: "Perfil", icon: User },
     { id: "trabalho", label: "Trabalho", icon: Briefcase },
     { id: "treinamentos", label: "Treinamentos", icon: GraduationCap },
+    { id: "agendamento", label: "Agendamento", icon: Calendar },
     { id: "intencoes", label: "Intenções", icon: Target },
     { id: "integracoes", label: "Integrações", icon: Link2 },
     { id: "configuracoes", label: "Configurações", icon: Settings }
@@ -1200,6 +1242,232 @@ export default function OmniIA() {
                           </div>
                         </TabsContent>
                       </Tabs>
+                    </div>
+                  )}
+
+                  {/* Seção: Agendamento Automático */}
+                  {activeSection === "agendamento" && (
+                    <div className="space-y-6">
+                      <h2 className="text-xl font-semibold">Agendamento Automático</h2>
+                      <p className="text-muted-foreground">
+                        Configure a IA para agendar consultas automaticamente durante o atendimento.
+                      </p>
+                      
+                      {/* Toggle principal */}
+                      <Card className="border-2 border-primary/20">
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="p-3 rounded-lg bg-primary/10">
+                                <Calendar className="h-6 w-6 text-primary" />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-lg">Permitir Agendamento por IA</h3>
+                                <p className="text-muted-foreground">
+                                  A IA poderá buscar horários e agendar consultas automaticamente
+                                </p>
+                              </div>
+                            </div>
+                            <Switch
+                              checked={selectedAgente?.agendamento.permitir_agendamento || false}
+                              onCheckedChange={(checked) =>
+                                setSelectedAgente(prev => prev ? { 
+                                  ...prev, 
+                                  agendamento: { ...prev.agendamento, permitir_agendamento: checked }
+                                } : null)
+                              }
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Toggle pausar quando humano responde */}
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="p-3 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                                <Users className="h-6 w-6 text-amber-600" />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold">Pausar IA quando Humano Responder</h3>
+                                <p className="text-muted-foreground text-sm">
+                                  Se um atendente responder pelo WhatsApp Web, telefone ou sistema, a IA para imediatamente
+                                </p>
+                              </div>
+                            </div>
+                            <Switch
+                              checked={selectedAgente?.agendamento.pausar_quando_humano_responde ?? true}
+                              onCheckedChange={(checked) =>
+                                setSelectedAgente(prev => prev ? { 
+                                  ...prev, 
+                                  agendamento: { ...prev.agendamento, pausar_quando_humano_responde: checked }
+                                } : null)
+                              }
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {selectedAgente?.agendamento.permitir_agendamento && (
+                        <div className="space-y-4 animate-in fade-in-50 slide-in-from-top-2">
+                          {/* Tipos de atendimento */}
+                          <Card>
+                            <CardContent className="p-6 space-y-4">
+                              <div>
+                                <Label className="text-base font-medium">Tipos de Atendimento Permitidos</Label>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                  Quais tipos de consulta a IA pode agendar
+                                </p>
+                                <div className="flex gap-3">
+                                  {[
+                                    { id: "particular", label: "Particular", icon: "💳" },
+                                    { id: "convenio", label: "Convênio", icon: "🏥" },
+                                  ].map((tipo) => (
+                                    <button
+                                      key={tipo.id}
+                                      type="button"
+                                      className={cn(
+                                        "flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all",
+                                        selectedAgente.agendamento.tipos_atendimento.includes(tipo.id)
+                                          ? "border-primary bg-primary/10 text-primary"
+                                          : "border-border bg-muted hover:border-primary/50"
+                                      )}
+                                      onClick={() => {
+                                        const tipos = selectedAgente.agendamento.tipos_atendimento;
+                                        const novosTipos = tipos.includes(tipo.id)
+                                          ? tipos.filter((t: string) => t !== tipo.id)
+                                          : [...tipos, tipo.id];
+                                        setSelectedAgente(prev => prev ? { 
+                                          ...prev, 
+                                          agendamento: { ...prev.agendamento, tipos_atendimento: novosTipos }
+                                        } : null);
+                                      }}
+                                    >
+                                      <span>{tipo.icon}</span>
+                                      <span className="font-medium">{tipo.label}</span>
+                                      {selectedAgente.agendamento.tipos_atendimento.includes(tipo.id) && (
+                                        <Check className="w-4 h-4" />
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          {/* Configurações adicionais */}
+                          <Card>
+                            <CardContent className="p-6 space-y-6">
+                              <div className="flex items-center justify-between py-3 border-b">
+                                <div>
+                                  <span className="font-medium">Exigir CPF para agendamento</span>
+                                  <p className="text-sm text-muted-foreground">
+                                    Solicitar CPF antes de confirmar o agendamento
+                                  </p>
+                                </div>
+                                <Switch
+                                  checked={selectedAgente.agendamento.exigir_cpf}
+                                  onCheckedChange={(checked) =>
+                                    setSelectedAgente(prev => prev ? { 
+                                      ...prev, 
+                                      agendamento: { ...prev.agendamento, exigir_cpf: checked }
+                                    } : null)
+                                  }
+                                />
+                              </div>
+
+                              <div className="flex items-center justify-between py-3 border-b">
+                                <div>
+                                  <span className="font-medium">Permitir cancelamento por IA</span>
+                                  <p className="text-sm text-muted-foreground">
+                                    A IA pode cancelar consultas a pedido do paciente
+                                  </p>
+                                </div>
+                                <Switch
+                                  checked={selectedAgente.agendamento.permitir_cancelamento}
+                                  onCheckedChange={(checked) =>
+                                    setSelectedAgente(prev => prev ? { 
+                                      ...prev, 
+                                      agendamento: { ...prev.agendamento, permitir_cancelamento: checked }
+                                    } : null)
+                                  }
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-6 py-3">
+                                <div>
+                                  <Label>Antecedência mínima</Label>
+                                  <p className="text-sm text-muted-foreground mb-2">
+                                    Tempo mínimo para agendar antes da consulta
+                                  </p>
+                                  <Select
+                                    value={String(selectedAgente.agendamento.antecedencia_minima_horas)}
+                                    onValueChange={(v) =>
+                                      setSelectedAgente(prev => prev ? { 
+                                        ...prev, 
+                                        agendamento: { ...prev.agendamento, antecedencia_minima_horas: Number(v) }
+                                      } : null)
+                                    }
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="1">1 hora</SelectItem>
+                                      <SelectItem value="2">2 horas</SelectItem>
+                                      <SelectItem value="4">4 horas</SelectItem>
+                                      <SelectItem value="12">12 horas</SelectItem>
+                                      <SelectItem value="24">24 horas</SelectItem>
+                                      <SelectItem value="48">48 horas</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div>
+                                  <Label>Antecedência máxima</Label>
+                                  <p className="text-sm text-muted-foreground mb-2">
+                                    Limite máximo de dias para agendar no futuro
+                                  </p>
+                                  <Select
+                                    value={String(selectedAgente.agendamento.antecedencia_maxima_dias)}
+                                    onValueChange={(v) =>
+                                      setSelectedAgente(prev => prev ? { 
+                                        ...prev, 
+                                        agendamento: { ...prev.agendamento, antecedencia_maxima_dias: Number(v) }
+                                      } : null)
+                                    }
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="7">7 dias</SelectItem>
+                                      <SelectItem value="14">14 dias</SelectItem>
+                                      <SelectItem value="30">30 dias</SelectItem>
+                                      <SelectItem value="60">60 dias</SelectItem>
+                                      <SelectItem value="90">90 dias</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <div className="flex justify-end">
+                            <Button onClick={handleSalvarAgente} className="bg-emerald-500 hover:bg-emerald-600">
+                              Salvar Configurações
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {!selectedAgente?.agendamento.permitir_agendamento && (
+                        <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                          <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                          <p>Ative o agendamento automático para configurar as opções</p>
+                        </div>
+                      )}
                     </div>
                   )}
 
