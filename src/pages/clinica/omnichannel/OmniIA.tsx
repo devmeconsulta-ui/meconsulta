@@ -419,57 +419,112 @@ export default function OmniIA() {
   };
 
   // Treinamentos handlers
-  const handleAdicionarTreinamento = (tipo: Treinamento["tipo"], conteudo: string) => {
+  const handleAdicionarTreinamento = async (tipo: Treinamento["tipo"], conteudo: string) => {
     if (!conteudo.trim()) {
       toast.error("Digite o conteúdo do treinamento");
       return;
     }
     
-    setTreinamentos(prev => [...prev, {
-      id: Math.random().toString(),
-      tipo,
-      conteudo,
-      status: "pendente",
-      created_at: new Date().toISOString()
-    }]);
+    if (!selectedAgente?.id || !clinicaId) {
+      toast.error("Selecione um agente primeiro");
+      return;
+    }
+
+    // Save to database
+    const { data, error } = await supabase
+      .from("omni_ia_treinamentos")
+      .insert({
+        agente_id: selectedAgente.id,
+        clinica_id: clinicaId,
+        tipo,
+        conteudo,
+        status: "pendente",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error saving training:", error);
+      toast.error("Erro ao salvar treinamento");
+      return;
+    }
+
+    setTreinamentos(prev => [data as Treinamento, ...prev]);
     
     setNovoTreinamento("");
     setNovoWebsiteUrl("");
     setNovoVideoUrl("");
     toast.success("Treinamento cadastrado! Processando...");
     
-    // Simulate training
-    setTimeout(() => {
+    // Simulate training completion and update in database
+    setTimeout(async () => {
+      await supabase
+        .from("omni_ia_treinamentos")
+        .update({ status: "treinado" })
+        .eq("id", data.id);
+
       setTreinamentos(prev => prev.map(t => 
-        t.status === "pendente" ? { ...t, status: "treinado" as const } : t
+        t.id === data.id ? { ...t, status: "treinado" as const } : t
       ));
       toast.success("Treinamento concluído!");
     }, 2000);
   };
 
-  const handleEditTreinamento = () => {
+  const handleEditTreinamento = async () => {
     if (!editTreinamento) return;
+
+    const { error } = await supabase
+      .from("omni_ia_treinamentos")
+      .update({ conteudo: editTreinamento.conteudo })
+      .eq("id", editTreinamento.id);
+
+    if (error) {
+      toast.error("Erro ao atualizar treinamento");
+      return;
+    }
+
     setTreinamentos(prev => prev.map(t => t.id === editTreinamento.id ? editTreinamento : t));
     setEditTreinamentoOpen(false);
     setEditTreinamento(null);
     toast.success("Treinamento atualizado!");
   };
 
-  const handleDeleteTreinamento = () => {
+  const handleDeleteTreinamento = async () => {
     if (!deleteTreinamentoId) return;
+
+    const { error } = await supabase
+      .from("omni_ia_treinamentos")
+      .delete()
+      .eq("id", deleteTreinamentoId);
+
+    if (error) {
+      toast.error("Erro ao excluir treinamento");
+      return;
+    }
+
     setTreinamentos(prev => prev.filter(t => t.id !== deleteTreinamentoId));
     setDeleteTreinamentoOpen(false);
     setDeleteTreinamentoId(null);
     toast.success("Treinamento excluído!");
   };
 
-  const handleRetrainTreinamento = (id: string) => {
+  const handleRetrainTreinamento = async (id: string) => {
+    await supabase
+      .from("omni_ia_treinamentos")
+      .update({ status: "pendente" })
+      .eq("id", id);
+
     setTreinamentos(prev => prev.map(t => 
       t.id === id ? { ...t, status: "pendente" as const } : t
     ));
     toast.info("Reprocessando treinamento...");
     
-    setTimeout(() => {
+    setTimeout(async () => {
+      await supabase
+        .from("omni_ia_treinamentos")
+        .update({ status: "treinado" })
+        .eq("id", id);
+
       setTreinamentos(prev => prev.map(t => 
         t.id === id ? { ...t, status: "treinado" as const } : t
       ));
@@ -478,40 +533,98 @@ export default function OmniIA() {
   };
 
   // Intenções handlers
-  const handleCriarIntencao = () => {
+  const handleCriarIntencao = async () => {
     if (!novaIntencao.nome.trim() || !novaIntencao.webhook_url.trim()) {
       toast.error("Preencha nome e URL do webhook");
       return;
     }
     
-    setIntencoes(prev => [...prev, {
-      id: Math.random().toString(),
-      ...novaIntencao,
-      ativa: true
-    }]);
-    
+    if (!selectedAgente?.id || !clinicaId) {
+      toast.error("Selecione um agente primeiro");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("omni_ia_intencoes")
+      .insert({
+        agente_id: selectedAgente.id,
+        clinica_id: clinicaId,
+        nome: novaIntencao.nome,
+        webhook_url: novaIntencao.webhook_url,
+        descricao: novaIntencao.descricao,
+        ativa: true,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error saving intent:", error);
+      toast.error("Erro ao salvar intenção");
+      return;
+    }
+
+    setIntencoes(prev => [data as Intencao, ...prev]);
     setNovaIntencaoOpen(false);
     setNovaIntencao({ nome: "", webhook_url: "", descricao: "" });
     toast.success("Intenção criada com sucesso!");
   };
 
-  const handleEditIntencaoSave = () => {
+  const handleEditIntencaoSave = async () => {
     if (!editIntencao) return;
+
+    const { error } = await supabase
+      .from("omni_ia_intencoes")
+      .update({
+        nome: editIntencao.nome,
+        webhook_url: editIntencao.webhook_url,
+        descricao: editIntencao.descricao,
+      })
+      .eq("id", editIntencao.id);
+
+    if (error) {
+      toast.error("Erro ao atualizar intenção");
+      return;
+    }
+
     setIntencoes(prev => prev.map(i => i.id === editIntencao.id ? editIntencao : i));
     setEditIntencaoOpen(false);
     setEditIntencao(null);
     toast.success("Intenção atualizada!");
   };
 
-  const handleDeleteIntencao = () => {
+  const handleDeleteIntencao = async () => {
     if (!deleteIntencaoId) return;
+
+    const { error } = await supabase
+      .from("omni_ia_intencoes")
+      .delete()
+      .eq("id", deleteIntencaoId);
+
+    if (error) {
+      toast.error("Erro ao excluir intenção");
+      return;
+    }
+
     setIntencoes(prev => prev.filter(i => i.id !== deleteIntencaoId));
     setDeleteIntencaoOpen(false);
     setDeleteIntencaoId(null);
     toast.success("Intenção excluída!");
   };
 
-  const handleToggleIntencao = (id: string) => {
+  const handleToggleIntencao = async (id: string) => {
+    const intencao = intencoes.find(i => i.id === id);
+    if (!intencao) return;
+
+    const { error } = await supabase
+      .from("omni_ia_intencoes")
+      .update({ ativa: !intencao.ativa })
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Erro ao alterar status");
+      return;
+    }
+
     setIntencoes(prev => prev.map(i => 
       i.id === id ? { ...i, ativa: !i.ativa } : i
     ));
