@@ -206,24 +206,32 @@ async function buscarHorarios(supabase: any, clinicaId: string, params: Record<s
     
     if (medico_id) {
       medicoIds = [medico_id];
-    } else if (especialidade) {
-      const { data: medicoData } = await supabase
-        .from("clinicas_medicos")
-        .select(`medico:medicos!inner(id, especialidade)`)
-        .eq("clinica_id", clinicaId)
-        .eq("ativo", true)
-        .ilike("medico.especialidade", `%${especialidade}%`);
-      
-      medicoIds = medicoData?.map((m: any) => m.medico.id) || [];
     } else {
-      // Get all clinic doctors
-      const { data: medicoData } = await supabase
+      // Get all clinic doctors first
+      const { data: medicoData, error: medicoError } = await supabase
         .from("clinicas_medicos")
-        .select("medico_id")
+        .select(`
+          medico_id,
+          medico:medicos(id, especialidade)
+        `)
         .eq("clinica_id", clinicaId)
         .eq("ativo", true);
       
-      medicoIds = medicoData?.map((m: any) => m.medico_id) || [];
+      if (medicoError) {
+        console.error("[buscarHorarios] Error fetching doctors:", medicoError);
+      }
+      
+      // Filter by especialidade if provided
+      if (especialidade && medicoData) {
+        const espLower = especialidade.toLowerCase();
+        medicoIds = medicoData
+          .filter((m: any) => m.medico?.especialidade?.toLowerCase().includes(espLower))
+          .map((m: any) => m.medico_id);
+      } else {
+        medicoIds = medicoData?.map((m: any) => m.medico_id) || [];
+      }
+      
+      console.log(`[buscarHorarios] Found ${medicoIds.length} doctors${especialidade ? ` for ${especialidade}` : ""}`);
     }
 
     if (medicoIds.length === 0) {
@@ -485,7 +493,7 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
         usuario_clinica_id: usuarioClinicaId,
         agenda_slot_id: slot_id || null,
       })
-      .select("id, data_hora, medico:medicos(nome)")
+      .select("id, data_hora, medico:medicos!consultas_medico_id_fkey(nome)")
       .single();
 
     if (consultaError) throw consultaError;
