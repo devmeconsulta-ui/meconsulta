@@ -95,18 +95,18 @@ export function NovoAtendimentoModal({
     setCreating(true);
     try {
       // Check if there's already an active atendimento for this contact
-      const { data: existing } = await supabase
+      const { data: existingList } = await supabase
         .from("omni_atendimentos")
         .select("id")
         .eq("clinica_id", clinicaId)
         .eq("contato_id", contatoId)
-        .in("status", ["aguardando", "em_atendimento"])
-        .single();
+        .in("status", ["aguardando", "em_atendimento"]);
 
-      if (existing) {
+      if (existingList && existingList.length > 0) {
         toast.info("Já existe um atendimento ativo para este contato");
-        onAtendimentoCriado(existing.id);
+        onAtendimentoCriado(existingList[0].id);
         onOpenChange(false);
+        setCreating(false);
         return;
       }
 
@@ -128,6 +128,7 @@ export function NovoAtendimentoModal({
       toast.success("Atendimento criado!");
       onAtendimentoCriado(atendimento.id);
       onOpenChange(false);
+      setSearchTerm("");
     } catch (error) {
       console.error("Error creating atendimento:", error);
       toast.error("Erro ao criar atendimento");
@@ -197,10 +198,16 @@ export function NovoAtendimentoModal({
     }
   };
 
-  const isPhoneNumber = /^\d{10,}$/.test(searchTerm.replace(/\D/g, ""));
+  // Show option to create from phone if user typed at least 8 digits
+  const digitsOnly = searchTerm.replace(/\D/g, "");
+  const hasEnoughDigits = digitsOnly.length >= 8;
+  const isValidPhone = digitsOnly.length >= 10;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(open) => {
+      if (!open) setSearchTerm("");
+      onOpenChange(open);
+    }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -222,22 +229,25 @@ export function NovoAtendimentoModal({
             />
           </div>
 
-          {/* Create from phone number */}
-          {isPhoneNumber && (
+          {/* Create from phone number - show earlier */}
+          {hasEnoughDigits && (
             <Button
               variant="outline"
-              className="w-full justify-start gap-3 h-auto py-3"
+              className="w-full justify-start gap-3 h-auto py-3 border-primary/30 hover:border-primary hover:bg-primary/5"
               onClick={criarContatoEAtendimento}
-              disabled={creating}
+              disabled={creating || !isValidPhone}
             >
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                 <Plus className="h-5 w-5 text-primary" />
               </div>
               <div className="flex flex-col items-start">
-                <span className="font-medium">Iniciar conversa com</span>
+                <span className="font-medium">
+                  {isValidPhone ? "Iniciar conversa com" : "Continue digitando..."}
+                </span>
                 <span className="text-sm text-muted-foreground flex items-center gap-1">
                   <Phone className="h-3 w-3" />
                   {formatPhone(searchTerm)}
+                  {!isValidPhone && <span className="text-xs">(mín. 10 dígitos)</span>}
                 </span>
               </div>
               {creating && <Loader2 className="h-4 w-4 animate-spin ml-auto" />}
@@ -253,8 +263,10 @@ export function NovoAtendimentoModal({
             ) : contatos.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                 <Phone className="h-8 w-8 mb-2" />
-                <p className="text-sm">
-                  {searchTerm ? "Nenhum contato encontrado" : "Digite para buscar contatos"}
+                <p className="text-sm text-center">
+                  {searchTerm 
+                    ? "Nenhum contato encontrado. Digite o telefone completo para criar novo." 
+                    : "Digite para buscar contatos ou um telefone novo"}
                 </p>
               </div>
             ) : (
