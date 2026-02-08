@@ -576,22 +576,43 @@ Deno.serve(async (req) => {
 
         // ========== PAUSAR IA QUANDO HUMANO RESPONDE ==========
         // Verificar se essa mensagem foi enviada pela nossa IA ou por um humano
-        // A IA salva mensagens com agente_nome preenchido - se não tiver, foi humano
+        // Usamos duas estratégias:
+        // 1. Verificar se já existe uma mensagem com agente_nome e mesmo conteúdo (IA salvou antes)
+        // 2. Verificar se existe uma mensagem recente com agente_nome no mesmo atendimento
         console.log("[AI-PAUSE] Checking if human sent this message...");
         
-        // Pequeno delay para garantir que a mensagem da IA já foi salva (se for da IA)
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Verificar se a mensagem que acabou de ser salva tem agente_nome (enviada pela IA)
-        const { data: msgSalva } = await supabase
+        // Estratégia 1: Buscar mensagem com mesmo conteúdo e agente_nome (IA pode ter salvo antes)
+        const { data: msgIA } = await supabase
           .from("omni_mensagens")
           .select("id, agente_nome")
-          .eq("whatsapp_message_id", messageId)
+          .eq("atendimento_id", atendimento.id)
+          .eq("conteudo", conteudo)
+          .not("agente_nome", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
           .single();
         
-        // Se a mensagem tem agente_nome, foi enviada pela IA - não marcar como humano
-        if (msgSalva?.agente_nome) {
-          console.log("[AI-PAUSE] Message was sent by AI agent, not marking as human takeover");
+        if (msgIA?.agente_nome) {
+          console.log("[AI-PAUSE] Message was sent by AI agent (matched by content), not marking as human takeover");
+          break;
+        }
+        
+        // Estratégia 2: Verificar se houve mensagem da IA nos últimos 10 segundos (race condition)
+        const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
+        const { data: recentAIMsg } = await supabase
+          .from("omni_mensagens")
+          .select("id, agente_nome, conteudo")
+          .eq("atendimento_id", atendimento.id)
+          .eq("direcao", "saida")
+          .not("agente_nome", "is", null)
+          .gte("created_at", tenSecondsAgo)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        
+        // Se existe mensagem recente da IA com conteúdo similar, é da IA
+        if (recentAIMsg?.agente_nome) {
+          console.log("[AI-PAUSE] Recent AI message found, not marking as human takeover");
           break;
         }
         
