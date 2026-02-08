@@ -258,8 +258,27 @@ Deno.serve(async (req) => {
 
     console.log(`[AI] Calling Lovable AI Gateway with model: ${modeloGateway}`);
 
-    // Broadcast AI typing indicator via Supabase Realtime
-    const broadcastTyping = async (isTyping: boolean) => {
+    // Get Evolution API config for typing indicator
+    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
+    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+
+    // Buscar instância para enviar typing para o WhatsApp do cliente
+    let instanceName: string | null = null;
+    let clientPhone: string | null = atendimento.contato?.telefone || null;
+    
+    if (EVOLUTION_API_URL && EVOLUTION_API_KEY && atendimento.fila_id) {
+      // Buscar instância pela fila
+      const { data: fila } = await supabase
+        .from("omni_filas")
+        .select("instancia:omni_instancias(evolution_instance_name)")
+        .eq("id", atendimento.fila_id)
+        .single();
+      
+      instanceName = (fila as any)?.instancia?.evolution_instance_name || null;
+    }
+
+    // Broadcast AI typing indicator via Supabase Realtime (para painel interno)
+    const broadcastTypingInternal = async (isTyping: boolean) => {
       try {
         await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, {
           method: "POST",
@@ -278,12 +297,49 @@ Deno.serve(async (req) => {
           }),
         });
       } catch (err) {
-        console.error("[AI] Error broadcasting typing:", err);
+        console.error("[AI] Error broadcasting internal typing:", err);
       }
     };
 
-    // Start typing indicator
-    await broadcastTyping(true);
+    // Send typing indicator to WhatsApp (para o cliente ver "escrevendo...")
+    const sendWhatsAppTyping = async (isTyping: boolean) => {
+      if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !instanceName || !clientPhone) {
+        return;
+      }
+      
+      try {
+        // Evolution API presence endpoint
+        const response = await fetch(
+          `${EVOLUTION_API_URL}/chat/updatePresence/${instanceName}`,
+          {
+            method: "POST",
+            headers: {
+              "apikey": EVOLUTION_API_KEY,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              number: clientPhone,
+              presence: isTyping ? "composing" : "paused",
+            }),
+          }
+        );
+        
+        if (response.ok) {
+          console.log(`[AI] WhatsApp typing indicator sent: ${isTyping ? "composing" : "paused"}`);
+        } else {
+          const errText = await response.text();
+          console.log(`[AI] WhatsApp typing failed: ${response.status} - ${errText}`);
+        }
+      } catch (err) {
+        console.error("[AI] Error sending WhatsApp typing:", err);
+      }
+    };
+
+    // Start typing indicators (both internal and WhatsApp)
+    await Promise.all([
+      broadcastTypingInternal(true),
+      sendWhatsAppTyping(true),
+    ]);
 
     // Aplicar tempo de resposta (delay) se configurado
     if (agenteIA.tempo_resposta && agenteIA.tempo_resposta > 0) {
@@ -311,8 +367,11 @@ Deno.serve(async (req) => {
       }),
     });
 
-    // Stop typing indicator after AI responds
-    await broadcastTyping(false);
+    // Stop typing indicators after AI responds
+    await Promise.all([
+      broadcastTypingInternal(false),
+      sendWhatsAppTyping(false),
+    ]);
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
@@ -511,7 +570,22 @@ function buildSystemPrompt(
   
   prompt += `. Você é um assistente virtual de atendimento.
 
-## Estilo de Comunicação
+`;
+
+  // ===== INSTRUÇÕES DE COMPORTAMENTO - PRIORIDADE MÁXIMA =====
+  // Estas instruções definidas pelo administrador devem ter PRIORIDADE ABSOLUTA
+  if (agente.comportamento && agente.comportamento.trim()) {
+    prompt += `## 🚨 INSTRUÇÕES PRIORITÁRIAS DO ADMINISTRADOR (OBEDEÇA SEMPRE)
+As instruções abaixo foram definidas pelo administrador da clínica e têm PRIORIDADE ABSOLUTA sobre qualquer outra diretriz. Siga-as rigorosamente:
+
+${agente.comportamento}
+
+---
+
+`;
+  }
+
+  prompt += `## Estilo de Comunicação
 ${estilos[agente.comunicacao as keyof typeof estilos] || estilos.normal}
 
 ## Objetivo Principal
@@ -519,18 +593,29 @@ ${finalidades[agente.finalidade as keyof typeof finalidades] || finalidades.supo
 
 `;
 
-  // Instruções específicas de comportamento (campo mais importante)
-  if (agente.comportamento) {
-    prompt += `## Instruções Específicas de Comportamento
-${agente.comportamento}
-
-`;
-  }
-
-  // AGENDAMENTO AUTOMÁTICO
+  // AGENDAMENTO AUTOMÁTICO - apenas se habilitado E se a finalidade for apropriada
   if (permitirAgendamento && dadosAgendamento) {
-    prompt += `## 🗓️ CAPACIDADE DE AGENDAMENTO AUTOMÁTICO
-Você possui a capacidade de AGENDAR CONSULTAS automaticamente no sistema da clínica.
+    prompt += `## 🗓️ CAPACIDADE DE AGENDAMENTO (use apenas quando SOLICITADO)
+Você pode agendar consultas no sistema, MAS siga estas regras:
+
+⚠️ REGRAS IMPORTANTES DE AGENDAMENTO:
+- NÃO ofereça agendamento se o cliente não demonstrou interesse claro
+- NÃO force ou insista em agendar - apenas ofereça quando relevante
+- ESPERE o cliente manifestar interesse antes de perguntar sobre horários
+- Se o cliente só quer informações, responda as dúvidas PRIMEIRO
+- Só proponha agendamento DEPOIS de esclarecer as dúvidas do cliente
+
+### Quando usar agendamento:
+- Cliente pergunta "como faço para marcar consulta?"
+- Cliente pede explicitamente para agendar
+- Cliente pergunta sobre horários disponíveis
+- Cliente demonstra interesse claro em marcar
+
+### Quando NÃO usar agendamento:
+- Cliente está apenas tirando dúvidas gerais
+- Cliente quer saber sobre preços/serviços
+- Cliente não mencionou nada sobre marcar consulta
+- Cliente está reclamando ou com problema
 
 ### Profissionais Disponíveis:
 ${dadosAgendamento.medicos?.join("\n") || "Nenhum cadastrado"}
@@ -541,24 +626,11 @@ ${dadosAgendamento.especialidades?.join(", ") || "Não especificadas"}
 ### Convênios Aceitos:
 ${dadosAgendamento.convenios?.length > 0 ? dadosAgendamento.convenios.join(", ") + " e Particular" : "Apenas Particular"}
 
-### Como Proceder para Agendar:
-1. Quando o cliente demonstrar interesse em agendar, use a função buscar_horarios para ver disponibilidade
-2. Se o cliente perguntar sobre médicos/especialidades, use buscar_medicos
-3. Antes de confirmar, colete: nome completo${agendamentoConfig?.exigir_cpf ? ", CPF obrigatório" : " (CPF opcional)"}
-4. Use buscar_paciente para verificar se já tem cadastro (pelo telefone do WhatsApp ou CPF)
-5. Se não tiver cadastro, use criar_paciente
-6. Finalize com agendar_consulta
-
-### Regras de Agendamento:
-${agendamentoConfig?.antecedencia_minima_horas ? `- Antecedência mínima: ${agendamentoConfig.antecedencia_minima_horas} horas` : ""}
-${agendamentoConfig?.antecedencia_maxima_dias ? `- Agendar até: ${agendamentoConfig.antecedencia_maxima_dias} dias no futuro` : ""}
-${agendamentoConfig?.tipos_atendimento ? `- Tipos aceitos: ${agendamentoConfig.tipos_atendimento.join(", ")}` : ""}
-
-### Fluxo de Conversa para Agendamento:
-- Seja proativo: "Posso verificar os horários disponíveis para você?"
-- Apresente opções de forma clara e resumida (máximo 3-5 horários)
-- Sempre confirme os dados antes de finalizar
-- Após agendar, informe data/hora e médico de forma clara
+### Fluxo de agendamento (apenas quando solicitado):
+1. Use buscar_horarios para ver disponibilidade
+2. Colete dados necessários: nome completo${agendamentoConfig?.exigir_cpf ? ", CPF obrigatório" : ""}
+3. Use buscar_paciente para verificar cadastro
+4. Finalize com agendar_consulta
 
 `;
   }
@@ -682,7 +754,7 @@ Use o nome do cliente para personalizar o atendimento quando apropriado.
 `;
   }
 
-  prompt += `## Regras Gerais de Atendimento - MUITO IMPORTANTE
+  prompt += `## Regras Gerais de Atendimento
 - Seja sempre educado, empático e prestativo
 - Responda de forma objetiva, clara e CONCISA
 - MANTENHA RESPOSTAS CURTAS: máximo 2-3 frases por vez, como numa conversa real de WhatsApp
@@ -693,6 +765,7 @@ Use o nome do cliente para personalizar o atendimento quando apropriado.
 - Se o cliente parecer frustrado, demonstre empatia antes de oferecer soluções
 - NUNCA envie parágrafos gigantes - quebre a conversa naturalmente como um humano faria
 - Faça perguntas para engajar o cliente ao invés de despejar informações
+- SIGA SEMPRE as instruções prioritárias definidas acima
 `;
 
   return prompt;
