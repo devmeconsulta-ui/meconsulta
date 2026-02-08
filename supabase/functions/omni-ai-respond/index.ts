@@ -303,31 +303,43 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Dividir resposta em partes se configurado
+    // Dividir resposta em partes se configurado - APENAS se muito longa e com parágrafos claros
     let mensagensParaEnviar: string[] = [];
     
-    if (agenteIA.dividir_resposta && respostaIA.length > 300) {
+    // Limite mais alto (700 chars) para evitar divisões desnecessárias - mais humanizado
+    const LIMITE_DIVISAO = 700;
+    // Máximo de 3 mensagens para não parecer spam
+    const MAX_MENSAGENS = 3;
+    
+    if (agenteIA.dividir_resposta && respostaIA.length > LIMITE_DIVISAO) {
+      // Dividir apenas por parágrafos (dupla quebra de linha) - forma mais natural
       const paragrafos = respostaIA.split(/\n\n+/).filter(p => p.trim());
       
-      if (paragrafos.length > 1) {
+      if (paragrafos.length > 1 && paragrafos.length <= MAX_MENSAGENS) {
+        // Se tem poucos parágrafos bem definidos, usar eles
         mensagensParaEnviar = paragrafos;
-      } else {
-        const sentencas = respostaIA.match(/[^.!?]+[.!?]+/g) || [respostaIA];
-        let mensagemAtual = "";
-        
-        for (const sentenca of sentencas) {
-          if ((mensagemAtual + sentenca).length > 300) {
-            if (mensagemAtual) mensagensParaEnviar.push(mensagemAtual.trim());
-            mensagemAtual = sentenca;
-          } else {
-            mensagemAtual += sentenca;
+      } else if (paragrafos.length > MAX_MENSAGENS) {
+        // Se tem muitos parágrafos, agrupar para não exceder MAX_MENSAGENS
+        const tamanhoPorMensagem = Math.ceil(paragrafos.length / MAX_MENSAGENS);
+        for (let i = 0; i < MAX_MENSAGENS; i++) {
+          const inicio = i * tamanhoPorMensagem;
+          const fim = Math.min((i + 1) * tamanhoPorMensagem, paragrafos.length);
+          if (inicio < paragrafos.length) {
+            mensagensParaEnviar.push(paragrafos.slice(inicio, fim).join("\n\n"));
           }
         }
-        if (mensagemAtual) mensagensParaEnviar.push(mensagemAtual.trim());
+      } else {
+        // Texto longo mas sem parágrafos claros - enviar como uma única mensagem
+        // É melhor uma mensagem longa do que várias cortadas no meio
+        mensagensParaEnviar = [respostaIA];
       }
     } else {
+      // Resposta curta ou divisão desativada - enviar tudo junto
       mensagensParaEnviar = [respostaIA];
     }
+    
+    // Limpar mensagens vazias
+    mensagensParaEnviar = mensagensParaEnviar.filter(m => m.trim());
 
     return new Response(JSON.stringify({ 
       ai_active: true, 
@@ -503,14 +515,17 @@ Use o nome do cliente para personalizar o atendimento quando apropriado.
 `;
   }
 
-  prompt += `## Regras Gerais de Atendimento
+  prompt += `## Regras Gerais de Atendimento - MUITO IMPORTANTE
 - Seja sempre educado, empático e prestativo
-- Responda de forma objetiva e clara
+- Responda de forma objetiva, clara e CONCISA
+- MANTENHA RESPOSTAS CURTAS: máximo 2-3 frases por vez, como numa conversa real de WhatsApp
+- Evite textos longos - se precisar explicar muito, pergunte se o cliente quer saber mais
+- Use uma linguagem natural de chat, não de e-mail formal
 - Se não souber algo, seja honesto e ofereça alternativas
-- Mantenha as respostas concisas (máximo 3-4 parágrafos por mensagem)
 - Não invente informações que não estão na sua base de conhecimento
 - Se o cliente parecer frustrado, demonstre empatia antes de oferecer soluções
-- Sempre confirme se entendeu corretamente antes de dar respostas definitivas
+- NUNCA envie parágrafos gigantes - quebre a conversa naturalmente como um humano faria
+- Faça perguntas para engajar o cliente ao invés de despejar informações
 `;
 
   return prompt;
