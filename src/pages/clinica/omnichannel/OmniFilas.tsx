@@ -305,15 +305,16 @@ export default function OmniFilas() {
                   <div>
                     <Label>Instância WhatsApp</Label>
                     <Select
-                      value={novaFilaData.instancia_id}
+                      value={novaFilaData.instancia_id || "none"}
                       onValueChange={(v) =>
-                        setNovaFilaData({ ...novaFilaData, instancia_id: v })
+                        setNovaFilaData({ ...novaFilaData, instancia_id: v === "none" ? "" : v })
                       }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione uma instância" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="none">Nenhuma</SelectItem>
                         {instancias.map((inst) => (
                           <SelectItem key={inst.id} value={inst.id}>
                             {inst.nome}{" "}
@@ -981,14 +982,14 @@ function EditarFilaForm({
         <div>
           <Label>Instância WhatsApp</Label>
           <Select
-            value={formData.instancia_id}
-            onValueChange={(v) => setFormData({ ...formData, instancia_id: v })}
+            value={formData.instancia_id || "none"}
+            onValueChange={(v) => setFormData({ ...formData, instancia_id: v === "none" ? "" : v })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Selecione uma instância" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Nenhuma</SelectItem>
+              <SelectItem value="none">Nenhuma</SelectItem>
               {instancias.map((inst) => (
                 <SelectItem key={inst.id} value={inst.id}>
                   {inst.nome}{" "}
