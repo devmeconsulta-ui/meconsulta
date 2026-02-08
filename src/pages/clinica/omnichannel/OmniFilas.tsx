@@ -796,20 +796,21 @@ function EditarFilaForm({
   useEffect(() => {
     const loadAgendamentoConfig = async () => {
       try {
-        const { data } = await supabase
+        const { data } = await (supabase as any)
           .from("omni_ia_agendamentos_config")
           .select("*")
           .eq("fila_id", fila.id)
           .maybeSingle();
 
         if (data) {
+          const configData = data as any;
           setAgendamentoConfig({
-            permitir_agendamento: data.permitir_agendamento || false,
-            tipos_atendimento: data.tipos_atendimento || ["particular"],
-            exigir_cpf: data.exigir_cpf ?? true,
-            antecedencia_minima_horas: data.antecedencia_minima_horas || 2,
-            antecedencia_maxima_dias: data.antecedencia_maxima_dias || 30,
-            permitir_cancelamento: data.permitir_cancelamento ?? true,
+            permitir_agendamento: configData.permitir_agendamento || false,
+            tipos_atendimento: configData.tipos_atendimento || ["particular"],
+            exigir_cpf: configData.exigir_cpf ?? true,
+            antecedencia_minima_horas: configData.antecedencia_minima_horas || 2,
+            antecedencia_maxima_dias: configData.antecedencia_maxima_dias || 30,
+            permitir_cancelamento: configData.permitir_cancelamento ?? true,
             usar_ia: true,
           });
         }
@@ -852,14 +853,14 @@ function EditarFilaForm({
 
     // Save agendamento config
     try {
-      const { data: existingConfig } = await supabase
+      const { data: existingConfig } = await (supabase as any)
         .from("omni_ia_agendamentos_config")
         .select("id")
         .eq("fila_id", fila.id)
         .maybeSingle();
 
       if (existingConfig) {
-        await supabase
+        await (supabase as any)
           .from("omni_ia_agendamentos_config")
           .update({
             permitir_agendamento: agendamentoConfig.permitir_agendamento,
@@ -871,11 +872,12 @@ function EditarFilaForm({
           })
           .eq("id", existingConfig.id);
       } else {
-        await supabase
+        await (supabase as any)
           .from("omni_ia_agendamentos_config")
           .insert({
             fila_id: fila.id,
             clinica_id: fila.clinica_id,
+            agente_id: null,
             permitir_agendamento: agendamentoConfig.permitir_agendamento,
             tipos_atendimento: agendamentoConfig.tipos_atendimento,
             exigir_cpf: agendamentoConfig.exigir_cpf,
@@ -887,6 +889,7 @@ function EditarFilaForm({
     } catch (error) {
       console.error("Erro ao salvar config de agendamento:", error);
     }
+
 
     setSaving(false);
   };

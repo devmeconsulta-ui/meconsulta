@@ -2477,11 +2477,14 @@ export type Database = {
           distribuicao_atendentes: string | null
           especialidades_permitidas: string[] | null
           exigir_cpf: boolean | null
+          fila_id: string | null
           horario_fim: string | null
           horario_inicio: string | null
           id: string
           mensagem_confirmacao: string | null
           mensagem_lembrete: string | null
+          permitir_agendamento: boolean | null
+          permitir_cancelamento: boolean | null
           permitir_encaixe: boolean | null
           tipos_atendimento: string[] | null
           updated_at: string | null
@@ -2497,11 +2500,14 @@ export type Database = {
           distribuicao_atendentes?: string | null
           especialidades_permitidas?: string[] | null
           exigir_cpf?: boolean | null
+          fila_id?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
           mensagem_confirmacao?: string | null
           mensagem_lembrete?: string | null
+          permitir_agendamento?: boolean | null
+          permitir_cancelamento?: boolean | null
           permitir_encaixe?: boolean | null
           tipos_atendimento?: string[] | null
           updated_at?: string | null
@@ -2517,11 +2523,14 @@ export type Database = {
           distribuicao_atendentes?: string | null
           especialidades_permitidas?: string[] | null
           exigir_cpf?: boolean | null
+          fila_id?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
           mensagem_confirmacao?: string | null
           mensagem_lembrete?: string | null
+          permitir_agendamento?: boolean | null
+          permitir_cancelamento?: boolean | null
           permitir_encaixe?: boolean | null
           tipos_atendimento?: string[] | null
           updated_at?: string | null
@@ -2540,6 +2549,13 @@ export type Database = {
             columns: ["clinica_id"]
             isOneToOne: false
             referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_agendamentos_config_fila_id_fkey"
+            columns: ["fila_id"]
+            isOneToOne: false
+            referencedRelation: "omni_filas"
             referencedColumns: ["id"]
           },
         ]
