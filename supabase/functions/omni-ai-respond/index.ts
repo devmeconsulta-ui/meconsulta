@@ -217,6 +217,33 @@ Deno.serve(async (req) => {
 
     console.log(`[AI] Calling Lovable AI Gateway with model: ${modeloGateway}`);
 
+    // Broadcast AI typing indicator via Supabase Realtime
+    const broadcastTyping = async (isTyping: boolean) => {
+      try {
+        await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_SERVICE_ROLE_KEY,
+          },
+          body: JSON.stringify({
+            topic: `ai-typing:${atendimento_id}`,
+            event: "ai_typing",
+            payload: {
+              is_typing: isTyping,
+              agente_nome: agenteIA.nome,
+            },
+          }),
+        });
+      } catch (err) {
+        console.error("[AI] Error broadcasting typing:", err);
+      }
+    };
+
+    // Start typing indicator
+    await broadcastTyping(true);
+
     // Aplicar tempo de resposta (delay) se configurado
     if (agenteIA.tempo_resposta && agenteIA.tempo_resposta > 0) {
       console.log(`[AI] Waiting ${agenteIA.tempo_resposta} seconds before responding...`);
@@ -238,6 +265,9 @@ Deno.serve(async (req) => {
         ],
       }),
     });
+
+    // Stop typing indicator after AI responds
+    await broadcastTyping(false);
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
