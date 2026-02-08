@@ -54,6 +54,8 @@ import { MediaGalleryModal } from "@/components/clinica/omnichannel/MediaGallery
 import { DocumentsModal } from "@/components/clinica/omnichannel/DocumentsModal";
 import { EtiquetasModal } from "@/components/clinica/omnichannel/EtiquetasModal";
 import { NotaInternaModal } from "@/components/clinica/omnichannel/NotaInternaModal";
+import { TypingBubble } from "@/components/clinica/omnichannel/TypingIndicator";
+import { useTypingIndicator, useAITypingIndicator } from "@/hooks/useTypingIndicator";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -296,6 +298,24 @@ export default function OmniWhatsAppChat() {
   const { mensagens, loading: loadingMessages, enviarMensagem } = useOmniMensagens(selectedAtendimento?.id || null);
   const { notas, criarNota, marcarComoLida } = useOmniNotasInternas(selectedAtendimento?.id || null);
   const { etiquetas, criarEtiqueta } = useOmniEtiquetas(clinicaId);
+  
+  // Typing indicators
+  const { typingUsers, handleTypingStart, handleTypingStop } = useTypingIndicator({
+    atendimentoId: selectedAtendimento?.id || null,
+    currentUserId: currentUser?.usuarioClinicaId || currentUser?.id || null,
+    currentUserNome: currentUser?.nome || null,
+  });
+  const { isAITyping, aiName } = useAITypingIndicator(selectedAtendimento?.id || null);
+  
+  // Combine all typing names for display
+  const allTypingNames = useMemo(() => {
+    const names: string[] = [];
+    if (isAITyping && aiName) {
+      names.push(aiName);
+    }
+    typingUsers.forEach(u => names.push(u.nome));
+    return names;
+  }, [typingUsers, isAITyping, aiName]);
 
   // Clear optimistic messages when real messages arrive
   useEffect(() => {
@@ -477,6 +497,7 @@ export default function OmniWhatsAppChat() {
 
     setMessageInput("");
     setSending(true);
+    handleTypingStop(); // Stop typing indicator when sending
 
     const optimisticMsg: OmniMensagem = {
       id: `temp-${Date.now()}`,
@@ -513,7 +534,7 @@ export default function OmniWhatsAppChat() {
     } finally {
       setSending(false);
     }
-  }, [messageInput, selectedAtendimento, getAgenteId, currentUser?.nome, sending, enviarMensagem, signatureEnabled]);
+  }, [messageInput, selectedAtendimento, getAgenteId, currentUser?.nome, sending, enviarMensagem, signatureEnabled, handleTypingStop]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -873,6 +894,12 @@ export default function OmniWhatsAppChat() {
                       </div>
                     );
                   })}
+                  
+                  {/* Typing indicator */}
+                  {allTypingNames.length > 0 && (
+                    <TypingBubble names={allTypingNames} />
+                  )}
+                  
                   <div ref={messagesEndRef} />
                 </>
               )}
@@ -939,8 +966,14 @@ export default function OmniWhatsAppChat() {
                 placeholder="Digite uma mensagem ou / para atalhos..."
                 className="flex-1 bg-background border-0 rounded-full"
                 value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
+                onChange={(e) => {
+                  setMessageInput(e.target.value);
+                  if (e.target.value.trim()) {
+                    handleTypingStart();
+                  }
+                }}
                 onKeyDown={handleKeyDown}
+                onBlur={handleTypingStop}
               />
               
               {messageInput.trim() ? (
