@@ -2466,6 +2466,172 @@ export type Database = {
           },
         ]
       }
+      omni_ia_agendamentos_config: {
+        Row: {
+          agente_id: string
+          antecedencia_maxima_dias: number | null
+          antecedencia_minima_horas: number | null
+          clinica_id: string
+          created_at: string | null
+          dias_semana: number[] | null
+          distribuicao_atendentes: string | null
+          especialidades_permitidas: string[] | null
+          exigir_cpf: boolean | null
+          horario_fim: string | null
+          horario_inicio: string | null
+          id: string
+          mensagem_confirmacao: string | null
+          mensagem_lembrete: string | null
+          permitir_encaixe: boolean | null
+          tipos_atendimento: string[] | null
+          updated_at: string | null
+          valor_padrao: number | null
+        }
+        Insert: {
+          agente_id: string
+          antecedencia_maxima_dias?: number | null
+          antecedencia_minima_horas?: number | null
+          clinica_id: string
+          created_at?: string | null
+          dias_semana?: number[] | null
+          distribuicao_atendentes?: string | null
+          especialidades_permitidas?: string[] | null
+          exigir_cpf?: boolean | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
+          id?: string
+          mensagem_confirmacao?: string | null
+          mensagem_lembrete?: string | null
+          permitir_encaixe?: boolean | null
+          tipos_atendimento?: string[] | null
+          updated_at?: string | null
+          valor_padrao?: number | null
+        }
+        Update: {
+          agente_id?: string
+          antecedencia_maxima_dias?: number | null
+          antecedencia_minima_horas?: number | null
+          clinica_id?: string
+          created_at?: string | null
+          dias_semana?: number[] | null
+          distribuicao_atendentes?: string | null
+          especialidades_permitidas?: string[] | null
+          exigir_cpf?: boolean | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
+          id?: string
+          mensagem_confirmacao?: string | null
+          mensagem_lembrete?: string | null
+          permitir_encaixe?: boolean | null
+          tipos_atendimento?: string[] | null
+          updated_at?: string | null
+          valor_padrao?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_ia_agendamentos_config_agente_id_fkey"
+            columns: ["agente_id"]
+            isOneToOne: true
+            referencedRelation: "omni_ia_agentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_agendamentos_config_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_ia_agendamentos_log: {
+        Row: {
+          acao: string
+          agente_id: string | null
+          atendimento_id: string | null
+          clinica_id: string
+          consulta_id: string | null
+          created_at: string | null
+          dados: Json | null
+          erro: string | null
+          id: string
+          paciente_id: string | null
+          sucesso: boolean | null
+          usuario_clinica_id: string | null
+        }
+        Insert: {
+          acao: string
+          agente_id?: string | null
+          atendimento_id?: string | null
+          clinica_id: string
+          consulta_id?: string | null
+          created_at?: string | null
+          dados?: Json | null
+          erro?: string | null
+          id?: string
+          paciente_id?: string | null
+          sucesso?: boolean | null
+          usuario_clinica_id?: string | null
+        }
+        Update: {
+          acao?: string
+          agente_id?: string | null
+          atendimento_id?: string | null
+          clinica_id?: string
+          consulta_id?: string | null
+          created_at?: string | null
+          dados?: Json | null
+          erro?: string | null
+          id?: string
+          paciente_id?: string | null
+          sucesso?: boolean | null
+          usuario_clinica_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_ia_agendamentos_log_agente_id_fkey"
+            columns: ["agente_id"]
+            isOneToOne: false
+            referencedRelation: "omni_ia_agentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_agendamentos_log_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "omni_atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_agendamentos_log_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_agendamentos_log_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_agendamentos_log_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_ia_agendamentos_log_usuario_clinica_id_fkey"
+            columns: ["usuario_clinica_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       omni_ia_agentes: {
         Row: {
           acoes_followup: Json | null
@@ -2488,6 +2654,7 @@ export type Database = {
           modelo: string
           nome: string
           palavras_chave_transferencia: string[] | null
+          permitir_agendamento: boolean | null
           permitir_lembretes: boolean
           produto: string | null
           restringir_temas: boolean
@@ -2519,6 +2686,7 @@ export type Database = {
           modelo?: string
           nome: string
           palavras_chave_transferencia?: string[] | null
+          permitir_agendamento?: boolean | null
           permitir_lembretes?: boolean
           produto?: string | null
           restringir_temas?: boolean
@@ -2550,6 +2718,7 @@ export type Database = {
           modelo?: string
           nome?: string
           palavras_chave_transferencia?: string[] | null
+          permitir_agendamento?: boolean | null
           permitir_lembretes?: boolean
           produto?: string | null
           restringir_temas?: boolean
