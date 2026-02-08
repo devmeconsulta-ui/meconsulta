@@ -1,305 +1,274 @@
 
+# Plano: IA com Agendamento Automático de Consultas
 
-# Varredura de Seguranca LGPD/Compliance e Integracoes Criticas
-
-## Resumo Executivo
-
-Esta auditoria identificou **vulnerabilidades criticas** que comprometem a conformidade LGPD e a seguranca das integracoes com Supabase, APIs de pagamento (Asaas), WhatsApp (Evolution API) e IA (Lovable AI Gateway).
+## Objetivo
+Transformar a IA em uma assistente inteligente capaz de:
+- Buscar profissionais disponíveis na clínica
+- Consultar horários livres em tempo real
+- Identificar/cadastrar pacientes automaticamente
+- Agendar consultas diretamente no sistema
+- Distribuir atendimentos entre atendentes (round-robin)
+- Sugerir alternativas quando não houver disponibilidade
 
 ---
 
-## 1. VULNERABILIDADES CRITICAS IDENTIFICADAS
-
-### 1.1 Violacoes LGPD - Nivel Critico
-
-| Vulnerabilidade | Impacto LGPD | Status |
-|-----------------|--------------|--------|
-| Senhas em texto plano no banco | Art. 46 - Falha em medidas de seguranca | CRITICO |
-| Chave API Asaas exposta no banco | Art. 46 - Dados financeiros vulneraveis | CRITICO |
-| RLS desabilitado/permissivo em 70+ tabelas | Art. 46 - Acesso irrestrito a dados sensiveis | CRITICO |
-| Ausencia de logs de auditoria LGPD | Art. 37 - Sem rastreabilidade | ALTO |
-| Ausencia de registro de consentimentos | Art. 7, 8 - Sem base legal documentada | ALTO |
-
-### 1.2 Dados Pessoais Expostos
-
-**Tabelas Criticas Sem Protecao Adequada:**
+## Arquitetura da Solução
 
 ```text
-+---------------------+----------------------------------+------------------+
-| Tabela              | Dados Sensiveis                  | RLS Status       |
-+---------------------+----------------------------------+------------------+
-| pacientes           | Nome, CPF, telefone, endereco    | USING(true)      |
-| usuarios            | Email, senhas em texto plano     | USING(true)      |
-| medicos             | CPF, dados bancarios, PIX        | USING(true)      |
-| consultas           | Historico medico, pagamentos     | USING(true)      |
-| anamneses           | Historico clinico completo       | USING(true)      |
-| prescricoes_docs    | Receitas, atestados              | RLS DESABILITADO |
-| omni_contatos       | Telefones, CPF, Instagram        | USING(true)      |
-| config_asaas        | API Key de producao exposta      | USING(true)      |
-+---------------------+----------------------------------+------------------+
++----------------+     +---------------------+     +------------------+
+|   WhatsApp     | --> | omni-ai-respond     | --> | omni-ai-actions  |
+|   (Paciente)   |     | (Processa intenção) |     | (Executa ações)  |
++----------------+     +---------------------+     +------------------+
+                                |                          |
+                                v                          v
+                    +---------------------+     +------------------+
+                    |  Lovable AI Gateway |     |   Supabase DB    |
+                    |  (Gera resposta)    |     |  (Consultas,     |
+                    +---------------------+     |   Pacientes,     |
+                                                |   Slots, etc)    |
+                                                +------------------+
 ```
-
-### 1.3 Senhas em Texto Plano - Evidencia Coletada
-
-```sql
--- Consulta executada revelou:
-admin@meconsulta.app.br    -> senha_hash: "123456"
-clinicateste@gmail.com     -> senha_hash: "123456"
-paciente@meconsulta.app.br -> senha_hash: "123456"
-```
-
-**Problema:** Campo `senha_hash` contem senhas em texto plano, nao hashes bcrypt.
-
-### 1.4 API Key Asaas Exposta
-
-```sql
--- Chave de producao exposta no banco publico:
-api_key: "$aact_prod_000MzkwODA2MWY2OGM3..."
-ambiente: "producao"
-```
-
-**Risco:** Qualquer usuario pode ler essa chave e criar cobrancas fraudulentas.
 
 ---
 
-## 2. ANALISE DAS INTEGRACOES
+## Fase 1: Configurações no Banco de Dados
 
-### 2.1 Supabase - Problemas de RLS
+### 1.1 Nova coluna na tabela `omni_ia_agentes`
+Adicionar campo `permitir_agendamento` (boolean) para habilitar/desabilitar a funcionalidade por agente.
 
-**Linter identificou 70 problemas:**
-- 1 tabela com RLS desabilitado mas com policies (`prescricoes_documentos`)
-- 1 tabela completamente sem RLS (`prescricoes_documentos`)
-- 67+ policies usando `USING(true)` ou `WITH CHECK(true)`
-
-**Funcoes de Helper ja existentes (podem ser aproveitadas):**
-- `is_admin_user(_user_id uuid)`
-- `get_user_clinica_id(_user_id uuid)`
-- `user_belongs_to_clinica(_user_id, _clinica_id)`
-- `has_role(_user_id uuid, _role app_role)`
-
-### 2.2 APIs de Pagamento (Asaas)
-
-| Arquivo | Conformidade | Problemas |
-|---------|--------------|-----------|
-| `create-asaas-payment` | Parcial | Logs CPF na busca de cliente |
-| `process-card-payment` | Boa | Nao loga dados sensiveis |
-| `asaas-webhook` | Boa | Logs minimizados |
-| `transfer-to-doctor` | Parcial | Logs PIX key em producao |
-
-**Problema Principal:** API Key armazenada em tabela publica ao inves de Secrets.
-
-### 2.3 WhatsApp (Evolution API)
-
-| Arquivo | Problemas LGPD |
-|---------|----------------|
-| `evolution-webhook` | Logs telefone do cliente |
-| `evolution-send-message` | Mensagens salvas sem criptografia |
-| `send-confirmation-batch` | Dados paciente em logs |
-
-**Conformidade:** Parcial - dados de conversas armazenados sem criptografia at-rest.
-
-### 2.4 IA (Lovable AI Gateway)
-
-| Aspecto | Status |
-|---------|--------|
-| API Key segura (LOVABLE_API_KEY) | OK - em secrets |
-| Dados enviados para IA | RISCO - inclui nome e telefone do contato |
-| Historico de conversas | RISCO - armazenado sem anonimizacao |
+### 1.2 Nova tabela `omni_ia_agendamentos_config`
+Configurações específicas de agendamento por agente:
+- `agente_id` - Referência ao agente
+- `tipos_atendimento` - Particular, Convênio, ambos
+- `valor_padrao` - Valor padrão se não encontrar
+- `distribuicao_atendentes` - Modo de distribuição (round-robin, fixa, etc.)
+- `mensagens_confirmacao` - Templates customizáveis
+- `exigir_cpf` - Se CPF é obrigatório
+- `permitir_encaixe` - Permitir encaixes em horários lotados
+- `antecedencia_minima_horas` - Mínimo de horas para agendar
+- `antecedencia_maxima_dias` - Máximo de dias no futuro
 
 ---
 
-## 3. GAPS DE CONFORMIDADE LGPD
+## Fase 2: Nova Edge Function `omni-ai-actions`
 
-### 3.1 Ausencias Criticas
+Responsável por executar ações no sistema. A IA não faz queries diretamente - ela solicita ações estruturadas.
 
-| Requisito LGPD | Status | Solucao |
-|----------------|--------|---------|
-| Registro de Consentimentos (Art. 7, 8) | AUSENTE | Criar tabela `lgpd_consentimentos` |
-| Log de Acessos a Dados (Art. 37) | AUSENTE | Criar tabela `lgpd_audit_logs` |
-| Direito ao Esquecimento (Art. 18) | AUSENTE | Criar funcao de anonimizacao |
-| Portabilidade (Art. 18) | PARCIAL | Implementar export de dados |
-| Notificacao de Breach (Art. 48) | AUSENTE | Criar procedimento |
-| DPO/Encarregado (Art. 41) | PARCIAL | So informacao na pagina |
+### 2.1 Ações Disponíveis
 
-### 3.2 Cookie Consent - Implementado mas Incompleto
+| Ação | Descrição |
+|------|-----------|
+| `buscar_medicos` | Lista médicos/especialidades disponíveis |
+| `buscar_horarios` | Consulta slots disponíveis |
+| `buscar_paciente` | Busca paciente por CPF/telefone |
+| `criar_paciente` | Cadastra novo paciente |
+| `agendar_consulta` | Cria consulta no sistema |
+| `cancelar_consulta` | Cancela consulta existente |
+| `listar_consultas_paciente` | Histórico do paciente |
 
-**Existente:**
-- Banner de cookies com aceitar/recusar
-- Link para politica de privacidade
+### 2.2 Fluxo de Execução
 
-**Faltando:**
-- Granularidade por categoria (essenciais, analiticos, marketing)
-- Registro do consentimento no banco
-- Opcao de revogar posteriormente
+```text
+1. IA detecta intenção de agendamento
+2. IA gera JSON com ação desejada
+3. omni-ai-respond parseia resposta
+4. Chama omni-ai-actions com a ação
+5. Resultado é injetado no contexto da IA
+6. IA formata resposta humanizada
+```
 
 ---
 
-## 4. PLANO DE CORRECAO
+## Fase 3: Modificações no `omni-ai-respond`
 
-### Fase 1 - Emergencial (Imediato)
+### 3.1 System Prompt Expandido
+Adicionar instruções específicas para agendamento:
+- Como coletar dados do paciente
+- Quando buscar horários
+- Como apresentar opções
+- Fluxo de confirmação
 
-#### 1.1 Migrar Senhas para Bcrypt
+### 3.2 Detecção de Intenções
+A IA usará um formato especial para solicitar ações:
+
+```json
+{"action": "buscar_horarios", "params": {"especialidade": "Cardiologia", "data": "2026-02-10"}}
+```
+
+### 3.3 Contexto Enriquecido
+Injetar dados da clínica no prompt:
+- Lista de especialidades disponíveis
+- Horários de funcionamento
+- Políticas de agendamento
+- Convênios aceitos
+
+---
+
+## Fase 4: Interface de Configuração (OmniIA.tsx)
+
+### 4.1 Nova Seção "Agendamento"
+- Toggle para ativar agendamento automático
+- Seleção de tipos de atendimento
+- Configuração de distribuição
+- Templates de mensagens
+- Regras de antecedência
+
+### 4.2 Campos de Configuração
+- Exigir CPF para agendar
+- Permitir encaixes
+- Valor padrão de consulta
+- Horário mínimo/máximo
+
+---
+
+## Fase 5: Fluxo Completo de Agendamento
+
+### Cenário: Novo Paciente
+
+```text
+Paciente: "Oi, quero marcar uma consulta"
+IA: "Olá! Claro, posso te ajudar. Qual especialidade você precisa?"
+
+Paciente: "Cardiologia"
+[IA executa: buscar_medicos(especialidade=Cardiologia)]
+IA: "Temos 2 cardiologistas: Dr. João Silva e Dra. Maria Santos. Tem preferência?"
+
+Paciente: "Tanto faz, o que tiver horário primeiro"
+[IA executa: buscar_horarios(especialidade=Cardiologia, limit=5)]
+IA: "Temos esses horários disponíveis:
+- Ter 11/02 às 09:00 com Dr. João
+- Ter 11/02 às 10:30 com Dra. Maria
+Qual prefere?"
+
+Paciente: "09:00 terça"
+IA: "Perfeito! Para confirmar o agendamento, preciso de alguns dados.
+Qual seu nome completo?"
+
+Paciente: "Carlos Eduardo Souza"
+IA: "E seu CPF?"
+
+Paciente: "123.456.789-00"
+[IA executa: buscar_paciente(cpf=12345678900)]
+# Não encontrado - vai criar novo
+IA: "Confirma os dados?
+- Nome: Carlos Eduardo Souza
+- CPF: 123.456.789-00
+- Telefone: (11) 99999-9999 (captado do WhatsApp)
+- Data: Ter 11/02 às 09:00
+- Médico: Dr. João Silva
+- Valor: R$ 250,00 (particular)"
+
+Paciente: "Confirma"
+[IA executa: criar_paciente(...)]
+[IA executa: agendar_consulta(...)]
+IA: "Pronto! Sua consulta foi agendada. Você receberá uma confirmação por WhatsApp 24h antes. Até lá!"
+```
+
+### Cenário: Paciente Existente
+
+```text
+Paciente: "Oi"
+[Sistema já tem telefone do contato]
+[IA executa: buscar_paciente(telefone=11999999999)]
+IA: "Olá Carlos! Tudo bem? Como posso te ajudar?"
+```
+
+---
+
+## Detalhes Técnicos
+
+### Arquivos a Criar/Modificar
+
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/omni-ai-actions/index.ts` | CRIAR - Nova edge function |
+| `supabase/functions/omni-ai-respond/index.ts` | MODIFICAR - Integrar ações |
+| `src/pages/clinica/omnichannel/OmniIA.tsx` | MODIFICAR - UI de config |
+| `supabase/migrations/xxx.sql` | CRIAR - Schema de config |
+| `supabase/config.toml` | MODIFICAR - Registrar function |
+
+### Estrutura da Edge Function `omni-ai-actions`
+
 ```typescript
-// Para cada usuario com senha em texto plano:
-const hash = await bcrypt.hash(senha_texto, 12);
-await supabase.from('usuarios').update({ senha_hash: hash }).eq('id', id);
-```
+interface ActionRequest {
+  action: string;
+  params: Record<string, any>;
+  clinica_id: string;
+  contato_telefone?: string;
+}
 
-#### 1.2 Mover API Key Asaas para Secrets
-- Adicionar `ASAAS_API_KEY` em Supabase Secrets
-- Remover coluna `api_key` da tabela `config_asaas`
-- Atualizar edge functions para usar `Deno.env.get("ASAAS_API_KEY")`
-
-#### 1.3 Habilitar RLS em prescricoes_documentos
-```sql
-ALTER TABLE prescricoes_documentos ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Medicos veem docs que criaram" ON prescricoes_documentos
-  FOR SELECT USING (medico_id IN (SELECT id FROM medicos WHERE usuario_id = auth.uid()));
-```
-
-### Fase 2 - Compliance LGPD (1-2 semanas)
-
-#### 2.1 Criar Estrutura de Auditoria
-```sql
--- Tabela de consentimentos
-CREATE TABLE lgpd_consentimentos (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  usuario_id UUID REFERENCES usuarios(id),
-  tipo TEXT NOT NULL, -- 'cookies', 'marketing', 'dados_saude'
-  aceito BOOLEAN NOT NULL,
-  ip_address TEXT,
-  user_agent TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  revogado_em TIMESTAMPTZ
-);
-
--- Tabela de audit logs
-CREATE TABLE lgpd_audit_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  usuario_id UUID,
-  acao TEXT NOT NULL, -- 'visualizou', 'editou', 'exportou', 'excluiu'
-  tabela TEXT NOT NULL,
-  registro_id TEXT,
-  dados_acessados JSONB,
-  ip_address TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-```
-
-#### 2.2 Implementar Direito ao Esquecimento
-```sql
-CREATE OR REPLACE FUNCTION anonimizar_paciente(paciente_uuid UUID)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
-BEGIN
-  UPDATE pacientes SET
-    nome = 'ANONIMIZADO',
-    cpf = NULL,
-    telefone = NULL,
-    data_nascimento = NULL,
-    endereco = NULL,
-    anonimizado = true,
-    anonimizado_em = now()
-  WHERE id = paciente_uuid;
-  
-  -- Log da acao
-  INSERT INTO lgpd_audit_logs (usuario_id, acao, tabela, registro_id)
-  VALUES (auth.uid(), 'anonimizou', 'pacientes', paciente_uuid::text);
-END;
-$$;
-```
-
-#### 2.3 Atualizar Cookie Consent
-```typescript
-// Adicionar granularidade e persistencia no banco
-interface CookieConsent {
-  essential: true; // sempre obrigatorio
-  analytics: boolean;
-  marketing: boolean;
-  timestamp: string;
-  ip: string;
+interface ActionResponse {
+  success: boolean;
+  data?: any;
+  error?: string;
+  message?: string; // Mensagem formatada para a IA
 }
 ```
 
-### Fase 3 - Hardening de Seguranca (2-4 semanas)
+### Ações Detalhadas
 
-#### 3.1 RLS por Papel/Role
-```sql
--- Pacientes veem apenas seus dados
-CREATE POLICY "pacientes_select_own" ON pacientes
-  FOR SELECT USING (usuario_id = auth.uid());
+#### `buscar_medicos`
+- Input: `{ especialidade?: string, nome?: string }`
+- Output: Lista de médicos com nome, especialidade, valor
 
--- Medicos veem pacientes de suas consultas
-CREATE POLICY "medicos_select_patients" ON pacientes
-  FOR SELECT USING (
-    id IN (SELECT paciente_id FROM consultas 
-           WHERE medico_id IN (SELECT id FROM medicos WHERE usuario_id = auth.uid()))
-  );
+#### `buscar_horarios`
+- Input: `{ medico_id?: string, especialidade?: string, data_inicio: string, data_fim?: string, limit?: number }`
+- Output: Lista de slots disponíveis formatados
 
--- Clinicas veem pacientes de suas consultas
-CREATE POLICY "clinicas_select_patients" ON pacientes
-  FOR SELECT USING (
-    id IN (SELECT paciente_id FROM consultas 
-           WHERE clinica_id IN (SELECT id FROM clinicas WHERE usuario_id = auth.uid()))
-  );
-```
+#### `buscar_paciente`
+- Input: `{ cpf?: string, telefone?: string, nome?: string }`
+- Output: Dados do paciente ou null
 
-#### 3.2 Remover Logs de Dados Sensiveis
+#### `criar_paciente`
+- Input: `{ nome: string, cpf?: string, telefone: string, data_nascimento?: string }`
+- Output: ID do paciente criado
 
-**Arquivos a modificar:**
-- `evolution-webhook/index.ts` - Remover logs de telefone
-- `create-asaas-payment/index.ts` - Remover log de busca por CPF
-- `transfer-to-doctor/index.ts` - Mascarar PIX key nos logs
+#### `agendar_consulta`
+- Input: `{ paciente_id: string, slot_id?: string, medico_id: string, data_hora: string, tipo_atendimento: string, convenio_id?: string, valor?: number }`
+- Output: Dados da consulta criada
+
+---
+
+## Segurança e Validações
+
+1. **Validação de CPF** - Verificar formato válido
+2. **Conflito de Horários** - Checar se slot ainda está disponível antes de confirmar
+3. **Antecedência Mínima** - Não permitir agendamento muito próximo
+4. **Limite Diário** - Opcional: limitar agendamentos por paciente
+5. **Bloqueio de Duplicatas** - Não agendar se já tem consulta próxima
+
+---
+
+## Distribuição de Atendentes (Round-Robin)
+
+Para consultas agendadas pela IA, o campo `usuario_clinica_id` será preenchido automaticamente usando lógica de distribuição:
 
 ```typescript
-// Antes:
-console.log(`Looking for contact with telefone: ${telefone}`);
-
-// Depois:
-console.log(`Looking for contact with telefone: ***${telefone.slice(-4)}`);
+async function getProximoAtendente(clinicaId: string): Promise<string | null> {
+  // Buscar atendentes ativos
+  // Contar agendamentos do dia
+  // Retornar o com menos atendimentos
+}
 ```
 
-#### 3.3 Migracao para Supabase Auth
+---
 
-**Recomendacao de longo prazo:** Migrar de autenticacao customizada (tabela `usuarios`) para Supabase Auth nativo, eliminando:
-- Armazenamento de senhas no banco
-- Fallbacks de RLS com `OR true`
-- Verificacao de senha legada em texto plano
+## Estimativa de Implementação
+
+1. **Migration + Tabela de Config** - 30 min
+2. **Edge Function omni-ai-actions** - 2h
+3. **Modificar omni-ai-respond** - 1.5h
+4. **Interface de Configuração** - 1h
+5. **Testes e Ajustes** - 1h
+
+**Total estimado: ~6 horas de desenvolvimento**
 
 ---
 
-## 5. LISTA DE ARQUIVOS A MODIFICAR
+## Próximos Passos Após Aprovação
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `supabase/functions/create-asaas-payment/index.ts` | Usar ASAAS_API_KEY de secrets |
-| `supabase/functions/process-card-payment/index.ts` | Usar ASAAS_API_KEY de secrets |
-| `supabase/functions/transfer-to-doctor/index.ts` | Usar ASAAS_API_KEY, mascarar logs PIX |
-| `supabase/functions/asaas-webhook/index.ts` | Usar ASAAS_API_KEY de secrets |
-| `supabase/functions/evolution-webhook/index.ts` | Mascarar telefone nos logs |
-| `supabase/functions/send-confirmation-batch/index.ts` | Mascarar dados paciente |
-| `supabase/functions/omni-ai-respond/index.ts` | Nao enviar telefone para IA |
-| `src/components/CookieConsent.tsx` | Adicionar granularidade |
-| Nova migration SQL | Criar tabelas LGPD + corrigir RLS |
-
----
-
-## 6. RECOMENDACOES ADICIONAIS
-
-### 6.1 Seguranca de Producao
-- Implementar rate limiting em todas edge functions
-- Adicionar validacao de webhook signature para Asaas
-- Configurar alertas de acesso anomalo
-- Backup criptografado de dados sensiveis
-
-### 6.2 Compliance Continuo
-- Revisao trimestral de RLS policies
-- Treinamento de equipe sobre LGPD
-- Testes de penetracao periodicos
-- Documentar fluxos de dados pessoais (ROPA)
-
-### 6.3 Prioridade de Implementacao
-1. **URGENTE (24h):** Migrar senhas para bcrypt, mover API Asaas para secrets
-2. **CRITICO (1 semana):** Corrigir RLS em tabelas de dados sensiveis
-3. **IMPORTANTE (2 semanas):** Criar estrutura de auditoria LGPD
-4. **PLANEJADO (1 mes):** Migrar para Supabase Auth
-
+1. Criar migration com nova coluna e tabela de config
+2. Implementar `omni-ai-actions` com todas as ações
+3. Modificar `omni-ai-respond` para detectar e executar ações
+4. Atualizar interface de configuração
+5. Testar fluxo completo end-to-end
