@@ -230,10 +230,30 @@ async function buscarHorarios(supabase: any, clinicaId: string, params: Record<s
       return { success: true, data: [], message: "Não encontrei médicos com esses critérios." };
     }
 
-    // Calculate date range
+    // Calculate date range - parse dates correctly to avoid timezone issues
     const now = new Date();
-    const startDate = data_inicio ? new Date(data_inicio) : now;
-    const endDate = data_fim ? new Date(data_fim) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days default
+    
+    // Parse date strings as local dates (YYYY-MM-DD format)
+    let startDate: Date;
+    let endDate: Date;
+    
+    if (data_inicio) {
+      // Parse as start of day in UTC
+      const [year, month, day] = data_inicio.split("-").map(Number);
+      startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+    } else {
+      startDate = now;
+    }
+    
+    if (data_fim) {
+      // Parse as END of day in UTC (23:59:59) to include all slots on that day
+      const [year, month, day] = data_fim.split("-").map(Number);
+      endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
+    } else {
+      endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days default
+    }
+
+    console.log(`[buscarHorarios] Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
     // Fetch available slots
     const { data: slots, error } = await supabase
