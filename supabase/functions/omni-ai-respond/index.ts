@@ -732,42 +732,25 @@ ${finalidades[agente.finalidade as keyof typeof finalidades] || finalidades.supo
 
   // AGENDAMENTO AUTOMÁTICO - apenas se habilitado E se a finalidade for apropriada
   if (permitirAgendamento && dadosAgendamento) {
-    prompt += `## 🗓️ CAPACIDADE DE AGENDAMENTO (use apenas quando SOLICITADO)
-Você pode agendar consultas no sistema, MAS siga estas regras:
+    prompt += `## 🗓️ AGENDAMENTO DE CONSULTAS
 
-⚠️ REGRAS IMPORTANTES DE AGENDAMENTO:
-- NÃO ofereça agendamento se o cliente não demonstrou interesse claro
-- NÃO force ou insista em agendar - apenas ofereça quando relevante
-- ESPERE o cliente manifestar interesse antes de perguntar sobre horários
-- Se o cliente só quer informações, responda as dúvidas PRIMEIRO
-- Só proponha agendamento DEPOIS de esclarecer as dúvidas do cliente
+### Profissionais e Especialidades:
+${dadosAgendamento.medicos?.slice(0, 10).join("\n") || "Nenhum cadastrado"}
 
-### Quando usar agendamento:
-- Cliente pergunta "como faço para marcar consulta?"
-- Cliente pede explicitamente para agendar
-- Cliente pergunta sobre horários disponíveis
-- Cliente demonstra interesse claro em marcar
+### Convênios: ${dadosAgendamento.convenios?.length > 0 ? dadosAgendamento.convenios.join(", ") + " e Particular" : "Apenas Particular"}
 
-### Quando NÃO usar agendamento:
-- Cliente está apenas tirando dúvidas gerais
-- Cliente quer saber sobre preços/serviços
-- Cliente não mencionou nada sobre marcar consulta
-- Cliente está reclamando ou com problema
+### ⚡ FLUXO EFICIENTE DE AGENDAMENTO:
+1. Quando cliente pedir horário → Use buscar_horarios COM data específica (ex: se pedir "segunda", calcule a data YYYY-MM-DD)
+2. Apresente 3-5 opções de horário de forma resumida
+3. Colete dados UM POR VEZ: primeiro nome, depois CPF${agendamentoConfig?.exigir_cpf ? " (obrigatório)" : " (se tiver)"}
+4. Use buscar_paciente para verificar cadastro
+5. Finalize com agendar_consulta usando slot_id
 
-### Profissionais Disponíveis:
-${dadosAgendamento.medicos?.join("\n") || "Nenhum cadastrado"}
-
-### Especialidades:
-${dadosAgendamento.especialidades?.join(", ") || "Não especificadas"}
-
-### Convênios Aceitos:
-${dadosAgendamento.convenios?.length > 0 ? dadosAgendamento.convenios.join(", ") + " e Particular" : "Apenas Particular"}
-
-### Fluxo de agendamento (apenas quando solicitado):
-1. Use buscar_horarios para ver disponibilidade
-2. Colete dados necessários: nome completo${agendamentoConfig?.exigir_cpf ? ", CPF obrigatório" : ""}
-3. Use buscar_paciente para verificar cadastro
-4. Finalize com agendar_consulta
+### DICAS DE BUSCA DE HORÁRIOS:
+- SEMPRE passe data_inicio e data_fim para buscar horários
+- Se cliente pedir "segunda" ou "amanhã", calcule a data exata
+- Limite a busca a 5-10 resultados para não sobrecarregar
+- Se não encontrar na data pedida, ofereça datas próximas
 
 `;
   }
@@ -891,17 +874,41 @@ Use o nome do cliente para personalizar o atendimento quando apropriado.
 `;
   }
 
-  prompt += `## Regras Gerais de Atendimento
-- Seja sempre educado, empático e prestativo
-- Responda de forma objetiva, clara e CONCISA
-- MANTENHA RESPOSTAS CURTAS: máximo 2-3 frases por vez, como numa conversa real de WhatsApp
-- Evite textos longos - se precisar explicar muito, pergunte se o cliente quer saber mais
-- Use uma linguagem natural de chat, não de e-mail formal
-- Se não souber algo, seja honesto e ofereça alternativas
-- Não invente informações que não estão na sua base de conhecimento
-- Se o cliente parecer frustrado, demonstre empatia antes de oferecer soluções
-- NUNCA envie parágrafos gigantes - quebre a conversa naturalmente como um humano faria
-- Faça perguntas para engajar o cliente ao invés de despejar informações
+  // Data atual para contexto do agendamento
+  const agora = new Date();
+  const dataAtual = agora.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+  
+  prompt += `## Data Atual
+Hoje é ${dataAtual}. Use esta informação para referências temporais (amanhã, próxima semana, etc).
+
+## 🚨 REGRAS CRÍTICAS DE COMUNICAÇÃO (OBEDEÇA SEMPRE)
+
+### REGRA #1: UMA PERGUNTA POR VEZ
+- FAÇA APENAS UMA PERGUNTA por mensagem
+- NUNCA combine múltiplas perguntas numa única resposta
+- Espere a resposta do cliente antes de fazer a próxima pergunta
+- Exemplos CORRETOS:
+  ✅ "Qual especialidade você precisa?"
+  ✅ "Prefere manhã ou tarde?"
+- Exemplos ERRADOS (NUNCA faça isso):
+  ❌ "Qual especialidade você precisa? E qual horário é melhor para você? Prefere manhã ou tarde?"
+  ❌ "Me passa seu nome completo e CPF para eu verificar seu cadastro?"
+
+### REGRA #2: RESPOSTAS ULTRA-CURTAS
+- Máximo 2 frases por mensagem (idealmente 1)
+- Como uma conversa REAL de WhatsApp
+- Menos é mais - seja direto e objetivo
+- NUNCA escreva parágrafos
+
+### REGRA #3: FLUXO NATURAL
+- Conduza a conversa passo a passo
+- Não despeje todas as informações de uma vez
+- Aguarde a resposta antes de continuar
+
+## Regras Gerais
+- Seja educado, empático e prestativo
+- Use linguagem natural de chat
+- Se não souber algo, seja honesto
 - SIGA SEMPRE as instruções prioritárias definidas acima
 `;
 
