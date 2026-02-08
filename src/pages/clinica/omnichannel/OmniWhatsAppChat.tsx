@@ -556,20 +556,33 @@ export default function OmniWhatsAppChat() {
     // Allow sending even without agente_id (for clinic owners)
 
     try {
+      // Normalize the mime type (remove codecs info)
+      let mimeType = audioBlob.type || 'audio/webm';
+      if (mimeType.includes(';')) {
+        mimeType = mimeType.split(';')[0];
+      }
+      
+      // Determine file extension based on mime type
+      const extension = mimeType === 'audio/ogg' ? 'ogg' : 
+                       mimeType === 'audio/webm' ? 'webm' : 
+                       mimeType === 'audio/mp4' ? 'm4a' : 'webm';
+      
       // Upload audio to Supabase storage
-      const fileName = `audio_${Date.now()}.ogg`;
+      const fileName = `audio_${Date.now()}.${extension}`;
       const filePath = `omni/${selectedAtendimento.clinica_id}/${selectedAtendimento.id}/${fileName}`;
+      
+      console.log("Uploading audio:", { mimeType, fileName, filePath, blobSize: audioBlob.size });
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("omni-files")
         .upload(filePath, audioBlob, {
-          contentType: audioBlob.type,
+          contentType: mimeType,
           upsert: false,
         });
 
       if (uploadError) {
         console.error("Error uploading audio:", uploadError);
-        toast.error("Erro ao fazer upload do áudio");
+        toast.error("Erro ao fazer upload do áudio: " + (uploadError.message || "erro desconhecido"));
         return;
       }
 
