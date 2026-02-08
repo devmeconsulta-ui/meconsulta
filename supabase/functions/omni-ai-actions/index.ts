@@ -324,7 +324,14 @@ async function buscarHorarios(supabase: any, clinicaId: string, params: Record<s
 
 async function buscarPaciente(supabase: any, clinicaId: string, params: Record<string, any>, contato_telefone?: string): Promise<ActionResponse> {
   try {
-    const { cpf, telefone, nome } = params;
+    let { cpf, telefone, nome } = params;
+    
+    // AUTO-BUSCA: Se nenhum parâmetro foi passado, usar telefone do WhatsApp automaticamente
+    if (!cpf && !telefone && !nome && contato_telefone) {
+      console.log("[buscarPaciente] Auto-searching by WhatsApp phone:", contato_telefone);
+      telefone = contato_telefone;
+    }
+    
     const telefoneBusca = telefone || contato_telefone;
 
     let query = supabase.from("pacientes").select("*");
@@ -334,11 +341,18 @@ async function buscarPaciente(supabase: any, clinicaId: string, params: Record<s
       query = query.eq("cpf", cpfLimpo);
     } else if (telefoneBusca) {
       const telLimpo = telefoneBusca.replace(/\D/g, "");
-      query = query.or(`telefone.ilike.%${telLimpo}%,celular.ilike.%${telLimpo}%`);
+      // Busca mais flexível: últimos 8-9 dígitos
+      const telSuffix = telLimpo.slice(-9);
+      query = query.or(`telefone.ilike.%${telSuffix}%,celular.ilike.%${telSuffix}%`);
     } else if (nome) {
       query = query.ilike("nome", `%${nome}%`);
     } else {
-      return { success: false, error: "Informe CPF, telefone ou nome para buscar" };
+      // Se não temos nenhum parâmetro, retornamos indicando que precisa coletar dados
+      return { 
+        success: true, 
+        data: null,
+        message: "Preciso de algumas informações para prosseguir. Poderia me informar seu nome completo?" 
+      };
     }
 
     const { data, error } = await query.limit(1).maybeSingle();
@@ -348,11 +362,12 @@ async function buscarPaciente(supabase: any, clinicaId: string, params: Record<s
     if (!data) {
       return {
         success: true,
-        data: null,
-        message: "Não encontrei nenhum cadastro com esses dados. Posso fazer seu cadastro agora para agilizar.",
+        data: { tem_cadastro: false },
+        message: "Não encontrei um cadastro vinculado a este telefone. Para agilizar, poderia me informar seu nome completo?",
       };
     }
 
+    // Retornar dados completos com flag de cadastro existente
     return {
       success: true,
       data: {
@@ -362,8 +377,9 @@ async function buscarPaciente(supabase: any, clinicaId: string, params: Record<s
         telefone: data.telefone || data.celular,
         email: data.email,
         data_nascimento: data.data_nascimento,
+        tem_cadastro: true,
       },
-      message: `Encontrei seu cadastro: ${data.nome}. Podemos continuar com o agendamento!`,
+      message: `Olá ${data.nome}! Encontrei seu cadastro. Como posso ajudar hoje?`,
     };
   } catch (error) {
     console.error("[buscarPaciente] Error:", error);
@@ -487,30 +503,56 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
     const usuarioClinicaId = await getProximoAtendente(supabase, clinicaId);
 
     // Create the consulta with all required fields
+    const insertData = {
+      clinica_id: clinicaId,
+      medico_id: medicoIdFinal,
+      paciente_id,
+      nome_paciente_consulta: nome_paciente,
+      data_hora: dataHoraFinal,
+      valor_consulta: valorFinal || 0,
+      valor_medico: (valorFinal || 0) * 0.7,
+      valor_plataforma: (valorFinal || 0) * 0.3,
+      status_consulta: "confirmada",
+      status_pagamento: tipo_atendimento === "convenio" ? "nao_integrado" : "pendente",
+      tipo_atendimento,
+      convenio_id: convenio_id || null,
+      origem: "ia_whatsapp",
+      usuario_clinica_id: usuarioClinicaId,
+      agenda_slot_id: slot_id || null,
+      local_id: localId,
+    };
+
+    console.log("[agendarConsulta] Inserting consulta:", insertData);
+
     const { data: consulta, error: consultaError } = await supabase
       .from("consultas")
-      .insert({
-        clinica_id: clinicaId,
-        medico_id: medicoIdFinal,
-        paciente_id,
-        nome_paciente_consulta: nome_paciente,
-        data_hora: dataHoraFinal,
-        valor_consulta: valorFinal || 0,
-        valor_medico: (valorFinal || 0) * 0.7,
-        valor_plataforma: (valorFinal || 0) * 0.3,
-        status_consulta: "confirmada",
-        status_pagamento: tipo_atendimento === "convenio" ? "nao_integrado" : "pendente",
-        tipo_atendimento,
-        convenio_id: convenio_id || null,
-        origem: "ia_whatsapp",
-        usuario_clinica_id: usuarioClinicaId,
-        agenda_slot_id: slot_id || null,
-        local_id: localId,
-      })
+      .insert(insertData)
       .select("id, data_hora, valor_consulta, tipo_atendimento, medico:medicos!consultas_medico_id_fkey(nome, especialidade)")
       .single();
 
-    if (consultaError) throw consultaError;
+    if (consultaError) {
+      console.error("[agendarConsulta] Insert error:", consultaError);
+      throw consultaError;
+    }
+
+    // ========== VERIFICAÇÃO PÓS-AGENDAMENTO (CRÍTICO) ==========
+    // Verificar se a consulta foi realmente criada no banco
+    const { data: consultaVerificada, error: verifyError } = await supabase
+      .from("consultas")
+      .select("id, data_hora, status_consulta, medico:medicos!consultas_medico_id_fkey(nome, especialidade)")
+      .eq("id", consulta.id)
+      .single();
+
+    if (verifyError || !consultaVerificada) {
+      console.error("[agendarConsulta] VERIFICATION FAILED:", verifyError);
+      return { 
+        success: false, 
+        error: "Não foi possível confirmar o agendamento no sistema. Por favor, tente novamente." 
+      };
+    }
+
+    console.log("[agendarConsulta] Verification SUCCESS - Consulta ID:", consultaVerificada.id);
+    // ========== FIM DA VERIFICAÇÃO ==========
 
     // Mark slot as unavailable if used
     if (slot_id) {
@@ -559,7 +601,7 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
     const estado = slotData?.local?.estado || clinica?.estado || "";
     const enderecoCompleto = [endereco, cidade, estado].filter(Boolean).join(", ");
 
-    // Build the confirmation card
+    // Build the confirmation card (máscara de confirmação)
     let mensagemConfirmacao = `✅ *CONSULTA AGENDADA COM SUCESSO!*\n\n`;
     mensagemConfirmacao += `📅 *Data:* ${dataFormatada}\n`;
     mensagemConfirmacao += `⏰ *Horário:* ${horaFormatada}\n`;
@@ -584,6 +626,7 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
       success: true,
       data: {
         consulta_id: consulta.id,
+        agendamento_confirmado: true, // Flag explícita de sucesso
         data_hora: consulta.data_hora,
         medico_nome: medicoNome,
         especialidade,
@@ -596,7 +639,7 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
     };
   } catch (error) {
     console.error("[agendarConsulta] Error:", error);
-    return { success: false, error: "Erro ao agendar consulta. Tente novamente." };
+    return { success: false, error: "Erro ao agendar consulta. Por favor, tente novamente em instantes." };
   }
 }
 
