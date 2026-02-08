@@ -341,9 +341,9 @@ async function buscarPaciente(supabase: any, clinicaId: string, params: Record<s
       query = query.eq("cpf", cpfLimpo);
     } else if (telefoneBusca) {
       const telLimpo = telefoneBusca.replace(/\D/g, "");
-      // Busca mais flexível: últimos 8-9 dígitos
+      // Busca mais flexível: últimos 8-9 dígitos (apenas telefone, não celular)
       const telSuffix = telLimpo.slice(-9);
-      query = query.or(`telefone.ilike.%${telSuffix}%,celular.ilike.%${telSuffix}%`);
+      query = query.ilike("telefone", `%${telSuffix}%`);
     } else if (nome) {
       query = query.ilike("nome", `%${nome}%`);
     } else {
@@ -374,7 +374,7 @@ async function buscarPaciente(supabase: any, clinicaId: string, params: Record<s
         id: data.id,
         nome: data.nome,
         cpf: data.cpf,
-        telefone: data.telefone || data.celular,
+        telefone: data.telefone,
         email: data.email,
         data_nascimento: data.data_nascimento,
         tem_cadastro: true,
@@ -420,7 +420,6 @@ async function criarPaciente(supabase: any, clinicaId: string, params: Record<st
       .insert({
         nome,
         cpf: cpfLimpo,
-        celular: telFinal,
         telefone: telFinal,
         email,
         data_nascimento,
@@ -502,12 +501,29 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
     // Get clinic attendant for round-robin distribution
     const usuarioClinicaId = await getProximoAtendente(supabase, clinicaId);
 
+    // ========== GARANTIR NOME DO PACIENTE ==========
+    // Se temos paciente_id mas não nome_paciente, buscar o nome do banco
+    let nomePacienteFinal = nome_paciente;
+    if (paciente_id && !nome_paciente) {
+      const { data: pacienteData } = await supabase
+        .from("pacientes")
+        .select("nome")
+        .eq("id", paciente_id)
+        .single();
+      
+      if (pacienteData?.nome) {
+        nomePacienteFinal = pacienteData.nome;
+        console.log("[agendarConsulta] Retrieved patient name:", nomePacienteFinal);
+      }
+    }
+    // ========== FIM BUSCA NOME ==========
+
     // Create the consulta with all required fields
     const insertData = {
       clinica_id: clinicaId,
       medico_id: medicoIdFinal,
       paciente_id,
-      nome_paciente_consulta: nome_paciente,
+      nome_paciente_consulta: nomePacienteFinal, // Agora sempre terá nome se paciente existir
       data_hora: dataHoraFinal,
       valor_consulta: valorFinal || 0,
       valor_medico: (valorFinal || 0) * 0.7,

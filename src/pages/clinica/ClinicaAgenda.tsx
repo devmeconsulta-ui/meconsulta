@@ -198,6 +198,46 @@ export default function ClinicaAgenda() {
   useEffect(() => {
     if (clinicaData?.id) {
       fetchData();
+
+      // ========== REALTIME SUBSCRIPTION ==========
+      // Atualiza a agenda automaticamente quando consultas são criadas/modificadas
+      const consultasChannel = supabase
+        .channel('agenda-consultas-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'consultas',
+            filter: `clinica_id=eq.${clinicaData.id}`,
+          },
+          (payload) => {
+            console.log('[Agenda] Consulta changed, refreshing...', payload.eventType);
+            fetchData();
+          }
+        )
+        .subscribe();
+
+      const slotsChannel = supabase
+        .channel('agenda-slots-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'agenda_slots',
+          },
+          (payload) => {
+            console.log('[Agenda] Slot changed, refreshing...', payload.eventType);
+            fetchData();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(consultasChannel);
+        supabase.removeChannel(slotsChannel);
+      };
     }
   }, [clinicaData, currentDate, viewMode]);
 
