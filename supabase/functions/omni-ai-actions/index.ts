@@ -442,16 +442,21 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
       return { success: false, error: "Precisamos do paciente para agendar. Você pode me informar o CPF ou nome completo?" };
     }
 
-    // Get slot or validate data_hora
+    // Get slot data with location info
     let slotData: any = null;
     let medicoIdFinal = medico_id;
     let dataHoraFinal = data_hora;
     let valorFinal = valor;
+    let localId: string | null = null;
 
     if (slot_id) {
       const { data: slot, error } = await supabase
         .from("agenda_slots")
-        .select("*, medico:medicos(id, nome, valor_consulta)")
+        .select(`
+          *, 
+          medico:medicos(id, nome, especialidade, valor_consulta),
+          local:locais_atendimento(id, nome_local, endereco, cidade, estado)
+        `)
         .eq("id", slot_id)
         .eq("disponivel", true)
         .single();
@@ -464,16 +469,24 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
       medicoIdFinal = slot.medico_id;
       dataHoraFinal = slot.data_hora;
       valorFinal = valor || slot.medico?.valor_consulta || 0;
+      localId = slot.local_id;
     }
 
     if (!medicoIdFinal || !dataHoraFinal) {
       return { success: false, error: "Preciso saber o médico e horário para agendar" };
     }
 
+    // Get clinic info for confirmation message
+    const { data: clinica } = await supabase
+      .from("clinicas")
+      .select("nome_fantasia, endereco_principal, cidade, estado, telefone")
+      .eq("id", clinicaId)
+      .single();
+
     // Get clinic attendant for round-robin distribution
     const usuarioClinicaId = await getProximoAtendente(supabase, clinicaId);
 
-    // Create the consulta
+    // Create the consulta with all required fields
     const { data: consulta, error: consultaError } = await supabase
       .from("consultas")
       .insert({
@@ -492,8 +505,9 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
         origem: "ia_whatsapp",
         usuario_clinica_id: usuarioClinicaId,
         agenda_slot_id: slot_id || null,
+        local_id: localId,
       })
-      .select("id, data_hora, medico:medicos!consultas_medico_id_fkey(nome)")
+      .select("id, data_hora, valor_consulta, tipo_atendimento, medico:medicos!consultas_medico_id_fkey(nome, especialidade)")
       .single();
 
     if (consultaError) throw consultaError;
@@ -519,22 +533,66 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
       sucesso: true,
     });
 
-    const dataFormatada = new Date(consulta.data_hora).toLocaleDateString("pt-BR", {
+    // Format date in Brazilian timezone
+    const dataHora = new Date(consulta.data_hora);
+    const dataFormatada = dataHora.toLocaleDateString("pt-BR", {
       weekday: "long",
       day: "2-digit",
       month: "2-digit",
+      year: "numeric",
+    });
+    const horaFormatada = dataHora.toLocaleTimeString("pt-BR", {
       hour: "2-digit",
       minute: "2-digit",
     });
+
+    // Build comprehensive confirmation message
+    const medicoNome = consulta.medico?.nome || slotData?.medico?.nome || "Médico";
+    const especialidade = consulta.medico?.especialidade || slotData?.medico?.especialidade || "";
+    const valorConsulta = consulta.valor_consulta || 0;
+    const tipoAtend = consulta.tipo_atendimento === "convenio" ? "Convênio" : "Particular";
+    
+    // Location info
+    const localNome = slotData?.local?.nome_local || clinica?.nome_fantasia || "";
+    const endereco = slotData?.local?.endereco || clinica?.endereco_principal || "";
+    const cidade = slotData?.local?.cidade || clinica?.cidade || "";
+    const estado = slotData?.local?.estado || clinica?.estado || "";
+    const enderecoCompleto = [endereco, cidade, estado].filter(Boolean).join(", ");
+
+    // Build the confirmation card
+    let mensagemConfirmacao = `✅ *CONSULTA AGENDADA COM SUCESSO!*\n\n`;
+    mensagemConfirmacao += `📅 *Data:* ${dataFormatada}\n`;
+    mensagemConfirmacao += `⏰ *Horário:* ${horaFormatada}\n`;
+    mensagemConfirmacao += `👨‍⚕️ *Médico(a):* ${medicoNome}\n`;
+    if (especialidade) {
+      mensagemConfirmacao += `🏥 *Especialidade:* ${especialidade}\n`;
+    }
+    mensagemConfirmacao += `💳 *Tipo:* ${tipoAtend}\n`;
+    if (valorConsulta > 0 && consulta.tipo_atendimento !== "convenio") {
+      mensagemConfirmacao += `💰 *Valor:* R$ ${valorConsulta.toFixed(2).replace(".", ",")}\n`;
+    }
+    if (localNome) {
+      mensagemConfirmacao += `\n📍 *Local:* ${localNome}\n`;
+    }
+    if (enderecoCompleto) {
+      mensagemConfirmacao += `📫 *Endereço:* ${enderecoCompleto}\n`;
+    }
+    mensagemConfirmacao += `\n⚠️ _Chegue com 15 minutos de antecedência._`;
+    mensagemConfirmacao += `\n_Lembre-se de trazer documento com foto e carteirinha do convênio (se aplicável)._`;
 
     return {
       success: true,
       data: {
         consulta_id: consulta.id,
         data_hora: consulta.data_hora,
-        medico_nome: consulta.medico?.nome,
+        medico_nome: medicoNome,
+        especialidade,
+        valor: valorConsulta,
+        tipo_atendimento: tipoAtend,
+        local: localNome,
+        endereco: enderecoCompleto,
       },
-      message: `✅ Consulta agendada com sucesso!\n\n📅 ${dataFormatada}\n👨‍⚕️ ${consulta.medico?.nome}\n\nVocê receberá uma confirmação por WhatsApp. Até lá!`,
+      message: mensagemConfirmacao,
     };
   } catch (error) {
     console.error("[agendarConsulta] Error:", error);
