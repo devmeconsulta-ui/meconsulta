@@ -649,7 +649,7 @@ export default function ClinicaAgenda() {
     const slotInfo = getSlotStatus(slot);
     const isLivre = slotInfo.status === "livre";
     const isOnline = slotInfo.origem === "online";
-    const isInterna = slotInfo.origem === "interna";
+    const isInterna = slotInfo.origem === "interna" || slotInfo.origem === "ia_whatsapp";
     const isBloqueado = slotInfo.status === "indisponivel";
     const hasConsulta = slot.consultas && slot.consultas.length > 0;
 
@@ -855,7 +855,7 @@ export default function ClinicaAgenda() {
                 const slotInfo = getSlotStatus(slot);
                 const isLivre = slotInfo.status === "livre";
                 const isOnline = slotInfo.origem === "online";
-                const isInterna = slotInfo.origem === "interna";
+                const isInterna = slotInfo.origem === "interna" || slotInfo.origem === "ia_whatsapp";
                 const isBloqueado = slotInfo.status === "indisponivel";
                 const hasConsulta = slot.consultas && slot.consultas.length > 0;
                 const medicoNome = slot.medicos?.nome || medicos.find(m => m.id === slot.medico_id)?.nome;
