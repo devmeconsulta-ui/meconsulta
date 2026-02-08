@@ -794,15 +794,23 @@ function EditarFilaForm({
 
   // Load agendamento config
   useEffect(() => {
+    let isMounted = true;
+    
     const loadAgendamentoConfig = async () => {
       try {
-        const { data } = await (supabase as any)
+        const { data, error } = await (supabase as any)
           .from("omni_ia_agendamentos_config")
           .select("*")
           .eq("fila_id", fila.id)
           .maybeSingle();
 
-        if (data) {
+        if (error) {
+          console.error("Erro ao carregar config de agendamento:", error);
+          if (isMounted) setLoadingAgendamento(false);
+          return;
+        }
+
+        if (data && isMounted) {
           const configData = data as any;
           setAgendamentoConfig({
             permitir_agendamento: configData.permitir_agendamento || false,
@@ -816,12 +824,17 @@ function EditarFilaForm({
         }
       } catch (error) {
         console.error("Erro ao carregar config de agendamento:", error);
+        toast.error("Erro ao carregar configurações de agendamento");
       } finally {
-        setLoadingAgendamento(false);
+        if (isMounted) setLoadingAgendamento(false);
       }
     };
 
     loadAgendamentoConfig();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [fila.id]);
 
   const CORES_FILA = [
@@ -853,14 +866,21 @@ function EditarFilaForm({
 
     // Save agendamento config
     try {
-      const { data: existingConfig } = await (supabase as any)
+      const { data: existingConfig, error: fetchError } = await (supabase as any)
         .from("omni_ia_agendamentos_config")
         .select("id")
         .eq("fila_id", fila.id)
         .maybeSingle();
 
+      if (fetchError) {
+        console.error("Erro ao buscar config existente:", fetchError);
+        toast.error("Erro ao salvar configurações de agendamento");
+        setSaving(false);
+        return;
+      }
+
       if (existingConfig) {
-        await (supabase as any)
+        const { error: updateError } = await (supabase as any)
           .from("omni_ia_agendamentos_config")
           .update({
             permitir_agendamento: agendamentoConfig.permitir_agendamento,
@@ -871,8 +891,13 @@ function EditarFilaForm({
             permitir_cancelamento: agendamentoConfig.permitir_cancelamento,
           })
           .eq("id", existingConfig.id);
+          
+        if (updateError) {
+          console.error("Erro ao atualizar config:", updateError);
+          toast.error("Erro ao atualizar configurações");
+        }
       } else {
-        await (supabase as any)
+        const { error: insertError } = await (supabase as any)
           .from("omni_ia_agendamentos_config")
           .insert({
             fila_id: fila.id,
@@ -885,11 +910,16 @@ function EditarFilaForm({
             antecedencia_maxima_dias: agendamentoConfig.antecedencia_maxima_dias,
             permitir_cancelamento: agendamentoConfig.permitir_cancelamento,
           });
+          
+        if (insertError) {
+          console.error("Erro ao inserir config:", insertError);
+          toast.error("Erro ao criar configurações");
+        }
       }
     } catch (error) {
       console.error("Erro ao salvar config de agendamento:", error);
+      toast.error("Erro inesperado ao salvar configurações");
     }
-
 
     setSaving(false);
   };
