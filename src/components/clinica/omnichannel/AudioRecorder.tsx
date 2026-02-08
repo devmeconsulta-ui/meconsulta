@@ -228,9 +228,10 @@ export function AudioRecorder({ onSendAudio, disabled }: AudioRecorderProps) {
   return (
     <Button 
       size="icon"
-      className="h-9 w-9 bg-[#075E54] hover:bg-[#064E46] text-white rounded-full"
+      className="h-10 w-10 min-w-10 bg-[#075E54] hover:bg-[#064E46] text-white rounded-full shrink-0"
       onClick={startRecording}
       disabled={disabled}
+      type="button"
     >
       <Mic className="h-5 w-5" />
     </Button>
