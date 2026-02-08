@@ -553,10 +553,7 @@ export default function OmniWhatsAppChat() {
     if (!selectedAtendimento) return;
     
     const agenteId = getAgenteId();
-    if (!agenteId) {
-      toast.error("Não foi possível identificar o agente");
-      return;
-    }
+    // Allow sending even without agente_id (for clinic owners)
 
     try {
       // Upload audio to Supabase storage
