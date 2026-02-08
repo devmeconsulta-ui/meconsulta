@@ -10,11 +10,14 @@ import {
   Kanban,
   MessageCircle,
   Settings2,
-  Sparkles
+  Sparkles,
+  WifiOff
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOmniAtendimentos } from "@/hooks/useOmniAtendimentos";
+import { useOmniConnectionMonitor } from "@/hooks/useOmniConnectionMonitor";
+import { Badge } from "@/components/ui/badge";
 
 interface NavItem {
   icon: React.ElementType;
@@ -40,6 +43,7 @@ interface OmniHeaderProps {
 export function OmniHeader({ clinicaId }: OmniHeaderProps) {
   const location = useLocation();
   const { atendimentos } = useOmniAtendimentos(clinicaId || null);
+  const { hasDisconnectedQueues, disconnectedQueues } = useOmniConnectionMonitor(clinicaId || null);
 
   // Conta atendimentos em espera e em andamento
   const esperaCount = atendimentos?.filter(a => a.status === "aguardando").length || 0;
@@ -47,6 +51,21 @@ export function OmniHeader({ clinicaId }: OmniHeaderProps) {
 
   return (
     <div className="bg-card border-b border-border px-4 py-3">
+      {/* Connection Alert Banner */}
+      {hasDisconnectedQueues && (
+        <NavLink to="/clinica/omnichannel/filas" className="block mb-3">
+          <div className="flex items-center justify-center gap-2 p-2 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive hover:bg-destructive/20 transition-colors cursor-pointer">
+            <WifiOff className="h-4 w-4 animate-pulse" />
+            <span className="text-sm font-medium">
+              ⚠️ {disconnectedQueues.length} fila{disconnectedQueues.length > 1 ? "s" : ""} desconectada{disconnectedQueues.length > 1 ? "s" : ""}: {disconnectedQueues.map(q => q.filaNome).join(", ")}
+            </span>
+            <Badge variant="destructive" className="text-xs">
+              Clique para reconectar
+            </Badge>
+          </div>
+        </NavLink>
+      )}
+      
       <div className="flex items-center justify-center gap-2">
         {navItems.map((item) => {
           const isExactMatch = item.path === "/clinica/omnichannel" 

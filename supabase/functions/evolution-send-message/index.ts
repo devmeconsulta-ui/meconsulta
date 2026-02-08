@@ -60,8 +60,11 @@ serve(async (req) => {
         id,
         data_abertura,
         data_primeira_resposta,
+        fila_id,
         contato:omni_contatos!contato_id(id, telefone),
         fila:omni_filas!fila_id(
+          id,
+          nome,
           instancia:omni_instancias!instancia_id(evolution_instance_name, status)
         )
       `)
@@ -78,11 +81,40 @@ serve(async (req) => {
     }
 
     const contato = atendimento.contato;
-    const instancia = atendimento.fila?.instancia;
+    const fila = atendimento.fila;
+    const instancia = fila?.instancia;
 
-    if (!instancia || instancia.status !== "connected") {
+    // Check if atendimento has a queue assigned
+    if (!atendimento.fila_id || !fila) {
+      console.error("Atendimento sem fila vinculada:", atendimento_id);
       return new Response(
-        JSON.stringify({ error: "Instância não conectada" }),
+        JSON.stringify({ 
+          error: "Atendimento sem fila de atendimento vinculada", 
+          details: "Este atendimento não está vinculado a nenhuma fila. Vincule-o a uma fila nas configurações." 
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check if queue has an instance linked
+    if (!instancia) {
+      console.error("Fila sem instância:", fila.nome);
+      return new Response(
+        JSON.stringify({ 
+          error: `A fila "${fila.nome}" não possui instância WhatsApp vinculada`, 
+          details: "Configure uma instância WhatsApp para esta fila em Omnichannel > Filas." 
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (instancia.status !== "connected") {
+      console.error("Instância desconectada:", instancia.evolution_instance_name);
+      return new Response(
+        JSON.stringify({ 
+          error: `WhatsApp desconectado na fila "${fila.nome}"`, 
+          details: "A instância WhatsApp precisa ser reconectada. Acesse Omnichannel > Filas para reconectar." 
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
