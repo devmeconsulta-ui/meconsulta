@@ -38,6 +38,7 @@ export interface OmniIAAgente {
   acoes_followup: AcaoFollowUp[];
   palavras_chave_transferencia: string[];
   fila_transferencia_id: string | null;
+  permitir_agendamento: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -87,6 +88,7 @@ export function useOmniIAAgentes(clinicaId: string | null) {
         ...a,
         acoes_followup: (a.acoes_followup || []) as AcaoFollowUp[],
         palavras_chave_transferencia: (a.palavras_chave_transferencia || []) as string[],
+        permitir_agendamento: a.permitir_agendamento ?? false,
       })) as OmniIAAgente[];
       
       setAgentes(typedAgentes);
@@ -122,6 +124,7 @@ export function useOmniIAAgentes(clinicaId: string | null) {
         ...data,
         acoes_followup: [],
         palavras_chave_transferencia: [],
+        permitir_agendamento: false,
       } as OmniIAAgente;
 
       setAgentes((prev) => [novoAgente, ...prev]);
@@ -163,6 +166,7 @@ export function useOmniIAAgentes(clinicaId: string | null) {
       if (agente.acoes_followup !== undefined) updateData.acoes_followup = JSON.parse(JSON.stringify(agente.acoes_followup));
       if (agente.palavras_chave_transferencia !== undefined) updateData.palavras_chave_transferencia = agente.palavras_chave_transferencia;
       if (agente.fila_transferencia_id !== undefined) updateData.fila_transferencia_id = agente.fila_transferencia_id;
+      if (agente.permitir_agendamento !== undefined) updateData.permitir_agendamento = agente.permitir_agendamento;
 
       const { error } = await supabase
         .from("omni_ia_agentes")

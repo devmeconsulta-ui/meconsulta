@@ -29,6 +29,7 @@ interface AgenteIA {
   palavras_chave_transferencia: string[];
   fila_transferencia_id: string | null;
   acoes_followup: AcaoFollowUp[];
+  permitir_agendamento: boolean;
 }
 
 interface AcaoFollowUp {
@@ -48,6 +49,11 @@ interface AIRequest {
   atendimento_id: string;
   mensagem: string;
   clinica_id: string;
+}
+
+interface ActionCall {
+  action: string;
+  params: Record<string, any>;
 }
 
 // Mapeamento de modelos para o Lovable AI Gateway
@@ -128,9 +134,20 @@ Deno.serve(async (req) => {
 
     const agenteIA = agente as AgenteIA;
     
+    // Buscar configuração de agendamento se habilitado
+    let agendamentoConfig: any = null;
+    if (agenteIA.permitir_agendamento) {
+      const { data: configData } = await supabase
+        .from("omni_ia_agendamentos_config")
+        .select("*")
+        .eq("agente_id", agenteIA.id)
+        .single();
+      agendamentoConfig = configData;
+    }
+    
     // Mapear modelo para o Lovable AI Gateway
     const modeloGateway = MODEL_MAPPING[agenteIA.modelo] || "google/gemini-3-flash-preview";
-    console.log(`[AI] Found agent: ${agenteIA.nome}, model: ${agenteIA.modelo} -> ${modeloGateway}`);
+    console.log(`[AI] Found agent: ${agenteIA.nome}, model: ${agenteIA.modelo} -> ${modeloGateway}, scheduling: ${agenteIA.permitir_agendamento}`);
 
     // Buscar conversa de IA existente ou criar nova
     let { data: conversa } = await supabase
@@ -208,8 +225,32 @@ Deno.serve(async (req) => {
       .eq("agente_id", agenteIA.id)
       .eq("status", "treinado");
 
+    // Buscar dados extras para agendamento se habilitado
+    let dadosAgendamento: any = null;
+    if (agenteIA.permitir_agendamento) {
+      // Get specialists list
+      const { data: medicos } = await supabase
+        .from("clinicas_medicos")
+        .select("medico:medicos(nome, especialidade)")
+        .eq("clinica_id", clinica_id)
+        .eq("ativo", true);
+      
+      // Get convenios
+      const { data: convenios } = await supabase
+        .from("convenios")
+        .select("nome")
+        .eq("clinica_id", clinica_id)
+        .eq("ativo", true);
+
+      dadosAgendamento = {
+        medicos: medicos?.map((m: any) => `${m.medico?.nome} (${m.medico?.especialidade})`).filter(Boolean) || [],
+        especialidades: [...new Set(medicos?.map((m: any) => m.medico?.especialidade).filter(Boolean))] || [],
+        convenios: convenios?.map((c: any) => c.nome) || [],
+      };
+    }
+
     // Construir o system prompt baseado nas configurações
-    const systemPrompt = buildSystemPrompt(agenteIA, treinamentos || [], atendimento.contato);
+    const systemPrompt = buildSystemPrompt(agenteIA, treinamentos || [], atendimento.contato, agenteIA.permitir_agendamento, dadosAgendamento, agendamentoConfig);
 
     // Construir histórico de mensagens
     const historicoMensagens = (conversa.mensagens as any[]) || [];
@@ -250,6 +291,9 @@ Deno.serve(async (req) => {
       await new Promise(resolve => setTimeout(resolve, agenteIA.tempo_resposta * 1000));
     }
 
+    // Build tools for scheduling if enabled
+    const tools = agenteIA.permitir_agendamento ? buildSchedulingTools() : undefined;
+
     // Chamar a IA via Lovable AI Gateway
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -263,6 +307,7 @@ Deno.serve(async (req) => {
           { role: "system", content: systemPrompt },
           ...historicoMensagens.slice(-20),
         ],
+        ...(tools ? { tools, tool_choice: "auto" } : {}),
       }),
     });
 
@@ -291,7 +336,56 @@ Deno.serve(async (req) => {
     }
 
     const aiData = await aiResponse.json();
-    let respostaIA = aiData.choices?.[0]?.message?.content || "";
+    const aiMessage = aiData.choices?.[0]?.message;
+    let respostaIA = aiMessage?.content || "";
+
+    // Check if AI requested tool calls (scheduling actions)
+    const toolCalls = aiMessage?.tool_calls;
+    if (toolCalls && toolCalls.length > 0 && agenteIA.permitir_agendamento) {
+      console.log(`[AI] Processing ${toolCalls.length} tool calls for scheduling`);
+      
+      for (const toolCall of toolCalls) {
+        const functionName = toolCall.function?.name;
+        let functionArgs: Record<string, any> = {};
+        
+        try {
+          functionArgs = JSON.parse(toolCall.function?.arguments || "{}");
+        } catch (e) {
+          console.error("[AI] Error parsing tool arguments:", e);
+          continue;
+        }
+
+        console.log(`[AI] Calling action: ${functionName}`, functionArgs);
+
+        // Call omni-ai-actions edge function
+        const actionResponse = await fetch(`${SUPABASE_URL}/functions/v1/omni-ai-actions`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: functionName,
+            params: functionArgs,
+            clinica_id: clinica_id,
+            contato_telefone: atendimento.contato?.telefone,
+            atendimento_id: atendimento_id,
+            agente_id: agenteIA.id,
+          }),
+        });
+
+        if (actionResponse.ok) {
+          const actionResult = await actionResponse.json();
+          console.log(`[AI] Action result:`, actionResult);
+
+          // Add tool result to conversation and call AI again for final response
+          if (actionResult.message) {
+            // Append the action result to response
+            respostaIA = actionResult.message;
+          }
+        }
+      }
+    }
 
     console.log(`[AI] Got response: ${respostaIA.substring(0, 100)}...`);
 
@@ -389,7 +483,14 @@ Deno.serve(async (req) => {
   }
 });
 
-function buildSystemPrompt(agente: AgenteIA, treinamentos: Treinamento[], contato: any): string {
+function buildSystemPrompt(
+  agente: AgenteIA, 
+  treinamentos: Treinamento[], 
+  contato: any,
+  permitirAgendamento: boolean = false,
+  dadosAgendamento: any = null,
+  agendamentoConfig: any = null
+): string {
   const estilos = {
     formal: "Você deve usar linguagem formal, profissional e cortês. Evite gírias e coloquialismos. Use 'você' em vez de 'vc', escreva de forma completa.",
     normal: "Você deve usar uma linguagem amigável e profissional, equilibrada entre formal e casual. Seja acessível mas mantenha o profissionalismo.",
@@ -422,6 +523,42 @@ ${finalidades[agente.finalidade as keyof typeof finalidades] || finalidades.supo
   if (agente.comportamento) {
     prompt += `## Instruções Específicas de Comportamento
 ${agente.comportamento}
+
+`;
+  }
+
+  // AGENDAMENTO AUTOMÁTICO
+  if (permitirAgendamento && dadosAgendamento) {
+    prompt += `## 🗓️ CAPACIDADE DE AGENDAMENTO AUTOMÁTICO
+Você possui a capacidade de AGENDAR CONSULTAS automaticamente no sistema da clínica.
+
+### Profissionais Disponíveis:
+${dadosAgendamento.medicos?.join("\n") || "Nenhum cadastrado"}
+
+### Especialidades:
+${dadosAgendamento.especialidades?.join(", ") || "Não especificadas"}
+
+### Convênios Aceitos:
+${dadosAgendamento.convenios?.length > 0 ? dadosAgendamento.convenios.join(", ") + " e Particular" : "Apenas Particular"}
+
+### Como Proceder para Agendar:
+1. Quando o cliente demonstrar interesse em agendar, use a função buscar_horarios para ver disponibilidade
+2. Se o cliente perguntar sobre médicos/especialidades, use buscar_medicos
+3. Antes de confirmar, colete: nome completo${agendamentoConfig?.exigir_cpf ? ", CPF obrigatório" : " (CPF opcional)"}
+4. Use buscar_paciente para verificar se já tem cadastro (pelo telefone do WhatsApp ou CPF)
+5. Se não tiver cadastro, use criar_paciente
+6. Finalize com agendar_consulta
+
+### Regras de Agendamento:
+${agendamentoConfig?.antecedencia_minima_horas ? `- Antecedência mínima: ${agendamentoConfig.antecedencia_minima_horas} horas` : ""}
+${agendamentoConfig?.antecedencia_maxima_dias ? `- Agendar até: ${agendamentoConfig.antecedencia_maxima_dias} dias no futuro` : ""}
+${agendamentoConfig?.tipos_atendimento ? `- Tipos aceitos: ${agendamentoConfig.tipos_atendimento.join(", ")}` : ""}
+
+### Fluxo de Conversa para Agendamento:
+- Seja proativo: "Posso verificar os horários disponíveis para você?"
+- Apresente opções de forma clara e resumida (máximo 3-5 horários)
+- Sempre confirme os dados antes de finalizar
+- Após agendar, informe data/hora e médico de forma clara
 
 `;
   }
@@ -559,6 +696,136 @@ Use o nome do cliente para personalizar o atendimento quando apropriado.
 `;
 
   return prompt;
+}
+
+function buildSchedulingTools() {
+  return [
+    {
+      type: "function",
+      function: {
+        name: "buscar_medicos",
+        description: "Busca médicos disponíveis na clínica, opcionalmente filtrando por especialidade ou nome",
+        parameters: {
+          type: "object",
+          properties: {
+            especialidade: { type: "string", description: "Especialidade médica para filtrar (ex: Cardiologia, Dermatologia)" },
+            nome: { type: "string", description: "Nome do médico para buscar" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "buscar_horarios",
+        description: "Busca horários disponíveis para agendamento de consulta",
+        parameters: {
+          type: "object",
+          properties: {
+            medico_id: { type: "string", description: "ID do médico específico" },
+            especialidade: { type: "string", description: "Especialidade para buscar horários" },
+            data_inicio: { type: "string", description: "Data de início para buscar (formato YYYY-MM-DD)" },
+            data_fim: { type: "string", description: "Data fim para buscar (formato YYYY-MM-DD)" },
+            limit: { type: "number", description: "Quantidade máxima de horários a retornar (padrão: 10)" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "buscar_paciente",
+        description: "Busca paciente pelo CPF, telefone ou nome para verificar se já tem cadastro",
+        parameters: {
+          type: "object",
+          properties: {
+            cpf: { type: "string", description: "CPF do paciente (apenas números)" },
+            telefone: { type: "string", description: "Telefone do paciente" },
+            nome: { type: "string", description: "Nome do paciente para busca aproximada" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "criar_paciente",
+        description: "Cria um novo cadastro de paciente no sistema",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome completo do paciente" },
+            cpf: { type: "string", description: "CPF do paciente (apenas números)" },
+            telefone: { type: "string", description: "Telefone do paciente" },
+            email: { type: "string", description: "Email do paciente" },
+            data_nascimento: { type: "string", description: "Data de nascimento (formato YYYY-MM-DD)" }
+          },
+          required: ["nome"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "agendar_consulta",
+        description: "Agenda uma consulta no sistema",
+        parameters: {
+          type: "object",
+          properties: {
+            paciente_id: { type: "string", description: "ID do paciente já cadastrado" },
+            nome_paciente: { type: "string", description: "Nome do paciente (se não tiver ID)" },
+            slot_id: { type: "string", description: "ID do slot de horário escolhido" },
+            medico_id: { type: "string", description: "ID do médico" },
+            data_hora: { type: "string", description: "Data e hora da consulta (se não usar slot_id)" },
+            tipo_atendimento: { type: "string", enum: ["particular", "convenio"], description: "Tipo de atendimento" },
+            convenio_id: { type: "string", description: "ID do convênio (se tipo for convenio)" },
+            valor: { type: "number", description: "Valor da consulta" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "listar_consultas_paciente",
+        description: "Lista as consultas agendadas de um paciente",
+        parameters: {
+          type: "object",
+          properties: {
+            paciente_id: { type: "string", description: "ID do paciente" },
+            status: { type: "string", description: "Filtrar por status da consulta" }
+          },
+          required: ["paciente_id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "cancelar_consulta",
+        description: "Cancela uma consulta agendada",
+        parameters: {
+          type: "object",
+          properties: {
+            consulta_id: { type: "string", description: "ID da consulta a cancelar" },
+            paciente_id: { type: "string", description: "ID do paciente (cancela próxima consulta)" },
+            motivo: { type: "string", description: "Motivo do cancelamento" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "buscar_convenios",
+        description: "Lista os convênios aceitos pela clínica",
+        parameters: {
+          type: "object",
+          properties: {}
+        }
+      }
+    }
+  ];
 }
 
 async function transferirParaHumano(
