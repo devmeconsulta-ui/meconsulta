@@ -67,7 +67,15 @@ import { toast } from "sonner";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
-  currentUser: { id: string; nome: string; usuarioClinicaId?: string; tipo?: string; email?: string } | null;
+  currentUser: { 
+    id: string; 
+    nome: string; 
+    usuarioClinicaId?: string; 
+    tipo?: string; 
+    email?: string;
+    isClinicaUser?: boolean;
+    papel?: string;
+  } | null;
 }
 
 function getInitials(name: string) {
@@ -275,8 +283,20 @@ export default function OmniWhatsAppChat() {
   const { clinicaData, currentUser } = useOutletContext<ClinicaContext>();
   const clinicaId = clinicaData?.id || null;
 
-  // Check if user is clinic admin (read-only mode)
-  const isClinicaAdmin = currentUser?.tipo === "clinica";
+  // Check if user is clinic admin (owner, not employee)
+  // Clinic employees have isClinicaUser: true from auth
+  // Clinic owners have tipo: "clinica" but NOT isClinicaUser: true
+  const isClinicaAdmin = currentUser?.tipo === "clinica" && !currentUser?.isClinicaUser;
+  
+  // Debug log for data isolation
+  console.log("[OmniWhatsAppChat] User context:", {
+    id: currentUser?.id,
+    nome: currentUser?.nome,
+    tipo: currentUser?.tipo,
+    isClinicaUser: currentUser?.isClinicaUser,
+    usuarioClinicaId: currentUser?.usuarioClinicaId,
+    isClinicaAdmin,
+  });
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAtendimento, setSelectedAtendimento] = useState<OmniAtendimento | null>(null);

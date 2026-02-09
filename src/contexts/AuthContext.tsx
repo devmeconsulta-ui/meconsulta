@@ -6,12 +6,13 @@ export interface CurrentUser {
   nome: string;
   email: string;
   tipo: "admin" | "medico" | "paciente" | "clinica";
-  papel?: "atendente" | "supervisor" | "admin" | "superadmin";
+  papel?: "atendente" | "supervisor" | "admin" | "superadmin" | "secretaria" | "gerente";
   pacienteId?: string;
   medicoId?: string;
   clinicaId?: string;
   permissoes?: string[];
   todosMedicos?: boolean;
+  isClinicaUser?: boolean;
 }
 
 interface AuthContextType {

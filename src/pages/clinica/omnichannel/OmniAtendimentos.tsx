@@ -30,7 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
-  currentUser: { id: string; nome: string; usuarioClinicaId?: string; tipo?: string } | null;
+  currentUser: { id: string; nome: string; usuarioClinicaId?: string; tipo?: string; isClinicaUser?: boolean } | null;
   usuarioClinicaData?: { id: string; nome: string } | null;
 }
 
@@ -42,8 +42,9 @@ export default function OmniAtendimentos() {
   const usuarioClinicaId = currentUser?.usuarioClinicaId || (context as any)?.usuarioClinicaData?.id;
   const clinicaId = clinicaData?.id || null;
   
-  // Check if user is clinic admin (can see all) or agent (limited view)
-  const isClinicaAdmin = currentUser?.tipo === "clinica";
+  // Check if user is clinic admin (owner, not employee)
+  // Clinic employees have isClinicaUser: true from auth
+  const isClinicaAdmin = currentUser?.tipo === "clinica" && !currentUser?.isClinicaUser;
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilters, setStatusFilters] = useState<string[]>(["aguardando", "em_atendimento"]);
