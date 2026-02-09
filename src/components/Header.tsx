@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Menu, User, Grid3X3, MessageSquare, Search, Stethoscope, LogOut } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import logo from "@/assets/logo.avif";
 import { SignupModal } from "./SignupModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,10 +11,21 @@ const Header = () => {
   const [signupModalOpen, setSignupModalOpen] = useState(false);
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  const scrollToSection = (sectionId: string) => {
+    setMobileMenuOpen(false);
+    if (location.pathname !== "/") {
+      navigate("/", { state: { scrollTo: sectionId } });
+    } else {
+      const element = document.getElementById(sectionId);
+      element?.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   const getUserArea = () => {
@@ -36,18 +47,18 @@ const Header = () => {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-8">
-              <a href="/#especialidades" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+              <button onClick={() => scrollToSection("especialidades")} className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
                 <Grid3X3 className="w-5 h-5 text-primary" />
                 Especialidades
-              </a>
-              <a href="/#depoimentos" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+              </button>
+              <button onClick={() => scrollToSection("depoimentos")} className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
                 <MessageSquare className="w-5 h-5 text-primary" />
                 Depoimentos
-              </a>
-              <a href="/#especialistas" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+              </button>
+              <button onClick={() => scrollToSection("especialistas")} className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
                 <Search className="w-5 h-5 text-primary" />
                 Especialistas
-              </a>
+              </button>
               <Link to="/sou-medico" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
                 <Stethoscope className="w-5 h-5 text-primary" />
                 Sou Médico
@@ -109,18 +120,18 @@ const Header = () => {
           {mobileMenuOpen && (
             <div className="md:hidden py-4 border-t border-border">
               <nav className="flex flex-col gap-4">
-                <a href="/#especialidades" className="flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors">
+                <button onClick={() => scrollToSection("especialidades")} className="flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors">
                   <Grid3X3 className="w-4 h-4 text-primary" />
                   Especialidades
-                </a>
-                <a href="/#depoimentos" className="flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors">
+                </button>
+                <button onClick={() => scrollToSection("depoimentos")} className="flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors">
                   <MessageSquare className="w-4 h-4 text-primary" />
                   Depoimentos
-                </a>
-                <a href="/#especialistas" className="flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors">
+                </button>
+                <button onClick={() => scrollToSection("especialistas")} className="flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors">
                   <Search className="w-4 h-4 text-primary" />
                   Especialistas
-                </a>
+                </button>
                 <Link to="/sou-medico" className="flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors">
                   <Stethoscope className="w-4 h-4 text-primary" />
                   Sou Médico
