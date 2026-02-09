@@ -277,8 +277,10 @@ Deno.serve(async (req) => {
 
             console.log(`[Media] Got base64, length: ${base64Data.length}`);
 
-            // Decode base64 to binary
-            const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+            // Decode base64 to binary using proper Deno method
+            // atob can corrupt binary data, use decodeBase64 instead
+            const { decodeBase64 } = await import("https://deno.land/std@0.208.0/encoding/base64.ts");
+            const binaryData = decodeBase64(base64Data);
             
             // Normalize mime type - remove codec info like "audio/ogg; codecs=opus"
             let normalizedMime = mimeType.split(";")[0].trim();
