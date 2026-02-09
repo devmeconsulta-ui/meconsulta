@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,8 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   ArrowRightLeft,
   Download,
-  Play,
-  Pause,
   Check,
   CheckCheck,
   X,
@@ -20,6 +18,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useOmniMensagens, OmniMensagem, OmniAtendimento } from "@/hooks/useOmniAtendimentos";
+import { AudioPlayerWithFallback } from "@/components/clinica/omnichannel/AudioPlayerWithFallback";
 import { cn } from "@/lib/utils";
 
 interface VisualizarConversaModalProps {
@@ -27,84 +26,6 @@ interface VisualizarConversaModalProps {
   onClose: () => void;
   atendimento: OmniAtendimento | null;
   onTransferir?: () => void;
-}
-
-function AudioPlayer({ url }: { url: string }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [hasError, setHasError] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  const togglePlay = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play().catch(() => setHasError(true));
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-  };
-
-  // If custom player fails, show native audio controls
-  if (hasError) {
-    return (
-      <audio 
-        src={url} 
-        controls 
-        className="h-10 max-w-[250px]"
-        preload="metadata"
-      />
-    );
-  }
-
-  return (
-    <div className="bg-primary/20 rounded-2xl p-3 flex items-center gap-3 min-w-[200px]">
-      <audio
-        ref={audioRef}
-        src={url}
-        preload="metadata"
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => {
-          setDuration(e.currentTarget.duration);
-          setIsLoaded(true);
-        }}
-        onEnded={() => setIsPlaying(false)}
-        onError={() => setHasError(true)}
-        onCanPlay={() => setIsLoaded(true)}
-      />
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-10 w-10 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground"
-        onClick={togglePlay}
-        disabled={!isLoaded}
-      >
-        {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
-      </Button>
-      <div className="flex-1">
-        <div className="h-1.5 bg-white/30 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-white transition-all"
-            style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
-          />
-        </div>
-        <div className="flex justify-between mt-1">
-          <span className="text-xs text-muted-foreground">
-            {isLoaded ? formatTime(currentTime) : "--:--"} / {isLoaded ? formatTime(duration || 0) : "--:--"}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function MessageBubble({ mensagem, agenteNome }: { mensagem: OmniMensagem; agenteNome?: string }) {
@@ -142,7 +63,7 @@ function MessageBubble({ mensagem, agenteNome }: { mensagem: OmniMensagem; agent
       case "audio":
         return (
           <div className="space-y-2">
-            <AudioPlayer url={mensagem.arquivo_url || ""} />
+            <AudioPlayerWithFallback url={mensagem.arquivo_url || ""} />
             <div className="flex items-center justify-end gap-1">
               <span className="text-[10px] opacity-70">{formattedTime}</span>
               {isOutgoing && (
