@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -74,6 +74,9 @@ export function NovoAtendimentoModal({
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showNewContactForm, setShowNewContactForm] = useState(false);
+  
+  // Guard against rapid double-clicks using a ref
+  const isCreatingRef = useRef(false);
 
   // Fetch filas on mount
   useEffect(() => {
@@ -145,26 +148,37 @@ export function NovoAtendimentoModal({
   }, [clinicaId, searchTerm]);
 
   const criarAtendimento = async (contatoId: string) => {
+    // Guard against rapid double-clicks
+    if (isCreatingRef.current || creating) {
+      console.log("Blocked duplicate creation attempt");
+      return;
+    }
+    
     if (!selectedFilaId) {
       toast.error("Selecione uma fila de atendimento");
       return;
     }
 
+    isCreatingRef.current = true;
     setCreating(true);
+    
     try {
-      // Check if there's already an active atendimento for this contact
-      const { data: existingList } = await supabase
+      // Check if there's already an active atendimento for this contact (FRESH from DB)
+      const { data: existingList, error: checkError } = await supabase
         .from("omni_atendimentos")
         .select("id")
         .eq("clinica_id", clinicaId)
         .eq("contato_id", contatoId)
         .in("status", ["aguardando", "em_atendimento"]);
 
+      if (checkError) {
+        console.error("Error checking existing atendimentos:", checkError);
+      }
+
       if (existingList && existingList.length > 0) {
         toast.info("Já existe um atendimento ativo para este contato");
         onAtendimentoCriado(existingList[0].id);
         onOpenChange(false);
-        setCreating(false);
         return;
       }
 
@@ -191,10 +205,17 @@ export function NovoAtendimentoModal({
       toast.error("Erro ao criar atendimento");
     } finally {
       setCreating(false);
+      isCreatingRef.current = false;
     }
   };
 
   const criarContatoEAtendimento = async () => {
+    // Guard against rapid double-clicks
+    if (isCreatingRef.current || creating) {
+      console.log("Blocked duplicate creation attempt (new contact)");
+      return;
+    }
+    
     const telefone = searchTerm.replace(/\D/g, "");
     if (telefone.length < 10) {
       toast.error("Digite um telefone válido (mínimo 10 dígitos)");
@@ -211,18 +232,23 @@ export function NovoAtendimentoModal({
       return;
     }
 
+    isCreatingRef.current = true;
     setCreating(true);
+    
     try {
       // Check if contact already exists with this phone
-      const { data: existingList } = await supabase
+      const { data: existingContato } = await supabase
         .from("omni_contatos")
         .select("id")
         .eq("clinica_id", clinicaId)
-        .eq("telefone", telefone);
+        .eq("telefone", telefone)
+        .maybeSingle();
 
-      if (existingList && existingList.length > 0) {
+      if (existingContato) {
         toast.info("Este telefone já está cadastrado");
-        await criarAtendimento(existingList[0].id);
+        // Reset ref before calling criarAtendimento which will set it again
+        isCreatingRef.current = false;
+        await criarAtendimento(existingContato.id);
         return;
       }
 
@@ -238,6 +264,22 @@ export function NovoAtendimentoModal({
         .single();
 
       if (contatoError) throw contatoError;
+
+      // Double-check no atendimento was created in the meantime
+      const { data: existingAtend } = await supabase
+        .from("omni_atendimentos")
+        .select("id")
+        .eq("clinica_id", clinicaId)
+        .eq("contato_id", novoContato.id)
+        .in("status", ["aguardando", "em_atendimento"])
+        .maybeSingle();
+
+      if (existingAtend) {
+        toast.info("Atendimento já criado para este contato");
+        onAtendimentoCriado(existingAtend.id);
+        onOpenChange(false);
+        return;
+      }
 
       // Create atendimento with fila_id
       const { data: atendimento, error: atendError } = await supabase
@@ -262,6 +304,7 @@ export function NovoAtendimentoModal({
       toast.error("Erro ao criar atendimento");
     } finally {
       setCreating(false);
+      isCreatingRef.current = false;
     }
   };
 
