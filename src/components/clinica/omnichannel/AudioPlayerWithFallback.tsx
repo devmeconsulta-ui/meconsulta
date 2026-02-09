@@ -1,26 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Play, Pause, Download, AlertCircle, Mic } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Play, Pause, Mic } from "lucide-react";
 
 interface AudioPlayerWithFallbackProps {
   url: string;
   isOutgoing?: boolean;
 }
-
-// Detect Safari browser
-const isSafari = () => {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent.toLowerCase();
-  return ua.includes('safari') && !ua.includes('chrome') && !ua.includes('chromium');
-};
-
-// Detect iOS
-const isIOS = () => {
-  if (typeof navigator === 'undefined') return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-};
 
 export function AudioPlayerWithFallback({ 
   url, 
@@ -31,123 +16,192 @@ export function AudioPlayerWithFallback({
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [canPlay, setCanPlay] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const progressRef = useRef<HTMLDivElement>(null);
+  
+  // Web Audio API refs
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioBufferRef = useRef<AudioBuffer | null>(null);
+  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const pausedAtRef = useRef<number>(0);
+  const animationRef = useRef<number | null>(null);
 
   // Colors exactly like WhatsApp
   const bubbleBg = isOutgoing ? "bg-[#D9FDD3]" : "bg-white";
   const waveformColor = isOutgoing ? "#53bdeb" : "#667781";
   const progressColor = isOutgoing ? "#25D366" : "#00a884";
 
-  const isSafariBrowser = isSafari() || isIOS();
-
+  // Load audio using Web Audio API (better codec support)
   useEffect(() => {
-    const audio = new Audio();
-    audioRef.current = audio;
-    
-    // Try to load the audio
-    audio.preload = "metadata";
-    audio.crossOrigin = "anonymous";
-    
-    const handleLoadedMetadata = () => {
-      console.log("[AudioPlayer] Metadata loaded, duration:", audio.duration);
-      setDuration(audio.duration);
-      setIsLoading(false);
-      setCanPlay(true);
-    };
+    let cancelled = false;
 
-    const handleCanPlay = () => {
-      console.log("[AudioPlayer] Can play");
-      setCanPlay(true);
-      setIsLoading(false);
-    };
+    const loadAudio = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-    };
-
-    const handleError = (e: Event) => {
-      const mediaError = audio.error;
-      console.error("[AudioPlayer] Error:", mediaError?.code, mediaError?.message);
-      
-      // Error codes: 1=ABORTED, 2=NETWORK, 3=DECODE, 4=SRC_NOT_SUPPORTED
-      if (mediaError?.code === 4 || mediaError?.code === 3) {
-        if (isSafariBrowser) {
-          setError("Safari não suporta este formato de áudio (OGG). Use Chrome ou Firefox, ou baixe o arquivo.");
-        } else {
-          setError("Formato de áudio não suportado pelo navegador");
+        // Create AudioContext
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContextClass) {
+          throw new Error("Web Audio API não suportada");
         }
-      } else if (mediaError?.code === 2) {
-        setError("Erro de rede ao carregar áudio");
-      } else {
-        setError("Erro ao carregar áudio");
+
+        const audioContext = new AudioContextClass();
+        audioContextRef.current = audioContext;
+
+        // Fetch the audio file
+        console.log("[AudioPlayer] Fetching audio:", url);
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`Erro ao carregar áudio: ${response.status}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        console.log("[AudioPlayer] Got buffer, size:", arrayBuffer.byteLength);
+
+        if (cancelled) return;
+
+        // Decode the audio data
+        try {
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          console.log("[AudioPlayer] Decoded successfully, duration:", audioBuffer.duration);
+          
+          if (cancelled) return;
+
+          audioBufferRef.current = audioBuffer;
+          setDuration(audioBuffer.duration);
+          setIsLoading(false);
+        } catch (decodeError) {
+          console.error("[AudioPlayer] Decode error:", decodeError);
+          throw new Error("Formato de áudio não suportado");
+        }
+      } catch (err) {
+        console.error("[AudioPlayer] Load error:", err);
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Erro ao carregar áudio");
+          setIsLoading(false);
+        }
       }
-      setIsLoading(false);
-      setCanPlay(false);
     };
 
-    const handleLoadStart = () => {
-      console.log("[AudioPlayer] Load started for:", url);
-      setIsLoading(true);
-      setError(null);
-    };
-
-    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
-    audio.addEventListener("canplay", handleCanPlay);
-    audio.addEventListener("timeupdate", handleTimeUpdate);
-    audio.addEventListener("ended", handleEnded);
-    audio.addEventListener("error", handleError);
-    audio.addEventListener("loadstart", handleLoadStart);
-
-    // Start loading
-    audio.src = url;
-    audio.load();
+    loadAudio();
 
     return () => {
-      audio.pause();
-      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
-      audio.removeEventListener("canplay", handleCanPlay);
-      audio.removeEventListener("timeupdate", handleTimeUpdate);
-      audio.removeEventListener("ended", handleEnded);
-      audio.removeEventListener("error", handleError);
-      audio.removeEventListener("loadstart", handleLoadStart);
-      audio.src = "";
+      cancelled = true;
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      if (sourceNodeRef.current) {
+        try {
+          sourceNodeRef.current.stop();
+        } catch (e) {}
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
     };
-  }, [url, isSafariBrowser]);
+  }, [url]);
+
+  // Update progress while playing
+  const updateProgress = useCallback(() => {
+    if (!audioContextRef.current || !isPlaying) return;
+    
+    const elapsed = audioContextRef.current.currentTime - startTimeRef.current + pausedAtRef.current;
+    setCurrentTime(Math.min(elapsed, duration));
+    
+    if (elapsed < duration) {
+      animationRef.current = requestAnimationFrame(updateProgress);
+    } else {
+      setIsPlaying(false);
+      setCurrentTime(0);
+      pausedAtRef.current = 0;
+    }
+  }, [isPlaying, duration]);
+
+  useEffect(() => {
+    if (isPlaying) {
+      animationRef.current = requestAnimationFrame(updateProgress);
+    }
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [isPlaying, updateProgress]);
 
   const handlePlayPause = async () => {
-    if (!audioRef.current || !canPlay) return;
+    if (!audioContextRef.current || !audioBufferRef.current) return;
 
-    try {
-      if (isPlaying) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      } else {
-        await audioRef.current.play();
-        setIsPlaying(true);
+    const audioContext = audioContextRef.current;
+
+    // Resume context if suspended (required for user gesture)
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+
+    if (isPlaying) {
+      // Pause
+      if (sourceNodeRef.current) {
+        sourceNodeRef.current.stop();
+        sourceNodeRef.current = null;
       }
-    } catch (err) {
-      console.error("[AudioPlayer] Play error:", err);
-      setError("Não foi possível reproduzir o áudio");
+      pausedAtRef.current = audioContext.currentTime - startTimeRef.current + pausedAtRef.current;
+      setIsPlaying(false);
+    } else {
+      // Play
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBufferRef.current;
+      source.connect(audioContext.destination);
+      
+      source.onended = () => {
+        if (sourceNodeRef.current === source) {
+          setIsPlaying(false);
+          setCurrentTime(0);
+          pausedAtRef.current = 0;
+        }
+      };
+
+      const offset = pausedAtRef.current;
+      startTimeRef.current = audioContext.currentTime;
+      source.start(0, offset);
+      sourceNodeRef.current = source;
+      setIsPlaying(true);
     }
   };
 
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!progressRef.current || !audioRef.current || !duration) return;
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!duration) return;
     
-    const rect = progressRef.current.getBoundingClientRect();
+    const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = x / rect.width;
-    const newTime = percentage * duration;
+    const seekTime = percentage * duration;
     
-    audioRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
+    // If playing, restart from new position
+    if (isPlaying && sourceNodeRef.current && audioContextRef.current && audioBufferRef.current) {
+      sourceNodeRef.current.stop();
+      
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBufferRef.current;
+      source.connect(audioContextRef.current.destination);
+      
+      source.onended = () => {
+        if (sourceNodeRef.current === source) {
+          setIsPlaying(false);
+          setCurrentTime(0);
+          pausedAtRef.current = 0;
+        }
+      };
+
+      startTimeRef.current = audioContextRef.current.currentTime;
+      pausedAtRef.current = seekTime;
+      source.start(0, seekTime);
+      sourceNodeRef.current = source;
+    } else {
+      pausedAtRef.current = seekTime;
+    }
+    
+    setCurrentTime(seekTime);
   };
 
   const formatTime = (time: number) => {
@@ -159,34 +213,24 @@ export function AudioPlayerWithFallback({
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // Show error state with download option
+  // Error state - use native audio as final fallback
   if (error) {
     return (
       <div className={cn(
-        "rounded-2xl p-3 min-w-[220px] max-w-[280px] shadow-sm",
+        "rounded-2xl p-2 min-w-[200px] max-w-[280px] shadow-sm",
         bubbleBg
       )}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-            <AlertCircle className="h-5 w-5 text-red-500" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-red-600 leading-tight">{error}</p>
-          </div>
-        </div>
-        <div className="mt-2 flex justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs gap-1"
-            asChild
-          >
-            <a href={url} download target="_blank" rel="noopener noreferrer">
-              <Download className="h-3 w-3" />
-              Baixar áudio
-            </a>
-          </Button>
-        </div>
+        <audio 
+          src={url} 
+          controls 
+          preload="auto"
+          playsInline
+          className="w-full h-10"
+          style={{ borderRadius: '8px' }}
+        />
+        <p className="text-[10px] text-muted-foreground text-center mt-1">
+          Player alternativo
+        </p>
       </div>
     );
   }
@@ -200,15 +244,14 @@ export function AudioPlayerWithFallback({
         {/* Play/Pause Button */}
         <button
           onClick={handlePlayPause}
-          disabled={isLoading || !canPlay}
+          disabled={isLoading}
           className={cn(
             "w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0",
             isLoading 
               ? "bg-gray-200 cursor-wait" 
-              : canPlay
-                ? "bg-[#00a884] hover:bg-[#00997a] text-white cursor-pointer"
-                : "bg-gray-300 cursor-not-allowed"
+              : "bg-[#00a884] hover:bg-[#00997a] text-white cursor-pointer"
           )}
+          aria-label={isPlaying ? "Pausar" : "Reproduzir"}
         >
           {isLoading ? (
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -221,13 +264,11 @@ export function AudioPlayerWithFallback({
 
         {/* Waveform and Progress */}
         <div className="flex-1 min-w-0">
-          {/* Fake Waveform Bars */}
+          {/* Waveform Bars */}
           <div 
-            ref={progressRef}
-            onClick={handleProgressClick}
+            onClick={handleSeek}
             className="h-6 flex items-center gap-[2px] cursor-pointer relative"
           >
-            {/* Background waveform */}
             {Array.from({ length: 28 }).map((_, i) => {
               const heights = [3, 5, 8, 4, 10, 6, 12, 5, 8, 14, 6, 9, 4, 11, 7, 5, 13, 8, 6, 10, 4, 7, 12, 5, 9, 6, 8, 4];
               const height = heights[i % heights.length];
@@ -250,7 +291,7 @@ export function AudioPlayerWithFallback({
           {/* Time */}
           <div className="flex items-center justify-between mt-0.5">
             <span className="text-[10px] text-gray-500">
-              {formatTime(currentTime || duration)}
+              {formatTime(isPlaying ? currentTime : (currentTime || duration))}
             </span>
             <Mic className="h-3 w-3" style={{ color: waveformColor, opacity: 0.6 }} />
           </div>
