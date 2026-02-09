@@ -90,15 +90,14 @@ export function ClinicaLayout() {
   }
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="h-screen flex bg-background overflow-hidden">
       <ClinicaSidebar />
-      <div className="flex-1 flex flex-col lg:ml-64">
+      <div className="flex-1 flex flex-col lg:ml-64 overflow-hidden">
         {/* Header fixo */}
-        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-card">
+        <div className="flex-shrink-0 z-40 bg-card">
           <ClinicaHeader clinicaData={clinicaData} />
         </div>
-        {/* Espaçador para o header fixo */}
-        <div className="h-16" />
+        {/* Área de conteúdo com scroll contido */}
         <main className="flex-1 overflow-auto p-4 sm:p-6">
           {dataLoading ? (
             <div className="flex items-center justify-center h-full">

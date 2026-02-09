@@ -8,7 +8,7 @@ interface OmniLayoutProps {
 
 export function OmniLayout({ children, clinicaId }: OmniLayoutProps) {
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] -m-4 sm:-m-6 overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-4rem)] -m-4 sm:-m-6 overflow-hidden">
       {/* Header fixo do omnichannel */}
       <div className="flex-shrink-0 bg-background border-b border-border">
         <OmniHeader clinicaId={clinicaId} />

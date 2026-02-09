@@ -163,17 +163,14 @@ export default function ClinicaChat() {
   };
 
   return (
-    <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
-      {/* Header fixo no topo - abaixo do ClinicaHeader */}
-      <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background">
+    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
+      {/* OmniHeader fixo no topo */}
+      <div className="flex-shrink-0 bg-background">
         <OmniHeader />
       </div>
 
-      {/* Espaçador para compensar o header fixo */}
-      <div className="h-[calc(4rem+56px)] lg:h-[calc(1.5rem+56px)]" />
-
       {/* Container do Chat */}
-      <div className="h-[calc(100vh-12rem)] lg:h-[calc(100vh-8rem)] mx-4 sm:mx-6 flex bg-background rounded-lg border overflow-hidden">
+      <div className="flex-1 mx-4 sm:mx-6 mb-4 flex bg-background rounded-lg border overflow-hidden">
       {/* Botão mobile para abrir sidebar */}
       <Button
         variant="ghost"
