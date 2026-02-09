@@ -81,21 +81,6 @@ const HeroSection = () => {
   };
 
   // Fetch available states and cities from database
-  // Helper to normalize state input to standard abbreviation
-  const normalizeStateAbbreviation = (input: string | null): string | null => {
-    if (!input) return null;
-    const trimmed = input.trim().toUpperCase();
-    
-    // Already an abbreviation
-    if (stateNameMapping[trimmed]) return trimmed;
-    
-    // Full state name - find the abbreviation
-    const entry = Object.entries(stateNameMapping).find(
-      ([, nome]) => nome.toUpperCase() === trimmed
-    );
-    return entry ? entry[0] : null;
-  };
-
   useEffect(() => {
     const fetchLocations = async () => {
       try {
@@ -131,6 +116,9 @@ const HeroSection = () => {
         
         // Store in state for use when selecting
         (window as any).__citiesByStateFromDB = citiesByStateMap;
+        
+        // Now that we have the data, request geolocation
+        requestGeolocation(citiesByStateMap);
       } catch (err) {
         console.error("Error fetching locations:", err);
       }
@@ -149,12 +137,22 @@ const HeroSection = () => {
     }
   }, [selectedState]);
 
-  // Pedir geolocalização ao carregar
-  useEffect(() => {
-    requestGeolocation();
-  }, []);
+  // Helper to normalize state input to standard abbreviation
+  const normalizeStateAbbreviation = (input: string | null): string | null => {
+    if (!input) return null;
+    const trimmed = input.trim().toUpperCase();
+    
+    // Already an abbreviation
+    if (stateNameMapping[trimmed]) return trimmed;
+    
+    // Full state name - find the abbreviation
+    const entry = Object.entries(stateNameMapping).find(
+      ([, nome]) => nome.toUpperCase() === trimmed
+    );
+    return entry ? entry[0] : null;
+  };
 
-  const requestGeolocation = async () => {
+  const requestGeolocation = async (citiesMap?: Record<string, string[]>) => {
     if (!navigator.geolocation) {
       console.log("Geolocalização não suportada");
       return;
@@ -169,7 +167,8 @@ const HeroSection = () => {
           
           // Usar API de geocoding reverso para obter cidade/estado
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+            { headers: { 'Accept-Language': 'pt-BR' } }
           );
           
           if (response.ok) {
@@ -191,13 +190,14 @@ const HeroSection = () => {
             const cityName = address.city || address.town || address.municipality;
             
             if (stateName && stateMapping[stateName]) {
-              setSelectedState(stateMapping[stateName]);
+              const stateAbbr = stateMapping[stateName];
+              setSelectedState(stateAbbr);
               setLocationDetected(true);
               
-              // Verificar se a cidade está disponível no banco
-              const citiesFromDB = (window as any).__citiesByStateFromDB?.[stateMapping[stateName]] || [];
+              // Use passed cities map or fallback to window
+              const citiesFromDB = citiesMap?.[stateAbbr] || (window as any).__citiesByStateFromDB?.[stateAbbr] || [];
               
-              if (cityName) {
+              if (cityName && citiesFromDB.length > 0) {
                 const matchedCity = citiesFromDB.find(
                   (c: string) => c.toLowerCase() === cityName.toLowerCase()
                 );
@@ -219,7 +219,7 @@ const HeroSection = () => {
         console.log("Usuário negou geolocalização ou erro:", error.message);
         setIsGettingLocation(false);
       },
-      { timeout: 10000, enableHighAccuracy: false }
+      { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
     );
   };
 
@@ -404,7 +404,7 @@ const HeroSection = () => {
                         variant="outline"
                         size="icon"
                         className={`h-11 w-11 shrink-0 ${locationDetected ? 'border-green-500 text-green-600' : ''}`}
-                        onClick={requestGeolocation}
+                        onClick={() => requestGeolocation()}
                         disabled={isGettingLocation}
                         title="Usar minha localização"
                       >
