@@ -371,30 +371,40 @@ export function NovoAtendimentoModal({
             </div>
           )}
 
-          {/* Create new contact option */}
-          {!showNewContactForm && isPhoneLike && (
+          {/* Create new contact option - always show when searching */}
+          {!showNewContactForm && searchTerm.trim() && (
             <Button
               variant="outline"
-              className="w-full justify-start gap-3 h-auto py-3 border-primary/30 hover:border-primary hover:bg-primary/5"
+              className={`w-full justify-start gap-3 h-auto py-3 ${
+                isValidPhone 
+                  ? "border-primary bg-primary/5 hover:bg-primary/10" 
+                  : "border-dashed border-muted-foreground/40"
+              }`}
               onClick={() => {
                 if (isValidPhone) {
                   setShowNewContactForm(true);
                 } else {
-                  toast.error("Continue digitando o telefone (mínimo 10 dígitos)");
+                  toast.error("Digite um telefone válido (mínimo 10 dígitos, ex: 11999998888)");
                 }
               }}
             >
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Plus className="h-5 w-5 text-primary" />
+              <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
+                isValidPhone ? "bg-primary text-primary-foreground" : "bg-muted"
+              }`}>
+                <Plus className="h-5 w-5" />
               </div>
               <div className="flex flex-col items-start">
                 <span className="font-medium">
-                  {isValidPhone ? "Criar novo contato" : "Continue digitando..."}
+                  {isValidPhone ? "Iniciar atendimento com este número" : "Digite o telefone completo"}
                 </span>
                 <span className="text-sm text-muted-foreground flex items-center gap-1">
                   <Phone className="h-3 w-3" />
-                  {formatPhone(searchTerm)}
-                  {!isValidPhone && <span className="text-xs">(mín. 10 dígitos)</span>}
+                  {isPhoneLike ? formatPhone(searchTerm) : searchTerm}
+                  {!isValidPhone && (
+                    <span className="text-xs text-destructive ml-1">
+                      ({10 - digitsOnly.length} dígitos restantes)
+                    </span>
+                  )}
                 </span>
               </div>
             </Button>
