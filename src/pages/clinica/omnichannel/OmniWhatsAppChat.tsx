@@ -801,7 +801,7 @@ export default function OmniWhatsAppChat() {
   }
 
   return (
-    <div className="flex h-screen bg-background -m-4 sm:-m-6">
+    <div className="flex h-[calc(100vh-4rem)] bg-background -m-4 sm:-m-6 overflow-hidden">
       {/* Sidebar - Conversation List */}
       <div className="w-80 border-r flex flex-col bg-card">
         {/* Search */}
