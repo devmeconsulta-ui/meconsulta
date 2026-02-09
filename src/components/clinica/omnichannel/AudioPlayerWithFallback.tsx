@@ -15,8 +15,8 @@ export function AudioPlayerWithFallback({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const [isReady, setIsReady] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Generate static waveform bars like WhatsApp
   const waveformBars = [
@@ -24,18 +24,126 @@ export function AudioPlayerWithFallback({
     55, 45, 60, 50, 70, 40, 55, 35, 60, 45, 50, 35, 55, 40, 45, 30
   ];
 
-  const togglePlay = async () => {
-    if (!audioRef.current) return;
+  // Create audio element on mount
+  useEffect(() => {
+    if (!url) return;
+
+    console.log("[AudioPlayer] Creating audio for URL:", url);
     
-    try {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        await audioRef.current.play();
+    const audio = new Audio();
+    audio.preload = "auto";
+    audio.crossOrigin = "anonymous";
+    
+    audio.onloadedmetadata = () => {
+      console.log("[AudioPlayer] Metadata loaded, duration:", audio.duration);
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+        setDuration(audio.duration);
       }
-    } catch (err) {
-      console.error("Play error:", err);
-      // Silently fail - no error UI
+      setIsReady(true);
+    };
+
+    audio.oncanplay = () => {
+      console.log("[AudioPlayer] Can play");
+      setIsReady(true);
+    };
+
+    audio.ontimeupdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
+
+    audio.onplay = () => {
+      console.log("[AudioPlayer] Playing");
+      setIsPlaying(true);
+    };
+
+    audio.onpause = () => {
+      console.log("[AudioPlayer] Paused");
+      setIsPlaying(false);
+    };
+
+    audio.onended = () => {
+      console.log("[AudioPlayer] Ended");
+      setIsPlaying(false);
+      setCurrentTime(0);
+      audio.currentTime = 0;
+    };
+
+    audio.onerror = (e) => {
+      console.error("[AudioPlayer] Error loading audio:", e, "URL:", url);
+      // Try without crossOrigin
+      if (audio.crossOrigin) {
+        console.log("[AudioPlayer] Retrying without crossOrigin...");
+        audio.crossOrigin = "";
+        audio.src = url;
+        audio.load();
+      }
+    };
+
+    audio.src = url;
+    audio.load();
+    audioRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.src = "";
+      audioRef.current = null;
+    };
+  }, [url]);
+
+  // CRITICAL: Play must happen synchronously from user gesture
+  const handlePlayClick = () => {
+    console.log("[AudioPlayer] Play clicked, audioRef:", !!audioRef.current, "isPlaying:", isPlaying);
+    
+    if (!audioRef.current) {
+      // Create audio immediately in gesture context if not exists
+      console.log("[AudioPlayer] Creating new audio in gesture context");
+      const audio = new Audio(url);
+      audio.preload = "auto";
+      
+      audio.onplay = () => setIsPlaying(true);
+      audio.onpause = () => setIsPlaying(false);
+      audio.ontimeupdate = () => setCurrentTime(audio.currentTime);
+      audio.onloadedmetadata = () => {
+        if (audio.duration && !isNaN(audio.duration)) {
+          setDuration(audio.duration);
+        }
+      };
+      audio.onended = () => {
+        setIsPlaying(false);
+        setCurrentTime(0);
+      };
+      
+      audioRef.current = audio;
+      
+      // Play immediately
+      audio.play().then(() => {
+        console.log("[AudioPlayer] Started playing (new audio)");
+      }).catch(err => {
+        console.error("[AudioPlayer] Play failed:", err);
+      });
+      return;
+    }
+
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      // Play synchronously from gesture
+      audioRef.current.play().then(() => {
+        console.log("[AudioPlayer] Started playing");
+      }).catch(err => {
+        console.error("[AudioPlayer] Play failed:", err);
+        // Try recreating audio
+        const newAudio = new Audio(url);
+        newAudio.onplay = () => setIsPlaying(true);
+        newAudio.onpause = () => setIsPlaying(false);
+        newAudio.ontimeupdate = () => setCurrentTime(newAudio.currentTime);
+        newAudio.onended = () => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+        };
+        audioRef.current = newAudio;
+        newAudio.play().catch(e => console.error("[AudioPlayer] Retry failed:", e));
+      });
     }
   };
 
@@ -58,8 +166,7 @@ export function AudioPlayerWithFallback({
 
   // Colors exactly like WhatsApp
   const bubbleBg = isOutgoing ? "bg-[#D9FDD3]" : "bg-white";
-  const playBtnBg = isOutgoing ? "#34B7F1" : "#34B7F1"; // Blue play button
-  const waveActiveColor = isOutgoing ? "#34B7F1" : "#34B7F1";
+  const waveActiveColor = "#34B7F1";
   const waveInactiveColor = isOutgoing ? "#92D4A8" : "#CCD0D5";
 
   return (
@@ -67,42 +174,13 @@ export function AudioPlayerWithFallback({
       "flex items-center gap-3 rounded-lg p-2 min-w-[240px] max-w-[320px] shadow-sm",
       bubbleBg
     )}>
-      <audio
-        ref={audioRef}
-        src={url}
-        preload="metadata"
-        onLoadedMetadata={(e) => {
-          const dur = e.currentTarget.duration;
-          if (dur && !isNaN(dur) && isFinite(dur)) {
-            setDuration(dur);
-          }
-          setIsLoading(false);
-        }}
-        onCanPlay={() => setIsLoading(false)}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onEnded={() => {
-          setIsPlaying(false);
-          setCurrentTime(0);
-          if (audioRef.current) {
-            audioRef.current.currentTime = 0;
-          }
-        }}
-        onError={() => {
-          // Silently handle - no error UI
-          setIsLoading(false);
-        }}
-        playsInline
-      />
-
       {/* Play/Pause button - WhatsApp style */}
       <Button
         variant="ghost"
         size="icon"
         className="h-10 w-10 rounded-full shrink-0 p-0 hover:opacity-80 transition-opacity"
         style={{ backgroundColor: "transparent" }}
-        onClick={togglePlay}
+        onClick={handlePlayClick}
       >
         {isPlaying ? (
           <Pause className="h-6 w-6" style={{ color: "#54656F" }} />
