@@ -351,55 +351,48 @@ export function useOmniMensagens(atendimentoId: string | null) {
     }
   }, [atendimentoId, fetchMensagens]);
 
-  const enviarMensagem = async (
+  // Fire-and-forget message sending for instant UI response
+  const enviarMensagem = (
     agenteId: string | null,
     tipo: OmniMensagem["tipo"],
     conteudo?: string,
     arquivoUrl?: string,
     arquivoNome?: string,
     arquivoTipo?: string
-  ): Promise<{ success: boolean; data?: unknown; error?: string }> => {
-    if (!atendimentoId) return { success: false, error: "Atendimento não selecionado" };
+  ): void => {
+    if (!atendimentoId) {
+      toast.error("Atendimento não selecionado");
+      return;
+    }
 
-    try {
-      const response = await supabase.functions.invoke("evolution-send-message", {
-        body: {
-          atendimento_id: atendimentoId,
-          agente_id: agenteId,
-          tipo,
-          conteudo,
-          arquivo_url: arquivoUrl,
-          arquivo_nome: arquivoNome,
-          arquivo_tipo: arquivoTipo,
-        },
-      });
-
+    // Fire and forget - don't await, let it run in background
+    supabase.functions.invoke("evolution-send-message", {
+      body: {
+        atendimento_id: atendimentoId,
+        agente_id: agenteId,
+        tipo,
+        conteudo,
+        arquivo_url: arquivoUrl,
+        arquivo_nome: arquivoNome,
+        arquivo_tipo: arquivoTipo,
+      },
+    }).then(response => {
       if (response.error) {
-        throw response.error;
+        console.error("Edge function error:", response.error);
+        toast.error("Erro ao enviar mensagem");
+        return;
       }
-
-      // Check if response contains an error from the edge function
+      
       if (response.data?.error) {
         const errorMsg = response.data.error;
         const details = response.data.details || "";
         console.error("Edge function error:", errorMsg, details);
         toast.error(errorMsg, { description: details });
-        return { success: false, error: errorMsg };
       }
-
-      return { success: true, data: response.data };
-    } catch (error: any) {
+    }).catch(error => {
       console.error("Error sending message:", error);
-      
-      // Try to extract error message from the response
-      let errorMessage = "Erro ao enviar mensagem";
-      if (error?.message) {
-        errorMessage = error.message;
-      }
-      
-      toast.error(errorMessage);
-      return { success: false, error: errorMessage };
-    }
+      toast.error("Erro ao enviar mensagem");
+    });
   };
 
   return {
