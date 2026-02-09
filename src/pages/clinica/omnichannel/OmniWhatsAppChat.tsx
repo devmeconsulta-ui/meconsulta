@@ -562,25 +562,49 @@ export default function OmniWhatsAppChat() {
       const fileName = `audio_${Date.now()}.${extension}`;
       const filePath = `omni/${selectedAtendimento.clinica_id}/${selectedAtendimento.id}/${fileName}`;
       
-      console.log("Uploading audio:", { mimeType, fileName, filePath, blobSize: audioBlob.size });
+      console.log("[AudioUpload] Starting upload:", { 
+        mimeType, 
+        fileName, 
+        filePath, 
+        blobSize: audioBlob.size,
+        blobType: audioBlob.type 
+      });
+      
+      // Convert blob to ArrayBuffer for more reliable upload
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      
+      console.log("[AudioUpload] Converted to Uint8Array, size:", uint8Array.length);
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("omni-files")
-        .upload(filePath, audioBlob, {
+        .upload(filePath, uint8Array, {
           contentType: mimeType,
           upsert: false,
         });
 
       if (uploadError) {
-        console.error("Error uploading audio:", uploadError);
-        toast.error("Erro ao fazer upload do áudio: " + (uploadError.message || "erro desconhecido"));
+        console.error("[AudioUpload] Upload error:", uploadError);
+        
+        // More specific error messages
+        if (uploadError.message?.includes("Failed to fetch")) {
+          toast.error("Erro de conexão. Verifique sua internet e tente novamente.");
+        } else if (uploadError.message?.includes("not authenticated")) {
+          toast.error("Sessão expirada. Recarregue a página.");
+        } else {
+          toast.error("Erro ao fazer upload do áudio: " + (uploadError.message || "erro desconhecido"));
+        }
         return;
       }
+
+      console.log("[AudioUpload] Upload successful:", uploadData);
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from("omni-files")
         .getPublicUrl(filePath);
+
+      console.log("[AudioUpload] Public URL:", publicUrl);
 
       // Create optimistic message - show immediately
       const optimisticMsg: OmniMensagem = {
@@ -594,7 +618,7 @@ export default function OmniWhatsAppChat() {
         conteudo: null,
         arquivo_url: publicUrl,
         arquivo_nome: fileName,
-        arquivo_tipo: audioBlob.type,
+        arquivo_tipo: mimeType,
         whatsapp_message_id: null,
         status: "enviada",
         erro_descricao: null,
@@ -604,10 +628,15 @@ export default function OmniWhatsAppChat() {
       setOptimisticMessages(prev => [...prev, optimisticMsg]);
 
       // Fire and forget - send in background without waiting
-      enviarMensagem(agenteId, "audio", undefined, publicUrl, fileName, audioBlob.type);
-    } catch (error) {
-      console.error("Error sending audio:", error);
-      toast.error("Erro ao enviar áudio");
+      enviarMensagem(agenteId, "audio", undefined, publicUrl, fileName, mimeType);
+    } catch (error: any) {
+      console.error("[AudioUpload] Unexpected error:", error);
+      
+      if (error?.message?.includes("Failed to fetch")) {
+        toast.error("Erro de conexão. Verifique sua internet e tente novamente.");
+      } else {
+        toast.error("Erro ao enviar áudio: " + (error?.message || "erro desconhecido"));
+      }
     }
   }, [selectedAtendimento, getAgenteId, currentUser?.nome, signatureEnabled, enviarMensagem]);
 
