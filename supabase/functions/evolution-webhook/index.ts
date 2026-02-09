@@ -717,9 +717,73 @@ Deno.serve(async (req) => {
           console.log(`SEND_MESSAGE saved for atendimento ${atendimento.id}, content: ${conteudo?.substring(0, 50)}`);
         }
 
-        // Nota: A lógica de pausar IA quando humano responde está no evolution-send-message
-        // (quando um operador envia mensagem pelo painel), não aqui no webhook
-        // Isso evita falsos positivos quando a própria IA envia mensagens
+        // ========== PAUSAR IA QUANDO HUMANO RESPONDE VIA CELULAR/WHATSAPP WEB ==========
+        // Verificar se é uma mensagem humana (não da IA) e pausar a IA se configurado
+        console.log("[AI-PAUSE-WEBHOOK] Checking if AI should pause for SEND_MESSAGE...");
+        
+        try {
+          // Buscar conversa de IA ativa para este atendimento
+          const { data: conversaIA } = await supabase
+            .from("omni_ia_conversas")
+            .select("id, humano_assumiu, agente_id")
+            .eq("atendimento_id", atendimento.id)
+            .single();
+
+          if (conversaIA && !conversaIA.humano_assumiu) {
+            // Verificar se a mensagem foi enviada pela IA (nas últimas mensagens com agente_nome)
+            // Se a mensagem tem conteúdo similar a uma resposta recente de IA, é da IA
+            const { data: recentIAMsgs } = await supabase
+              .from("omni_mensagens")
+              .select("conteudo, agente_nome")
+              .eq("atendimento_id", atendimento.id)
+              .eq("direcao", "saida")
+              .not("agente_nome", "is", null)
+              .order("created_at", { ascending: false })
+              .limit(5);
+
+            // Se a mensagem recém-enviada tem conteúdo igual a uma mensagem recente da IA,
+            // provavelmente é a própria IA enviando, não pausar
+            const isFromIA = recentIAMsgs?.some(
+              (m) => m.conteudo && conteudo && m.conteudo.trim() === conteudo.trim()
+            );
+
+            if (isFromIA) {
+              console.log("[AI-PAUSE-WEBHOOK] Message appears to be from AI itself, not pausing");
+            } else {
+              // Verificar configuração do agente
+              const { data: agenteConfig } = await supabase
+                .from("omni_ia_agentes")
+                .select("pausar_quando_humano_responde")
+                .eq("id", conversaIA.agente_id)
+                .single();
+
+              const deveParar = agenteConfig?.pausar_quando_humano_responde ?? true;
+
+              if (deveParar) {
+                // Marcar que humano assumiu - IA para de responder
+                await supabase
+                  .from("omni_ia_conversas")
+                  .update({
+                    humano_assumiu: true,
+                    humano_assumiu_em: new Date().toISOString(),
+                    transferido_para_humano: true,
+                  })
+                  .eq("id", conversaIA.id);
+
+                console.log(`[AI-PAUSE-WEBHOOK] Human took over via WhatsApp Web/Mobile for atendimento ${atendimento.id}, AI will stop responding`);
+              } else {
+                console.log("[AI-PAUSE-WEBHOOK] Agent configured to NOT pause when human responds");
+              }
+            }
+          } else if (conversaIA?.humano_assumiu) {
+            console.log("[AI-PAUSE-WEBHOOK] AI already paused for this conversation");
+          } else {
+            console.log("[AI-PAUSE-WEBHOOK] No AI conversation found for this atendimento");
+          }
+        } catch (pauseErr) {
+          console.error("[AI-PAUSE-WEBHOOK] Error checking AI pause:", pauseErr);
+          // Não falhar o webhook por causa de erro de pause
+        }
 
         break;
       }
