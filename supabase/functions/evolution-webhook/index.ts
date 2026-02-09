@@ -233,6 +233,91 @@ Deno.serve(async (req) => {
         let arquivoTipo = null;
 
         const msgContent = message.message || message;
+        const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
+        const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+
+        // Helper function to download media and upload to Supabase Storage
+        const downloadAndUploadMedia = async (messageKey: string, mimeType: string, mediaType: string): Promise<string | null> => {
+          if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !messageKey) {
+            console.log("[Media] Missing API config or message key");
+            return null;
+          }
+
+          try {
+            console.log(`[Media] Downloading ${mediaType} with key: ${messageKey}`);
+            
+            // Get base64 from Evolution API
+            const mediaResponse = await fetch(
+              `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${instance}`,
+              {
+                method: "POST",
+                headers: {
+                  "apikey": EVOLUTION_API_KEY,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  message: { key: { id: messageKey } },
+                  convertToMp4: mediaType === "audio", // Convert audio to mp4 for better compatibility
+                }),
+              }
+            );
+
+            if (!mediaResponse.ok) {
+              console.error(`[Media] Failed to get base64: ${mediaResponse.status}`);
+              return null;
+            }
+
+            const mediaData = await mediaResponse.json();
+            const base64Data = mediaData.base64;
+            
+            if (!base64Data) {
+              console.log("[Media] No base64 data returned");
+              return null;
+            }
+
+            console.log(`[Media] Got base64, length: ${base64Data.length}`);
+
+            // Decode base64 to binary
+            const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+            
+            // Determine file extension
+            let ext = "bin";
+            if (mimeType.includes("audio")) ext = "ogg";
+            if (mimeType.includes("mp4") || mimeType.includes("mpeg")) ext = "mp4";
+            if (mimeType.includes("image/jpeg")) ext = "jpg";
+            if (mimeType.includes("image/png")) ext = "png";
+            if (mimeType.includes("image/webp")) ext = "webp";
+            if (mimeType.includes("video")) ext = "mp4";
+            if (mimeType.includes("pdf")) ext = "pdf";
+
+            // Upload to Supabase Storage
+            const fileName = `${mediaType}_${Date.now()}_${messageKey.substring(0, 8)}.${ext}`;
+            const filePath = `omni/${clinica_id}/${atendimento.id}/${fileName}`;
+            
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from("omni-files")
+              .upload(filePath, binaryData, {
+                contentType: mimeType,
+                upsert: false,
+              });
+
+            if (uploadError) {
+              console.error("[Media] Upload error:", uploadError);
+              return null;
+            }
+
+            // Get public URL
+            const { data: urlData } = supabase.storage
+              .from("omni-files")
+              .getPublicUrl(filePath);
+
+            console.log(`[Media] Uploaded to: ${urlData.publicUrl}`);
+            return urlData.publicUrl;
+          } catch (error) {
+            console.error("[Media] Error downloading/uploading:", error);
+            return null;
+          }
+        };
 
         if (msgContent.conversation) {
           conteudo = msgContent.conversation;
@@ -241,22 +326,46 @@ Deno.serve(async (req) => {
         } else if (msgContent.imageMessage) {
           tipo = "imagem";
           conteudo = msgContent.imageMessage.caption || "";
-          arquivoUrl = msgContent.imageMessage.url || message.base64;
           arquivoTipo = msgContent.imageMessage.mimetype;
+          // Download and upload image
+          if (!isFromMe && messageId) {
+            arquivoUrl = await downloadAndUploadMedia(messageId, arquivoTipo, "image");
+          }
+          if (!arquivoUrl) {
+            arquivoUrl = msgContent.imageMessage.url || message.base64;
+          }
         } else if (msgContent.audioMessage) {
           tipo = "audio";
-          arquivoUrl = msgContent.audioMessage.url || message.base64;
           arquivoTipo = msgContent.audioMessage.mimetype;
+          // Download and upload audio
+          if (!isFromMe && messageId) {
+            arquivoUrl = await downloadAndUploadMedia(messageId, arquivoTipo, "audio");
+          }
+          if (!arquivoUrl) {
+            arquivoUrl = msgContent.audioMessage.url || message.base64;
+          }
         } else if (msgContent.videoMessage) {
           tipo = "video";
           conteudo = msgContent.videoMessage.caption || "";
-          arquivoUrl = msgContent.videoMessage.url || message.base64;
           arquivoTipo = msgContent.videoMessage.mimetype;
+          // Download and upload video
+          if (!isFromMe && messageId) {
+            arquivoUrl = await downloadAndUploadMedia(messageId, arquivoTipo, "video");
+          }
+          if (!arquivoUrl) {
+            arquivoUrl = msgContent.videoMessage.url || message.base64;
+          }
         } else if (msgContent.documentMessage) {
           tipo = "documento";
           arquivoNome = msgContent.documentMessage.fileName;
-          arquivoUrl = msgContent.documentMessage.url || message.base64;
           arquivoTipo = msgContent.documentMessage.mimetype;
+          // Download and upload document
+          if (!isFromMe && messageId) {
+            arquivoUrl = await downloadAndUploadMedia(messageId, arquivoTipo, "document");
+          }
+          if (!arquivoUrl) {
+            arquivoUrl = msgContent.documentMessage.url || message.base64;
+          }
         } else if (msgContent.stickerMessage) {
           tipo = "sticker";
           arquivoUrl = msgContent.stickerMessage.url || message.base64;
