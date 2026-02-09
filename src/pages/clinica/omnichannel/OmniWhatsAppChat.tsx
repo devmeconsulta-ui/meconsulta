@@ -61,6 +61,7 @@ import { AudioPlayerWithFallback } from "@/components/clinica/omnichannel/AudioP
 import { NovoAtendimentoModal } from "@/components/clinica/omnichannel/NovoAtendimentoModal";
 import { useTypingIndicator, useAITypingIndicator } from "@/hooks/useTypingIndicator";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
+import { useTrackAgentPresence } from "@/hooks/useAgentPresence";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -287,6 +288,13 @@ export default function OmniWhatsAppChat() {
   // Clinic employees have isClinicaUser: true from auth
   // Clinic owners have tipo: "clinica" but NOT isClinicaUser: true
   const isClinicaAdmin = currentUser?.tipo === "clinica" && !currentUser?.isClinicaUser;
+  
+  // Track agent presence - this makes the current user appear as online
+  useTrackAgentPresence(
+    clinicaId,
+    currentUser?.usuarioClinicaId || currentUser?.id || null,
+    currentUser?.nome || null
+  );
   
   // Debug log for data isolation
   console.log("[OmniWhatsAppChat] User context:", {
