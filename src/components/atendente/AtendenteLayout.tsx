@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { AtendenteHeader } from "./AtendenteHeader";
 import { AtendenteOmniNav } from "./AtendenteOmniNav";
+import { useTrackAgentPresence } from "@/hooks/useAgentPresence";
 
 export function AtendenteLayout() {
   const { currentUser, isLoading } = useAuth();
@@ -60,6 +61,14 @@ export function AtendenteLayout() {
       fetchData();
     }
   }, [currentUser]);
+
+  // Track agent presence at the layout level - this ensures all agents are tracked
+  // regardless of which page they're viewing
+  useTrackAgentPresence(
+    clinicaData?.id || null,
+    usuarioClinicaData?.id || null,
+    usuarioClinicaData?.nome || null
+  );
 
   if (isLoading || !currentUser) {
     return (
