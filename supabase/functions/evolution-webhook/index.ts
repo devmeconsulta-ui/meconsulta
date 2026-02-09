@@ -257,7 +257,7 @@ Deno.serve(async (req) => {
                 },
                 body: JSON.stringify({
                   message: { key: { id: messageKey } },
-                  convertToMp4: mediaType === "audio", // Convert audio to mp4 for better compatibility
+                  // Do NOT convert audio - keep original OGG/Opus format for better compatibility
                 }),
               }
             );
