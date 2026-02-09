@@ -149,10 +149,8 @@ const HeroSection = () => {
     }
   }, [selectedState]);
 
-  // Pedir geolocalização ao carregar
-  useEffect(() => {
-    requestGeolocation();
-  }, []);
+  // Não chamar geolocalização automaticamente em mobile (bloqueado por segurança)
+  // O usuário deve clicar no botão de localização para ativar
 
   const requestGeolocation = async () => {
     if (!navigator.geolocation) {
