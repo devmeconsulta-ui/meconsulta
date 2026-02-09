@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ClinicaSidebar } from "./ClinicaSidebar";
 import { ClinicaHeader } from "./ClinicaHeader";
 import { Loader2 } from "lucide-react";
+import { useTrackAgentPresence } from "@/hooks/useAgentPresence";
 
 export function ClinicaLayout() {
   const { currentUser, isLoading } = useAuth();
@@ -80,6 +81,14 @@ export function ClinicaLayout() {
       fetchClinicaData();
     }
   }, [currentUser]);
+
+  // Track agent/staff presence at the layout level
+  // This ensures all clinic staff are tracked when they're logged in
+  useTrackAgentPresence(
+    clinicaData?.id || null,
+    usuarioClinicaId || null,
+    currentUser?.nome || null
+  );
 
   if (isLoading || !currentUser) {
     return (
