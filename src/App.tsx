@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "next-themes";
+import { ScrollToTop } from "@/components/ScrollToTop";
 import Index from "./pages/Index";
 import SouMedico from "./pages/SouMedico";
 import BuscarMedicos from "./pages/BuscarMedicos";
@@ -107,6 +108,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <ScrollToTop />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Index />} />
