@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useOmniAtendimentos, OmniAtendimento } from "@/hooks/useOmniAtendimentos";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
+import { useAgentPresence } from "@/hooks/useAgentPresence";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { FilaFilterAccordion } from "@/components/clinica/omnichannel/agentes/FilaFilterAccordion";
 import { TransferirAtendimentoModal } from "@/components/clinica/omnichannel/atendimentos/TransferirAtendimentoModal";
@@ -38,7 +39,7 @@ import { toast } from "sonner";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
-  currentUser: { id: string; nome: string } | null;
+  currentUser: { id: string; nome: string; usuarioClinicaId?: string } | null;
 }
 
 interface Agente {
@@ -56,7 +57,7 @@ interface Agente {
 }
 
 export default function OmniAgentes() {
-  const { clinicaData } = useOutletContext<ClinicaContext>();
+  const { clinicaData, currentUser } = useOutletContext<ClinicaContext>();
   const clinicaId = clinicaData?.id || null;
 
   const [activeTab, setActiveTab] = useState("agentes");
@@ -73,6 +74,13 @@ export default function OmniAgentes() {
 
   const { atendimentos, loading: loadingAtendimentos, refetch } = useOmniAtendimentos(clinicaId);
   const { filas, loading: loadingFilas } = useOmniFilas(clinicaId);
+  
+  // Agent presence tracking
+  const { getAgentStatus, onlineCount, pausedCount } = useAgentPresence(
+    clinicaId,
+    currentUser?.usuarioClinicaId || currentUser?.id || null,
+    currentUser?.nome || null
+  );
 
   // Fetch real agents from usuarios_clinica
   useEffect(() => {
@@ -157,14 +165,15 @@ export default function OmniAgentes() {
     });
   }, [agentes, searchTerm, filterAgente]);
 
-  // Count agentes by status
+  // Count agentes by status using real-time presence
   const agenteStatusCounts = useMemo(() => {
     const counts = { online: 0, pausa: 0, offline: 0 };
     agentes.forEach((a) => {
-      counts[a.status]++;
+      const status = getAgentStatus(a.id);
+      counts[status]++;
     });
     return counts;
-  }, [agentes]);
+  }, [agentes, getAgentStatus]);
 
   // Filter atendimentos based on selected filas and search
   const filteredAtendimentos = useMemo(() => {
@@ -391,16 +400,31 @@ export default function OmniAgentes() {
                           </td>
                         </tr>
                       ) : (
-                        filteredAgentes.map((agente) => (
+                        filteredAgentes.map((agente) => {
+                          const agentStatus = getAgentStatus(agente.id);
+                          return (
                           <tr key={agente.id} className="border-b hover:bg-muted/20">
                             <td className="p-4">
                               <div className="flex items-center gap-3">
-                                <Avatar className="h-10 w-10">
-                                  <AvatarImage src={agente.avatar_url || undefined} />
-                                  <AvatarFallback className="bg-primary/10 text-primary">
-                                    {getInitials(agente.nome)}
-                                  </AvatarFallback>
-                                </Avatar>
+                                <div className="relative">
+                                  <Avatar className="h-10 w-10">
+                                    <AvatarImage src={agente.avatar_url || undefined} />
+                                    <AvatarFallback className="bg-primary/10 text-primary">
+                                      {getInitials(agente.nome)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  {/* Status indicator dot */}
+                                  <span 
+                                    className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background ${
+                                      agentStatus === "online" 
+                                        ? "bg-green-500" 
+                                        : agentStatus === "pausa"
+                                        ? "bg-orange-500"
+                                        : "bg-destructive"
+                                    }`}
+                                    title={agentStatus === "online" ? "Online" : agentStatus === "pausa" ? "Em pausa" : "Offline"}
+                                  />
+                                </div>
                                 <div>
                                   <p className="font-medium">{agente.nome}</p>
                                   <div className="flex items-center gap-1 text-muted-foreground">
@@ -414,15 +438,15 @@ export default function OmniAgentes() {
                             </td>
                             <td className="text-center p-4">
                               <div className={`inline-flex items-center justify-center w-10 h-10 rounded-full ${
-                                agente.status === "online" 
+                                agentStatus === "online" 
                                   ? "bg-green-500/20 text-green-500" 
-                                  : agente.status === "pausa"
+                                  : agentStatus === "pausa"
                                   ? "bg-orange-500/20 text-orange-500"
                                   : "bg-muted text-muted-foreground"
                               }`}>
-                                {agente.status === "online" ? (
+                                {agentStatus === "online" ? (
                                   <Play className="w-5 h-5 fill-current" />
-                                ) : agente.status === "pausa" ? (
+                                ) : agentStatus === "pausa" ? (
                                   <Pause className="w-5 h-5" />
                                 ) : (
                                   <Circle className="w-5 h-5" />
@@ -491,7 +515,8 @@ export default function OmniAgentes() {
                               </div>
                             </td>
                           </tr>
-                        ))
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
