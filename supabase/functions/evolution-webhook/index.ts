@@ -257,8 +257,8 @@ Deno.serve(async (req) => {
                 },
                 body: JSON.stringify({
                   message: { key: { id: messageKey } },
-                  // Convert audio to MP4 for universal browser support
-                  convertToMp4: mediaType === "audio",
+                  // NOTE: convertToMp4 only works for VIDEO per Evolution API docs
+                  // For audio, we keep the original OGG/Opus format from WhatsApp
                 }),
               }
             );
@@ -276,20 +276,22 @@ Deno.serve(async (req) => {
               return null;
             }
 
-            console.log(`[Media] Got base64, length: ${base64Data.length}`);
+            console.log(`[Media] Got base64, length: ${base64Data.length}, originalMime: ${mimeType}`);
 
             // Decode base64 to binary using proper Deno method
             const { decodeBase64 } = await import("https://deno.land/std@0.208.0/encoding/base64.ts");
             const binaryData = decodeBase64(base64Data);
             
-            // For audio converted to MP4, use the correct mime type
+            // Determine correct mime type and extension based on media type
             let normalizedMime = mimeType.split(";")[0].trim();
             let ext = "bin";
             
             if (mediaType === "audio") {
-              // Audio is converted to MP4 by Evolution API for better compatibility
-              normalizedMime = "audio/mp4";
-              ext = "m4a";
+              // WhatsApp sends audio as OGG/Opus - keep original format
+              // OGG is supported by Chrome, Firefox, Edge (Safari requires conversion)
+              normalizedMime = "audio/ogg";
+              ext = "ogg";
+              console.log("[Media] Saving audio as OGG/Opus (original WhatsApp format)");
             } else if (normalizedMime.includes("image/jpeg")) {
               ext = "jpg";
             } else if (normalizedMime.includes("image/png")) {

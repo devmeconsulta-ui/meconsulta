@@ -57,6 +57,7 @@ import { EtiquetasModal } from "@/components/clinica/omnichannel/EtiquetasModal"
 import { NotaInternaModal } from "@/components/clinica/omnichannel/NotaInternaModal";
 import { TypingBubble } from "@/components/clinica/omnichannel/TypingIndicator";
 import { AudioRecorder } from "@/components/clinica/omnichannel/AudioRecorder";
+import { AudioPlayerWithFallback } from "@/components/clinica/omnichannel/AudioPlayerWithFallback";
 import { NovoAtendimentoModal } from "@/components/clinica/omnichannel/NovoAtendimentoModal";
 import { useTypingIndicator, useAITypingIndicator } from "@/hooks/useTypingIndicator";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
@@ -171,15 +172,7 @@ function MessageBubble({
         )}
         
         {mensagem.tipo === "audio" && mensagem.arquivo_url && (
-          <audio 
-            controls 
-            src={mensagem.arquivo_url} 
-            className="max-w-[250px] h-10" 
-            preload="metadata"
-            onError={(e) => console.error("Audio load error:", mensagem.arquivo_url, e)}
-          >
-            Seu navegador não suporta áudio.
-          </audio>
+          <AudioPlayerWithFallback url={mensagem.arquivo_url} />
         )}
         {mensagem.tipo === "imagem" && mensagem.arquivo_url && (
           <img src={mensagem.arquivo_url} alt="Imagem" className="rounded max-w-full" />
