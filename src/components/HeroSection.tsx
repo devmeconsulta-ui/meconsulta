@@ -81,6 +81,21 @@ const HeroSection = () => {
   };
 
   // Fetch available states and cities from database
+  // Helper to normalize state input to standard abbreviation
+  const normalizeStateAbbreviation = (input: string | null): string | null => {
+    if (!input) return null;
+    const trimmed = input.trim().toUpperCase();
+    
+    // Already an abbreviation
+    if (stateNameMapping[trimmed]) return trimmed;
+    
+    // Full state name - find the abbreviation
+    const entry = Object.entries(stateNameMapping).find(
+      ([, nome]) => nome.toUpperCase() === trimmed
+    );
+    return entry ? entry[0] : null;
+  };
+
   useEffect(() => {
     const fetchLocations = async () => {
       try {
@@ -91,22 +106,25 @@ const HeroSection = () => {
         
         if (error) throw error;
         
-        // Get unique states
-        const uniqueStates = [...new Set(data?.map(l => l.estado?.toUpperCase()).filter(Boolean) || [])];
+        // Normalize and get unique states
+        const normalizedStates = data?.map(l => normalizeStateAbbreviation(l.estado)).filter(Boolean) || [];
+        const uniqueStates = [...new Set(normalizedStates)];
         const statesWithNames = uniqueStates
           .map(sigla => ({ sigla: sigla as string, nome: stateNameMapping[sigla as string] || sigla as string }))
           .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
         
         setAvailableStates(statesWithNames);
         
-        // Store all cities by state for filtering
+        // Store all cities by state for filtering (normalized)
         const citiesByStateMap: Record<string, string[]> = {};
         data?.forEach(l => {
-          if (l.estado && l.cidade) {
-            const state = l.estado.toUpperCase();
-            if (!citiesByStateMap[state]) citiesByStateMap[state] = [];
-            if (!citiesByStateMap[state].includes(l.cidade)) {
-              citiesByStateMap[state].push(l.cidade);
+          const normalizedState = normalizeStateAbbreviation(l.estado);
+          if (normalizedState && l.cidade) {
+            const cityNormalized = l.cidade.trim();
+            if (!citiesByStateMap[normalizedState]) citiesByStateMap[normalizedState] = [];
+            // Avoid duplicates (case-insensitive)
+            if (!citiesByStateMap[normalizedState].some(c => c.toLowerCase() === cityNormalized.toLowerCase())) {
+              citiesByStateMap[normalizedState].push(cityNormalized);
             }
           }
         });
