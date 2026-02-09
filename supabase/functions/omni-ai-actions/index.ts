@@ -66,6 +66,9 @@ Deno.serve(async (req) => {
       case "buscar_convenios":
         result = await buscarConvenios(supabase, clinica_id);
         break;
+      case "gerar_comprovante":
+        result = await gerarComprovante(supabase, clinica_id, params);
+        break;
       default:
         result = { success: false, error: `Unknown action: ${action}` };
     }
@@ -637,26 +640,30 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
     const estado = slotData?.local?.estado || clinica?.estado || "";
     const enderecoCompleto = [endereco, cidade, estado].filter(Boolean).join(", ");
 
-    // Build the confirmation card (máscara de confirmação)
-    let mensagemConfirmacao = `✅ *CONSULTA AGENDADA COM SUCESSO!*\n\n`;
-    mensagemConfirmacao += `📅 *Data:* ${dataFormatada}\n`;
-    mensagemConfirmacao += `⏰ *Horário:* ${horaFormatada}\n`;
-    mensagemConfirmacao += `👨‍⚕️ *Médico(a):* ${medicoNome}\n`;
+    // Build the confirmation card (máscara de confirmação) - formatação melhorada
+    let mensagemConfirmacao = `✅ *CONSULTA AGENDADA COM SUCESSO!*\n`;
+    mensagemConfirmacao += `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    mensagemConfirmacao += `📅 *Data:* ${dataFormatada}\n\n`;
+    mensagemConfirmacao += `⏰ *Horário:* ${horaFormatada}\n\n`;
+    mensagemConfirmacao += `👨‍⚕️ *Médico(a):* ${medicoNome}\n\n`;
     if (especialidade) {
-      mensagemConfirmacao += `🏥 *Especialidade:* ${especialidade}\n`;
+      mensagemConfirmacao += `🏥 *Especialidade:* ${especialidade}\n\n`;
     }
-    mensagemConfirmacao += `💳 *Tipo:* ${tipoAtend}\n`;
+    mensagemConfirmacao += `💳 *Tipo:* ${tipoAtend}\n\n`;
     if (valorConsulta > 0 && consulta.tipo_atendimento !== "convenio") {
-      mensagemConfirmacao += `💰 *Valor:* R$ ${valorConsulta.toFixed(2).replace(".", ",")}\n`;
+      mensagemConfirmacao += `💰 *Valor:* R$ ${valorConsulta.toFixed(2).replace(".", ",")}\n\n`;
     }
+    mensagemConfirmacao += `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     if (localNome) {
-      mensagemConfirmacao += `\n📍 *Local:* ${localNome}\n`;
+      mensagemConfirmacao += `📍 *Local:* ${localNome}\n\n`;
     }
     if (enderecoCompleto) {
-      mensagemConfirmacao += `📫 *Endereço:* ${enderecoCompleto}\n`;
+      mensagemConfirmacao += `📫 *Endereço:* ${enderecoCompleto}\n\n`;
     }
-    mensagemConfirmacao += `\n⚠️ _Chegue com 15 minutos de antecedência._`;
-    mensagemConfirmacao += `\n_Lembre-se de trazer documento com foto e carteirinha do convênio (se aplicável)._`;
+    mensagemConfirmacao += `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    mensagemConfirmacao += `⚠️ _Chegue com 15 minutos de antecedência._\n\n`;
+    mensagemConfirmacao += `📄 _Lembre-se de trazer documento com foto${consulta.tipo_atendimento === "convenio" ? " e carteirinha do convênio" : ""}._\n\n`;
+    mensagemConfirmacao += `💬 _Caso precise de um comprovante de agendamento, é só me avisar!_`;
 
     return {
       success: true,
@@ -831,7 +838,155 @@ async function buscarConvenios(supabase: any, clinicaId: string): Promise<Action
   } catch (error) {
     console.error("[buscarConvenios] Error:", error);
     return { success: false, error: "Erro ao buscar convênios" };
+}
+
+async function gerarComprovante(supabase: any, clinicaId: string, params: Record<string, any>): Promise<ActionResponse> {
+  try {
+    const { consulta_id, paciente_id } = params;
+
+    // Buscar a consulta mais recente se não tiver ID específico
+    let query = supabase
+      .from("consultas")
+      .select(`
+        id,
+        data_hora,
+        status_consulta,
+        valor_consulta,
+        tipo_atendimento,
+        nome_paciente_consulta,
+        created_at,
+        medico:medicos!consultas_medico_id_fkey(nome, especialidade, crm),
+        paciente:pacientes!consultas_paciente_id_fkey(nome, cpf),
+        local:locais_atendimento(nome_local, endereco, cidade, estado),
+        clinica:clinicas!consultas_clinica_id_fkey(nome_fantasia, cnpj, telefone, endereco_principal, cidade, estado)
+      `)
+      .eq("clinica_id", clinicaId)
+      .in("status_consulta", ["confirmada", "aguardando_pagamento", "aguardando", "atendendo"]);
+
+    if (consulta_id) {
+      query = query.eq("id", consulta_id);
+    } else if (paciente_id) {
+      query = query.eq("paciente_id", paciente_id).order("data_hora", { ascending: true });
+    }
+
+    const { data: consulta, error } = await query.limit(1).maybeSingle();
+
+    if (error || !consulta) {
+      return {
+        success: false,
+        error: "Não encontrei nenhuma consulta agendada para gerar o comprovante.",
+      };
+    }
+
+    // Formatar data/hora no timezone do Brasil
+    const dataHora = new Date(consulta.data_hora);
+    const dataFormatada = dataHora.toLocaleDateString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+    const horaFormatada = dataHora.toLocaleTimeString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const dataEmissao = new Date().toLocaleDateString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    // Dados para o comprovante
+    const nomePaciente = consulta.nome_paciente_consulta || consulta.paciente?.nome || "Paciente";
+    const cpfPaciente = consulta.paciente?.cpf ? formatCPF(consulta.paciente.cpf) : "Não informado";
+    const medicoNome = consulta.medico?.nome || "Médico";
+    const especialidade = consulta.medico?.especialidade || "";
+    const crm = consulta.medico?.crm || "";
+    const clinicaNome = consulta.clinica?.nome_fantasia || "Clínica";
+    const clinicaCNPJ = consulta.clinica?.cnpj ? formatCNPJ(consulta.clinica.cnpj) : "";
+    const clinicaTelefone = consulta.clinica?.telefone || "";
+    
+    // Endereço
+    const localNome = consulta.local?.nome_local || consulta.clinica?.nome_fantasia || "";
+    const endereco = consulta.local?.endereco || consulta.clinica?.endereco_principal || "";
+    const cidade = consulta.local?.cidade || consulta.clinica?.cidade || "";
+    const estado = consulta.local?.estado || consulta.clinica?.estado || "";
+    const enderecoCompleto = [endereco, cidade, estado].filter(Boolean).join(" - ");
+
+    const tipoAtend = consulta.tipo_atendimento === "convenio" ? "Convênio" : "Particular";
+    const valorConsulta = consulta.valor_consulta || 0;
+    const protocolo = `AG${consulta.id.substring(0, 8).toUpperCase()}`;
+
+    // Construir comprovante em texto formatado (para enviar via WhatsApp)
+    let comprovante = `📋 *COMPROVANTE DE AGENDAMENTO*\n`;
+    comprovante += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    comprovante += `🏥 *${clinicaNome.toUpperCase()}*\n`;
+    if (clinicaCNPJ) comprovante += `CNPJ: ${clinicaCNPJ}\n`;
+    if (clinicaTelefone) comprovante += `Tel: ${clinicaTelefone}\n`;
+    comprovante += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    
+    comprovante += `👤 *PACIENTE:* ${nomePaciente}\n`;
+    comprovante += `📝 CPF: ${cpfPaciente}\n\n`;
+    
+    comprovante += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    comprovante += `📅 *DATA:* ${dataFormatada}\n\n`;
+    comprovante += `⏰ *HORÁRIO:* ${horaFormatada}\n\n`;
+    comprovante += `👨‍⚕️ *MÉDICO(A):* Dr(a). ${medicoNome}\n`;
+    if (especialidade) comprovante += `🏥 Especialidade: ${especialidade}\n`;
+    if (crm) comprovante += `📋 CRM: ${crm}\n`;
+    comprovante += `\n`;
+    
+    comprovante += `💳 *TIPO:* ${tipoAtend}\n`;
+    if (valorConsulta > 0 && consulta.tipo_atendimento !== "convenio") {
+      comprovante += `💰 *VALOR:* R$ ${valorConsulta.toFixed(2).replace(".", ",")}\n`;
+    }
+    comprovante += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    
+    if (localNome) comprovante += `📍 *LOCAL:* ${localNome}\n`;
+    if (enderecoCompleto) comprovante += `📫 ${enderecoCompleto}\n`;
+    comprovante += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    
+    comprovante += `🔖 *Protocolo:* ${protocolo}\n`;
+    comprovante += `📄 Emitido em: ${dataEmissao}\n\n`;
+    
+    comprovante += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    comprovante += `⚠️ _Apresente este comprovante na recepção._\n`;
+    comprovante += `⏰ _Chegue com 15 min de antecedência._`;
+
+    return {
+      success: true,
+      data: {
+        comprovante_texto: comprovante,
+        protocolo,
+        consulta_id: consulta.id,
+      },
+      message: comprovante,
+    };
+  } catch (error) {
+    console.error("[gerarComprovante] Error:", error);
+    return { success: false, error: "Erro ao gerar comprovante" };
   }
+}
+
+// Helper para formatar CPF
+function formatCPF(cpf: string): string {
+  const cleaned = cpf.replace(/\D/g, "");
+  if (cleaned.length !== 11) return cpf;
+  return `${cleaned.slice(0, 3)}.${cleaned.slice(3, 6)}.${cleaned.slice(6, 9)}-${cleaned.slice(9)}`;
+}
+
+// Helper para formatar CNPJ
+function formatCNPJ(cnpj: string): string {
+  const cleaned = cnpj.replace(/\D/g, "");
+  if (cleaned.length !== 14) return cnpj;
+  return `${cleaned.slice(0, 2)}.${cleaned.slice(2, 5)}.${cleaned.slice(5, 8)}/${cleaned.slice(8, 12)}-${cleaned.slice(12)}`;
+}
 }
 
 // ==================== HELPER FUNCTIONS ====================

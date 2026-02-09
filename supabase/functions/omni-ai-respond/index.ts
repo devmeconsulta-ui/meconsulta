@@ -1083,6 +1083,20 @@ function buildSchedulingTools() {
           properties: {}
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "gerar_comprovante",
+        description: "Gera um comprovante de agendamento para o paciente. Use quando o paciente pedir um comprovante, recibo ou confirmação por escrito da consulta agendada.",
+        parameters: {
+          type: "object",
+          properties: {
+            consulta_id: { type: "string", description: "ID da consulta específica (opcional)" },
+            paciente_id: { type: "string", description: "ID do paciente para buscar a última consulta agendada" }
+          }
+        }
+      }
     }
   ];
 }
