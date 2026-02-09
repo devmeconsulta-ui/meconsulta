@@ -141,9 +141,7 @@ serve(async (req) => {
         break;
       case "audio":
         evolutionEndpoint = "sendWhatsAppAudio";
-        evolutionBody.audioMessage = {
-          audio: arquivo_url,
-        };
+        evolutionBody.audio = arquivo_url;
         break;
       case "video":
         evolutionEndpoint = "sendMedia";
@@ -159,7 +157,7 @@ serve(async (req) => {
         break;
     }
 
-    console.log(`[${Date.now() - startTime}ms] Sending to Evolution API: ${evolutionEndpoint}`);
+    console.log(`[${Date.now() - startTime}ms] Sending to Evolution API: ${evolutionEndpoint}`, JSON.stringify(evolutionBody));
 
     // Enviar mensagem via Evolution API
     const sendResponse = await fetch(
