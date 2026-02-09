@@ -1,39 +1,37 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, Download } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Play, Pause, Download, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AudioPlayerWithFallbackProps {
   url: string;
   isOutgoing?: boolean;
-  avatarInitials?: string;
 }
 
-// Generate waveform pattern similar to WhatsApp
-const generateWaveform = (): number[] => {
-  const bars: number[] = [];
-  for (let i = 0; i < 32; i++) {
-    // Create natural looking waveform with variation
-    const base = Math.sin(i * 0.3) * 30 + 50;
-    const noise = Math.random() * 25;
-    bars.push(Math.min(100, Math.max(15, base + noise)));
-  }
-  return bars;
-};
+// Detect Safari browser
+const isSafari = typeof navigator !== 'undefined' && 
+  /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
 export function AudioPlayerWithFallback({ 
   url, 
-  isOutgoing = false,
-  avatarInitials = "?"
+  isOutgoing = false
 }: AudioPlayerWithFallbackProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [waveform] = useState(() => generateWaveform());
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Check if URL is OGG format (Safari doesn't support it)
+  const isOggFormat = url?.toLowerCase().endsWith('.ogg');
+  const showSafariWarning = isSafari && isOggFormat;
+
+  // Generate waveform bars - static pattern that looks like WhatsApp
+  const waveformBars = [
+    20, 35, 25, 45, 30, 55, 40, 60, 35, 70, 45, 55, 50, 65, 40, 75,
+    55, 45, 60, 50, 70, 40, 55, 35, 60, 45, 50, 35, 55, 40, 45, 30
+  ];
 
   const togglePlay = async () => {
     if (!audioRef.current) return;
@@ -51,7 +49,7 @@ export function AudioPlayerWithFallback({
   };
 
   const formatTime = (time: number): string => {
-    if (!time || isNaN(time)) return "0:00";
+    if (!time || isNaN(time) || !isFinite(time)) return "0:00";
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
@@ -63,27 +61,56 @@ export function AudioPlayerWithFallback({
     if (!audioRef.current || !duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const percent = x / rect.width;
+    const percent = Math.max(0, Math.min(1, x / rect.width));
     audioRef.current.currentTime = percent * duration;
   };
 
-  // Colors based on direction
-  const bgColor = isOutgoing ? "bg-[#D9FDD3]" : "bg-white";
-  const waveActiveColor = isOutgoing ? "#53BDEB" : "#34B7F1";
-  const waveInactiveColor = isOutgoing ? "#8ECABD" : "#B5D6D0";
-  const playBtnColor = "#53BDEB";
+  const bgColor = isOutgoing ? "bg-[#D9FDD3]" : "bg-white border border-gray-100";
+  const greenColor = "#25D366";
+  const lightGreenColor = "#B0D4AF";
 
-  // Error state - show download button
+  // Safari warning for OGG files
+  if (showSafariWarning) {
+    return (
+      <div className={cn(
+        "flex items-center gap-2 rounded-xl p-2 min-w-[200px] max-w-[280px]",
+        bgColor
+      )}>
+        <div className="h-11 w-11 rounded-full shrink-0 bg-orange-400 flex items-center justify-center">
+          <Volume2 className="h-5 w-5 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-gray-600">Safari não suporta este formato</p>
+          <p className="text-[10px] text-gray-400">Use Chrome ou baixe</p>
+        </div>
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
+          <a href={url} download target="_blank" rel="noopener noreferrer">
+            <Download className="h-4 w-4 text-gray-500" />
+          </a>
+        </Button>
+      </div>
+    );
+  }
+
+  // Error state - show download fallback
   if (hasError) {
     return (
-      <div className={cn("flex items-center gap-2 rounded-lg p-2 min-w-[180px] shadow-sm", bgColor)}>
-        <div className="w-9 h-9 rounded-full bg-[#53BDEB] flex items-center justify-center">
-          <Play className="h-4 w-4 text-white ml-0.5" />
+      <div className={cn(
+        "flex items-center gap-2 rounded-xl p-2 min-w-[200px] max-w-[280px]",
+        bgColor
+      )}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-11 rounded-full shrink-0"
+          style={{ backgroundColor: greenColor }}
+        >
+          <Play className="h-5 w-5 text-white ml-0.5" />
+        </Button>
+        <div className="flex-1">
+          <p className="text-xs text-gray-500">Não foi possível reproduzir</p>
         </div>
-        <div className="flex-1 text-xs text-gray-500">
-          Não foi possível reproduzir
-        </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
           <a href={url} download target="_blank" rel="noopener noreferrer">
             <Download className="h-4 w-4 text-gray-500" />
           </a>
@@ -94,13 +121,13 @@ export function AudioPlayerWithFallback({
 
   return (
     <div className={cn(
-      "flex items-center gap-2 rounded-2xl px-2 py-2 min-w-[220px] max-w-[280px] shadow-sm",
+      "flex items-center gap-2 rounded-xl p-2 min-w-[200px] max-w-[280px]",
       bgColor
     )}>
       <audio
         ref={audioRef}
         src={url}
-        preload="auto"
+        preload="metadata"
         onLoadedMetadata={(e) => {
           const dur = e.currentTarget.duration;
           if (dur && !isNaN(dur) && isFinite(dur)) {
@@ -115,56 +142,50 @@ export function AudioPlayerWithFallback({
         onEnded={() => {
           setIsPlaying(false);
           setCurrentTime(0);
+          if (audioRef.current) {
+            audioRef.current.currentTime = 0;
+          }
         }}
         onError={(e) => {
-          console.error("Audio error:", url, e);
+          console.error("Audio error for URL:", url);
           setHasError(true);
           setIsLoading(false);
         }}
         playsInline
       />
 
-      {/* Avatar for received messages (left side) */}
-      {!isOutgoing && (
-        <Avatar className="h-10 w-10 shrink-0">
-          <AvatarFallback className="bg-gray-300 text-gray-600 text-xs">
-            {avatarInitials}
-          </AvatarFallback>
-        </Avatar>
-      )}
-
-      {/* Play/Pause button */}
+      {/* Play/Pause button - WhatsApp green */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-10 w-10 rounded-full shrink-0 p-0 hover:bg-transparent"
+        className="h-11 w-11 rounded-full shrink-0 p-0 hover:opacity-90"
+        style={{ backgroundColor: greenColor }}
         onClick={togglePlay}
         disabled={isLoading}
-        style={{ color: playBtnColor }}
       >
         {isPlaying ? (
-          <Pause className="h-7 w-7" fill={playBtnColor} stroke={playBtnColor} />
+          <Pause className="h-5 w-5 text-white" fill="white" />
         ) : (
-          <Play className="h-7 w-7 ml-0.5" fill={playBtnColor} stroke={playBtnColor} />
+          <Play className="h-5 w-5 text-white ml-0.5" fill="white" />
         )}
       </Button>
 
-      {/* Waveform and time */}
+      {/* Waveform */}
       <div className="flex-1 min-w-0">
         <div 
-          className="flex items-center gap-[1.5px] h-7 cursor-pointer"
+          className="flex items-center gap-[2px] h-6 cursor-pointer"
           onClick={handleSeek}
         >
-          {waveform.map((height, i) => {
-            const barProgress = (i / waveform.length) * 100;
+          {waveformBars.map((height, i) => {
+            const barProgress = (i / waveformBars.length) * 100;
             const isPast = barProgress <= progress;
             return (
               <div
                 key={i}
-                className="w-[2.5px] rounded-full transition-colors duration-100"
+                className="w-[3px] rounded-full transition-colors duration-75"
                 style={{ 
                   height: `${height}%`,
-                  backgroundColor: isPast ? waveActiveColor : waveInactiveColor
+                  backgroundColor: isPast ? greenColor : lightGreenColor
                 }}
               />
             );
@@ -172,19 +193,15 @@ export function AudioPlayerWithFallback({
         </div>
         
         {/* Time display */}
-        <span className="text-[11px] text-gray-500 mt-0.5 block">
-          {isPlaying ? formatTime(currentTime) : formatTime(duration || 0)}
-        </span>
+        <div className="flex items-center justify-between mt-0.5">
+          <span className="text-[11px] text-gray-500">
+            {isPlaying ? formatTime(currentTime) : formatTime(duration || 0)}
+          </span>
+          {isLoading && (
+            <span className="text-[10px] text-gray-400">...</span>
+          )}
+        </div>
       </div>
-
-      {/* Avatar for sent messages (right side) */}
-      {isOutgoing && (
-        <Avatar className="h-10 w-10 shrink-0">
-          <AvatarFallback className="bg-[#53BDEB] text-white text-xs">
-            {avatarInitials}
-          </AvatarFallback>
-        </Avatar>
-      )}
     </div>
   );
 }

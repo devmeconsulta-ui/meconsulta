@@ -66,7 +66,6 @@ function MessageBubble({ mensagem, agenteNome }: { mensagem: OmniMensagem; agent
             <AudioPlayerWithFallback 
               url={mensagem.arquivo_url || ""} 
               isOutgoing={isOutgoing}
-              avatarInitials={isOutgoing ? "Eu" : "?"}
             />
             <div className="flex items-center justify-end gap-1">
               <span className="text-[10px] opacity-70">{formattedTime}</span>
