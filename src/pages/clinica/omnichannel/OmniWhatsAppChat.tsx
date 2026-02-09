@@ -171,7 +171,15 @@ function MessageBubble({
         )}
         
         {mensagem.tipo === "audio" && mensagem.arquivo_url && (
-          <audio controls src={mensagem.arquivo_url} className="max-w-[250px]" />
+          <audio 
+            controls 
+            src={mensagem.arquivo_url} 
+            className="max-w-[250px] h-10" 
+            preload="metadata"
+            onError={(e) => console.error("Audio load error:", mensagem.arquivo_url, e)}
+          >
+            Seu navegador não suporta áudio.
+          </audio>
         )}
         {mensagem.tipo === "imagem" && mensagem.arquivo_url && (
           <img src={mensagem.arquivo_url} alt="Imagem" className="rounded max-w-full" />
