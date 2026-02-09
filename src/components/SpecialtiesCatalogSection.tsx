@@ -58,15 +58,15 @@ const SpecialtiesCatalogSection = () => {
 
       if (data && data.length > 0) {
         // Has doctors - go to search with filter
-        navigate(`/buscar?especialidade=${encodeURIComponent(specialtyName.toLowerCase())}`);
+        navigate(`/buscar-medicos?especialidade=${encodeURIComponent(specialtyName.toLowerCase())}`);
       } else {
         // No doctors - go to general search
         toast.info(`Ainda não temos especialistas em ${specialtyName} cadastrados`);
-        navigate("/buscar");
+        navigate("/buscar-medicos");
       }
     } catch (error) {
       console.error("Error checking specialty:", error);
-      navigate(`/buscar?especialidade=${encodeURIComponent(specialtyName.toLowerCase())}`);
+      navigate(`/buscar-medicos?especialidade=${encodeURIComponent(specialtyName.toLowerCase())}`);
     } finally {
       setLoading(null);
     }
