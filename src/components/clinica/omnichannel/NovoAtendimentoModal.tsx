@@ -185,6 +185,8 @@ export function NovoAtendimentoModal({
       }
 
       // Create new atendimento with fila_id and agente_id (who created it)
+      console.log("[NovoAtendimentoModal] Creating atendimento with agente_id:", usuarioClinicaId);
+      
       const { data: atendimento, error } = await supabase
         .from("omni_atendimentos")
         .insert({
@@ -200,6 +202,7 @@ export function NovoAtendimentoModal({
 
       if (error) throw error;
 
+      console.log("[NovoAtendimentoModal] Atendimento created:", atendimento.id);
       toast.success("Atendimento criado!");
       onAtendimentoCriado(atendimento.id);
       onOpenChange(false);
