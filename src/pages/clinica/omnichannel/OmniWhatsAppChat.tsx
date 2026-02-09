@@ -175,7 +175,6 @@ function MessageBubble({
           <AudioPlayerWithFallback 
             url={mensagem.arquivo_url} 
             isOutgoing={isOutgoing}
-            avatarInitials={isOutgoing ? "Eu" : "?"}
           />
         )}
         {mensagem.tipo === "imagem" && mensagem.arquivo_url && (
