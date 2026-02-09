@@ -73,9 +73,9 @@ export default function AtendenteChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch atendimentos do agente
+  // Fetch atendimentos - no specific agent filter, we filter locally for flexibility
   const {
-    atendimentos,
+    atendimentos: allAtendimentos,
     loading: loadingAtendimentos,
     transferirAtendimento,
     finalizarAtendimento,
@@ -100,6 +100,18 @@ export default function AtendenteChat() {
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
   }, [mensagens, optimisticMessages]);
+
+  // Filter atendimentos - agents can only see:
+  // 1. Atendimentos assigned to them
+  // 2. Atendimentos waiting (aguardando) without an agent (unassigned)
+  const atendimentos = useMemo(() => {
+    if (!agenteId) return allAtendimentos;
+    
+    return allAtendimentos.filter((a) => 
+      a.agente_id === agenteId || 
+      (a.status === "aguardando" && !a.agente_id)
+    );
+  }, [allAtendimentos, agenteId]);
 
   // Filtrar atendimentos por busca
   const filteredAtendimentos = useMemo(() => {

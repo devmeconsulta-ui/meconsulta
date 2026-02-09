@@ -30,12 +30,20 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
-  currentUser: { id: string; nome: string; usuarioClinicaId?: string } | null;
+  currentUser: { id: string; nome: string; usuarioClinicaId?: string; tipo?: string } | null;
+  usuarioClinicaData?: { id: string; nome: string } | null;
 }
 
 export default function OmniAtendimentos() {
-  const { clinicaData, currentUser } = useOutletContext<ClinicaContext>();
+  const context = useOutletContext<ClinicaContext>();
+  const clinicaData = context?.clinicaData;
+  const currentUser = context?.currentUser;
+  // Support both ClinicaLayout (usuarioClinicaId in currentUser) and AtendenteLayout (usuarioClinicaData separate)
+  const usuarioClinicaId = currentUser?.usuarioClinicaId || (context as any)?.usuarioClinicaData?.id;
   const clinicaId = clinicaData?.id || null;
+  
+  // Check if user is clinic admin (can see all) or agent (limited view)
+  const isClinicaAdmin = currentUser?.tipo === "clinica";
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilters, setStatusFilters] = useState<string[]>(["aguardando", "em_atendimento"]);
@@ -46,7 +54,7 @@ export default function OmniAtendimentos() {
   const [selectedAtendimento, setSelectedAtendimento] = useState<OmniAtendimento | null>(null);
 
   const {
-    atendimentos,
+    atendimentos: allAtendimentos,
     loading,
     transferirAtendimento,
     finalizarAtendimento,
@@ -54,6 +62,20 @@ export default function OmniAtendimentos() {
 
   const { filas } = useOmniFilas(clinicaId);
   const { etiquetas } = useOmniEtiquetas(clinicaId);
+
+  // Filter atendimentos by agent ownership for non-admin users
+  const atendimentos = useMemo(() => {
+    // Clinic admins can see all atendimentos
+    if (isClinicaAdmin || !usuarioClinicaId) return allAtendimentos;
+    
+    // Agents can only see:
+    // 1. Atendimentos assigned to them
+    // 2. Atendimentos waiting (aguardando) without an agent (unassigned)
+    return allAtendimentos.filter((a) => 
+      a.agente_id === usuarioClinicaId || 
+      (a.status === "aguardando" && !a.agente_id)
+    );
+  }, [allAtendimentos, usuarioClinicaId, isClinicaAdmin]);
 
   // Filter atendimentos by search
   const filteredAtendimentos = useMemo(() => {
