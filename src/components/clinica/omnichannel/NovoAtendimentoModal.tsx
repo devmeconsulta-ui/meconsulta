@@ -38,6 +38,7 @@ interface NovoAtendimentoModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clinicaId: string;
+  usuarioClinicaId?: string;
   onAtendimentoCriado: (atendimentoId: string) => void;
 }
 
@@ -64,6 +65,7 @@ export function NovoAtendimentoModal({
   open,
   onOpenChange,
   clinicaId,
+  usuarioClinicaId,
   onAtendimentoCriado,
 }: NovoAtendimentoModalProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -182,13 +184,14 @@ export function NovoAtendimentoModal({
         return;
       }
 
-      // Create new atendimento with fila_id
+      // Create new atendimento with fila_id and agente_id (who created it)
       const { data: atendimento, error } = await supabase
         .from("omni_atendimentos")
         .insert({
           clinica_id: clinicaId,
           contato_id: contatoId,
           fila_id: selectedFilaId,
+          agente_id: usuarioClinicaId || null,
           canal: "whatsapp",
           status: "em_atendimento",
         })
@@ -281,13 +284,14 @@ export function NovoAtendimentoModal({
         return;
       }
 
-      // Create atendimento with fila_id
+      // Create atendimento with fila_id and agente_id (who created it)
       const { data: atendimento, error: atendError } = await supabase
         .from("omni_atendimentos")
         .insert({
           clinica_id: clinicaId,
           contato_id: novoContato.id,
           fila_id: selectedFilaId,
+          agente_id: usuarioClinicaId || null,
           canal: "whatsapp",
           status: "em_atendimento",
         })
