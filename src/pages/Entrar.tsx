@@ -46,12 +46,13 @@ export default function Entrar() {
       nome: userData.nome,
       email: userData.email,
       tipo: userData.tipo as "admin" | "medico" | "paciente" | "clinica",
-      papel: userData.papel as "atendente" | "supervisor" | "admin" | "superadmin",
+      papel: userData.papel as "atendente" | "supervisor" | "admin" | "superadmin" | "secretaria" | "gerente",
       pacienteId: userData.pacienteId,
       medicoId: userData.medicoId,
       clinicaId: userData.clinicaId,
       todosMedicos: userData.todosMedicos,
       permissoes: userData.permissoes,
+      isClinicaUser: userData.isClinicaUser || false,
     });
 
     // Determine redirect based on user type and role
