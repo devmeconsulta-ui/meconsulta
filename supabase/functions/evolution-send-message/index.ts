@@ -123,9 +123,18 @@ serve(async (req) => {
       );
     }
 
+    // Normalizar telefone - garantir código do país 55 para Brasil
+    let telefoneNormalizado = contato.telefone.replace(/\D/g, ""); // Remove non-digits
+    
+    // Se telefone não tem código do país (menos de 12 dígitos), adiciona 55
+    if (telefoneNormalizado.length === 10 || telefoneNormalizado.length === 11) {
+      telefoneNormalizado = `55${telefoneNormalizado}`;
+      console.log(`Telefone normalizado com código do país: ${telefoneNormalizado}`);
+    }
+    
     const telefoneFormatado = contato.telefone.includes("@") 
       ? contato.telefone 
-      : `${contato.telefone}@s.whatsapp.net`;
+      : `${telefoneNormalizado}@s.whatsapp.net`;
 
     let evolutionEndpoint = "sendText";
     let evolutionBody: any = {
