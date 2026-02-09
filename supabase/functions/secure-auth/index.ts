@@ -1,11 +1,105 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Convert ArrayBuffer to hex string
+function bufferToHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// Convert hex string to Uint8Array
+function hexToBuffer(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  }
+  return bytes;
+}
+
+// Secure password hashing using PBKDF2 with Web Crypto API
+async function hashPasswordPBKDF2(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    256
+  );
+  
+  const saltHex = bufferToHex(salt.buffer);
+  const hashHex = bufferToHex(derivedBits);
+  
+  // Format: pbkdf2$iterations$salt$hash
+  return `pbkdf2$100000$${saltHex}$${hashHex}`;
+}
+
+async function verifyPasswordPBKDF2(password: string, storedHash: string): Promise<boolean> {
+  // Handle legacy plaintext passwords
+  if (!storedHash.startsWith("pbkdf2$") && !storedHash.startsWith("$2")) {
+    return password === storedHash;
+  }
+  
+  // Handle legacy bcrypt hashes - can't verify with Web Crypto
+  if (storedHash.startsWith("$2")) {
+    console.log("Legacy bcrypt hash detected - cannot verify");
+    return false;
+  }
+  
+  const parts = storedHash.split("$");
+  if (parts.length !== 4 || parts[0] !== "pbkdf2") {
+    return false;
+  }
+  
+  const iterations = parseInt(parts[1], 10);
+  const saltHex = parts[2];
+  const expectedHashHex = parts[3];
+  
+  const salt = hexToBuffer(saltHex);
+  
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: iterations,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    256
+  );
+  
+  const computedHashHex = bufferToHex(derivedBits);
+  
+  return computedHashHex === expectedHashHex;
+}
 
 interface LoginRequest {
   email: string;
@@ -71,7 +165,7 @@ serve(async (req) => {
 
       if (usuario) {
         // Verify password
-        const isValid = await verifyPassword(password, usuario.senha_hash);
+        const isValid = await verifyPasswordPBKDF2(password, usuario.senha_hash);
         
         if (!isValid) {
           return new Response(
@@ -144,7 +238,7 @@ serve(async (req) => {
       }
 
       if (clinicaUser) {
-        const isValid = await verifyPassword(password, clinicaUser.senha_hash);
+        const isValid = await verifyPasswordPBKDF2(password, clinicaUser.senha_hash);
         
         if (!isValid) {
           return new Response(
@@ -213,8 +307,8 @@ serve(async (req) => {
         );
       }
 
-      // Hash password with bcrypt
-      const hashedPassword = await bcrypt.hash(body.password, await bcrypt.genSalt(12));
+      // Hash password with PBKDF2
+      const hashedPassword = await hashPasswordPBKDF2(body.password);
 
       // Create user
       const { data: usuario, error: userError } = await supabase
@@ -306,7 +400,7 @@ serve(async (req) => {
         );
       }
 
-      const hashedPassword = await bcrypt.hash(newPassword, await bcrypt.genSalt(12));
+      const hashedPassword = await hashPasswordPBKDF2(newPassword);
 
       const table = userTable === "usuarios_clinica" ? "usuarios_clinica" : "usuarios";
       
@@ -319,6 +413,7 @@ serve(async (req) => {
         .eq("id", userId);
 
       if (error) {
+        console.error("Error updating password:", error);
         return new Response(
           JSON.stringify({ error: "Erro ao alterar senha" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -344,16 +439,3 @@ serve(async (req) => {
     );
   }
 });
-
-async function verifyPassword(password: string, hash: string | null): Promise<boolean> {
-  if (!hash) return false;
-  
-  // Check if it's a bcrypt hash (starts with $2a$, $2b$, or $2y$)
-  if (hash.startsWith("$2")) {
-    return await bcrypt.compare(password, hash);
-  }
-  
-  // Legacy: plaintext comparison (for migration period only)
-  // TODO: Remove this after migrating all passwords
-  return password === hash;
-}
