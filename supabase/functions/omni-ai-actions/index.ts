@@ -238,30 +238,39 @@ async function buscarHorarios(supabase: any, clinicaId: string, params: Record<s
       return { success: true, data: [], message: "Não encontrei médicos com esses critérios." };
     }
 
-    // Calculate date range - parse dates correctly to avoid timezone issues
+    // Calculate date range - usar timezone do Brasil (UTC-3)
+    // Brasília é UTC-3, então precisamos compensar
+    const BRAZIL_OFFSET_HOURS = -3;
     const now = new Date();
     
-    // Parse date strings as local dates (YYYY-MM-DD format)
+    // Função helper para criar data no timezone de Brasília
+    const parseDateBrazil = (dateStr: string, endOfDay = false): Date => {
+      const [year, month, day] = dateStr.split("-").map(Number);
+      // Criar data em UTC, compensando o offset de Brasília
+      // Se endOfDay, usar 23:59:59, senão 00:00:00
+      const hour = endOfDay ? 23 : 0;
+      const minute = endOfDay ? 59 : 0;
+      const second = endOfDay ? 59 : 0;
+      // Para converter de Brasília para UTC, subtraímos o offset (que é negativo, então somamos 3h)
+      return new Date(Date.UTC(year, month - 1, day, hour - BRAZIL_OFFSET_HOURS, minute, second));
+    };
+    
     let startDate: Date;
     let endDate: Date;
     
     if (data_inicio) {
-      // Parse as start of day in UTC
-      const [year, month, day] = data_inicio.split("-").map(Number);
-      startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+      startDate = parseDateBrazil(data_inicio, false);
     } else {
       startDate = now;
     }
     
     if (data_fim) {
-      // Parse as END of day in UTC (23:59:59) to include all slots on that day
-      const [year, month, day] = data_fim.split("-").map(Number);
-      endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
+      endDate = parseDateBrazil(data_fim, true);
     } else {
       endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days default
     }
 
-    console.log(`[buscarHorarios] Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    console.log(`[buscarHorarios] Date range: ${startDate.toISOString()} to ${endDate.toISOString()} (Brazil TZ adjusted)`);
 
     // Fetch available slots
     const { data: slots, error } = await supabase
@@ -289,11 +298,20 @@ async function buscarHorarios(supabase: any, clinicaId: string, params: Record<s
       };
     }
 
-    // Format for AI
+    // Format for AI - usar timezone do Brasil (Brasília)
     const horariosFormatados = slots.map((s: any) => {
       const dataHora = new Date(s.data_hora);
-      const dia = dataHora.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
-      const hora = dataHora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      const dia = dataHora.toLocaleDateString("pt-BR", { 
+        timeZone: "America/Sao_Paulo",
+        weekday: "short", 
+        day: "2-digit", 
+        month: "2-digit" 
+      });
+      const hora = dataHora.toLocaleTimeString("pt-BR", { 
+        timeZone: "America/Sao_Paulo",
+        hour: "2-digit", 
+        minute: "2-digit" 
+      });
       
       return {
         slot_id: s.id,
@@ -591,15 +609,17 @@ async function agendarConsulta(supabase: any, clinicaId: string, params: Record<
       sucesso: true,
     });
 
-    // Format date in Brazilian timezone
+    // Format date in Brazilian timezone (America/Sao_Paulo)
     const dataHora = new Date(consulta.data_hora);
     const dataFormatada = dataHora.toLocaleDateString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
       weekday: "long",
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     });
     const horaFormatada = dataHora.toLocaleTimeString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -759,10 +779,18 @@ async function listarConsultasPaciente(supabase: any, clinicaId: string, params:
     const lista = proximasConsultas
       .slice(0, 3)
       .map((c: any) => {
-        const data = new Date(c.data_hora).toLocaleDateString("pt-BR", {
-          day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
+        const dataObj = new Date(c.data_hora);
+        const data = dataObj.toLocaleDateString("pt-BR", {
+          timeZone: "America/Sao_Paulo",
+          day: "2-digit", 
+          month: "2-digit"
         });
-        return `• ${data} - ${c.medico?.nome} (${c.medico?.especialidade})`;
+        const hora = dataObj.toLocaleTimeString("pt-BR", {
+          timeZone: "America/Sao_Paulo",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+        return `• ${data} às ${hora} - ${c.medico?.nome} (${c.medico?.especialidade})`;
       })
       .join("\n");
 

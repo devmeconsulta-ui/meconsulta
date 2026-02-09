@@ -899,11 +899,28 @@ Use o nome do cliente para personalizar o atendimento quando apropriado.
 `;
   }
 
-  // Data atual para contexto do agendamento
+  // Data atual para contexto do agendamento - usar timezone do Brasil
   const agora = new Date();
-  const dataAtual = agora.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+  const dataAtual = agora.toLocaleDateString("pt-BR", { 
+    timeZone: "America/Sao_Paulo", 
+    weekday: "long", 
+    day: "2-digit", 
+    month: "2-digit", 
+    year: "numeric" 
+  });
+  const horaAtual = agora.toLocaleTimeString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
   
-  prompt += `## Data Atual
+  prompt += `## Data e Hora Atual
+Hoje é ${dataAtual}, são ${horaAtual} (horário de Brasília).
+Use SEMPRE o timezone America/Sao_Paulo (Brasília) para referências temporais.
+Quando o cliente pedir "amanhã", "segunda-feira", etc., calcule a data CORRETA baseado na data atual acima.
+IMPORTANTE: Ao buscar horários, SEMPRE use o formato YYYY-MM-DD para data_inicio e data_fim.
+
+## Instruções de Data
 Hoje é ${dataAtual}. Use esta informação para referências temporais (amanhã, próxima semana, etc).
 
 ## 🚨 REGRAS CRÍTICAS DE COMUNICAÇÃO (OBEDEÇA SEMPRE)
