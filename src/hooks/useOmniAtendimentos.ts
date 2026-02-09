@@ -336,7 +336,7 @@ export function useOmniMensagens(atendimentoId: string | null) {
           (payload) => {
             console.log("[Realtime] Message updated:", payload.new);
             setMensagens((prev) =>
-              prev.map((m) => (m.id === payload.new.id ? (payload.new as OmniMensagem) : m))
+              prev.map((m) => (m.id === payload.new.id ? { ...payload.new as OmniMensagem, agente_nome: m.agente_nome } : m))
             );
           }
         )
@@ -344,9 +344,43 @@ export function useOmniMensagens(atendimentoId: string | null) {
           console.log(`[Realtime] Subscription status for mensagens: ${status}`);
         });
 
+      // Fallback polling para sincronizar status de mensagens - a cada 30 segundos
+      // Isso garante que mesmo se um evento realtime for perdido, o status seja atualizado
+      const pollInterval = setInterval(async () => {
+        try {
+          // Buscar apenas mensagens de saída que não estão "lida" para verificar status
+          const { data } = await supabase
+            .from("omni_mensagens")
+            .select("id, status")
+            .eq("atendimento_id", atendimentoId)
+            .eq("direcao", "saida")
+            .neq("status", "lida")
+            .order("created_at", { ascending: false })
+            .limit(20);
+
+          if (data && data.length > 0) {
+            setMensagens((prev) => {
+              let updated = false;
+              const newMensagens = prev.map((m) => {
+                const serverMsg = data.find((d) => d.id === m.id);
+                if (serverMsg && serverMsg.status !== m.status) {
+                  updated = true;
+                  return { ...m, status: serverMsg.status as OmniMensagem["status"] };
+                }
+                return m;
+              });
+              return updated ? newMensagens : prev;
+            });
+          }
+        } catch (err) {
+          console.error("[Polling] Error syncing message status:", err);
+        }
+      }, 30000); // 30 segundos
+
       return () => {
         console.log(`[Realtime] Unsubscribing from omni_mensagens for atendimento: ${atendimentoId}`);
         supabase.removeChannel(channel);
+        clearInterval(pollInterval);
       };
     }
   }, [atendimentoId, fetchMensagens]);

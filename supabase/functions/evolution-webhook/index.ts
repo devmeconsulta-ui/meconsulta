@@ -728,23 +728,47 @@ Deno.serve(async (req) => {
         // Atualizar status de mensagem enviada
         const updates = Array.isArray(data) ? data : [data];
         
+        // Hierarquia de status (maior = mais avançado)
+        const statusHierarchy: Record<string, number> = {
+          "erro": 0,
+          "enviada": 1,
+          "entregue": 2,
+          "lida": 3,
+        };
+        
         for (const update of updates) {
           const messageId = update.keyId || update.key?.id;
           const status = update.status;
           
-          if (messageId && status) {
-            let dbStatus = "enviada";
-            if (status === 2 || status === "DELIVERY_ACK") dbStatus = "entregue";
-            if (status === 3 || status === "READ") dbStatus = "lida";
-            if (status === 4 || status === "PLAYED") dbStatus = "lida";
+          if (messageId && status !== undefined) {
+            let newStatus = "enviada";
+            if (status === 2 || status === "DELIVERY_ACK" || status === "delivered") newStatus = "entregue";
+            if (status === 3 || status === "READ" || status === "read") newStatus = "lida";
+            if (status === 4 || status === "PLAYED" || status === "played") newStatus = "lida";
 
-            const { error } = await supabase
+            // Buscar status atual para não rebaixar
+            const { data: msgAtual } = await supabase
               .from("omni_mensagens")
-              .update({ status: dbStatus })
-              .eq("whatsapp_message_id", messageId);
+              .select("status")
+              .eq("whatsapp_message_id", messageId)
+              .maybeSingle();
 
-            if (!error) {
-              console.log(`Message ${messageId} status updated to ${dbStatus}`);
+            const statusAtual = msgAtual?.status || "enviada";
+            const nivelAtual = statusHierarchy[statusAtual] || 0;
+            const nivelNovo = statusHierarchy[newStatus] || 0;
+
+            // Só atualiza se o novo status for mais avançado
+            if (nivelNovo > nivelAtual) {
+              const { error } = await supabase
+                .from("omni_mensagens")
+                .update({ status: newStatus })
+                .eq("whatsapp_message_id", messageId);
+
+              if (!error) {
+                console.log(`Message ${messageId} status updated: ${statusAtual} -> ${newStatus}`);
+              }
+            } else {
+              console.log(`Message ${messageId} status not updated: ${statusAtual} >= ${newStatus}`);
             }
           }
         }
