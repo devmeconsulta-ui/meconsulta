@@ -42,7 +42,6 @@ import {
 } from "@/components/ui/tooltip";
 import { useOmniAtendimentos, useOmniMensagens, OmniAtendimento, OmniMensagem } from "@/hooks/useOmniAtendimentos";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
-import { useTrackAgentPresence } from "@/hooks/useAgentPresence";
 import { cn } from "@/lib/utils";
 import { format, isToday, isYesterday, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -61,13 +60,6 @@ export default function AtendenteChat() {
   const { clinicaData, usuarioClinicaData } = useOutletContext<AtendenteContext>();
   const clinicaId = clinicaData?.id || null;
   const agenteId = usuarioClinicaData?.id;
-  
-  // Track agent presence - this makes the current user appear as online
-  useTrackAgentPresence(
-    clinicaId,
-    agenteId || null,
-    usuarioClinicaData?.nome || null
-  );
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAtendimento, setSelectedAtendimento] = useState<OmniAtendimento | null>(null);

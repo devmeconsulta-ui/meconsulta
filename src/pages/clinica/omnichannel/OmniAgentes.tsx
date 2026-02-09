@@ -76,11 +76,7 @@ export default function OmniAgentes() {
   const { filas, loading: loadingFilas } = useOmniFilas(clinicaId);
   
   // Agent presence tracking
-  const { getAgentStatus, onlineCount, pausedCount } = useAgentPresence(
-    clinicaId,
-    currentUser?.usuarioClinicaId || currentUser?.id || null,
-    currentUser?.nome || null
-  );
+  const { getAgentStatus, onlineCount, pausedCount } = useAgentPresence(clinicaId);
 
   // Fetch real agents from usuarios_clinica
   useEffect(() => {

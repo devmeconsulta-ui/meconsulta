@@ -65,6 +65,48 @@ export type Database = {
           },
         ]
       }
+      agent_presence: {
+        Row: {
+          clinica_id: string
+          created_at: string
+          id: string
+          last_seen: string
+          status: string
+          usuario_clinica_id: string
+        }
+        Insert: {
+          clinica_id: string
+          created_at?: string
+          id?: string
+          last_seen?: string
+          status?: string
+          usuario_clinica_id: string
+        }
+        Update: {
+          clinica_id?: string
+          created_at?: string
+          id?: string
+          last_seen?: string
+          status?: string
+          usuario_clinica_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_presence_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_presence_usuario_clinica_id_fkey"
+            columns: ["usuario_clinica_id"]
+            isOneToOne: true
+            referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       anamneses: {
         Row: {
           antecedentes_familiares: string | null
