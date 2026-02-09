@@ -277,7 +277,6 @@ export default function OmniWhatsAppChat() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAtendimento, setSelectedAtendimento] = useState<OmniAtendimento | null>(null);
   const [messageInput, setMessageInput] = useState("");
-  const [sending, setSending] = useState(false);
   const [transferirModalOpen, setTransferirModalOpen] = useState(false);
   const [encerrarModalOpen, setEncerrarModalOpen] = useState(false);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
@@ -492,18 +491,18 @@ export default function OmniWhatsAppChat() {
     return currentUser?.usuarioClinicaId || null;
   }, [currentUser?.usuarioClinicaId]);
 
-  // Optimistic message sending
-  const handleSendMessage = useCallback(async () => {
+  // Instant optimistic message sending - no waiting for API
+  const handleSendMessage = useCallback(() => {
     const trimmedMessage = messageInput.trim();
     if (!trimmedMessage || !selectedAtendimento) return;
-    if (sending) return;
 
     const agenteId = getAgenteId();
 
+    // Clear input immediately
     setMessageInput("");
-    setSending(true);
-    handleTypingStop(); // Stop typing indicator when sending
+    handleTypingStop();
 
+    // Create optimistic message
     const optimisticMsg: OmniMensagem = {
       id: `temp-${Date.now()}`,
       atendimento_id: selectedAtendimento.id,
@@ -522,24 +521,13 @@ export default function OmniWhatsAppChat() {
       created_at: new Date().toISOString(),
     };
 
+    // Show message immediately in UI
     setOptimisticMessages(prev => [...prev, optimisticMsg]);
     inputRef.current?.focus();
 
-    try {
-      await enviarMensagem(
-        agenteId,
-        "texto",
-        trimmedMessage
-      );
-    } catch (error) {
-      console.error("Error sending message:", error);
-      toast.error("Erro ao enviar mensagem");
-      setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
-      setMessageInput(trimmedMessage);
-    } finally {
-      setSending(false);
-    }
-  }, [messageInput, selectedAtendimento, getAgenteId, currentUser?.nome, sending, enviarMensagem, signatureEnabled, handleTypingStop]);
+    // Fire and forget - send in background without waiting
+    enviarMensagem(agenteId, "texto", trimmedMessage);
+  }, [messageInput, selectedAtendimento, getAgenteId, currentUser?.nome, enviarMensagem, signatureEnabled, handleTypingStop]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -548,12 +536,11 @@ export default function OmniWhatsAppChat() {
     }
   }, [handleSendMessage]);
 
-  // Handle audio sending
+  // Instant audio sending - no waiting for API
   const handleSendAudio = useCallback(async (audioBlob: Blob, duration: number) => {
     if (!selectedAtendimento) return;
     
     const agenteId = getAgenteId();
-    // Allow sending even without agente_id (for clinic owners)
 
     try {
       // Normalize the mime type (remove codecs info)
@@ -591,7 +578,7 @@ export default function OmniWhatsAppChat() {
         .from("omni-files")
         .getPublicUrl(filePath);
 
-      // Create optimistic message
+      // Create optimistic message - show immediately
       const optimisticMsg: OmniMensagem = {
         id: `temp-audio-${Date.now()}`,
         atendimento_id: selectedAtendimento.id,
@@ -612,16 +599,8 @@ export default function OmniWhatsAppChat() {
 
       setOptimisticMessages(prev => [...prev, optimisticMsg]);
 
-      // Send audio message
-      await enviarMensagem(
-        agenteId,
-        "audio",
-        undefined,
-        publicUrl,
-        fileName,
-        audioBlob.type
-      );
-      // No toast needed - the message appears in chat
+      // Fire and forget - send in background without waiting
+      enviarMensagem(agenteId, "audio", undefined, publicUrl, fileName, audioBlob.type);
     } catch (error) {
       console.error("Error sending audio:", error);
       toast.error("Erro ao enviar áudio");
@@ -1131,18 +1110,12 @@ export default function OmniWhatsAppChat() {
                   size="icon"
                   className="bg-[#075E54] hover:bg-[#064E46] rounded-full"
                   onClick={handleSendMessage}
-                  disabled={sending}
                 >
-                  {sending ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Send className="h-5 w-5" />
-                  )}
+                  <Send className="h-5 w-5" />
                 </Button>
               ) : (
                 <AudioRecorder 
                   onSendAudio={handleSendAudio}
-                  disabled={sending}
                 />
               )}
             </div>
