@@ -33,6 +33,8 @@ function AudioPlayer({ url }: { url: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [hasError, setHasError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const togglePlay = () => {
@@ -40,7 +42,7 @@ function AudioPlayer({ url }: { url: string }) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        audioRef.current.play();
+        audioRef.current.play().catch(() => setHasError(true));
       }
       setIsPlaying(!isPlaying);
     }
@@ -52,20 +54,39 @@ function AudioPlayer({ url }: { url: string }) {
     return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   };
 
+  // If custom player fails, show native audio controls
+  if (hasError) {
+    return (
+      <audio 
+        src={url} 
+        controls 
+        className="h-10 max-w-[250px]"
+        preload="metadata"
+      />
+    );
+  }
+
   return (
     <div className="bg-primary/20 rounded-2xl p-3 flex items-center gap-3 min-w-[200px]">
       <audio
         ref={audioRef}
         src={url}
+        preload="metadata"
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+        onLoadedMetadata={(e) => {
+          setDuration(e.currentTarget.duration);
+          setIsLoaded(true);
+        }}
         onEnded={() => setIsPlaying(false)}
+        onError={() => setHasError(true)}
+        onCanPlay={() => setIsLoaded(true)}
       />
       <Button
         variant="ghost"
         size="icon"
         className="h-10 w-10 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground"
         onClick={togglePlay}
+        disabled={!isLoaded}
       >
         {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
       </Button>
@@ -78,7 +99,7 @@ function AudioPlayer({ url }: { url: string }) {
         </div>
         <div className="flex justify-between mt-1">
           <span className="text-xs text-muted-foreground">
-            {formatTime(currentTime)} / {formatTime(duration || 0)}
+            {isLoaded ? formatTime(currentTime) : "--:--"} / {isLoaded ? formatTime(duration || 0) : "--:--"}
           </span>
         </div>
       </div>
