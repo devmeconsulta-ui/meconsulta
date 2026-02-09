@@ -31,11 +31,14 @@ export function ClinicaLayout() {
     async function fetchClinicaData() {
       if (!currentUser) return;
 
+      console.log("[ClinicaLayout] Fetching data for user:", currentUser.id, currentUser.email);
+
       let clinicaId: string | null = null;
 
       // If user is a clinic employee (has clinicaId in context), use that
       if (currentUser.clinicaId) {
         clinicaId = currentUser.clinicaId;
+        console.log("[ClinicaLayout] Using clinicaId from context:", clinicaId);
       } else if (currentUser.tipo === "clinica") {
         // If user is the clinic owner, fetch clinic by usuario_id
         const { data } = await supabase
@@ -46,6 +49,7 @@ export function ClinicaLayout() {
         
         if (data) {
           clinicaId = data.id;
+          console.log("[ClinicaLayout] Fetched clinicaId for owner:", clinicaId);
         }
       }
 
@@ -56,28 +60,30 @@ export function ClinicaLayout() {
           .eq("id", clinicaId)
           .maybeSingle();
 
+        console.log("[ClinicaLayout] Clinic data loaded:", data?.id, data?.nome_fantasia);
         setClinicaData(data);
         
         // Fetch usuarioClinicaId for the user
         if (currentUser.email) {
           const { data: usuarioClinica } = await supabase
             .from("usuarios_clinica")
-            .select("id")
+            .select("id, nome")
             .eq("clinica_id", clinicaId)
             .eq("email", currentUser.email)
             .eq("ativo", true)
             .maybeSingle();
           
           if (usuarioClinica) {
+            console.log("[ClinicaLayout] ✅ Found usuarioClinica:", usuarioClinica.id, usuarioClinica.nome);
             setUsuarioClinicaId(usuarioClinica.id);
           } else {
             // For clinic owners without usuarios_clinica entry, use their main user ID
-            // This ensures they can still be tracked for presence
-            console.log("[ClinicaLayout] No usuarioClinica found, using currentUser.id for presence");
+            console.log("[ClinicaLayout] ⚠️ No usuarioClinica found, using currentUser.id:", currentUser.id);
             setUsuarioClinicaId(currentUser.id);
           }
         } else {
           // Fallback to currentUser.id if no email
+          console.log("[ClinicaLayout] No email, using currentUser.id:", currentUser.id);
           setUsuarioClinicaId(currentUser.id);
         }
       }
@@ -89,6 +95,15 @@ export function ClinicaLayout() {
       fetchClinicaData();
     }
   }, [currentUser]);
+
+  // Log presence tracking params
+  useEffect(() => {
+    console.log("[ClinicaLayout] 🔍 Presence tracking params:", {
+      clinicaId: clinicaData?.id || "not loaded",
+      usuarioClinicaId: usuarioClinicaId || "not loaded",
+      userName: currentUser?.nome || "not loaded"
+    });
+  }, [clinicaData?.id, usuarioClinicaId, currentUser?.nome]);
 
   // Track agent/staff presence at the layout level
   // This ensures all clinic staff are tracked when they're logged in
