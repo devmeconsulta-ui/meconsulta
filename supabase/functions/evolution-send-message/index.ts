@@ -141,7 +141,9 @@ serve(async (req) => {
         break;
       case "audio":
         evolutionEndpoint = "sendWhatsAppAudio";
-        evolutionBody.audio = arquivo_url;
+        evolutionBody.audioMessage = {
+          audio: arquivo_url,
+        };
         break;
       case "video":
         evolutionEndpoint = "sendMedia";
