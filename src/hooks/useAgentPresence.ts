@@ -103,24 +103,30 @@ export function useAgentPresence(clinicaId: string | null, userId: string | null
 
 // Hook for tracking own presence (to be used in layout)
 export function useTrackAgentPresence(clinicaId: string | null, userId: string | null, userName: string | null) {
-  const [channel, setChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [isPaused, setIsPaused] = useState(false);
-  const hasTrackedRef = useRef(false);
+  const [isTracking, setIsTracking] = useState(false);
 
   useEffect(() => {
+    // Don't do anything if we don't have all required params
     if (!clinicaId || !userId || !userName) {
-      console.log("[TrackAgentPresence] Missing required params:", { clinicaId, userId, userName });
+      console.log("[TrackAgentPresence] Waiting for required params:", { 
+        clinicaId: clinicaId || "missing", 
+        userId: userId || "missing", 
+        userName: userName || "missing" 
+      });
       return;
     }
 
-    // Prevent duplicate channel creation
-    if (hasTrackedRef.current) {
-      console.log("[TrackAgentPresence] Already tracking, skipping");
-      return;
+    // Clean up previous channel if it exists
+    if (channelRef.current) {
+      console.log("[TrackAgentPresence] Cleaning up previous channel");
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
 
     const channelName = `agent_presence:${clinicaId}`;
-    console.log("[TrackAgentPresence] Creating channel:", channelName, "for user:", userId);
+    console.log("[TrackAgentPresence] Creating channel:", channelName, "for user:", userId, userName);
     
     const ch = supabase.channel(channelName, {
       config: {
@@ -130,43 +136,57 @@ export function useTrackAgentPresence(clinicaId: string | null, userId: string |
       },
     });
 
+    channelRef.current = ch;
+
     ch.subscribe(async (status) => {
-      console.log("[TrackAgentPresence] Subscription status:", status);
+      console.log("[TrackAgentPresence] Subscription status:", status, "for user:", userId);
       if (status === "SUBSCRIBED") {
-        console.log("[TrackAgentPresence] Tracking presence for:", { userId, userName });
-        hasTrackedRef.current = true;
-        await ch.track({
-          id: userId,
-          nome: userName,
-          online_at: new Date().toISOString(),
-          status: "online" as const,
-        });
+        console.log("[TrackAgentPresence] ✅ Successfully subscribed! Tracking presence for:", { userId, userName });
+        setIsTracking(true);
+        try {
+          const trackResult = await ch.track({
+            id: userId,
+            nome: userName,
+            online_at: new Date().toISOString(),
+            status: "online" as const,
+          });
+          console.log("[TrackAgentPresence] Track result:", trackResult);
+        } catch (err) {
+          console.error("[TrackAgentPresence] Error tracking:", err);
+        }
+      } else if (status === "CHANNEL_ERROR") {
+        console.error("[TrackAgentPresence] ❌ Channel error for:", userId);
+        setIsTracking(false);
+      } else if (status === "CLOSED") {
+        console.log("[TrackAgentPresence] Channel closed for:", userId);
+        setIsTracking(false);
       }
     });
 
-    setChannel(ch);
-
     return () => {
-      console.log("[TrackAgentPresence] Cleaning up channel for:", userId);
-      hasTrackedRef.current = false;
-      supabase.removeChannel(ch);
+      console.log("[TrackAgentPresence] Cleanup: removing channel for:", userId);
+      setIsTracking(false);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [clinicaId, userId, userName]);
 
   const togglePause = useCallback(async () => {
-    if (!channel || !userId || !userName) return;
+    if (!channelRef.current || !userId || !userName) return;
     
     const newStatus = isPaused ? "online" : "pausa";
     setIsPaused(!isPaused);
     
     console.log("[TrackAgentPresence] Toggling status to:", newStatus);
-    await channel.track({
+    await channelRef.current.track({
       id: userId,
       nome: userName,
       online_at: new Date().toISOString(),
       status: newStatus,
     });
-  }, [channel, userId, userName, isPaused]);
+  }, [userId, userName, isPaused]);
 
-  return { isPaused, togglePause };
+  return { isPaused, togglePause, isTracking };
 }
