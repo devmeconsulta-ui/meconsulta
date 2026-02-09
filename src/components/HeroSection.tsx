@@ -355,14 +355,13 @@ const HeroSection = () => {
             {/* Center Column - Hero Text + Selo */}
             <div className="lg:col-span-4 order-1 lg:order-2 text-center lg:text-left flex flex-col items-center lg:items-start pb-12 lg:pb-16">
               <div className="mb-6">
-                <p className="text-primary-foreground/90 text-lg lg:text-xl mb-1">Acesse</p>
+                <p className="text-primary-foreground/90 text-lg lg:text-xl mb-1">Marque aqui sua</p>
                 <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-secondary mb-3">
-                  profissionais
+                  consulta médica
                 </h1>
                 <p className="text-lg lg:text-xl xl:text-2xl text-primary-foreground font-medium leading-relaxed">
-                  qualificados sem<br />
-                  mensalidades<br />
-                  ou burocracia.
+                  sem mensalidades<br />
+                  sem burocracia
                 </p>
               </div>
 
