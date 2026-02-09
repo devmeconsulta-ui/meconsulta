@@ -8,21 +8,29 @@ interface PresenceData {
   status: "online" | "pausa";
 }
 
+// Hook for READING agent presence (used in OmniAgentes to display status)
 export function useAgentPresence(clinicaId: string | null, userId: string | null, userName: string | null) {
   const [onlineAgents, setOnlineAgents] = useState<Set<string>>(new Set());
   const [pausedAgents, setPausedAgents] = useState<Set<string>>(new Set());
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const isSubscribedRef = useRef(false);
 
   useEffect(() => {
-    if (!clinicaId) return;
+    if (!clinicaId) {
+      console.log("[AgentPresence] No clinicaId, skipping subscription");
+      return;
+    }
 
     const channelName = `agent_presence:${clinicaId}`;
+    console.log("[AgentPresence] Setting up reader for channel:", channelName);
     
-    // Create channel for reading presence (don't track here - that's done in layouts)
+    // Use a unique key for the reader to avoid conflicts with trackers
+    const readerKey = userId ? `reader_${userId}` : `reader_${Date.now()}`;
+    
     const channel = supabase.channel(channelName, {
       config: {
         presence: {
-          key: userId || "reader",
+          key: readerKey,
         },
       },
     });
@@ -32,63 +40,76 @@ export function useAgentPresence(clinicaId: string | null, userId: string | null
     const handleSync = () => {
       const state = channel.presenceState<PresenceData>();
       
-      console.log("[AgentPresence] Sync event, raw state:", state);
+      console.log("[AgentPresence] 📊 Sync event - Full state:", JSON.stringify(state, null, 2));
       
       const online = new Set<string>();
       const paused = new Set<string>();
       
-      Object.values(state).forEach((presences) => {
+      Object.entries(state).forEach(([key, presences]) => {
+        // Skip reader keys - they don't represent actual agents
+        if (key.startsWith("reader_")) return;
+        
         presences.forEach((p) => {
-          console.log("[AgentPresence] Processing presence:", p);
+          console.log("[AgentPresence] Processing presence for key:", key, "data:", p);
           if (p.id) {
             if (p.status === "online") {
               online.add(p.id);
+              console.log("[AgentPresence] ✅ Added to online:", p.id, p.nome);
             } else if (p.status === "pausa") {
               paused.add(p.id);
+              console.log("[AgentPresence] ⏸️ Added to paused:", p.id, p.nome);
             }
           }
         });
       });
       
-      console.log("[AgentPresence] Online agents:", Array.from(online));
-      console.log("[AgentPresence] Paused agents:", Array.from(paused));
-      setOnlineAgents(online);
-      setPausedAgents(paused);
+      console.log("[AgentPresence] Final counts - Online:", online.size, "Paused:", paused.size);
+      setOnlineAgents(new Set(online));
+      setPausedAgents(new Set(paused));
     };
 
     channel
-      .on("presence", { event: "sync" }, handleSync)
+      .on("presence", { event: "sync" }, () => {
+        console.log("[AgentPresence] Received sync event");
+        handleSync();
+      })
       .on("presence", { event: "join" }, ({ key, newPresences }) => {
-        console.log("[AgentPresence] Join event:", key, newPresences);
+        console.log("[AgentPresence] 🟢 Join event - key:", key, "presences:", newPresences);
         handleSync();
       })
       .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
-        console.log("[AgentPresence] Leave event:", key, leftPresences);
+        console.log("[AgentPresence] 🔴 Leave event - key:", key, "presences:", leftPresences);
         handleSync();
       })
-      .subscribe(async (status) => {
+      .subscribe((status) => {
         console.log("[AgentPresence] Reader subscription status:", status);
-        // If we have userId and userName, also track our own presence
-        if (status === "SUBSCRIBED" && userId && userName) {
-          console.log("[AgentPresence] Also tracking own presence:", { userId, userName });
-          await channel.track({
-            id: userId,
-            nome: userName,
-            online_at: new Date().toISOString(),
-            status: "online" as const,
-          });
+        if (status === "SUBSCRIBED") {
+          isSubscribedRef.current = true;
+          console.log("[AgentPresence] ✅ Reader subscribed successfully");
+          // Immediately check current state after subscribing
+          setTimeout(handleSync, 500);
+        } else if (status === "CHANNEL_ERROR") {
+          console.error("[AgentPresence] ❌ Reader channel error");
+          isSubscribedRef.current = false;
         }
       });
 
     return () => {
       console.log("[AgentPresence] Cleaning up reader channel");
-      supabase.removeChannel(channel);
+      isSubscribedRef.current = false;
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
-  }, [clinicaId, userId, userName]);
+  }, [clinicaId, userId]);
 
   const getAgentStatus = useCallback((agentId: string): "online" | "pausa" | "offline" => {
-    if (onlineAgents.has(agentId)) return "online";
-    if (pausedAgents.has(agentId)) return "pausa";
+    const isOnline = onlineAgents.has(agentId);
+    const isPaused = pausedAgents.has(agentId);
+    console.log(`[AgentPresence] getAgentStatus(${agentId}):`, { isOnline, isPaused, onlineAgents: Array.from(onlineAgents) });
+    if (isOnline) return "online";
+    if (isPaused) return "pausa";
     return "offline";
   }, [onlineAgents, pausedAgents]);
 
