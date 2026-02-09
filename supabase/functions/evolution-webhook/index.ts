@@ -280,24 +280,32 @@ Deno.serve(async (req) => {
             // Decode base64 to binary
             const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
             
+            // Normalize mime type - remove codec info like "audio/ogg; codecs=opus"
+            let normalizedMime = mimeType.split(";")[0].trim();
+            
             // Determine file extension
             let ext = "bin";
-            if (mimeType.includes("audio")) ext = "ogg";
-            if (mimeType.includes("mp4") || mimeType.includes("mpeg")) ext = "mp4";
-            if (mimeType.includes("image/jpeg")) ext = "jpg";
-            if (mimeType.includes("image/png")) ext = "png";
-            if (mimeType.includes("image/webp")) ext = "webp";
-            if (mimeType.includes("video")) ext = "mp4";
-            if (mimeType.includes("pdf")) ext = "pdf";
+            if (normalizedMime.includes("audio/ogg")) ext = "ogg";
+            else if (normalizedMime.includes("audio/mpeg") || normalizedMime.includes("audio/mp3")) ext = "mp3";
+            else if (normalizedMime.includes("audio/mp4") || normalizedMime.includes("audio/m4a")) ext = "m4a";
+            else if (normalizedMime.includes("audio/webm")) ext = "webm";
+            else if (normalizedMime.includes("audio")) ext = "ogg";
+            else if (normalizedMime.includes("image/jpeg")) ext = "jpg";
+            else if (normalizedMime.includes("image/png")) ext = "png";
+            else if (normalizedMime.includes("image/webp")) ext = "webp";
+            else if (normalizedMime.includes("video")) ext = "mp4";
+            else if (normalizedMime.includes("pdf")) ext = "pdf";
 
             // Upload to Supabase Storage
             const fileName = `${mediaType}_${Date.now()}_${messageKey.substring(0, 8)}.${ext}`;
             const filePath = `omni/${clinica_id}/${atendimento.id}/${fileName}`;
             
+            console.log(`[Media] Uploading with mime: ${normalizedMime}, ext: ${ext}`);
+            
             const { data: uploadData, error: uploadError } = await supabase.storage
               .from("omni-files")
               .upload(filePath, binaryData, {
-                contentType: mimeType,
+                contentType: normalizedMime,
                 upsert: false,
               });
 
