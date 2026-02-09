@@ -1,46 +1,56 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, Download, Mic } from "lucide-react";
+import { Play, Pause, Download } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 interface AudioPlayerWithFallbackProps {
   url: string;
+  isOutgoing?: boolean;
+  avatarInitials?: string;
 }
 
-// Generate static waveform bars for visual effect
-const generateWaveform = () => {
-  const bars = [];
-  for (let i = 0; i < 28; i++) {
-    // Create varying heights for visual appeal
-    const height = Math.random() * 60 + 20; // 20-80%
-    bars.push(height);
+// Generate waveform pattern similar to WhatsApp
+const generateWaveform = (): number[] => {
+  const bars: number[] = [];
+  for (let i = 0; i < 32; i++) {
+    // Create natural looking waveform with variation
+    const base = Math.sin(i * 0.3) * 30 + 50;
+    const noise = Math.random() * 25;
+    bars.push(Math.min(100, Math.max(15, base + noise)));
   }
   return bars;
 };
 
-export function AudioPlayerWithFallback({ url }: AudioPlayerWithFallbackProps) {
+export function AudioPlayerWithFallback({ 
+  url, 
+  isOutgoing = false,
+  avatarInitials = "?"
+}: AudioPlayerWithFallbackProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [hasError, setHasError] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [waveform] = useState(() => generateWaveform());
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const togglePlay = () => {
-    if (audioRef.current) {
+  const togglePlay = async () => {
+    if (!audioRef.current) return;
+    
+    try {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        audioRef.current.play().catch((err) => {
-          console.error("Play error:", err);
-          setHasError(true);
-        });
+        await audioRef.current.play();
       }
+    } catch (err) {
+      console.error("Play error:", err);
+      setHasError(true);
     }
   };
 
-  const formatTime = (time: number) => {
+  const formatTime = (time: number): string => {
     if (!time || isNaN(time)) return "0:00";
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
@@ -57,24 +67,25 @@ export function AudioPlayerWithFallback({ url }: AudioPlayerWithFallbackProps) {
     audioRef.current.currentTime = percent * duration;
   };
 
-  // If audio fails to load, show download fallback
+  // Colors based on direction
+  const bgColor = isOutgoing ? "bg-[#D9FDD3]" : "bg-white";
+  const waveActiveColor = isOutgoing ? "#53BDEB" : "#34B7F1";
+  const waveInactiveColor = isOutgoing ? "#8ECABD" : "#B5D6D0";
+  const playBtnColor = "#53BDEB";
+
+  // Error state - show download button
   if (hasError) {
     return (
-      <div className="flex items-center gap-3 bg-[#DCF8C6] rounded-lg p-2 min-w-[200px]">
-        <div className="w-10 h-10 rounded-full bg-[#00A884] flex items-center justify-center shrink-0">
-          <Mic className="h-5 w-5 text-white" />
+      <div className={cn("flex items-center gap-2 rounded-lg p-2 min-w-[180px] shadow-sm", bgColor)}>
+        <div className="w-9 h-9 rounded-full bg-[#53BDEB] flex items-center justify-center">
+          <Play className="h-4 w-4 text-white ml-0.5" />
         </div>
-        <span className="text-xs text-gray-600 flex-1">
-          Erro ao carregar áudio
-        </span>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="h-8 px-2 text-[#00A884] hover:text-[#00A884]/80"
-          asChild
-        >
+        <div className="flex-1 text-xs text-gray-500">
+          Não foi possível reproduzir
+        </div>
+        <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
           <a href={url} download target="_blank" rel="noopener noreferrer">
-            <Download className="h-4 w-4" />
+            <Download className="h-4 w-4 text-gray-500" />
           </a>
         </Button>
       </div>
@@ -82,20 +93,23 @@ export function AudioPlayerWithFallback({ url }: AudioPlayerWithFallbackProps) {
   }
 
   return (
-    <div className="flex items-center gap-2 bg-[#DCF8C6] rounded-2xl p-2 min-w-[240px] max-w-[320px]">
+    <div className={cn(
+      "flex items-center gap-2 rounded-2xl px-2 py-2 min-w-[220px] max-w-[280px] shadow-sm",
+      bgColor
+    )}>
       <audio
         ref={audioRef}
         src={url}
-        preload="metadata"
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        preload="auto"
         onLoadedMetadata={(e) => {
           const dur = e.currentTarget.duration;
-          if (dur && !isNaN(dur)) {
+          if (dur && !isNaN(dur) && isFinite(dur)) {
             setDuration(dur);
-            setIsLoaded(true);
           }
+          setIsLoading(false);
         }}
-        onCanPlay={() => setIsLoaded(true)}
+        onCanPlay={() => setIsLoading(false)}
+        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => {
@@ -105,28 +119,40 @@ export function AudioPlayerWithFallback({ url }: AudioPlayerWithFallbackProps) {
         onError={(e) => {
           console.error("Audio error:", url, e);
           setHasError(true);
+          setIsLoading(false);
         }}
         playsInline
       />
-      
-      {/* Play button - WhatsApp style green circle */}
+
+      {/* Avatar for received messages (left side) */}
+      {!isOutgoing && (
+        <Avatar className="h-10 w-10 shrink-0">
+          <AvatarFallback className="bg-gray-300 text-gray-600 text-xs">
+            {avatarInitials}
+          </AvatarFallback>
+        </Avatar>
+      )}
+
+      {/* Play/Pause button */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-11 w-11 rounded-full bg-[#00A884] hover:bg-[#00A884]/90 text-white shrink-0 shadow-sm"
+        className="h-10 w-10 rounded-full shrink-0 p-0 hover:bg-transparent"
         onClick={togglePlay}
+        disabled={isLoading}
+        style={{ color: playBtnColor }}
       >
         {isPlaying ? (
-          <Pause className="h-5 w-5" fill="white" />
+          <Pause className="h-7 w-7" fill={playBtnColor} stroke={playBtnColor} />
         ) : (
-          <Play className="h-5 w-5 ml-0.5" fill="white" />
+          <Play className="h-7 w-7 ml-0.5" fill={playBtnColor} stroke={playBtnColor} />
         )}
       </Button>
 
-      {/* Waveform and progress */}
+      {/* Waveform and time */}
       <div className="flex-1 min-w-0">
         <div 
-          className="flex items-center gap-[2px] h-8 cursor-pointer"
+          className="flex items-center gap-[1.5px] h-7 cursor-pointer"
           onClick={handleSeek}
         >
           {waveform.map((height, i) => {
@@ -135,28 +161,30 @@ export function AudioPlayerWithFallback({ url }: AudioPlayerWithFallbackProps) {
             return (
               <div
                 key={i}
-                className={cn(
-                  "w-[3px] rounded-full transition-colors",
-                  isPast ? "bg-[#00A884]" : "bg-[#8BCFBB]"
-                )}
-                style={{ height: `${height}%` }}
+                className="w-[2.5px] rounded-full transition-colors duration-100"
+                style={{ 
+                  height: `${height}%`,
+                  backgroundColor: isPast ? waveActiveColor : waveInactiveColor
+                }}
               />
             );
           })}
         </div>
         
         {/* Time display */}
-        <div className="flex justify-between mt-0.5">
-          <span className="text-[11px] text-gray-500">
-            {isPlaying ? formatTime(currentTime) : formatTime(duration)}
-          </span>
-        </div>
+        <span className="text-[11px] text-gray-500 mt-0.5 block">
+          {isPlaying ? formatTime(currentTime) : formatTime(duration || 0)}
+        </span>
       </div>
 
-      {/* Microphone icon */}
-      <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center shrink-0">
-        <Mic className="h-4 w-4 text-gray-600" />
-      </div>
+      {/* Avatar for sent messages (right side) */}
+      {isOutgoing && (
+        <Avatar className="h-10 w-10 shrink-0">
+          <AvatarFallback className="bg-[#53BDEB] text-white text-xs">
+            {avatarInitials}
+          </AvatarFallback>
+        </Avatar>
+      )}
     </div>
   );
 }

@@ -172,7 +172,11 @@ function MessageBubble({
         )}
         
         {mensagem.tipo === "audio" && mensagem.arquivo_url && (
-          <AudioPlayerWithFallback url={mensagem.arquivo_url} />
+          <AudioPlayerWithFallback 
+            url={mensagem.arquivo_url} 
+            isOutgoing={isOutgoing}
+            avatarInitials={isOutgoing ? "Eu" : "?"}
+          />
         )}
         {mensagem.tipo === "imagem" && mensagem.arquivo_url && (
           <img src={mensagem.arquivo_url} alt="Imagem" className="rounded max-w-full" />
