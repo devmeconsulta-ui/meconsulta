@@ -155,17 +155,14 @@ export default function ClinicaCRM() {
   }
 
   return (
-    <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
-      {/* Header fixo no topo - abaixo do ClinicaHeader */}
-      <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background">
+    <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
+      {/* OmniHeader fixo no topo */}
+      <div className="flex-shrink-0">
         <OmniHeader />
       </div>
 
-      {/* Espaçador para compensar o header fixo + padding original do layout */}
-      <div className="h-[calc(4rem+56px)] lg:h-[calc(1.5rem+56px)]" />
-
       {/* Conteúdo do CRM - rola normalmente */}
-      <div className="px-3 md:px-6 py-4">
+      <div className="flex-1 overflow-auto px-3 md:px-6 py-4">
         {/* Header do CRM */}
         <div className="flex flex-col gap-3 mb-4">
             {/* Title + Funnel Select + Config */}
