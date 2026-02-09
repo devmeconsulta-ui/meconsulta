@@ -452,15 +452,33 @@ export default function OmniWhatsAppChat() {
   }, [selectedAtendimento]);
 
   // Filter conversations
+  // Filter conversations based on ownership rules:
+  // - Clinic admins (tipo === "clinica") can see all atendimentos
+  // - Agents can only see: their own assigned atendimentos OR unassigned (aguardando)
   const filteredAtendimentos = useMemo(() => {
+    const usuarioClinicaId = currentUser?.usuarioClinicaId;
+    
+    // First filter by ownership (non-admin agents only see their own or unassigned)
     let filtered = atendimentos;
     
+    if (!isClinicaAdmin && usuarioClinicaId) {
+      // Agents can only see:
+      // 1. Atendimentos assigned to them (agente_id === their ID)
+      // 2. Atendimentos waiting (aguardando) without an agent (unassigned)
+      filtered = atendimentos.filter((a) => 
+        a.agente_id === usuarioClinicaId || 
+        (a.status === "aguardando" && !a.agente_id)
+      );
+    }
+    
+    // Then apply tab filters
     if (activeTab === "waiting") {
       filtered = filtered.filter((a) => a.status === "aguardando");
     } else if (activeTab === "mine") {
-      filtered = filtered.filter((a) => a.agente_id === currentUser?.usuarioClinicaId);
+      filtered = filtered.filter((a) => a.agente_id === usuarioClinicaId);
     }
     
+    // Apply search filter
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -471,7 +489,7 @@ export default function OmniWhatsAppChat() {
     }
     
     return filtered;
-  }, [atendimentos, searchTerm, activeTab, currentUser?.usuarioClinicaId]);
+  }, [atendimentos, searchTerm, activeTab, currentUser?.usuarioClinicaId, isClinicaAdmin]);
 
   // Agents for transfer modal
   const [agentes, setAgentes] = useState<Array<{ id: string; nome: string }>>([]);
