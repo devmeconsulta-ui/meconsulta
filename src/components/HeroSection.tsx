@@ -26,7 +26,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import doctorImage from "@/assets/dra-page.png";
 import seloImage from "@/assets/selo.png";
 import heroBg from "@/assets/hero-background.png";
-import { specialties, brazilStates, citiesByState } from "@/data/brazilData";
+import { specialties } from "@/data/brazilData";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -58,10 +58,78 @@ const HeroSection = () => {
   const [medicos, setMedicos] = useState<Medico[]>([]);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [locationDetected, setLocationDetected] = useState(false);
+  
+  // Dynamic states and cities from database
+  const [availableStates, setAvailableStates] = useState<{ sigla: string; nome: string }[]>([]);
+  const [availableCities, setAvailableCities] = useState<string[]>([]);
+  
+  // Sorted specialties alphabetically
+  const sortedSpecialties = [...specialties].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  
   // Sempre mostrar apenas médicos com agenda disponível
   const medicosFiltrados = medicos.filter(m => m.slots_disponiveis && m.slots_disponiveis > 0);
 
-  const cities = selectedState ? citiesByState[selectedState] || [] : [];
+  // State to state name mapping
+  const stateNameMapping: Record<string, string> = {
+    "AC": "Acre", "AL": "Alagoas", "AP": "Amapá", "AM": "Amazonas",
+    "BA": "Bahia", "CE": "Ceará", "DF": "Distrito Federal", "ES": "Espírito Santo",
+    "GO": "Goiás", "MA": "Maranhão", "MT": "Mato Grosso", "MS": "Mato Grosso do Sul",
+    "MG": "Minas Gerais", "PA": "Pará", "PB": "Paraíba", "PR": "Paraná",
+    "PE": "Pernambuco", "PI": "Piauí", "RJ": "Rio de Janeiro", "RN": "Rio Grande do Norte",
+    "RS": "Rio Grande do Sul", "RO": "Rondônia", "RR": "Roraima", "SC": "Santa Catarina",
+    "SP": "São Paulo", "SE": "Sergipe", "TO": "Tocantins"
+  };
+
+  // Fetch available states and cities from database
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("locais_atendimento")
+          .select("estado, cidade")
+          .eq("ativo", true);
+        
+        if (error) throw error;
+        
+        // Get unique states
+        const uniqueStates = [...new Set(data?.map(l => l.estado?.toUpperCase()).filter(Boolean) || [])];
+        const statesWithNames = uniqueStates
+          .map(sigla => ({ sigla: sigla as string, nome: stateNameMapping[sigla as string] || sigla as string }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+        
+        setAvailableStates(statesWithNames);
+        
+        // Store all cities by state for filtering
+        const citiesByStateMap: Record<string, string[]> = {};
+        data?.forEach(l => {
+          if (l.estado && l.cidade) {
+            const state = l.estado.toUpperCase();
+            if (!citiesByStateMap[state]) citiesByStateMap[state] = [];
+            if (!citiesByStateMap[state].includes(l.cidade)) {
+              citiesByStateMap[state].push(l.cidade);
+            }
+          }
+        });
+        
+        // Store in state for use when selecting
+        (window as any).__citiesByStateFromDB = citiesByStateMap;
+      } catch (err) {
+        console.error("Error fetching locations:", err);
+      }
+    };
+    
+    fetchLocations();
+  }, []);
+
+  // Update cities when state changes
+  useEffect(() => {
+    if (selectedState) {
+      const citiesFromDB = (window as any).__citiesByStateFromDB?.[selectedState.toUpperCase()] || [];
+      setAvailableCities(citiesFromDB.sort((a: string, b: string) => a.localeCompare(b, 'pt-BR')));
+    } else {
+      setAvailableCities([]);
+    }
+  }, [selectedState]);
 
   // Pedir geolocalização ao carregar
   useEffect(() => {
@@ -108,13 +176,12 @@ const HeroSection = () => {
               setSelectedState(stateMapping[stateName]);
               setLocationDetected(true);
               
-              // Verificar se a cidade está na lista
-              const stateAbbr = stateMapping[stateName];
-              const availableCities = citiesByState[stateAbbr] || [];
+              // Verificar se a cidade está disponível no banco
+              const citiesFromDB = (window as any).__citiesByStateFromDB?.[stateMapping[stateName]] || [];
               
               if (cityName) {
-                const matchedCity = availableCities.find(
-                  c => c.toLowerCase() === cityName.toLowerCase()
+                const matchedCity = citiesFromDB.find(
+                  (c: string) => c.toLowerCase() === cityName.toLowerCase()
                 );
                 if (matchedCity) {
                   setSelectedCity(matchedCity.toLowerCase());
@@ -256,7 +323,7 @@ const HeroSection = () => {
             <div className="lg:col-span-4 order-2 lg:order-1 pb-12 lg:pb-16">
               <div className="bg-card rounded-2xl p-6 shadow-xl max-w-md mx-auto lg:mx-0">
                 <h2 className="text-lg font-semibold text-foreground mb-5 text-center">
-                  Encontrar especialista
+                  Encontre seu médico
                 </h2>
                 
                 <div className="space-y-3">
@@ -264,7 +331,7 @@ const HeroSection = () => {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary" />
                     <Input 
-                      placeholder="Procurar por nome do médico..." 
+                      placeholder="Procurar pelo nome do médico" 
                       className="pl-10 h-11 rounded-lg border-border bg-muted/30"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
@@ -280,7 +347,7 @@ const HeroSection = () => {
                         <SelectValue placeholder="Especialidade" />
                       </SelectTrigger>
                       <SelectContent className="max-h-60">
-                        {specialties.map((specialty) => (
+                        {sortedSpecialties.map((specialty) => (
                           <SelectItem key={specialty} value={specialty.toLowerCase()}>
                             {specialty}
                           </SelectItem>
@@ -288,6 +355,9 @@ const HeroSection = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Local da consulta label */}
+                  <p className="text-sm font-medium text-muted-foreground pt-1">Local da consulta</p>
 
                   {/* Location Selects */}
                   <div className="space-y-3">
@@ -299,11 +369,15 @@ const HeroSection = () => {
                             <SelectValue placeholder="Estado" />
                           </SelectTrigger>
                           <SelectContent className="max-h-60 bg-background z-50">
-                            {brazilStates.map((state) => (
-                              <SelectItem key={state.sigla} value={state.sigla}>
-                                {state.nome}
-                              </SelectItem>
-                            ))}
+                            {availableStates.length > 0 ? (
+                              availableStates.map((state) => (
+                                <SelectItem key={state.sigla} value={state.sigla}>
+                                  {state.nome}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="MG">Minas Gerais</SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -330,11 +404,15 @@ const HeroSection = () => {
                           <SelectValue placeholder="Cidade" />
                         </SelectTrigger>
                         <SelectContent className="max-h-60 bg-background z-50">
-                          {cities.map((city) => (
-                            <SelectItem key={city} value={city.toLowerCase()}>
-                              {city}
-                            </SelectItem>
-                          ))}
+                          {availableCities.length > 0 ? (
+                            availableCities.map((city) => (
+                              <SelectItem key={city} value={city.toLowerCase()}>
+                                {city}
+                              </SelectItem>
+                            ))
+                          ) : selectedState ? (
+                            <SelectItem value="montes claros">Montes Claros</SelectItem>
+                          ) : null}
                         </SelectContent>
                       </Select>
                     </div>
