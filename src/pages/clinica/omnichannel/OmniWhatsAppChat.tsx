@@ -1008,13 +1008,14 @@ export default function OmniWhatsAppChat() {
               </div>
             </div>
 
-            {/* Messages area - scrollable */}
-            <div
-              className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0"
+            {/* Messages area - scrollable with contained scrollbar */}
+            <ScrollArea
+              className="flex-1 min-h-0"
               style={{
                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8c4be' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
               }}
             >
+              <div className="p-4 space-y-2">
               {loadingMessages ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1065,9 +1066,9 @@ export default function OmniWhatsAppChat() {
                   <div ref={messagesEndRef} />
                 </>
               )}
-            </div>
+              </div>
+            </ScrollArea>
 
-            {/* Message input */}
             {/* Message input - sticky */}
             <div className="flex-shrink-0 bg-muted px-4 py-3 flex items-center gap-2 z-10">
               <Tooltip>
