@@ -58,6 +58,7 @@ serve(async (req) => {
       .from("omni_atendimentos")
       .select(`
         id,
+        clinica_id,
         data_abertura,
         data_primeira_resposta,
         fila_id,
@@ -82,38 +83,41 @@ serve(async (req) => {
 
     const contato = atendimento.contato;
     const fila = atendimento.fila;
-    const instancia = fila?.instancia;
+    let instancia = fila?.instancia;
 
-    // Check if atendimento has a queue assigned
-    if (!atendimento.fila_id || !fila) {
-      console.error("Atendimento sem fila vinculada:", atendimento_id);
-      return new Response(
-        JSON.stringify({ 
-          error: "Atendimento sem fila de atendimento vinculada", 
-          details: "Este atendimento não está vinculado a nenhuma fila. Vincule-o a uma fila nas configurações." 
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // FALLBACK: If no queue linked, find any connected instance for this clinic
+    if (!atendimento.fila_id || !fila || !instancia) {
+      console.log(`Atendimento ${atendimento_id} sem fila vinculada, buscando instância da clínica...`);
+      
+      const { data: instanciaFallback, error: instanciaError } = await supabase
+        .from("omni_instancias")
+        .select("evolution_instance_name, status")
+        .eq("clinica_id", atendimento.clinica_id)
+        .eq("status", "connected")
+        .limit(1)
+        .maybeSingle();
 
-    // Check if queue has an instance linked
-    if (!instancia) {
-      console.error("Fila sem instância:", fila.nome);
-      return new Response(
-        JSON.stringify({ 
-          error: `A fila "${fila.nome}" não possui instância WhatsApp vinculada`, 
-          details: "Configure uma instância WhatsApp para esta fila em Omnichannel > Filas." 
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (instanciaError || !instanciaFallback) {
+        console.error("Nenhuma instância conectada encontrada para clínica:", atendimento.clinica_id);
+        return new Response(
+          JSON.stringify({ 
+            error: "Nenhuma instância WhatsApp conectada", 
+            details: "Configure e conecte uma instância WhatsApp em Omnichannel > Integrações." 
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log(`Usando instância fallback: ${instanciaFallback.evolution_instance_name}`);
+      instancia = instanciaFallback;
     }
 
     if (instancia.status !== "connected") {
       console.error("Instância desconectada:", instancia.evolution_instance_name);
       return new Response(
         JSON.stringify({ 
-          error: `WhatsApp desconectado na fila "${fila.nome}"`, 
-          details: "A instância WhatsApp precisa ser reconectada. Acesse Omnichannel > Filas para reconectar." 
+          error: "WhatsApp desconectado", 
+          details: "A instância WhatsApp precisa ser reconectada. Acesse Omnichannel > Integrações para reconectar." 
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
