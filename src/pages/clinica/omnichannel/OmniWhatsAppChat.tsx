@@ -1269,6 +1269,7 @@ export default function OmniWhatsAppChat() {
           open={novoAtendimentoModalOpen}
           onOpenChange={setNovoAtendimentoModalOpen}
           clinicaId={clinicaId}
+          usuarioClinicaId={currentUser?.usuarioClinicaId}
           onAtendimentoCriado={(atendimentoId) => {
             fetchAtendimentos();
             // Select the newly created atendimento
