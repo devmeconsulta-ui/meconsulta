@@ -36,6 +36,8 @@ export function useAgentPresence(clinicaId: string | null, userId: string | null
           status: "online" | "pausa";
         }>();
         
+        console.log("[AgentPresence] Sync event, state:", state);
+        
         const online = new Set<string>();
         const paused = new Set<string>();
         
@@ -49,11 +51,14 @@ export function useAgentPresence(clinicaId: string | null, userId: string | null
           });
         });
         
+        console.log("[AgentPresence] Online agents:", Array.from(online));
         setOnlineAgents(online);
         setPausedAgents(paused);
       })
       .subscribe(async (status) => {
+        console.log("[AgentPresence] Subscription status:", status);
         if (status === "SUBSCRIBED" && userId && userName) {
+          console.log("[AgentPresence] Tracking user:", { userId, userName });
           await channel.track({
             id: userId,
             nome: userName,
@@ -102,7 +107,9 @@ export function useTrackAgentPresence(clinicaId: string | null, userId: string |
     });
 
     ch.subscribe(async (status) => {
+      console.log("[TrackAgentPresence] Subscription status:", status);
       if (status === "SUBSCRIBED") {
+        console.log("[TrackAgentPresence] Tracking presence:", { userId, userName });
         await ch.track({
           id: userId,
           nome: userName,
