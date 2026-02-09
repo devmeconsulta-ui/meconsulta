@@ -257,7 +257,8 @@ Deno.serve(async (req) => {
                 },
                 body: JSON.stringify({
                   message: { key: { id: messageKey } },
-                  // Do NOT convert audio - keep original OGG/Opus format for better compatibility
+                  // Convert audio to MP4 for universal browser support
+                  convertToMp4: mediaType === "audio",
                 }),
               }
             );
@@ -278,25 +279,28 @@ Deno.serve(async (req) => {
             console.log(`[Media] Got base64, length: ${base64Data.length}`);
 
             // Decode base64 to binary using proper Deno method
-            // atob can corrupt binary data, use decodeBase64 instead
             const { decodeBase64 } = await import("https://deno.land/std@0.208.0/encoding/base64.ts");
             const binaryData = decodeBase64(base64Data);
             
-            // Normalize mime type - remove codec info like "audio/ogg; codecs=opus"
+            // For audio converted to MP4, use the correct mime type
             let normalizedMime = mimeType.split(";")[0].trim();
-            
-            // Determine file extension
             let ext = "bin";
-            if (normalizedMime.includes("audio/ogg")) ext = "ogg";
-            else if (normalizedMime.includes("audio/mpeg") || normalizedMime.includes("audio/mp3")) ext = "mp3";
-            else if (normalizedMime.includes("audio/mp4") || normalizedMime.includes("audio/m4a")) ext = "m4a";
-            else if (normalizedMime.includes("audio/webm")) ext = "webm";
-            else if (normalizedMime.includes("audio")) ext = "ogg";
-            else if (normalizedMime.includes("image/jpeg")) ext = "jpg";
-            else if (normalizedMime.includes("image/png")) ext = "png";
-            else if (normalizedMime.includes("image/webp")) ext = "webp";
-            else if (normalizedMime.includes("video")) ext = "mp4";
-            else if (normalizedMime.includes("pdf")) ext = "pdf";
+            
+            if (mediaType === "audio") {
+              // Audio is converted to MP4 by Evolution API for better compatibility
+              normalizedMime = "audio/mp4";
+              ext = "m4a";
+            } else if (normalizedMime.includes("image/jpeg")) {
+              ext = "jpg";
+            } else if (normalizedMime.includes("image/png")) {
+              ext = "png";
+            } else if (normalizedMime.includes("image/webp")) {
+              ext = "webp";
+            } else if (normalizedMime.includes("video")) {
+              ext = "mp4";
+            } else if (normalizedMime.includes("pdf")) {
+              ext = "pdf";
+            }
 
             // Upload to Supabase Storage
             const fileName = `${mediaType}_${Date.now()}_${messageKey.substring(0, 8)}.${ext}`;
