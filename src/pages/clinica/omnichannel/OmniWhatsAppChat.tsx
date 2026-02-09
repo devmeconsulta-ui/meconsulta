@@ -895,11 +895,11 @@ export default function OmniWhatsAppChat() {
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col bg-muted/30 relative">
+      <div className="flex-1 flex flex-col bg-muted/30 relative overflow-hidden">
         {selectedAtendimento ? (
           <>
-            {/* Chat header */}
-            <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
+            {/* Chat header - sticky */}
+            <div className="flex-shrink-0 bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3 z-10">
               <Avatar className="h-10 w-10 border-2 border-white/20">
                 <AvatarImage src={selectedAtendimento.contato?.foto_url || undefined} />
                 <AvatarFallback className="bg-muted text-foreground">
@@ -1008,9 +1008,9 @@ export default function OmniWhatsAppChat() {
               </div>
             </div>
 
-            {/* Messages area */}
+            {/* Messages area - scrollable */}
             <div
-              className="flex-1 overflow-y-auto p-4 space-y-2"
+              className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0"
               style={{
                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8c4be' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
               }}
@@ -1068,7 +1068,8 @@ export default function OmniWhatsAppChat() {
             </div>
 
             {/* Message input */}
-            <div className="bg-muted px-4 py-3 flex items-center gap-2">
+            {/* Message input - sticky */}
+            <div className="flex-shrink-0 bg-muted px-4 py-3 flex items-center gap-2 z-10">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
