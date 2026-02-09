@@ -3629,6 +3629,7 @@ export type Database = {
           ativo: boolean | null
           clinica_id: string | null
           created_at: string | null
+          deve_trocar_senha: boolean | null
           email: string | null
           id: string
           medico_id: string
@@ -3644,6 +3645,7 @@ export type Database = {
           ativo?: boolean | null
           clinica_id?: string | null
           created_at?: string | null
+          deve_trocar_senha?: boolean | null
           email?: string | null
           id?: string
           medico_id: string
@@ -3659,6 +3661,7 @@ export type Database = {
           ativo?: boolean | null
           clinica_id?: string | null
           created_at?: string | null
+          deve_trocar_senha?: boolean | null
           email?: string | null
           id?: string
           medico_id?: string
