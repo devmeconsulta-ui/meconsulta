@@ -621,8 +621,7 @@ export default function OmniWhatsAppChat() {
         fileName,
         audioBlob.type
       );
-
-      toast.success("Áudio enviado");
+      // No toast needed - the message appears in chat
     } catch (error) {
       console.error("Error sending audio:", error);
       toast.error("Erro ao enviar áudio");
