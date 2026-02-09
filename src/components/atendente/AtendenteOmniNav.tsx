@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOmniAtendimentos } from "@/hooks/useOmniAtendimentos";
+import { useMemo } from "react";
 
 interface NavItem {
   icon: React.ElementType;
@@ -32,11 +33,34 @@ interface AtendenteOmniNavProps {
   clinicaId?: string;
 }
 
+interface AtendenteContext {
+  clinicaData: { id: string; nome_fantasia: string } | null;
+  usuarioClinicaData: { id: string; nome: string } | null;
+  currentUser: { id: string; nome: string } | null;
+}
+
 export function AtendenteOmniNav({ clinicaId }: AtendenteOmniNavProps) {
   const location = useLocation();
-  const { atendimentos } = useOmniAtendimentos(clinicaId || null);
+  
+  // Get usuario_clinica ID from context
+  let agenteId: string | undefined;
+  try {
+    const context = useOutletContext<AtendenteContext>();
+    agenteId = context?.usuarioClinicaData?.id;
+  } catch {
+    // Not in an outlet context, ignore
+  }
+  
+  const { atendimentos: allAtendimentos } = useOmniAtendimentos(clinicaId || null);
 
-  // Conta atendimentos em espera e em andamento
+  // Filter atendimentos - agents can ONLY see atendimentos assigned to them
+  const atendimentos = useMemo(() => {
+    if (!allAtendimentos || !agenteId) return [];
+    
+    return allAtendimentos.filter((a) => a.agente_id === agenteId);
+  }, [allAtendimentos, agenteId]);
+
+  // Conta atendimentos em espera e em andamento (filtered by agent)
   const esperaCount = atendimentos?.filter(a => a.status === "aguardando").length || 0;
   const emAndamentoCount = atendimentos?.filter(a => a.status === "em_atendimento").length || 0;
 
@@ -71,7 +95,7 @@ export function AtendenteOmniNav({ clinicaId }: AtendenteOmniNavProps) {
           );
         })}
 
-        {/* Botão WhatsApp com badge - exclusivo do atendente */}
+        {/* Botão WhatsApp com badge - filtered by agent */}
         <NavLink to="/atendente/chat">
           <div
             className={cn(

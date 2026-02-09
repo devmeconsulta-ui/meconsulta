@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useOutletContext } from "react-router-dom";
 import { 
   LayoutDashboard,
   Users,
@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useOmniAtendimentos } from "@/hooks/useOmniAtendimentos";
 import { useOmniConnectionMonitor } from "@/hooks/useOmniConnectionMonitor";
 import { Badge } from "@/components/ui/badge";
+import { useMemo } from "react";
 
 interface NavItem {
   icon: React.ElementType;
@@ -40,12 +41,51 @@ interface OmniHeaderProps {
   clinicaId?: string;
 }
 
+interface ClinicaContext {
+  clinicaData: { id: string; nome_fantasia: string } | null;
+  currentUser: { 
+    id: string; 
+    nome: string; 
+    usuarioClinicaId?: string; 
+    tipo?: string;
+    isClinicaUser?: boolean;
+  } | null;
+}
+
 export function OmniHeader({ clinicaId }: OmniHeaderProps) {
   const location = useLocation();
-  const { atendimentos } = useOmniAtendimentos(clinicaId || null);
+  
+  // Try to get user context for filtering
+  let currentUser: ClinicaContext["currentUser"] = null;
+  try {
+    const context = useOutletContext<ClinicaContext>();
+    currentUser = context?.currentUser || null;
+  } catch {
+    // Not in an outlet context, ignore
+  }
+  
+  const { atendimentos: allAtendimentos } = useOmniAtendimentos(clinicaId || null);
   const { hasDisconnectedQueues, disconnectedQueues } = useOmniConnectionMonitor(clinicaId || null);
 
-  // Conta atendimentos em espera e em andamento
+  // Check if user is clinic admin (owner, not employee)
+  const isClinicaAdmin = currentUser?.tipo === "clinica" && !currentUser?.isClinicaUser;
+  const usuarioClinicaId = currentUser?.usuarioClinicaId;
+
+  // Filter atendimentos based on user permissions
+  // Admins see all, agents only see their assigned atendimentos
+  const atendimentos = useMemo(() => {
+    if (!allAtendimentos) return [];
+    
+    // Clinic admins can see all atendimentos
+    if (isClinicaAdmin || !usuarioClinicaId) {
+      return allAtendimentos;
+    }
+    
+    // Agents can ONLY see atendimentos assigned to them
+    return allAtendimentos.filter((a) => a.agente_id === usuarioClinicaId);
+  }, [allAtendimentos, isClinicaAdmin, usuarioClinicaId]);
+
+  // Conta atendimentos em espera e em andamento (filtered by user permissions)
   const esperaCount = atendimentos?.filter(a => a.status === "aguardando").length || 0;
   const emAndamentoCount = atendimentos?.filter(a => a.status === "em_atendimento").length || 0;
 
@@ -113,7 +153,7 @@ export function OmniHeader({ clinicaId }: OmniHeaderProps) {
           );
         })}
 
-        {/* Botão WhatsApp com badge */}
+        {/* Botão WhatsApp com badge - filtered by user permissions */}
         <NavLink to="/clinica/omnichannel/whatsapp">
           <div
             className={cn(
