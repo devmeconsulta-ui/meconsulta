@@ -100,6 +100,39 @@ export default function OmniFilas() {
     setDeletingInstanciaId(null);
   };
 
+  const [checkingConnection, setCheckingConnection] = useState(false);
+
+  // Auto-check connection status when QR modal is open
+  useEffect(() => {
+    if (!qrCodeData?.instanciaId) return;
+
+    const checkConnection = async () => {
+      setCheckingConnection(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("evolution-connection-status", {
+          body: { instancia_id: qrCodeData.instanciaId },
+        });
+
+        if (!error && (data?.status === "connected" || data?.evolution_state === "open")) {
+          toast.success("WhatsApp conectado com sucesso!");
+          setQrCodeData(null);
+          // Refresh instances
+          await checkConnectionStatus(qrCodeData.instanciaId);
+        }
+      } catch (err) {
+        console.error("Error checking connection:", err);
+      } finally {
+        setCheckingConnection(false);
+      }
+    };
+
+    // Check immediately and then every 3 seconds
+    checkConnection();
+    const interval = setInterval(checkConnection, 3000);
+
+    return () => clearInterval(interval);
+  }, [qrCodeData?.instanciaId, checkConnectionStatus]);
+
   const [novaFilaData, setNovaFilaData] = useState({
     nome: "",
     descricao: "",
@@ -497,13 +530,19 @@ export default function OmniFilas() {
             <p className="text-sm text-muted-foreground text-center">
               Abra o WhatsApp no seu celular e escaneie o código acima
             </p>
-            <Button
-              variant="outline"
-              onClick={() => qrCodeData && handleCheckStatus(qrCodeData.instanciaId)}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Verificar Conexão
-            </Button>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {checkingConnection ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Verificando conexão automaticamente...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Aguardando escaneamento...</span>
+                </>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
