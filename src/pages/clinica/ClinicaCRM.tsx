@@ -155,19 +155,16 @@ export default function ClinicaCRM() {
   }
 
   return (
-    <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6">
+    <div className="-m-4 sm:-m-6 -mt-16 lg:-mt-6 h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
       {/* Header fixo no topo - abaixo do ClinicaHeader */}
-      <div className="fixed top-16 left-0 lg:left-64 right-0 z-30 bg-background">
+      <div className="flex-shrink-0 bg-background z-30">
         <OmniHeader />
       </div>
 
-      {/* Espaçador para compensar o header fixo + padding original do layout */}
-      <div className="h-[calc(4rem+56px)] lg:h-[calc(1.5rem+56px)]" />
-
-      {/* Conteúdo do CRM - rola normalmente */}
-      <div className="px-3 md:px-6 py-4">
+      {/* Conteúdo do CRM */}
+      <div className="flex-1 flex flex-col overflow-hidden px-3 md:px-6 py-4">
         {/* Header do CRM */}
-        <div className="flex flex-col gap-3 mb-4">
+        <div className="flex-shrink-0 flex flex-col gap-3 mb-4">
             {/* Title + Funnel Select + Config */}
             <div className="flex items-center gap-2 md:gap-4">
               <h1 className="text-lg md:text-2xl font-bold text-foreground">CRM</h1>
@@ -239,7 +236,7 @@ export default function ClinicaCRM() {
         </div>
 
         {/* Área do Kanban - com scroll horizontal isolado */}
-        <div className="flex-1 min-h-0 px-3 md:px-6 pb-4 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           {!funilSelecionado ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-4 h-full">
             <Users className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground mb-4" />
