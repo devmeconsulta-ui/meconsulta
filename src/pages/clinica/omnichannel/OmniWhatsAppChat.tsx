@@ -1270,15 +1270,19 @@ export default function OmniWhatsAppChat() {
           onOpenChange={setNovoAtendimentoModalOpen}
           clinicaId={clinicaId}
           usuarioClinicaId={currentUser?.usuarioClinicaId}
-          onAtendimentoCriado={(atendimentoId) => {
-            fetchAtendimentos();
-            // Select the newly created atendimento
+          onAtendimentoCriado={async (atendimentoId) => {
+            // Fetch fresh data first
+            await fetchAtendimentos();
+            // Then select the newly created atendimento after state updates
             setTimeout(() => {
-              const newAtendimento = atendimentos.find(a => a.id === atendimentoId);
-              if (newAtendimento) {
-                setSelectedAtendimento(newAtendimento);
-              }
-            }, 500);
+              setAtendimentos(prev => {
+                const newAtendimento = prev.find(a => a.id === atendimentoId);
+                if (newAtendimento) {
+                  setSelectedAtendimento(newAtendimento);
+                }
+                return prev;
+              });
+            }, 100);
           }}
         />
       )}
