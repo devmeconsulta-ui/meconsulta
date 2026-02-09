@@ -473,22 +473,18 @@ export default function OmniWhatsAppChat() {
 
   // Filter conversations
   // Filter conversations based on ownership rules:
-  // - Clinic admins (tipo === "clinica") can see all atendimentos
-  // - Agents can only see: their own assigned atendimentos OR unassigned (aguardando)
+  // - Clinic admins (tipo === "clinica" and NOT isClinicaUser) can see all atendimentos
+  // - Agents can ONLY see atendimentos assigned to them (agente_id === their ID)
   const filteredAtendimentos = useMemo(() => {
     const usuarioClinicaId = currentUser?.usuarioClinicaId;
     
-    // First filter by ownership (non-admin agents only see their own or unassigned)
+    // First filter by ownership (non-admin agents only see their own assigned)
     let filtered = atendimentos;
     
     if (!isClinicaAdmin && usuarioClinicaId) {
-      // Agents can only see:
-      // 1. Atendimentos assigned to them (agente_id === their ID)
-      // 2. Atendimentos waiting (aguardando) without an agent (unassigned)
-      filtered = atendimentos.filter((a) => 
-        a.agente_id === usuarioClinicaId || 
-        (a.status === "aguardando" && !a.agente_id)
-      );
+      // Agents can ONLY see atendimentos assigned to them
+      // They cannot see unassigned/waiting atendimentos
+      filtered = atendimentos.filter((a) => a.agente_id === usuarioClinicaId);
     }
     
     // Then apply tab filters
