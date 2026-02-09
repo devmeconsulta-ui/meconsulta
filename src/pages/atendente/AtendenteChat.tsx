@@ -101,16 +101,12 @@ export default function AtendenteChat() {
     );
   }, [mensagens, optimisticMessages]);
 
-  // Filter atendimentos - agents can only see:
-  // 1. Atendimentos assigned to them
-  // 2. Atendimentos waiting (aguardando) without an agent (unassigned)
+  // Filter atendimentos - agents can ONLY see atendimentos assigned to them
+  // They cannot see unassigned/waiting atendimentos
   const atendimentos = useMemo(() => {
     if (!agenteId) return allAtendimentos;
     
-    return allAtendimentos.filter((a) => 
-      a.agente_id === agenteId || 
-      (a.status === "aguardando" && !a.agente_id)
-    );
+    return allAtendimentos.filter((a) => a.agente_id === agenteId);
   }, [allAtendimentos, agenteId]);
 
   // Filtrar atendimentos por busca

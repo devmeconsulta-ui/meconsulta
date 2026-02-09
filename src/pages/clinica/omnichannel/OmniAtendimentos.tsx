@@ -69,13 +69,9 @@ export default function OmniAtendimentos() {
     // Clinic admins can see all atendimentos
     if (isClinicaAdmin || !usuarioClinicaId) return allAtendimentos;
     
-    // Agents can only see:
-    // 1. Atendimentos assigned to them
-    // 2. Atendimentos waiting (aguardando) without an agent (unassigned)
-    return allAtendimentos.filter((a) => 
-      a.agente_id === usuarioClinicaId || 
-      (a.status === "aguardando" && !a.agente_id)
-    );
+    // Agents can ONLY see atendimentos assigned to them
+    // They cannot see unassigned/waiting atendimentos
+    return allAtendimentos.filter((a) => a.agente_id === usuarioClinicaId);
   }, [allAtendimentos, usuarioClinicaId, isClinicaAdmin]);
 
   // Filter atendimentos by search
