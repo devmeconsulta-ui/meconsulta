@@ -10,6 +10,13 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Search, Loader2, Phone, MessageCircle, Plus, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -19,6 +26,12 @@ interface Contato {
   nome: string;
   telefone: string;
   email?: string;
+}
+
+interface Fila {
+  id: string;
+  nome: string;
+  cor: string;
 }
 
 interface NovoAtendimentoModalProps {
@@ -56,9 +69,37 @@ export function NovoAtendimentoModal({
   const [searchTerm, setSearchTerm] = useState("");
   const [nomeContato, setNomeContato] = useState("");
   const [contatos, setContatos] = useState<Contato[]>([]);
+  const [filas, setFilas] = useState<Fila[]>([]);
+  const [selectedFilaId, setSelectedFilaId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showNewContactForm, setShowNewContactForm] = useState(false);
+
+  // Fetch filas on mount
+  useEffect(() => {
+    const fetchFilas = async () => {
+      if (!clinicaId) return;
+      
+      const { data, error } = await supabase
+        .from("omni_filas")
+        .select("id, nome, cor")
+        .eq("clinica_id", clinicaId)
+        .eq("ativo", true)
+        .order("nome");
+
+      if (!error && data) {
+        setFilas(data);
+        // Auto-select first fila
+        if (data.length > 0 && !selectedFilaId) {
+          setSelectedFilaId(data[0].id);
+        }
+      }
+    };
+
+    if (open) {
+      fetchFilas();
+    }
+  }, [clinicaId, open]);
 
   // Reset state when modal closes
   useEffect(() => {
@@ -104,6 +145,11 @@ export function NovoAtendimentoModal({
   }, [clinicaId, searchTerm]);
 
   const criarAtendimento = async (contatoId: string) => {
+    if (!selectedFilaId) {
+      toast.error("Selecione uma fila de atendimento");
+      return;
+    }
+
     setCreating(true);
     try {
       // Check if there's already an active atendimento for this contact
@@ -122,12 +168,13 @@ export function NovoAtendimentoModal({
         return;
       }
 
-      // Create new atendimento (removed 'origem' column that doesn't exist)
+      // Create new atendimento with fila_id
       const { data: atendimento, error } = await supabase
         .from("omni_atendimentos")
         .insert({
           clinica_id: clinicaId,
           contato_id: contatoId,
+          fila_id: selectedFilaId,
           canal: "whatsapp",
           status: "em_atendimento",
         })
@@ -159,6 +206,11 @@ export function NovoAtendimentoModal({
       return;
     }
 
+    if (!selectedFilaId) {
+      toast.error("Selecione uma fila de atendimento");
+      return;
+    }
+
     setCreating(true);
     try {
       // Check if contact already exists with this phone
@@ -187,12 +239,13 @@ export function NovoAtendimentoModal({
 
       if (contatoError) throw contatoError;
 
-      // Create atendimento (removed 'origem' column)
+      // Create atendimento with fila_id
       const { data: atendimento, error: atendError } = await supabase
         .from("omni_atendimentos")
         .insert({
           clinica_id: clinicaId,
           contato_id: novoContato.id,
+          fila_id: selectedFilaId,
           canal: "whatsapp",
           status: "em_atendimento",
         })
@@ -228,6 +281,34 @@ export function NovoAtendimentoModal({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Fila selector */}
+          <div className="space-y-2">
+            <Label>Fila de Atendimento *</Label>
+            <Select value={selectedFilaId} onValueChange={setSelectedFilaId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma fila..." />
+              </SelectTrigger>
+              <SelectContent>
+                {filas.map((fila) => (
+                  <SelectItem key={fila.id} value={fila.id}>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: fila.cor }}
+                      />
+                      {fila.nome}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {filas.length === 0 && (
+              <p className="text-xs text-destructive">
+                Nenhuma fila ativa. Crie uma fila antes de iniciar atendimentos.
+              </p>
+            )}
+          </div>
+
           {/* Search input */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
