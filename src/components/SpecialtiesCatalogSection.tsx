@@ -6,8 +6,6 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 
 interface SpecialtyItem {
@@ -37,39 +35,12 @@ const specialtiesData: SpecialtyItem[] = [
 
 const SpecialtiesCatalogSection = () => {
   const [showAll, setShowAll] = useState(false);
-  const [loading, setLoading] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const displayedSpecialties = showAll ? specialtiesData : specialtiesData.slice(0, 6);
 
-  const handleSpecialtyClick = async (specialtyName: string) => {
-    setLoading(specialtyName);
-    
-    try {
-      // Check if there are doctors with this specialty
-      const { data, error } = await supabase
-        .from("medicos")
-        .select("id")
-        .eq("ativo", true)
-        .ilike("especialidade", `%${specialtyName}%`)
-        .limit(1);
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        // Has doctors - go to search with filter
-        navigate(`/buscar-medicos?especialidade=${encodeURIComponent(specialtyName.toLowerCase())}`);
-      } else {
-        // No doctors - go to general search
-        toast.info(`Ainda não temos especialistas em ${specialtyName} cadastrados`);
-        navigate("/buscar-medicos");
-      }
-    } catch (error) {
-      console.error("Error checking specialty:", error);
-      navigate(`/buscar-medicos?especialidade=${encodeURIComponent(specialtyName.toLowerCase())}`);
-    } finally {
-      setLoading(null);
-    }
+  const handleSpecialtyClick = (specialtyName: string) => {
+    navigate(`/buscar-medicos?especialidade=${encodeURIComponent(specialtyName.toLowerCase())}`);
   };
 
   return (
@@ -91,15 +62,10 @@ const SpecialtiesCatalogSection = () => {
               <button
                 key={specialty.name}
                 onClick={() => handleSpecialtyClick(specialty.name)}
-                disabled={loading === specialty.name}
-                className="group flex flex-col items-center p-4 bg-card rounded-xl border border-border hover:border-primary/30 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 disabled:opacity-50"
+                className="group flex flex-col items-center p-4 bg-card rounded-xl border border-border hover:border-primary/30 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
               >
                 <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
-                  {loading === specialty.name ? (
-                    <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <IconComponent className={`w-6 h-6 ${specialty.color}`} />
-                  )}
+                  <IconComponent className={`w-6 h-6 ${specialty.color}`} />
                 </div>
                 <span className="text-xs font-medium text-foreground text-center leading-tight">
                   {specialty.name}
