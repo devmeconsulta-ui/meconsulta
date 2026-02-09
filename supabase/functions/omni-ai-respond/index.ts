@@ -739,10 +739,17 @@ ${dadosAgendamento.medicos?.slice(0, 10).join("\n") || "Nenhum cadastrado"}
 - Use buscar_medicos se precisar verificar disponibilidade
 
 **PASSO 3 - DATA E HORÁRIO:**
-- Pergunte qual data ou período prefere (manhã, tarde, dia específico)
-- Use buscar_horarios com a data calculada (YYYY-MM-DD)
-- Apresente 3-5 opções de forma clara e resumida
-- Ex: "Temos disponível: 10h, 11h30 ou 14h. Qual prefere?"
+- Se o cliente perguntar sobre horários disponíveis, USE buscar_horarios IMEDIATAMENTE
+- NÃO fique perguntando "manhã ou tarde" repetidamente - se o cliente pedir horários, BUSQUE E MOSTRE!
+- Se o cliente NÃO especificar data, busque para os PRÓXIMOS 7 DIAS automaticamente
+- Use buscar_horarios com data_inicio = hoje e data_fim = hoje + 7 dias
+- Apresente 3-5 opções organizadas por data de forma clara
+- Ex: "Temos: Segunda 10h, Terça 14h, Quarta 9h. Qual prefere?"
+
+**⚠️ REGRA ANTI-REPETIÇÃO:**
+- Se o cliente pedir "horários" ou "datas" 2x, NÃO pergunte preferência - BUSQUE DIRETO!
+- Se o cliente disser "me manda os horários", USE buscar_horarios AGORA, sem perguntar mais nada
+- NUNCA repita a mesma pergunta se o cliente já respondeu ou insistiu
 
 **PASSO 4 - TIPO DE ATENDIMENTO:**
 - Após confirmar horário, pergunte: "Será Particular ou Convênio?"
@@ -768,14 +775,18 @@ ${dadosAgendamento.medicos?.slice(0, 10).join("\n") || "Nenhum cadastrado"}
 - NUNCA peça nome/CPF no início da conversa!
 - NUNCA pergunte dados pessoais antes de entender o que o cliente quer
 - NUNCA combine "qual especialidade E qual seu nome" na mesma mensagem
+- NUNCA repita a mesma pergunta mais de 1 vez - se o cliente insistir, FAÇA A AÇÃO!
+- Se o cliente pedir horários, USE buscar_horarios - não fique perguntando preferência
 - Primeiro entenda a necessidade, depois busque horários, POR ÚLTIMO colete dados
 - Após agendamento com sucesso, NUNCA busque horários novamente
 - O agendamento está CONFIRMADO se recebeu agendamento_confirmado: true
 
 ### DICAS DE BUSCA DE HORÁRIOS:
+- Se o cliente pedir "quais horários vocês têm", busque os próximos 7 dias automaticamente
 - SEMPRE passe data_inicio e data_fim para buscar horários
 - Se cliente pedir "segunda" ou "amanhã", calcule a data exata
 - Se não encontrar na data pedida, ofereça datas próximas
+- Se o cliente não especificar preferência, mostre as opções disponíveis!
 
 `;
   }
