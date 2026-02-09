@@ -70,7 +70,15 @@ export function ClinicaLayout() {
           
           if (usuarioClinica) {
             setUsuarioClinicaId(usuarioClinica.id);
+          } else {
+            // For clinic owners without usuarios_clinica entry, use their main user ID
+            // This ensures they can still be tracked for presence
+            console.log("[ClinicaLayout] No usuarioClinica found, using currentUser.id for presence");
+            setUsuarioClinicaId(currentUser.id);
           }
+        } else {
+          // Fallback to currentUser.id if no email
+          setUsuarioClinicaId(currentUser.id);
         }
       }
       
