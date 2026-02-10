@@ -10,9 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Layers, Search, Eye } from "lucide-react";
+import { Plus, Layers, Search, Eye, Lock } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
+import TissPendenciasChecklist, { type TissPendencia } from "@/components/clinica/tiss/TissPendenciasChecklist";
 
 interface TissLote {
   id: string;
@@ -66,6 +67,31 @@ export default function TissLotes() {
   });
   const [saving, setSaving] = useState(false);
   const [detalheLote, setDetalheLote] = useState<TissLote | null>(null);
+  const [loteChecklistValid, setLoteChecklistValid] = useState(false);
+  const [closingLote, setClosingLote] = useState(false);
+
+  const handleChecklistChange = useCallback((isValid: boolean, _pendencias: TissPendencia[]) => {
+    setLoteChecklistValid(isValid);
+  }, []);
+
+  const handleFecharLote = async () => {
+    if (!detalheLote || !loteChecklistValid) return;
+    setClosingLote(true);
+    try {
+      const { error } = await supabase
+        .from("tiss_lotes")
+        .update({ status: "fechado" })
+        .eq("id", detalheLote.id);
+      if (error) throw error;
+      toast.success("Lote fechado com sucesso!");
+      setDetalheLote(null);
+      fetchLotes();
+    } catch {
+      toast.error("Erro ao fechar lote");
+    } finally {
+      setClosingLote(false);
+    }
+  };
 
   const fetchLotes = useCallback(async () => {
     if (!clinicaId) return;
@@ -375,19 +401,42 @@ export default function TissLotes() {
       </Dialog>
 
       {/* Detalhes Lote Modal */}
-      <Dialog open={!!detalheLote} onOpenChange={() => setDetalheLote(null)}>
-        <DialogContent className="max-w-md">
+      <Dialog open={!!detalheLote} onOpenChange={() => { setDetalheLote(null); setLoteChecklistValid(false); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader><DialogTitle>Lote {detalheLote?.numero_lote}</DialogTitle></DialogHeader>
+          <ScrollArea className="flex-1">
           {detalheLote && (
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><span className="text-muted-foreground">Operadora:</span> <span className="font-medium">{detalheLote.operadora}</span></div>
-              <div><span className="text-muted-foreground">Competência:</span> <span className="font-medium">{detalheLote.competencia}</span></div>
-              <div><span className="text-muted-foreground">Guias:</span> <span className="font-medium">{detalheLote.qtd_guias}</span></div>
-              <div><span className="text-muted-foreground">Valor:</span> <span className="font-medium">R$ {Number(detalheLote.valor_total).toFixed(2).replace(".", ",")}</span></div>
-              <div><span className="text-muted-foreground">Status:</span> <Badge variant={getStatus(detalheLote.status).variant}>{getStatus(detalheLote.status).label}</Badge></div>
-              <div><span className="text-muted-foreground">Criado:</span> {new Date(detalheLote.created_at).toLocaleDateString("pt-BR")}</div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-muted-foreground">Operadora:</span> <span className="font-medium">{detalheLote.operadora}</span></div>
+                <div><span className="text-muted-foreground">Competência:</span> <span className="font-medium">{detalheLote.competencia}</span></div>
+                <div><span className="text-muted-foreground">Guias:</span> <span className="font-medium">{detalheLote.qtd_guias}</span></div>
+                <div><span className="text-muted-foreground">Valor:</span> <span className="font-medium">R$ {Number(detalheLote.valor_total).toFixed(2).replace(".", ",")}</span></div>
+                <div><span className="text-muted-foreground">Status:</span> <Badge variant={getStatus(detalheLote.status).variant}>{getStatus(detalheLote.status).label}</Badge></div>
+                <div><span className="text-muted-foreground">Criado:</span> {new Date(detalheLote.created_at).toLocaleDateString("pt-BR")}</div>
+              </div>
+
+              {detalheLote.status === "aberto" && clinicaId && (
+                <>
+                  <TissPendenciasChecklist
+                    clinicaId={clinicaId}
+                    loteId={detalheLote.id}
+                    onValidationChange={handleChecklistChange}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleFecharLote}
+                      disabled={!loteChecklistValid || closingLote}
+                    >
+                      {!loteChecklistValid && <Lock className="w-4 h-4 mr-2" />}
+                      {closingLote ? "Fechando..." : "Fechar Lote"}
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           )}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>
