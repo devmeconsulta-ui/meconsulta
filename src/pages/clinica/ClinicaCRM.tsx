@@ -162,81 +162,80 @@ export default function ClinicaCRM() {
       </div>
 
       {/* Conteúdo do CRM - rola normalmente */}
-      <div className="flex-1 overflow-auto px-3 md:px-6 py-4">
+      <div className="flex-1 flex flex-col overflow-hidden px-3 md:px-6 py-3">
         {/* Header do CRM */}
-        <div className="flex flex-col gap-3 mb-4">
-            {/* Title + Funnel Select + Config */}
-            <div className="flex items-center gap-2 md:gap-4">
-              <h1 className="text-lg md:text-2xl font-bold text-foreground">CRM</h1>
-              
-              <Select
-                value={funilSelecionado || ""}
-                onValueChange={setFunilSelecionado}
-              >
-                <SelectTrigger className="flex-1 md:w-[200px] md:flex-none h-9 text-sm">
-                  <SelectValue placeholder="Selecione funil" />
-                </SelectTrigger>
-                <SelectContent>
-                  {funis.map(funil => (
-                    <SelectItem key={funil.id} value={funil.id}>
-                      {funil.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <div className="flex flex-col gap-2 mb-3 flex-shrink-0">
+          {/* Title + Funnel Select + Config */}
+          <div className="flex items-center gap-2 md:gap-4">
+            <h1 className="text-lg md:text-2xl font-bold text-foreground">CRM</h1>
+            
+            <Select
+              value={funilSelecionado || ""}
+              onValueChange={setFunilSelecionado}
+            >
+              <SelectTrigger className="flex-1 md:w-[200px] md:flex-none h-9 text-sm">
+                <SelectValue placeholder="Selecione funil" />
+              </SelectTrigger>
+              <SelectContent>
+                {funis.map(funil => (
+                  <SelectItem key={funil.id} value={funil.id}>
+                    {funil.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setFunilModalOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Novo Funil
-                  </DropdownMenuItem>
-                  {funilAtual && (
-                    <>
-                      <DropdownMenuItem onClick={() => {
-                        setFunilParaEditar(funilAtual.id);
-                        setFunilModalOpen(true);
-                      }}>
-                        <Settings className="h-4 w-4 mr-2" />
-                        Configurar Funil
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setEtapaModalOpen(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Nova Etapa
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Stats - Compact on mobile */}
-            {funilSelecionado && (
-              <div className="flex items-center gap-4 text-xs md:text-sm">
-                <div className="flex items-center gap-1.5">
-                  <Target className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary" />
-                  <span className="font-semibold">{estatisticas.totalLeads}</span>
-                  <span className="text-muted-foreground hidden sm:inline">leads</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <DollarSign className="h-3.5 w-3.5 md:h-4 md:w-4 text-green-500" />
-                  <span className="font-semibold">
-                    R$ {estatisticas.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
-                  </span>
-                </div>
-              </div>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setFunilModalOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Funil
+                </DropdownMenuItem>
+                {funilAtual && (
+                  <>
+                    <DropdownMenuItem onClick={() => {
+                      setFunilParaEditar(funilAtual.id);
+                      setFunilModalOpen(true);
+                    }}>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Configurar Funil
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setEtapaModalOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Nova Etapa
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
+
+          {/* Stats - Compact on mobile */}
+          {funilSelecionado && (
+            <div className="flex items-center gap-4 text-xs md:text-sm">
+              <div className="flex items-center gap-1.5">
+                <Target className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary" />
+                <span className="font-semibold">{estatisticas.totalLeads}</span>
+                <span className="text-muted-foreground hidden sm:inline">leads</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <DollarSign className="h-3.5 w-3.5 md:h-4 md:w-4 text-green-500" />
+                <span className="font-semibold">
+                  R$ {estatisticas.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Área do Kanban - com scroll horizontal isolado */}
-        <div className="flex-1 min-h-0 px-3 md:px-6 pb-4 overflow-hidden">
+        {/* Área do Kanban */}
+        <div className="flex-1 min-h-0 overflow-hidden">
           {!funilSelecionado ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-4 h-full">
             <Users className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground mb-4" />
@@ -378,6 +377,7 @@ export default function ClinicaCRM() {
             </div>
           </DragDropContext>
         )}
+      </div>
       </div>
 
       {/* Modals */}
