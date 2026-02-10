@@ -20,6 +20,7 @@ import {
   Headset,
   ChevronDown,
   ChevronRight,
+  FileSpreadsheet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ const menuItems: MenuItem[] = [
   { icon: DollarSign, label: "Financeiro", path: "/clinica/financeiro", permission: "financeiro" },
   { icon: Wallet, label: "Dados Bancários", path: "/clinica/dados-bancarios" },
   { icon: Star, label: "Avaliações", path: "/clinica/avaliacoes" },
+  { icon: FileSpreadsheet, label: "Base TUSS", path: "/clinica/tuss" },
   { icon: User, label: "Usuários da Clínica", path: "/clinica/usuarios" },
   { icon: Settings, label: "Configurações", path: "/clinica/configuracoes" },
 ];

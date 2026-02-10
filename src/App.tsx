@@ -71,6 +71,7 @@ import ClinicaUsuarios from "./pages/clinica/ClinicaUsuarios";
 import ClinicaConfiguracoes from "./pages/clinica/ClinicaConfiguracoes";
 import ClinicaChat from "./pages/clinica/ClinicaChat";
 import ClinicaCRM from "./pages/clinica/ClinicaCRM";
+import ClinicaTUSS from "./pages/clinica/ClinicaTUSS";
 
 // Omnichannel pages
 import OmniDashboard from "./pages/clinica/omnichannel/OmniDashboard";
@@ -175,6 +176,7 @@ const App = () => (
               <Route path="avaliacoes" element={<ClinicaAvaliacoes />} />
               <Route path="usuarios" element={<ClinicaUsuarios />} />
               <Route path="chat" element={<ClinicaChat />} />
+              <Route path="tuss" element={<ClinicaTUSS />} />
               <Route path="configuracoes" element={<ClinicaConfiguracoes />} />
             </Route>
 
