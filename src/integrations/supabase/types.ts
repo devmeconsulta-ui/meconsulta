@@ -1009,6 +1009,7 @@ export type Database = {
           sincronizado_caixa: boolean | null
           sintomas: string | null
           status_consulta: string
+          status_faturamento: string
           status_pagamento: string
           status_repasse: string
           tipo_atendimento: string | null
@@ -1049,6 +1050,7 @@ export type Database = {
           sincronizado_caixa?: boolean | null
           sintomas?: string | null
           status_consulta?: string
+          status_faturamento?: string
           status_pagamento?: string
           status_repasse?: string
           tipo_atendimento?: string | null
@@ -1089,6 +1091,7 @@ export type Database = {
           sincronizado_caixa?: boolean | null
           sintomas?: string | null
           status_consulta?: string
+          status_faturamento?: string
           status_pagamento?: string
           status_repasse?: string
           tipo_atendimento?: string | null
@@ -3600,6 +3603,139 @@ export type Database = {
             columns: ["medico_id"]
             isOneToOne: false
             referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiss_guia_itens: {
+        Row: {
+          codigo_tuss: string
+          created_at: string
+          descricao: string | null
+          especie: string | null
+          guia_id: string
+          id: string
+          quantidade: number
+          valor_total: number
+          valor_unitario: number
+        }
+        Insert: {
+          codigo_tuss: string
+          created_at?: string
+          descricao?: string | null
+          especie?: string | null
+          guia_id: string
+          id?: string
+          quantidade?: number
+          valor_total?: number
+          valor_unitario?: number
+        }
+        Update: {
+          codigo_tuss?: string
+          created_at?: string
+          descricao?: string | null
+          especie?: string | null
+          guia_id?: string
+          id?: string
+          quantidade?: number
+          valor_total?: number
+          valor_unitario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiss_guia_itens_guia_id_fkey"
+            columns: ["guia_id"]
+            isOneToOne: false
+            referencedRelation: "tiss_guias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiss_guias: {
+        Row: {
+          carteirinha: string | null
+          clinica_id: string
+          consulta_id: string
+          created_at: string
+          crm: string | null
+          crm_uf: string | null
+          data_emissao: string
+          id: string
+          medico_id: string | null
+          numero_guia: string | null
+          operadora: string
+          paciente_id: string | null
+          plano: string | null
+          status: string
+          tipo_guia: string
+          updated_at: string
+          valor_total: number
+        }
+        Insert: {
+          carteirinha?: string | null
+          clinica_id: string
+          consulta_id: string
+          created_at?: string
+          crm?: string | null
+          crm_uf?: string | null
+          data_emissao?: string
+          id?: string
+          medico_id?: string | null
+          numero_guia?: string | null
+          operadora: string
+          paciente_id?: string | null
+          plano?: string | null
+          status?: string
+          tipo_guia?: string
+          updated_at?: string
+          valor_total?: number
+        }
+        Update: {
+          carteirinha?: string | null
+          clinica_id?: string
+          consulta_id?: string
+          created_at?: string
+          crm?: string | null
+          crm_uf?: string | null
+          data_emissao?: string
+          id?: string
+          medico_id?: string | null
+          numero_guia?: string | null
+          operadora?: string
+          paciente_id?: string | null
+          plano?: string | null
+          status?: string
+          tipo_guia?: string
+          updated_at?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiss_guias_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiss_guias_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiss_guias_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiss_guias_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
             referencedColumns: ["id"]
           },
         ]
