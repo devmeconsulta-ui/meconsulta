@@ -3604,6 +3604,48 @@ export type Database = {
           },
         ]
       }
+      tuss_procedimentos: {
+        Row: {
+          codigo_tuss: string
+          created_at: string
+          descricao: string | null
+          id: string
+          idade_max: number | null
+          idade_min: number | null
+          sexo: string | null
+          tipo: string | null
+          valor_referencia: number | null
+          vigencia_fim: string | null
+          vigencia_inicio: string | null
+        }
+        Insert: {
+          codigo_tuss: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          idade_max?: number | null
+          idade_min?: number | null
+          sexo?: string | null
+          tipo?: string | null
+          valor_referencia?: number | null
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Update: {
+          codigo_tuss?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          idade_max?: number | null
+          idade_min?: number | null
+          sexo?: string | null
+          tipo?: string | null
+          valor_referencia?: number | null
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
