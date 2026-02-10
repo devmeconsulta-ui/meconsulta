@@ -3740,6 +3740,89 @@ export type Database = {
           },
         ]
       }
+      tiss_lote_itens: {
+        Row: {
+          created_at: string
+          guia_id: string
+          id: string
+          lote_id: string
+        }
+        Insert: {
+          created_at?: string
+          guia_id: string
+          id?: string
+          lote_id: string
+        }
+        Update: {
+          created_at?: string
+          guia_id?: string
+          id?: string
+          lote_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiss_lote_itens_guia_id_fkey"
+            columns: ["guia_id"]
+            isOneToOne: false
+            referencedRelation: "tiss_guias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiss_lote_itens_lote_id_fkey"
+            columns: ["lote_id"]
+            isOneToOne: false
+            referencedRelation: "tiss_lotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiss_lotes: {
+        Row: {
+          clinica_id: string
+          competencia: string
+          created_at: string
+          id: string
+          numero_lote: string | null
+          operadora: string
+          qtd_guias: number
+          status: string
+          updated_at: string
+          valor_total: number
+        }
+        Insert: {
+          clinica_id: string
+          competencia: string
+          created_at?: string
+          id?: string
+          numero_lote?: string | null
+          operadora: string
+          qtd_guias?: number
+          status?: string
+          updated_at?: string
+          valor_total?: number
+        }
+        Update: {
+          clinica_id?: string
+          competencia?: string
+          created_at?: string
+          id?: string
+          numero_lote?: string | null
+          operadora?: string
+          qtd_guias?: number
+          status?: string
+          updated_at?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiss_lotes_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tuss_procedimentos: {
         Row: {
           codigo_tuss: string
