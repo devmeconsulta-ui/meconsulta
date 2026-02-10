@@ -253,8 +253,9 @@ Deno.serve(async (req) => {
         }
 
         if (!contato) {
-          // Criar novo contato - pushName pode estar em data ou message
-          const pushName = data?.pushName || message.pushName || message.name || "";
+          // Criar novo contato - only use pushName from INCOMING messages (fromMe=false)
+          // When fromMe=true, pushName is the instance OWNER's name, not the remote contact
+          const pushName = isFromMe ? "" : (data?.pushName || message.pushName || message.name || "");
           const contactName = (pushName && pushName !== "Você") ? pushName : telefone;
           console.log(`Creating new contact: ${pushName}`);
           
@@ -739,8 +740,9 @@ Deno.serve(async (req) => {
           .single();
 
         if (!contato) {
-          // Criar contato se não existir
-          const pushName = message.pushName || "";
+          // Criar contato se não existir - only use pushName from INCOMING (fromMe=false)
+          const isFromMeSend = message.key?.fromMe || false;
+          const pushName = isFromMeSend ? "" : (message.pushName || "");
           const contactName = (pushName && pushName !== "Você") ? pushName : telefone;
           const { data: novoContato, error: contatoError } = await supabase
             .from("omni_contatos")
