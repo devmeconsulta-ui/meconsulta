@@ -80,6 +80,7 @@ import TissCarteirinhas from "./pages/clinica/tiss/TissCarteirinhas";
 import TissGuias from "./pages/clinica/tiss/TissGuias";
 import TissLotes from "./pages/clinica/tiss/TissLotes";
 import TissExportarXml from "./pages/clinica/tiss/TissExportarXml";
+import TissRelatorios from "./pages/clinica/tiss/TissRelatorios";
 
 // Omnichannel pages
 import OmniDashboard from "./pages/clinica/omnichannel/OmniDashboard";
@@ -191,6 +192,7 @@ const App = () => (
               <Route path="tiss/guias" element={<TissGuias />} />
               <Route path="tiss/lotes" element={<TissLotes />} />
               <Route path="tiss/exportar-xml" element={<TissExportarXml />} />
+              <Route path="tiss/relatorios" element={<TissRelatorios />} />
               <Route path="configuracoes" element={<ClinicaConfiguracoes />} />
             </Route>
 
