@@ -73,6 +73,14 @@ import ClinicaChat from "./pages/clinica/ClinicaChat";
 import ClinicaCRM from "./pages/clinica/ClinicaCRM";
 import ClinicaTUSS from "./pages/clinica/ClinicaTUSS";
 
+// TISS pages
+import TissConfiguracoes from "./pages/clinica/tiss/TissConfiguracoes";
+import TissOperadoras from "./pages/clinica/tiss/TissOperadoras";
+import TissCarteirinhas from "./pages/clinica/tiss/TissCarteirinhas";
+import TissGuias from "./pages/clinica/tiss/TissGuias";
+import TissLotes from "./pages/clinica/tiss/TissLotes";
+import TissExportarXml from "./pages/clinica/tiss/TissExportarXml";
+
 // Omnichannel pages
 import OmniDashboard from "./pages/clinica/omnichannel/OmniDashboard";
 import OmniAgentes from "./pages/clinica/omnichannel/OmniAgentes";
@@ -177,6 +185,12 @@ const App = () => (
               <Route path="usuarios" element={<ClinicaUsuarios />} />
               <Route path="chat" element={<ClinicaChat />} />
               <Route path="tuss" element={<ClinicaTUSS />} />
+              <Route path="tiss/configuracoes" element={<TissConfiguracoes />} />
+              <Route path="tiss/operadoras" element={<TissOperadoras />} />
+              <Route path="tiss/carteirinhas" element={<TissCarteirinhas />} />
+              <Route path="tiss/guias" element={<TissGuias />} />
+              <Route path="tiss/lotes" element={<TissLotes />} />
+              <Route path="tiss/exportar-xml" element={<TissExportarXml />} />
               <Route path="configuracoes" element={<ClinicaConfiguracoes />} />
             </Route>
 
