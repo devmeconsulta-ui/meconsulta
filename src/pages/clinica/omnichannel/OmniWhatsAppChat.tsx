@@ -59,6 +59,7 @@ import { TypingBubble } from "@/components/clinica/omnichannel/TypingIndicator";
 import { AudioRecorder } from "@/components/clinica/omnichannel/AudioRecorder";
 import { AudioPlayerWithFallback } from "@/components/clinica/omnichannel/AudioPlayerWithFallback";
 import { NovoAtendimentoModal } from "@/components/clinica/omnichannel/NovoAtendimentoModal";
+import { EditarContatoOmniModal } from "@/components/clinica/omnichannel/EditarContatoOmniModal";
 import { useTypingIndicator, useAITypingIndicator } from "@/hooks/useTypingIndicator";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 
@@ -311,6 +312,7 @@ export default function OmniWhatsAppChat() {
   const [etiquetasModalOpen, setEtiquetasModalOpen] = useState(false);
   const [notaInternaModalOpen, setNotaInternaModalOpen] = useState(false);
   const [novoAtendimentoModalOpen, setNovoAtendimentoModalOpen] = useState(false);
+  const [editarContatoModalOpen, setEditarContatoModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "waiting" | "mine">("all");
   const [waitTimeDisplay, setWaitTimeDisplay] = useState("00:00:00");
   const [signatureEnabled, setSignatureEnabled] = useState(true);
@@ -944,7 +946,11 @@ export default function OmniWhatsAppChat() {
               </Avatar>
               
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-base truncate">
+                <h3 
+                  className="font-semibold text-base truncate cursor-pointer hover:underline"
+                  onClick={() => setEditarContatoModalOpen(true)}
+                  title="Clique para editar o contato"
+                >
                   {selectedAtendimento.contato?.nome || selectedAtendimento.contato?.telefone}
                 </h3>
                 <p className="text-xs text-white/70">
@@ -1288,6 +1294,30 @@ export default function OmniWhatsAppChat() {
           }}
         />
       )}
+
+      {/* Edit Contact Modal */}
+      <EditarContatoOmniModal
+        open={editarContatoModalOpen}
+        onClose={() => setEditarContatoModalOpen(false)}
+        contato={selectedAtendimento?.contato ? {
+          id: selectedAtendimento.contato.id || "",
+          nome: selectedAtendimento.contato.nome || "",
+          telefone: selectedAtendimento.contato.telefone || "",
+          documento: selectedAtendimento.contato.documento,
+          email: selectedAtendimento.contato.email,
+          instagram: selectedAtendimento.contato.instagram,
+          empresa: selectedAtendimento.contato.empresa,
+          observacoes: selectedAtendimento.contato.observacoes,
+        } : null}
+        onUpdated={(updated) => {
+          // Update the selected atendimento's contact data locally
+          setSelectedAtendimento(prev => prev ? {
+            ...prev,
+            contato: { ...prev.contato, ...updated } as any,
+          } : null);
+          fetchAtendimentos();
+        }}
+      />
     </div>
   );
 }
