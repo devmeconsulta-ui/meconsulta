@@ -16,7 +16,7 @@ app.options("*", (c) => {
   return c.text("ok", 200, corsHeaders);
 });
 
-app.post("/", async (c) => {
+app.post("*", async (c) => {
   try {
     const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
     const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
