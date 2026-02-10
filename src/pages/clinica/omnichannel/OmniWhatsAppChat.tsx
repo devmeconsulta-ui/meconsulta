@@ -30,6 +30,9 @@ import {
   User,
   Bot,
   Plus,
+  Copy,
+  Pencil,
+  Forward,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -132,16 +135,28 @@ function NotaInternaAlert({ nota, onMarcarLida }: { nota: OmniNotaInterna; onMar
 function MessageBubble({ 
   mensagem, 
   showSignature,
-  isFirstAgentMessage 
+  isFirstAgentMessage,
+  onForward,
+  onEdit,
 }: { 
   mensagem: OmniMensagem; 
   showSignature?: boolean;
   isFirstAgentMessage?: boolean;
+  onForward?: (msg: OmniMensagem) => void;
+  onEdit?: (msg: OmniMensagem) => void;
 }) {
   const isOutgoing = mensagem.direcao === "saida";
   const formattedTime = format(new Date(mensagem.created_at), "HH:mm", { locale: ptBR });
   const isOptimistic = mensagem.id.startsWith("temp-");
   const agenteName = mensagem.agente_nome;
+  const [showActions, setShowActions] = useState(false);
+
+  const handleCopy = () => {
+    if (mensagem.conteudo) {
+      navigator.clipboard.writeText(mensagem.conteudo);
+      toast.success("Mensagem copiada");
+    }
+  };
 
   const renderStatus = () => {
     if (!isOutgoing) return null;
@@ -157,7 +172,42 @@ function MessageBubble({
   };
 
   return (
-    <div className={cn("flex", isOutgoing ? "justify-end" : "justify-start")}>
+    <div 
+      className={cn("flex group relative", isOutgoing ? "justify-end" : "justify-start")}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
+    >
+      {/* Action buttons - appear on hover */}
+      {showActions && !isOptimistic && (
+        <div className={cn(
+          "flex items-center gap-0.5 self-center",
+          isOutgoing ? "order-first mr-1" : "order-last ml-1"
+        )}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1 rounded hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors">
+                <MoreVertical className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align={isOutgoing ? "end" : "start"} className="min-w-[160px]">
+              {mensagem.conteudo && (
+                <DropdownMenuItem onClick={handleCopy} className="gap-2 text-sm">
+                  <Copy className="h-4 w-4" /> Copiar
+                </DropdownMenuItem>
+              )}
+              {isOutgoing && mensagem.tipo === "texto" && mensagem.conteudo && (
+                <DropdownMenuItem onClick={() => onEdit?.(mensagem)} className="gap-2 text-sm">
+                  <Pencil className="h-4 w-4" /> Editar
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => onForward?.(mensagem)} className="gap-2 text-sm">
+                <Forward className="h-4 w-4" /> Encaminhar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
       <div
         className={cn(
           "max-w-[70%] rounded-lg px-3 py-2 shadow-sm",
@@ -315,6 +365,7 @@ export default function OmniWhatsAppChat() {
   const [editarContatoModalOpen, setEditarContatoModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "waiting" | "mine">("all");
   const [waitTimeDisplay, setWaitTimeDisplay] = useState("00:00:00");
+  const [editingMessage, setEditingMessage] = useState<OmniMensagem | null>(null);
   const [signatureEnabled, setSignatureEnabled] = useState(true);
   const [iaConversaStatus, setIaConversaStatus] = useState<{ humano_assumiu: boolean; id: string } | null>(null);
   
@@ -533,6 +584,29 @@ export default function OmniWhatsAppChat() {
     return currentUser?.usuarioClinicaId || null;
   }, [currentUser?.usuarioClinicaId]);
 
+  // Handle edit message - populate input with message content
+  const handleEditMessage = useCallback((msg: OmniMensagem) => {
+    if (msg.conteudo) {
+      setEditingMessage(msg);
+      setMessageInput(msg.conteudo);
+      inputRef.current?.focus();
+    }
+  }, []);
+
+  // Handle forward message - copy content to input with forward prefix
+  const handleForwardMessage = useCallback((msg: OmniMensagem) => {
+    const content = msg.conteudo || msg.arquivo_url || "";
+    setMessageInput(content);
+    inputRef.current?.focus();
+    toast.info("Mensagem copiada para o campo de envio");
+  }, []);
+
+  // Cancel editing
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    setMessageInput("");
+  }, []);
+
   // Instant optimistic message sending - no waiting for API
   const handleSendMessage = useCallback(() => {
     const trimmedMessage = messageInput.trim();
@@ -540,8 +614,9 @@ export default function OmniWhatsAppChat() {
 
     const agenteId = getAgenteId();
 
-    // Clear input immediately
+    // Clear input and editing state immediately
     setMessageInput("");
+    setEditingMessage(null);
     handleTypingStop();
 
     // Create optimistic message
@@ -1095,6 +1170,8 @@ export default function OmniWhatsAppChat() {
                           mensagem={msg} 
                           showSignature={signatureEnabled}
                           isFirstAgentMessage={isFirstAgentMessage}
+                          onForward={handleForwardMessage}
+                          onEdit={handleEditMessage}
                         />
                       </div>
                     );
@@ -1110,6 +1187,20 @@ export default function OmniWhatsAppChat() {
               )}
               </div>
             </ScrollArea>
+
+            {/* Editing indicator */}
+            {editingMessage && (
+              <div className="flex-shrink-0 bg-muted/80 px-4 py-2 flex items-center gap-2 border-b border-border">
+                <Pencil className="h-4 w-4 text-primary" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-primary">Editando mensagem</p>
+                  <p className="text-xs text-muted-foreground truncate">{editingMessage.conteudo}</p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCancelEdit}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
 
             {/* Message input - sticky */}
             <div className="flex-shrink-0 bg-muted px-4 py-3 flex items-center gap-2 z-10">
