@@ -78,6 +78,11 @@ Deno.serve(async (req) => {
               "apikey": EVOLUTION_API_KEY,
             },
             body: JSON.stringify({
+              rejectCall: false,
+              groupsIgnore: true,
+              alwaysOnline: false,
+              readMessages: false,
+              readStatus: false,
               syncFullHistory: true,
               daysLimitImportMessages: sync_history_days,
             }),
