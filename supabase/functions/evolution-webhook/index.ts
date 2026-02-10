@@ -254,14 +254,15 @@ Deno.serve(async (req) => {
 
         if (!contato) {
           // Criar novo contato - pushName pode estar em data ou message
-          const pushName = data?.pushName || message.pushName || message.name || telefone;
+          const pushName = data?.pushName || message.pushName || message.name || "";
+          const contactName = (pushName && pushName !== "Você") ? pushName : telefone;
           console.log(`Creating new contact: ${pushName}`);
           
           const { data: novoContato, error: contatoError } = await supabase
             .from("omni_contatos")
             .insert({
               clinica_id,
-              nome: pushName,
+              nome: contactName,
               telefone,
               foto_url: message.profilePictureUrl,
             })
@@ -739,12 +740,13 @@ Deno.serve(async (req) => {
 
         if (!contato) {
           // Criar contato se não existir
-          const pushName = message.pushName || telefone;
+          const pushName = message.pushName || "";
+          const contactName = (pushName && pushName !== "Você") ? pushName : telefone;
           const { data: novoContato, error: contatoError } = await supabase
             .from("omni_contatos")
             .insert({
               clinica_id,
-              nome: pushName,
+              nome: contactName,
               telefone,
             })
             .select()
@@ -1024,7 +1026,9 @@ Deno.serve(async (req) => {
               .single();
 
             if (!contato) {
-              const pushName = contactMessages[0]?.pushName || telefone;
+              // Get pushName from incoming messages (fromMe=false), since fromMe messages have the owner's name ("Você")
+              const incomingMsg = contactMessages.find(m => !m.key?.fromMe && m.pushName);
+              const pushName = incomingMsg?.pushName || contactMessages.find(m => m.pushName && m.pushName !== "Você")?.pushName || telefone;
               const { data: novoContato, error: contatoError } = await supabase
                 .from("omni_contatos")
                 .insert({
