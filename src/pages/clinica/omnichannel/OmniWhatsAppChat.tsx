@@ -150,6 +150,7 @@ function MessageBubble({
   const isOptimistic = mensagem.id.startsWith("temp-");
   const agenteName = mensagem.agente_nome;
   const [showActions, setShowActions] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const handleCopy = () => {
     if (mensagem.conteudo) {
@@ -175,32 +176,35 @@ function MessageBubble({
     <div 
       className={cn("flex group relative", isOutgoing ? "justify-end" : "justify-start")}
       onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
+      onMouseLeave={() => { if (!dropdownOpen) setShowActions(false); }}
     >
       {/* Action buttons - appear on hover */}
-      {showActions && !isOptimistic && (
+      {(showActions || dropdownOpen) && !isOptimistic && (
         <div className={cn(
           "flex items-center gap-0.5 self-center",
           isOutgoing ? "order-first mr-1" : "order-last ml-1"
         )}>
-          <DropdownMenu>
+          <DropdownMenu open={dropdownOpen} onOpenChange={(open) => {
+            setDropdownOpen(open);
+            if (!open) setShowActions(false);
+          }}>
             <DropdownMenuTrigger asChild>
               <button className="p-1 rounded hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors">
                 <MoreVertical className="h-4 w-4" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align={isOutgoing ? "end" : "start"} className="min-w-[160px]">
+            <DropdownMenuContent align={isOutgoing ? "end" : "start"} className="min-w-[160px] z-50">
               {mensagem.conteudo && (
-                <DropdownMenuItem onClick={handleCopy} className="gap-2 text-sm">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopy(); }} className="gap-2 text-sm">
                   <Copy className="h-4 w-4" /> Copiar
                 </DropdownMenuItem>
               )}
               {isOutgoing && mensagem.tipo === "texto" && mensagem.conteudo && (
-                <DropdownMenuItem onClick={() => onEdit?.(mensagem)} className="gap-2 text-sm">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit?.(mensagem); }} className="gap-2 text-sm">
                   <Pencil className="h-4 w-4" /> Editar
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={() => onForward?.(mensagem)} className="gap-2 text-sm">
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onForward?.(mensagem); }} className="gap-2 text-sm">
                 <Forward className="h-4 w-4" /> Encaminhar
               </DropdownMenuItem>
             </DropdownMenuContent>
