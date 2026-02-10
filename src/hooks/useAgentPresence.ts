@@ -140,6 +140,82 @@ export function useTrackAgentPresence(clinicaId: string | null, userId: string |
     }
   }, [clinicaId, userId]);
 
+  // Distribute waiting atendimentos to this agent when they come online
+  const distributeWaitingAtendimentos = useCallback(async () => {
+    if (!clinicaId || !userId) return;
+
+    try {
+      // 1. Find queues this agent belongs to
+      const { data: agentQueues } = await supabase
+        .from("omni_agentes")
+        .select("fila_id")
+        .eq("usuario_clinica_id", userId)
+        .eq("status", "online");
+
+      if (!agentQueues || agentQueues.length === 0) return;
+
+      const filaIds = agentQueues.map((q) => q.fila_id).filter(Boolean) as string[];
+      if (filaIds.length === 0) return;
+
+      // 2. Get queue configs
+      const { data: filas } = await supabase
+        .from("omni_filas")
+        .select("id, estrategia_distribuicao, atendimentos_max_agente")
+        .in("id", filaIds)
+        .eq("ativo", true);
+
+      if (!filas || filas.length === 0) return;
+
+      // 3. Count current active atendimentos for this agent
+      const { data: activeAtendimentos } = await supabase
+        .from("omni_atendimentos")
+        .select("id")
+        .eq("agente_id", userId)
+        .in("status", ["em_atendimento"]);
+
+      const currentLoad = activeAtendimentos?.length || 0;
+
+      // 4. For each queue, grab waiting atendimentos
+      for (const fila of filas) {
+        if (fila.estrategia_distribuicao === "manual") continue;
+
+        const maxAtendimentos = fila.atendimentos_max_agente || 5;
+        const slotsAvailable = maxAtendimentos - currentLoad;
+        if (slotsAvailable <= 0) break;
+
+        const { data: waiting } = await supabase
+          .from("omni_atendimentos")
+          .select("id")
+          .eq("fila_id", fila.id)
+          .eq("clinica_id", clinicaId)
+          .eq("status", "aguardando")
+          .is("agente_id", null)
+          .order("data_abertura", { ascending: true })
+          .limit(slotsAvailable);
+
+        if (!waiting || waiting.length === 0) continue;
+
+        for (const atendimento of waiting) {
+          const { error } = await supabase
+            .from("omni_atendimentos")
+            .update({
+              agente_id: userId,
+              status: "em_atendimento",
+              data_primeira_resposta: new Date().toISOString(),
+            })
+            .eq("id", atendimento.id)
+            .eq("status", "aguardando"); // Optimistic lock
+
+          if (!error) {
+            console.log(`[AutoDistrib] Assigned waiting atendimento ${atendimento.id} to agent ${userId}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[AutoDistrib] Error distributing on login:", err);
+    }
+  }, [clinicaId, userId]);
+
   useEffect(() => {
     if (!clinicaId || !userId || !userName) {
       return;
@@ -151,6 +227,9 @@ export function useTrackAgentPresence(clinicaId: string | null, userId: string |
     statusRef.current = "online";
     upsertPresence("online");
     setIsTracking(true);
+
+    // When agent comes online, distribute waiting atendimentos
+    distributeWaitingAtendimentos();
 
     // Start heartbeat
     heartbeatRef.current = setInterval(() => {
@@ -184,14 +263,19 @@ export function useTrackAgentPresence(clinicaId: string | null, userId: string |
       // Mark as offline on cleanup
       upsertPresence("offline");
     };
-  }, [clinicaId, userId, userName, upsertPresence]);
+  }, [clinicaId, userId, userName, upsertPresence, distributeWaitingAtendimentos]);
 
   const togglePause = useCallback(async () => {
     const newStatus = isPaused ? "online" : "pausa";
     setIsPaused(!isPaused);
     statusRef.current = newStatus;
     await upsertPresence(newStatus);
-  }, [isPaused, upsertPresence]);
+    
+    // When resuming from pause, distribute waiting atendimentos
+    if (newStatus === "online") {
+      distributeWaitingAtendimentos();
+    }
+  }, [isPaused, upsertPresence, distributeWaitingAtendimentos]);
 
   return { isPaused, togglePause, isTracking };
 }
