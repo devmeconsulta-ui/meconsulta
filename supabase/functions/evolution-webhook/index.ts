@@ -977,6 +977,187 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "MESSAGES_SET": {
+        // Historical messages batch from sync
+        const messages = Array.isArray(data) ? data : [];
+        const progress = payload.progress;
+        const isLatest = payload.isLatest;
+        
+        console.log(`[MESSAGES_SET] Processing batch of ${messages.length} historical messages (progress: ${progress}%, isLatest: ${isLatest})`);
+        
+        if (messages.length === 0) break;
+
+        // Get default queue for this instance
+        const { data: defaultFila } = await supabase
+          .from("omni_filas")
+          .select("id, nome")
+          .eq("instancia_id", instanciaData.id)
+          .eq("ativo", true)
+          .limit(1)
+          .single();
+
+        console.log(`[MESSAGES_SET] Default fila: ${defaultFila?.nome || 'none'}`);
+
+        // Group messages by remoteJid (contact)
+        const messagesByContact: Record<string, typeof messages> = {};
+        for (const msg of messages) {
+          const remoteJid = msg.key?.remoteJid;
+          if (!remoteJid || remoteJid.includes("@g.us") || remoteJid === "status@broadcast") continue;
+          if (!messagesByContact[remoteJid]) messagesByContact[remoteJid] = [];
+          messagesByContact[remoteJid].push(msg);
+        }
+
+        const contactJids = Object.keys(messagesByContact);
+        console.log(`[MESSAGES_SET] ${contactJids.length} unique contacts in batch`);
+
+        for (const jid of contactJids) {
+          const contactMessages = messagesByContact[jid];
+          const telefone = jid.replace("@s.whatsapp.net", "").replace("@lid", "");
+          
+          try {
+            // Find or create contact
+            let { data: contato } = await supabase
+              .from("omni_contatos")
+              .select("*")
+              .eq("clinica_id", clinica_id)
+              .eq("telefone", telefone)
+              .single();
+
+            if (!contato) {
+              const pushName = contactMessages[0]?.pushName || telefone;
+              const { data: novoContato, error: contatoError } = await supabase
+                .from("omni_contatos")
+                .insert({
+                  clinica_id,
+                  nome: pushName,
+                  telefone,
+                })
+                .select()
+                .single();
+
+              if (contatoError) {
+                console.error(`[MESSAGES_SET] Error creating contact ${telefone}:`, contatoError);
+                continue;
+              }
+              contato = novoContato;
+            }
+
+            // Find or create atendimento for this contact
+            let { data: atendimento } = await supabase
+              .from("omni_atendimentos")
+              .select("*")
+              .eq("clinica_id", clinica_id)
+              .eq("contato_id", contato.id)
+              .in("status", ["aguardando", "em_atendimento"])
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .single();
+
+            if (!atendimento) {
+              const { data: novoAtendimento, error: atError } = await supabase
+                .from("omni_atendimentos")
+                .insert({
+                  clinica_id,
+                  contato_id: contato.id,
+                  fila_id: defaultFila?.id || null,
+                  status: "aguardando",
+                  canal: "whatsapp",
+                })
+                .select()
+                .single();
+
+              if (atError) {
+                console.error(`[MESSAGES_SET] Error creating atendimento for ${telefone}:`, atError);
+                continue;
+              }
+              atendimento = novoAtendimento;
+              console.log(`[MESSAGES_SET] Created atendimento ${atendimento.id} for ${telefone}`);
+            }
+
+            // Sort messages by timestamp (oldest first)
+            contactMessages.sort((a, b) => (a.messageTimestamp || 0) - (b.messageTimestamp || 0));
+
+            // Prepare batch insert for messages
+            const messagesToInsert = [];
+            for (const msg of contactMessages) {
+              const messageId = msg.key?.id;
+              const isFromMe = msg.key?.fromMe || false;
+              const msgContent = msg.message || {};
+              
+              let tipo = "texto";
+              let conteudo = "";
+
+              if (msgContent.conversation) {
+                conteudo = msgContent.conversation;
+              } else if (msgContent.extendedTextMessage) {
+                conteudo = msgContent.extendedTextMessage.text;
+              } else if (msgContent.imageMessage) {
+                tipo = "imagem";
+                conteudo = msgContent.imageMessage.caption || "[Imagem]";
+              } else if (msgContent.audioMessage) {
+                tipo = "audio";
+                conteudo = "[Áudio]";
+              } else if (msgContent.videoMessage) {
+                tipo = "video";
+                conteudo = msgContent.videoMessage.caption || "[Vídeo]";
+              } else if (msgContent.documentMessage) {
+                tipo = "documento";
+                conteudo = msgContent.documentMessage.fileName || "[Documento]";
+              } else if (msgContent.stickerMessage) {
+                tipo = "sticker";
+                conteudo = "[Sticker]";
+              } else if (msgContent.locationMessage) {
+                tipo = "localizacao";
+                conteudo = "[Localização]";
+              } else {
+                // Skip unknown message types
+                continue;
+              }
+
+              // Build created_at from messageTimestamp
+              const createdAt = msg.messageTimestamp
+                ? new Date(msg.messageTimestamp * 1000).toISOString()
+                : new Date().toISOString();
+
+              messagesToInsert.push({
+                atendimento_id: atendimento.id,
+                contato_id: contato.id,
+                tipo,
+                direcao: isFromMe ? "saida" : "entrada",
+                conteudo,
+                whatsapp_message_id: messageId,
+                status: "entregue",
+                created_at: createdAt,
+              });
+            }
+
+            if (messagesToInsert.length > 0) {
+              // Insert in batches of 100 to avoid payload limits
+              const BATCH_SIZE = 100;
+              let inserted = 0;
+              for (let i = 0; i < messagesToInsert.length; i += BATCH_SIZE) {
+                const batch = messagesToInsert.slice(i, i + BATCH_SIZE);
+                const { error: insertError } = await supabase
+                  .from("omni_mensagens")
+                  .upsert(batch, { onConflict: "whatsapp_message_id", ignoreDuplicates: true });
+
+                if (insertError) {
+                  console.error(`[MESSAGES_SET] Batch insert error for ${telefone}:`, insertError);
+                } else {
+                  inserted += batch.length;
+                }
+              }
+              console.log(`[MESSAGES_SET] Inserted ${inserted} messages for ${telefone}`);
+            }
+          } catch (contactErr) {
+            console.error(`[MESSAGES_SET] Error processing contact ${telefone}:`, contactErr);
+          }
+        }
+
+        console.log(`[MESSAGES_SET] Batch processing complete`);
+        break;
+      }
+
       case "QRCODE_UPDATED": {
         console.log("QR Code updated for instance:", instance);
         break;
