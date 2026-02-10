@@ -5,6 +5,134 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Auto-distribute atendimento to online agents based on queue strategy
+async function autoDistribuirAtendimento(
+  supabase: any,
+  atendimentoId: string,
+  filaId: string | null,
+  clinicaId: string
+): Promise<string | null> {
+  if (!filaId) {
+    console.log("[AutoDistrib] No fila_id, skipping distribution");
+    return null;
+  }
+
+  try {
+    // 1. Get queue config
+    const { data: fila } = await supabase
+      .from("omni_filas")
+      .select("estrategia_distribuicao, atendimentos_max_agente, nome")
+      .eq("id", filaId)
+      .single();
+
+    if (!fila) {
+      console.log("[AutoDistrib] Queue not found:", filaId);
+      return null;
+    }
+
+    const estrategia = fila.estrategia_distribuicao || "round_robin";
+    const maxAtendimentos = fila.atendimentos_max_agente || 5;
+
+    if (estrategia === "manual") {
+      console.log("[AutoDistrib] Strategy is manual, skipping");
+      return null;
+    }
+
+    // 2. Get agents linked to this queue
+    const { data: agentesVinculados } = await supabase
+      .from("omni_agentes")
+      .select("usuario_clinica_id")
+      .eq("fila_id", filaId)
+      .eq("status", "online");
+
+    if (!agentesVinculados || agentesVinculados.length === 0) {
+      console.log("[AutoDistrib] No agents linked to queue");
+      return null;
+    }
+
+    const agentIds = agentesVinculados.map((a: any) => a.usuario_clinica_id);
+
+    // 3. Filter by who is actually online (agent_presence heartbeat within 45s)
+    const threshold = new Date(Date.now() - 45000).toISOString();
+    const { data: onlinePresence } = await supabase
+      .from("agent_presence")
+      .select("usuario_clinica_id")
+      .eq("clinica_id", clinicaId)
+      .eq("status", "online")
+      .gte("last_seen", threshold)
+      .in("usuario_clinica_id", agentIds);
+
+    if (!onlinePresence || onlinePresence.length === 0) {
+      console.log("[AutoDistrib] No online agents found for queue:", fila.nome);
+      return null;
+    }
+
+    const onlineIds = onlinePresence.map((p: any) => p.usuario_clinica_id);
+    console.log(`[AutoDistrib] ${onlineIds.length} online agents in queue "${fila.nome}"`);
+
+    // 4. Count current active atendimentos per agent
+    const { data: activeCounts } = await supabase
+      .from("omni_atendimentos")
+      .select("agente_id")
+      .eq("clinica_id", clinicaId)
+      .in("status", ["aguardando", "em_atendimento"])
+      .in("agente_id", onlineIds);
+
+    const countMap: Record<string, number> = {};
+    onlineIds.forEach((id: string) => (countMap[id] = 0));
+    (activeCounts || []).forEach((a: any) => {
+      if (a.agente_id && countMap[a.agente_id] !== undefined) {
+        countMap[a.agente_id]++;
+      }
+    });
+
+    // 5. Filter out agents at capacity
+    const availableAgents = onlineIds.filter((id: string) => countMap[id] < maxAtendimentos);
+
+    if (availableAgents.length === 0) {
+      console.log("[AutoDistrib] All online agents at max capacity");
+      return null;
+    }
+
+    // 6. Apply distribution strategy
+    let selectedAgentId: string;
+
+    if (estrategia === "menos_ocupado") {
+      // Pick the agent with fewest active atendimentos
+      availableAgents.sort((a: string, b: string) => countMap[a] - countMap[b]);
+      selectedAgentId = availableAgents[0];
+    } else if (estrategia === "aleatorio") {
+      selectedAgentId = availableAgents[Math.floor(Math.random() * availableAgents.length)];
+    } else {
+      // round_robin: pick agent with fewest atendimentos (approximation of round robin)
+      availableAgents.sort((a: string, b: string) => countMap[a] - countMap[b]);
+      selectedAgentId = availableAgents[0];
+    }
+
+    // 7. Assign
+    const { error: updateError } = await supabase
+      .from("omni_atendimentos")
+      .update({
+        agente_id: selectedAgentId,
+        status: "em_atendimento",
+        data_primeira_resposta: new Date().toISOString(),
+      })
+      .eq("id", atendimentoId)
+      .eq("status", "aguardando"); // Only if still waiting
+
+    if (updateError) {
+      console.error("[AutoDistrib] Error assigning:", updateError);
+      return null;
+    }
+
+    console.log(`[AutoDistrib] Assigned atendimento ${atendimentoId} to agent ${selectedAgentId} (strategy: ${estrategia}, load: ${countMap[selectedAgentId]}/${maxAtendimentos})`);
+    return selectedAgentId;
+  } catch (err) {
+    console.error("[AutoDistrib] Error:", err);
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -197,6 +325,13 @@ Deno.serve(async (req) => {
           }
           atendimento = novoAtendimento;
           console.log(`Atendimento created: ${atendimento.id}, fila: ${fila?.nome || 'none'}`);
+
+          // Auto-distribute to online agents
+          const assignedAgentId = await autoDistribuirAtendimento(supabase, atendimento.id, fila?.id || null, clinica_id);
+          if (assignedAgentId) {
+            atendimento.agente_id = assignedAgentId;
+            atendimento.status = "em_atendimento";
+          }
         } else {
           console.log(`Atendimento found: ${atendimento.id}`);
           
@@ -661,6 +796,9 @@ Deno.serve(async (req) => {
             break;
           }
           atendimento = novoAtendimento;
+
+          // Auto-distribute to online agents
+          await autoDistribuirAtendimento(supabase, atendimento.id, fila?.id || null, clinica_id);
         }
 
         // Verificar se a mensagem já existe
