@@ -21,6 +21,11 @@ import {
   ChevronDown,
   ChevronRight,
   FileSpreadsheet,
+  FileText,
+  CreditCard,
+  Layers,
+  FileCode,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -54,10 +59,24 @@ const menuItems: MenuItem[] = [
   { icon: DollarSign, label: "Financeiro", path: "/clinica/financeiro", permission: "financeiro" },
   { icon: Wallet, label: "Dados Bancários", path: "/clinica/dados-bancarios" },
   { icon: Star, label: "Avaliações", path: "/clinica/avaliacoes" },
-  { icon: FileSpreadsheet, label: "Base TUSS", path: "/clinica/tuss" },
   { icon: User, label: "Usuários da Clínica", path: "/clinica/usuarios" },
   { icon: Settings, label: "Configurações", path: "/clinica/configuracoes" },
 ];
+
+// Grupo TISS (submenu)
+const tissGroup: MenuGroup = {
+  icon: ClipboardList,
+  label: "TISS",
+  items: [
+    { icon: Settings, label: "Configuração TISS", path: "/clinica/tiss/configuracoes" },
+    { icon: Building2, label: "Operadoras/Contratos", path: "/clinica/tiss/operadoras" },
+    { icon: CreditCard, label: "Carteirinhas", path: "/clinica/tiss/carteirinhas" },
+    { icon: FileSpreadsheet, label: "TUSS Procedimentos", path: "/clinica/tuss" },
+    { icon: FileText, label: "Guias", path: "/clinica/tiss/guias" },
+    { icon: Layers, label: "Lotes", path: "/clinica/tiss/lotes" },
+    { icon: FileCode, label: "Exportar XML", path: "/clinica/tiss/exportar-xml" },
+  ],
+};
 
 // Grupo de Atendimento (submenu) - visível para todos usuários da clínica
 const atendimentoGroup: MenuGroup = {
@@ -74,20 +93,25 @@ export function ClinicaSidebar() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [atendimentoOpen, setAtendimentoOpen] = useState(false);
+  const [tissOpen, setTissOpen] = useState(false);
   
   // Obter ID da clínica do usuário atual
   const clinicaId = currentUser?.clinicaId || null;
   const { unreadCount } = useUnreadChatMessages({ clinicaId });
 
-  // Auto-expand atendimento group if on any of its routes
+  // Auto-expand groups if on their routes
   useEffect(() => {
     const isOnAtendimentoRoute = atendimentoGroup.items.some(
       item => location.pathname === item.path || location.pathname.startsWith(item.path + "/")
     ) || location.pathname.startsWith("/clinica/omnichannel");
     
-    if (isOnAtendimentoRoute) {
-      setAtendimentoOpen(true);
-    }
+    if (isOnAtendimentoRoute) setAtendimentoOpen(true);
+
+    const isOnTissRoute = tissGroup.items.some(
+      item => location.pathname === item.path || location.pathname.startsWith(item.path + "/")
+    ) || location.pathname.startsWith("/clinica/tiss");
+    
+    if (isOnTissRoute) setTissOpen(true);
   }, [location.pathname]);
 
   const handleLogout = () => {
@@ -116,6 +140,11 @@ export function ClinicaSidebar() {
   const isAtendimentoActive = atendimentoGroup.items.some(
     item => location.pathname === item.path || location.pathname.startsWith(item.path + "/")
   ) || location.pathname.startsWith("/clinica/omnichannel");
+
+  // Check if any TISS route is active
+  const isTissActive = tissGroup.items.some(
+    item => location.pathname === item.path || location.pathname.startsWith(item.path + "/")
+  ) || location.pathname.startsWith("/clinica/tiss");
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -219,7 +248,48 @@ export function ClinicaSidebar() {
           </Collapsible>
         )}
 
-        {/* Other menu items (excluding Dashboard which is already rendered) */}
+        {/* TISS Group (collapsible submenu) */}
+        <Collapsible open={tissOpen} onOpenChange={setTissOpen}>
+          <CollapsibleTrigger asChild>
+            <button
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                isTissActive
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <ClipboardList className="w-5 h-5" />
+              TISS
+              {tissOpen ? (
+                <ChevronDown className="w-4 h-4 ml-auto" />
+              ) : (
+                <ChevronRight className="w-4 h-4 ml-auto" />
+              )}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pl-4 space-y-1 mt-1">
+            {tissGroup.items.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={() => setMobileOpen(false)}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-lg"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )
+                }
+              >
+                <item.icon className="w-4 h-4" />
+                {item.label}
+              </NavLink>
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
+
         {visibleMenuItems
           .filter(item => item.path !== "/clinica") // Exclude Dashboard
           .map((item) => (
