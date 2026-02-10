@@ -7,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileCode, Download, CheckCircle2, AlertTriangle, Loader2, Eye } from "lucide-react";
+import { FileCode, Download, CheckCircle2, AlertTriangle, Loader2, Eye, Lock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
+import TissPendenciasChecklist, { type TissPendencia } from "@/components/clinica/tiss/TissPendenciasChecklist";
 import {
   generateTissXml,
   validateTissLote,
@@ -51,6 +52,11 @@ export default function TissExportarXml() {
   const [generating, setGenerating] = useState(false);
   const [exportResults, setExportResults] = useState<ExportResult[]>([]);
   const [previewResult, setPreviewResult] = useState<ExportResult | null>(null);
+  const [checklistValid, setChecklistValid] = useState(false);
+
+  const handleChecklistChange = useCallback((isValid: boolean, _pendencias: TissPendencia[]) => {
+    setChecklistValid(isValid);
+  }, []);
 
   const fetchLotes = useCallback(async () => {
     if (!clinicaId) return;
@@ -241,7 +247,7 @@ export default function TissExportarXml() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2 md:col-span-2">
               <Label>Lote TISS</Label>
-              <Select value={selectedLoteId} onValueChange={setSelectedLoteId}>
+              <Select value={selectedLoteId} onValueChange={(v) => { setSelectedLoteId(v); setChecklistValid(false); }}>
                 <SelectTrigger><SelectValue placeholder="Selecione um lote..." /></SelectTrigger>
                 <SelectContent>
                   {lotes.length === 0 ? (
@@ -257,7 +263,8 @@ export default function TissExportarXml() {
               </Select>
             </div>
             <div className="flex items-end">
-              <Button onClick={handleGenerate} className="w-full" disabled={generating || !selectedLoteId}>
+              <Button onClick={handleGenerate} className="w-full" disabled={generating || !selectedLoteId || !checklistValid}>
+                {!checklistValid && selectedLoteId && <Lock className="w-4 h-4 mr-2" />}
                 {generating ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Gerando...</>
                 ) : (
@@ -277,6 +284,14 @@ export default function TissExportarXml() {
           )}
         </CardContent>
       </Card>
+
+      {selectedLoteId && clinicaId && (
+        <TissPendenciasChecklist
+          clinicaId={clinicaId}
+          loteId={selectedLoteId}
+          onValidationChange={handleChecklistChange}
+        />
+      )}
 
       <Card>
         <CardHeader>
@@ -303,7 +318,7 @@ export default function TissExportarXml() {
                       <TableCell className="text-sm">{new Date(r.createdAt).toLocaleString("pt-BR")}</TableCell>
                       <TableCell>
                         {r.valid ? (
-                          <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                          <Badge variant="default" className="bg-primary hover:bg-primary/90">
                             <CheckCircle2 className="w-3 h-3 mr-1" />Válido
                           </Badge>
                         ) : (
@@ -343,7 +358,7 @@ export default function TissExportarXml() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {previewResult?.valid ? (
-                <><CheckCircle2 className="w-5 h-5 text-green-600" />XML Válido — {previewResult.numeroLote}</>
+                <><CheckCircle2 className="w-5 h-5 text-primary" />XML Válido — {previewResult.numeroLote}</>
               ) : (
                 <><AlertTriangle className="w-5 h-5 text-destructive" />Erros de Validação — {previewResult?.numeroLote}</>
               )}
