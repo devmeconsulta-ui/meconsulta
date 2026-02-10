@@ -7,6 +7,7 @@ const corsHeaders = {
 
 interface ConnectInstanceRequest {
   instancia_id: string;
+  sync_history_days?: number;
 }
 
 Deno.serve(async (req) => {
@@ -31,7 +32,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const body: ConnectInstanceRequest = await req.json();
-    const { instancia_id } = body;
+    const { instancia_id, sync_history_days } = body;
 
     if (!instancia_id) {
       return new Response(
@@ -62,6 +63,38 @@ Deno.serve(async (req) => {
       .from("omni_instancias")
       .update({ status: "connecting" })
       .eq("id", instancia_id);
+
+    // If sync_history_days is specified, configure the instance settings
+    if (sync_history_days && sync_history_days > 0) {
+      console.log(`Configuring sync history for ${sync_history_days} days`);
+      
+      try {
+        const settingsResponse = await fetch(
+          `${EVOLUTION_API_URL}/settings/set/${instancia.evolution_instance_name}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": EVOLUTION_API_KEY,
+            },
+            body: JSON.stringify({
+              syncFullHistory: true,
+              daysLimitImportMessages: sync_history_days,
+            }),
+          }
+        );
+
+        const settingsData = await settingsResponse.json();
+        console.log("Settings response:", settingsData);
+
+        if (!settingsResponse.ok) {
+          console.warn("Could not set sync history settings:", settingsData);
+        }
+      } catch (settingsErr) {
+        console.warn("Error setting sync history:", settingsErr);
+        // Non-blocking - continue with connection
+      }
+    }
 
     // Buscar QR Code na Evolution API
     const qrResponse = await fetch(

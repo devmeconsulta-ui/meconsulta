@@ -90,6 +90,7 @@ export default function OmniFilas() {
   const [showNovaInstancia, setShowNovaInstancia] = useState(false);
   const [editingFila, setEditingFila] = useState<OmniFila | null>(null);
   const [qrCodeData, setQrCodeData] = useState<{ instanciaId: string; qrcode: string } | null>(null);
+  const [syncHistoryDays, setSyncHistoryDays] = useState<number>(0);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [creatingInstancia, setCreatingInstancia] = useState(false);
   const [deletingInstanciaId, setDeletingInstanciaId] = useState<string | null>(null);
@@ -208,7 +209,7 @@ export default function OmniFilas() {
 
   const handleConnect = async (instanciaId: string) => {
     setConnectingId(instanciaId);
-    const result = await connectInstancia(instanciaId);
+    const result = await connectInstancia(instanciaId, syncHistoryDays || undefined);
     setConnectingId(null);
 
     if (result?.qrcode) {
@@ -530,6 +531,15 @@ export default function OmniFilas() {
             <p className="text-sm text-muted-foreground text-center">
               Abra o WhatsApp no seu celular e escaneie o código acima
             </p>
+            {syncHistoryDays > 0 && (
+              <div className="flex items-center gap-2 text-xs bg-muted px-3 py-2 rounded-md">
+                <Calendar className="h-3.5 w-3.5 text-primary" />
+                <span>
+                  Importando histórico dos últimos{" "}
+                  {syncHistoryDays === 1 ? "24 horas" : `${syncHistoryDays} dias`}
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               {checkingConnection ? (
                 <>
@@ -594,6 +604,28 @@ export default function OmniFilas() {
                       <p className="text-sm text-muted-foreground mb-3">
                         📱 {instancia.numero_whatsapp}
                       </p>
+                    )}
+
+                    {instancia.status !== "connected" && (
+                      <div className="mb-3">
+                        <Label className="text-xs text-muted-foreground">Importar histórico</Label>
+                        <Select
+                          value={String(syncHistoryDays)}
+                          onValueChange={(v) => setSyncHistoryDays(Number(v))}
+                        >
+                          <SelectTrigger className="h-8 text-xs mt-1">
+                            <SelectValue placeholder="Sem histórico" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">Não importar</SelectItem>
+                            <SelectItem value="1">Últimas 24 horas</SelectItem>
+                            <SelectItem value="3">Últimas 72 horas</SelectItem>
+                            <SelectItem value="7">Últimos 7 dias</SelectItem>
+                            <SelectItem value="15">Últimos 15 dias</SelectItem>
+                            <SelectItem value="30">Últimos 30 dias</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     )}
 
                     <div className="flex gap-2">

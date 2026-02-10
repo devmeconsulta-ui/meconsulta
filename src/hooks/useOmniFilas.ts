@@ -193,10 +193,10 @@ export function useOmniFilas(clinicaId: string | null) {
     }
   };
 
-  const connectInstancia = async (instanciaId: string) => {
+  const connectInstancia = async (instanciaId: string, syncHistoryDays?: number) => {
     try {
       const response = await supabase.functions.invoke("evolution-connect-instance", {
-        body: { instancia_id: instanciaId },
+        body: { instancia_id: instanciaId, sync_history_days: syncHistoryDays },
       });
 
       if (response.error) throw response.error;
