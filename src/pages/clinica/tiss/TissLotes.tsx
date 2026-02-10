@@ -35,6 +35,15 @@ interface GuiaPronta {
   paciente_nome?: string;
 }
 
+const LOTE_STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+  aberto: { label: "Aberto", variant: "default" },
+  fechado: { label: "Fechado", variant: "secondary" },
+  exportado: { label: "Exportado", variant: "outline" },
+  enviado: { label: "Enviado", variant: "outline" },
+  processado: { label: "Processado", variant: "secondary" },
+  pago: { label: "Pago", variant: "default" },
+};
+
 export default function TissLotes() {
   const { currentUser } = useAuth();
   const clinicaId = currentUser?.clinicaId;
@@ -42,6 +51,9 @@ export default function TissLotes() {
   const [lotes, setLotes] = useState<TissLote[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("todos");
+  const [operadoraFilter, setOperadoraFilter] = useState("todos");
+  const [competenciaFilter, setCompetenciaFilter] = useState("");
 
   const [criarOpen, setCriarOpen] = useState(false);
   const [guiasProntas, setGuiasProntas] = useState<GuiaPronta[]>([]);
@@ -119,15 +131,15 @@ export default function TissLotes() {
     });
   };
 
-  const filteredGuias = operadora
+  const filteredGuiasModal = operadora
     ? guiasProntas.filter(g => g.operadora.toLowerCase().includes(operadora.toLowerCase()))
     : guiasProntas;
 
   const toggleAll = () => {
-    if (selectedGuias.size === filteredGuias.length && filteredGuias.length > 0) {
+    if (selectedGuias.size === filteredGuiasModal.length && filteredGuiasModal.length > 0) {
       setSelectedGuias(new Set());
     } else {
-      setSelectedGuias(new Set(filteredGuias.map(g => g.id)));
+      setSelectedGuias(new Set(filteredGuiasModal.map(g => g.id)));
     }
   };
 
@@ -150,14 +162,7 @@ export default function TissLotes() {
 
       const { data: lote, error: loteError } = await supabase
         .from("tiss_lotes")
-        .insert({
-          clinica_id: clinicaId,
-          operadora,
-          competencia,
-          status: "aberto",
-          valor_total: valorTotal,
-          qtd_guias: guiasSelecionadas.length,
-        })
+        .insert({ clinica_id: clinicaId, operadora, competencia, status: "aberto", valor_total: valorTotal, qtd_guias: guiasSelecionadas.length })
         .select("id")
         .single();
       if (loteError) throw loteError;
@@ -167,8 +172,7 @@ export default function TissLotes() {
         .insert(guiasSelecionadas.map(g => ({ lote_id: lote.id, guia_id: g.id })));
       if (itensError) throw itensError;
 
-      const guiaIds = guiasSelecionadas.map(g => g.id);
-      await supabase.from("tiss_guias").update({ status: "em_lote" }).in("id", guiaIds);
+      await supabase.from("tiss_guias").update({ status: "em_lote" }).in("id", guiasSelecionadas.map(g => g.id));
 
       const consultaIds = guiasSelecionadas.map(g => g.consulta_id).filter(Boolean);
       if (consultaIds.length > 0) {
@@ -179,23 +183,27 @@ export default function TissLotes() {
       setCriarOpen(false);
       fetchLotes();
     } catch (err: any) {
-      console.error("Error creating lote:", err);
       toast.error(`Erro ao criar lote: ${err.message}`);
     } finally {
       setSaving(false);
     }
   };
 
-  const statusLabel = (s: string) => {
-    switch (s) { case "aberto": return "Aberto"; case "fechado": return "Fechado"; case "enviado": return "Enviado"; case "pago": return "Pago"; default: return s; }
-  };
-  const statusVariant = (s: string): "default" | "secondary" | "outline" => {
-    switch (s) { case "aberto": return "default"; case "fechado": return "secondary"; case "enviado": return "outline"; default: return "secondary"; }
-  };
+  const getStatus = (s: string) => LOTE_STATUS_MAP[s] || { label: s, variant: "secondary" as const };
 
-  const filteredLotes = lotes.filter(l =>
-    !search.trim() || l.numero_lote?.toLowerCase().includes(search.toLowerCase()) || l.operadora?.toLowerCase().includes(search.toLowerCase())
-  );
+  // Derived filter options
+  const loteOperadoras = [...new Set(lotes.map(l => l.operadora))].sort();
+
+  const filteredLotes = lotes.filter(l => {
+    if (search.trim() && !(
+      l.numero_lote?.toLowerCase().includes(search.toLowerCase()) ||
+      l.operadora?.toLowerCase().includes(search.toLowerCase())
+    )) return false;
+    if (statusFilter !== "todos" && l.status !== statusFilter) return false;
+    if (operadoraFilter !== "todos" && l.operadora !== operadoraFilter) return false;
+    if (competenciaFilter && l.competencia !== competenciaFilter) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -212,9 +220,28 @@ export default function TissLotes() {
           <CardTitle className="flex items-center gap-2"><Layers className="w-5 h-5" />Lotes Criados</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Buscar lote..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Buscar lote..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os status</SelectItem>
+                {Object.entries(LOTE_STATUS_MAP).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={operadoraFilter} onValueChange={setOperadoraFilter}>
+              <SelectTrigger><SelectValue placeholder="Operadora" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas operadoras</SelectItem>
+                {loteOperadoras.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Input type="month" value={competenciaFilter} onChange={e => setCompetenciaFilter(e.target.value)} placeholder="Competência" />
           </div>
 
           {loading ? (
@@ -235,28 +262,30 @@ export default function TissLotes() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLotes.map(l => (
-                    <TableRow key={l.id}>
-                      <TableCell className="font-mono text-sm">{l.numero_lote}</TableCell>
-                      <TableCell>{l.operadora}</TableCell>
-                      <TableCell>{l.competencia}</TableCell>
-                      <TableCell className="text-center">{l.qtd_guias}</TableCell>
-                      <TableCell className="text-right">R$ {Number(l.valor_total).toFixed(2).replace(".", ",")}</TableCell>
-                      <TableCell><Badge variant={statusVariant(l.status)}>{statusLabel(l.status)}</Badge></TableCell>
-                      <TableCell className="text-sm">{new Date(l.created_at).toLocaleDateString("pt-BR")}</TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => setDetalheLote(l)}><Eye className="w-4 h-4" /></Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredLotes.map(l => {
+                    const st = getStatus(l.status);
+                    return (
+                      <TableRow key={l.id}>
+                        <TableCell className="font-mono text-sm">{l.numero_lote}</TableCell>
+                        <TableCell>{l.operadora}</TableCell>
+                        <TableCell>{l.competencia}</TableCell>
+                        <TableCell className="text-center">{l.qtd_guias}</TableCell>
+                        <TableCell className="text-right">R$ {Number(l.valor_total).toFixed(2).replace(".", ",")}</TableCell>
+                        <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
+                        <TableCell className="text-sm">{new Date(l.created_at).toLocaleDateString("pt-BR")}</TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => setDetalheLote(l)}><Eye className="w-4 h-4" /></Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
           ) : (
             <div className="text-center py-12 space-y-2">
               <Layers className="w-12 h-12 mx-auto text-muted-foreground/50" />
-              <p className="text-muted-foreground">Nenhum lote criado.</p>
-              <p className="text-xs text-muted-foreground">Crie guias primeiro e depois agrupe-as em lotes.</p>
+              <p className="text-muted-foreground">Nenhum lote encontrado.</p>
             </div>
           )}
         </CardContent>
@@ -300,13 +329,13 @@ export default function TissLotes() {
 
                 {loadingGuias ? (
                   <p className="text-center text-muted-foreground py-4">Carregando guias...</p>
-                ) : filteredGuias.length > 0 ? (
+                ) : filteredGuiasModal.length > 0 ? (
                   <div className="border rounded-lg overflow-auto max-h-[350px]">
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-[40px]">
-                            <Checkbox checked={filteredGuias.length > 0 && selectedGuias.size === filteredGuias.length} onCheckedChange={toggleAll} />
+                            <Checkbox checked={filteredGuiasModal.length > 0 && selectedGuias.size === filteredGuiasModal.length} onCheckedChange={toggleAll} />
                           </TableHead>
                           <TableHead>Nº Guia</TableHead>
                           <TableHead>Paciente</TableHead>
@@ -316,7 +345,7 @@ export default function TissLotes() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredGuias.map(g => (
+                        {filteredGuiasModal.map(g => (
                           <TableRow key={g.id} className="cursor-pointer" onClick={() => toggleGuia(g.id)}>
                             <TableCell><Checkbox checked={selectedGuias.has(g.id)} onCheckedChange={() => toggleGuia(g.id)} /></TableCell>
                             <TableCell className="font-mono text-sm">{g.numero_guia}</TableCell>
@@ -355,7 +384,7 @@ export default function TissLotes() {
               <div><span className="text-muted-foreground">Competência:</span> <span className="font-medium">{detalheLote.competencia}</span></div>
               <div><span className="text-muted-foreground">Guias:</span> <span className="font-medium">{detalheLote.qtd_guias}</span></div>
               <div><span className="text-muted-foreground">Valor:</span> <span className="font-medium">R$ {Number(detalheLote.valor_total).toFixed(2).replace(".", ",")}</span></div>
-              <div><span className="text-muted-foreground">Status:</span> <Badge variant={statusVariant(detalheLote.status)}>{statusLabel(detalheLote.status)}</Badge></div>
+              <div><span className="text-muted-foreground">Status:</span> <Badge variant={getStatus(detalheLote.status).variant}>{getStatus(detalheLote.status).label}</Badge></div>
               <div><span className="text-muted-foreground">Criado:</span> {new Date(detalheLote.created_at).toLocaleDateString("pt-BR")}</div>
             </div>
           )}

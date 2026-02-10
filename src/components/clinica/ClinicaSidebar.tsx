@@ -26,6 +26,7 @@ import {
   Layers,
   FileCode,
   ClipboardList,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,7 @@ const tissGroup: MenuGroup = {
     { icon: FileText, label: "Guias", path: "/clinica/tiss/guias" },
     { icon: Layers, label: "Lotes", path: "/clinica/tiss/lotes" },
     { icon: FileCode, label: "Exportar XML", path: "/clinica/tiss/exportar-xml" },
+    { icon: BarChart3, label: "Relatórios", path: "/clinica/tiss/relatorios" },
   ],
 };
 
