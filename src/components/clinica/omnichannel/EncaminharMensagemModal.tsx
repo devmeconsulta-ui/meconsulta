@@ -114,7 +114,6 @@ export function EncaminharMensagemModal({
 
     try {
       const content = mensagem.conteudo || "";
-      const forwardText = `↪ Mensagem encaminhada:\n${content}`;
 
       const tipo = mensagem.tipo === "texto" ? "texto" : mensagem.tipo;
 
@@ -123,10 +122,11 @@ export function EncaminharMensagemModal({
           atendimento_id: contato.atendimento_id,
           agente_id: agenteId,
           tipo,
-          conteudo: tipo === "texto" ? forwardText : content,
+          conteudo: content,
           arquivo_url: mensagem.arquivo_url,
           arquivo_nome: mensagem.arquivo_nome,
           arquivo_tipo: mensagem.arquivo_tipo,
+          encaminhada: true,
         },
       });
 

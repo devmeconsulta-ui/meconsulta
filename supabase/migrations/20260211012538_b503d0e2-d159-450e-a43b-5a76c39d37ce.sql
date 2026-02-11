@@ -1,0 +1,1 @@
+ALTER TABLE public.omni_mensagens ADD COLUMN encaminhada boolean NOT NULL DEFAULT false;

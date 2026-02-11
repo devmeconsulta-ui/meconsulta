@@ -14,6 +14,7 @@ interface SendMessageRequest {
   arquivo_url?: string;
   arquivo_nome?: string;
   arquivo_tipo?: string;
+  encaminhada?: boolean;
 }
 
 // Declare EdgeRuntime for background tasks
@@ -42,7 +43,7 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const body: SendMessageRequest = await req.json();
-    const { atendimento_id, agente_id, tipo, conteudo, arquivo_url, arquivo_nome, arquivo_tipo } = body;
+    const { atendimento_id, agente_id, tipo, conteudo, arquivo_url, arquivo_nome, arquivo_tipo, encaminhada } = body;
 
     if (!atendimento_id) {
       return new Response(
@@ -257,6 +258,7 @@ serve(async (req) => {
             arquivo_tipo,
             whatsapp_message_id: messageId,
             status: "enviada",
+            encaminhada: encaminhada || false,
           });
 
         if (msgError) {
