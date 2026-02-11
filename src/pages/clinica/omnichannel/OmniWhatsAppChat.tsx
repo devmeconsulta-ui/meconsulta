@@ -260,9 +260,24 @@ function MessageBubble({
             {mensagem.arquivo_nome || "Documento"}
           </a>
         )}
-        {(mensagem.tipo === "texto" || mensagem.conteudo) && mensagem.tipo !== "audio" && (
-          <p className="text-sm whitespace-pre-wrap">{mensagem.conteudo}</p>
-        )}
+        {(mensagem.tipo === "texto" || mensagem.conteudo) && mensagem.tipo !== "audio" && (() => {
+          const content = mensagem.conteudo || "";
+          const isForwarded = content.startsWith("↪ Mensagem encaminhada:\n") || content.startsWith("↪ Mensagem encaminhada:");
+          const displayContent = isForwarded 
+            ? content.replace(/^↪ Mensagem encaminhada:\n?/, "").trim()
+            : content;
+          return (
+            <div>
+              {isForwarded && (
+                <div className="flex items-center gap-1 mb-1">
+                  <Forward className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs italic text-muted-foreground">Encaminhada</span>
+                </div>
+              )}
+              <p className="text-sm whitespace-pre-wrap">{displayContent}</p>
+            </div>
+          );
+        })()}
         {mensagem.tipo !== "audio" && (
           <div className="flex items-center justify-end gap-1 mt-1">
             <span className="text-[10px] text-muted-foreground">{formattedTime}</span>
