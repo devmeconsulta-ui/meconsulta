@@ -46,7 +46,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { format } from "date-fns";
+import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useOmniMensagens, OmniAtendimento, OmniMensagem } from "@/hooks/useOmniAtendimentos";
 import { useOmniNotasInternas, OmniNotaInterna } from "@/hooks/useOmniNotasInternas";
@@ -1148,19 +1148,39 @@ export default function OmniWhatsAppChat() {
               ) : (
                 <>
                   {combinedItems.map((item, index) => {
+                    // Date separator logic
+                    const itemDate = new Date(item.data.created_at || '');
+                    const itemDateStr = format(itemDate, 'yyyy-MM-dd');
+                    const prevItem = index > 0 ? combinedItems[index - 1] : null;
+                    const prevDateStr = prevItem ? format(new Date(prevItem.data.created_at || ''), 'yyyy-MM-dd') : null;
+                    const showDateSeparator = itemDateStr !== prevDateStr;
+
+                    const dateSeparatorLabel = isToday(itemDate)
+                      ? "Hoje"
+                      : isYesterday(itemDate)
+                      ? "Ontem"
+                      : format(itemDate, "dd/MM/yyyy");
+
                     if (item.type === 'note') {
                       const nota = item.data as OmniNotaInterna;
                       return (
-                        <NotaInternaAlert
-                          key={`note-${nota.id}`}
-                          nota={nota}
-                          onMarcarLida={!nota.lida ? () => marcarComoLida(nota.id) : undefined}
-                        />
+                        <div key={`note-${nota.id}`}>
+                          {showDateSeparator && (
+                            <div className="flex items-center justify-center my-3">
+                              <span className="bg-muted text-muted-foreground text-xs px-3 py-1 rounded-full shadow-sm">
+                                {dateSeparatorLabel}
+                              </span>
+                            </div>
+                          )}
+                          <NotaInternaAlert
+                            nota={nota}
+                            onMarcarLida={!nota.lida ? () => marcarComoLida(nota.id) : undefined}
+                          />
+                        </div>
                       );
                     }
                     
                     const msg = item.data as OmniMensagem;
-                    // Check if this is the first outgoing message
                     const previousMessages = combinedItems.slice(0, index)
                       .filter(i => i.type === 'message')
                       .map(i => i.data as OmniMensagem);
@@ -1169,6 +1189,13 @@ export default function OmniWhatsAppChat() {
                     
                     return (
                       <div key={msg.id} id={`msg-${msg.id}`} className="transition-colors duration-500">
+                        {showDateSeparator && (
+                          <div className="flex items-center justify-center my-3">
+                            <span className="bg-muted text-muted-foreground text-xs px-3 py-1 rounded-full shadow-sm">
+                              {dateSeparatorLabel}
+                            </span>
+                          </div>
+                        )}
                         <MessageBubble 
                           mensagem={msg} 
                           showSignature={signatureEnabled}
