@@ -116,39 +116,21 @@ export function EncaminharMensagemModal({
       const content = mensagem.conteudo || "";
       const forwardText = `↪ Mensagem encaminhada:\n${content}`;
 
-      const { error } = await supabase.from("omni_mensagens").insert({
-        atendimento_id: contato.atendimento_id,
-        agente_id: agenteId,
-        agente_nome: agenteName,
-        tipo: mensagem.tipo === "texto" ? "texto" : mensagem.tipo,
-        direcao: "saida",
-        conteudo: mensagem.tipo === "texto" ? forwardText : content,
-        arquivo_url: mensagem.arquivo_url,
-        arquivo_nome: mensagem.arquivo_nome,
-        arquivo_tipo: mensagem.arquivo_tipo,
-        status: "enviada",
+      const tipo = mensagem.tipo === "texto" ? "texto" : mensagem.tipo;
+
+      const { data, error } = await supabase.functions.invoke("evolution-send-message", {
+        body: {
+          atendimento_id: contato.atendimento_id,
+          agente_id: agenteId,
+          tipo,
+          conteudo: tipo === "texto" ? forwardText : content,
+          arquivo_url: mensagem.arquivo_url,
+          arquivo_nome: mensagem.arquivo_nome,
+          arquivo_tipo: mensagem.arquivo_tipo,
+        },
       });
 
       if (error) throw error;
-
-      // Also send via Evolution API if it's a WhatsApp chat
-      const { data: atendimento } = await supabase
-        .from("omni_atendimentos")
-        .select("contato:omni_contatos!contato_id(telefone)")
-        .eq("id", contato.atendimento_id)
-        .single();
-
-      if (atendimento?.contato?.telefone) {
-        const sendContent = mensagem.tipo === "texto" ? forwardText : mensagem.arquivo_url || "";
-        await supabase.functions.invoke("evolution-send-message", {
-          body: {
-            clinica_id: clinicaId,
-            phone: atendimento.contato.telefone,
-            message: sendContent,
-            type: mensagem.tipo === "texto" ? "text" : mensagem.tipo,
-          },
-        });
-      }
 
       toast.success(`Mensagem encaminhada para ${contato.nome}`);
       onClose();
