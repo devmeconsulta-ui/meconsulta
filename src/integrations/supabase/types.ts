@@ -3055,6 +3055,7 @@ export type Database = {
           conteudo: string | null
           created_at: string
           direcao: string
+          encaminhada: boolean
           erro_descricao: string | null
           id: string
           quoted_message_id: string | null
@@ -3073,6 +3074,7 @@ export type Database = {
           conteudo?: string | null
           created_at?: string
           direcao: string
+          encaminhada?: boolean
           erro_descricao?: string | null
           id?: string
           quoted_message_id?: string | null
@@ -3091,6 +3093,7 @@ export type Database = {
           conteudo?: string | null
           created_at?: string
           direcao?: string
+          encaminhada?: boolean
           erro_descricao?: string | null
           id?: string
           quoted_message_id?: string | null
