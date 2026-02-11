@@ -137,6 +137,9 @@ export function AgendaInternaModal({
   const [showNovoConvenio, setShowNovoConvenio] = useState(false);
   const [novoConvenioNome, setNovoConvenioNome] = useState("");
   
+  // Duração da consulta em minutos
+  const [duracaoMinutos, setDuracaoMinutos] = useState(30);
+  
   // Estado para retorno 30 dias
   const [isRetornoElegivel, setIsRetornoElegivel] = useState(false);
   const [diasDesdeUltimaConsulta, setDiasDesdeUltimaConsulta] = useState<number | null>(null);
@@ -566,14 +569,27 @@ export function AgendaInternaModal({
     ? selectedTime 
     : (slotDataHora ? format(parseISO(slotDataHora), "HH:mm", { locale: ptBR }) : "");
 
-  // Generate time options
+  // Generate time options based on selected duration
   const timeOptions = [];
   for (let h = 6; h < 22; h++) {
-    for (let m = 0; m < 60; m += 30) {
+    for (let m = 0; m < 60; m += 5) {
       const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
       timeOptions.push(time);
     }
   }
+
+  // Calculate hora final based on duration
+  const calcularHoraFinal = () => {
+    const baseTime = isManualBooking 
+      ? (() => { const [hh, mm] = selectedTime.split(':').map(Number); const d = new Date(selectedDate!); d.setHours(hh, mm, 0, 0); return d; })()
+      : (slotDataHora ? new Date(slotDataHora) : null);
+    if (!baseTime) return "";
+    return format(new Date(baseTime.getTime() + duracaoMinutos * 60000), "HH:mm");
+  };
+
+  const horaFinal = calcularHoraFinal();
+
+  const duracaoOptions = [5, 10, 15, 20, 30, 45, 60];
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
@@ -744,7 +760,7 @@ export function AgendaInternaModal({
                   </Popover>
                 </div>
 
-                <div className="col-span-1 sm:col-span-3">
+                <div className="col-span-1 sm:col-span-2">
                   <Label className="text-xs sm:text-sm mb-1.5 block">Hora</Label>
                   <Select value={selectedTime} onValueChange={setSelectedTime}>
                     <SelectTrigger className="h-9 text-sm">
@@ -760,7 +776,23 @@ export function AgendaInternaModal({
                   </Select>
                 </div>
 
-                <div className="col-span-1 sm:col-span-4">
+                <div className="col-span-1 sm:col-span-2">
+                  <Label className="text-xs sm:text-sm mb-1.5 block">Duração</Label>
+                  <Select value={String(duracaoMinutos)} onValueChange={(v) => setDuracaoMinutos(Number(v))}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {duracaoOptions.map((d) => (
+                        <SelectItem key={d} value={String(d)}>
+                          {d} min
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="col-span-1 sm:col-span-3">
                   <Label className="text-xs sm:text-sm mb-1.5 block">Agendado por</Label>
                   <Select
                     value={formData.usuarioClinicaId}
@@ -800,18 +832,34 @@ export function AgendaInternaModal({
                   </Select>
                 </div>
 
-                <div className="col-span-1 sm:col-span-3">
+                <div className="col-span-1 sm:col-span-2">
                   <Label className="text-xs sm:text-sm mb-1.5 block">Hora inicial</Label>
                   <div className="bg-primary text-primary-foreground rounded-md h-9 flex items-center justify-center text-xs sm:text-sm font-medium">
                     {horaInicial}
                   </div>
                 </div>
 
-                <div className="col-span-1 sm:col-span-4">
+                <div className="col-span-1 sm:col-span-2">
                   <Label className="text-xs sm:text-sm mb-1.5 block">Hora final</Label>
                   <div className="bg-primary text-primary-foreground rounded-md h-9 flex items-center justify-center text-xs sm:text-sm font-medium">
-                    {slotDataHora ? format(new Date(new Date(slotDataHora).getTime() + 30 * 60000), "HH:mm") : ""}
+                    {horaFinal}
                   </div>
+                </div>
+
+                <div className="col-span-1 sm:col-span-3">
+                  <Label className="text-xs sm:text-sm mb-1.5 block">Duração</Label>
+                  <Select value={String(duracaoMinutos)} onValueChange={(v) => setDuracaoMinutos(Number(v))}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {duracaoOptions.map((d) => (
+                        <SelectItem key={d} value={String(d)}>
+                          {d} min
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </>
             )}
