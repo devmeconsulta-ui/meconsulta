@@ -191,11 +191,20 @@ serve(async (req) => {
     if (!sendResponse.ok) {
       console.error("Evolution API send error:", sendData);
       
-      // Save error message in background
-      EdgeRuntime.waitUntil(
-        supabase.from("omni_mensagens").insert({
+      // Save error message in background - validate agente_id first
+      EdgeRuntime.waitUntil((async () => {
+        let validAgenteId = agente_id || null;
+        if (validAgenteId) {
+          const { data: agenteExists } = await supabase
+            .from("usuarios_clinica")
+            .select("id")
+            .eq("id", validAgenteId)
+            .maybeSingle();
+          if (!agenteExists) validAgenteId = null;
+        }
+        await supabase.from("omni_mensagens").insert({
           atendimento_id,
-          agente_id,
+          agente_id: validAgenteId,
           contato_id: contato.id,
           tipo,
           direcao: "saida",
@@ -205,8 +214,8 @@ serve(async (req) => {
           arquivo_tipo,
           status: "erro",
           erro_descricao: JSON.stringify(sendData),
-        })
-      );
+        });
+      })());
 
       return new Response(
         JSON.stringify({ error: "Erro ao enviar mensagem", details: sendData }),
@@ -219,12 +228,26 @@ serve(async (req) => {
     // BACKGROUND TASK: Save message, update atendimento, and pause AI if human is responding
     EdgeRuntime.waitUntil((async () => {
       try {
+        // Validate agente_id exists in usuarios_clinica before inserting
+        let validAgenteId = agente_id || null;
+        if (validAgenteId) {
+          const { data: agenteExists } = await supabase
+            .from("usuarios_clinica")
+            .select("id")
+            .eq("id", validAgenteId)
+            .maybeSingle();
+          if (!agenteExists) {
+            console.log(`[Background] agente_id ${validAgenteId} not found in usuarios_clinica, setting to null`);
+            validAgenteId = null;
+          }
+        }
+
         // Save message to DB
         const { error: msgError } = await supabase
           .from("omni_mensagens")
           .insert({
             atendimento_id,
-            agente_id,
+            agente_id: validAgenteId,
             contato_id: contato.id,
             tipo,
             direcao: "saida",
