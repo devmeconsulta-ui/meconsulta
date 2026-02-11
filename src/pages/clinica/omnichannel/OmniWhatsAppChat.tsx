@@ -373,6 +373,7 @@ export default function OmniWhatsAppChat() {
   const [editingMessage, setEditingMessage] = useState<OmniMensagem | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<OmniMensagem | null>(null);
   const [signatureEnabled, setSignatureEnabled] = useState(true);
+  const [editedMessages, setEditedMessages] = useState<Record<string, string>>({});
   const [iaConversaStatus, setIaConversaStatus] = useState<{ humano_assumiu: boolean; id: string } | null>(null);
   
   // Local state for atendimentos
@@ -429,19 +430,22 @@ export default function OmniWhatsAppChat() {
     }
   }, [mensagens]);
 
-  // Combine real messages with optimistic messages
+  // Combine real messages with optimistic messages, applying local edits
   const allMessages = useMemo(() => {
+    const editedMensagens = mensagens.map(m => 
+      editedMessages[m.id] ? { ...m, conteudo: editedMessages[m.id] } : m
+    );
     const realContents = new Set(
-      mensagens
+      editedMensagens
         .filter(m => m.direcao === "saida")
         .map(m => m.conteudo)
     );
     const pendingOptimistic = optimisticMessages.filter(m => !realContents.has(m.conteudo));
     
-    return [...mensagens, ...pendingOptimistic].sort((a, b) => 
+    return [...editedMensagens, ...pendingOptimistic].sort((a, b) => 
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
-  }, [mensagens, optimisticMessages]);
+  }, [mensagens, optimisticMessages, editedMessages]);
 
   // Combine messages and notes for display
   const combinedItems = useMemo(() => {
@@ -616,38 +620,62 @@ export default function OmniWhatsAppChat() {
     if (!trimmedMessage || !selectedAtendimento) return;
 
     const agenteId = getAgenteId();
+    const isEditing = !!editingMessage;
+    const editedMsgId = editingMessage?.id;
 
     // Clear input and editing state immediately
     setMessageInput("");
     setEditingMessage(null);
     handleTypingStop();
 
-    // Create optimistic message
-    const optimisticMsg: OmniMensagem = {
-      id: `temp-${Date.now()}`,
-      atendimento_id: selectedAtendimento.id,
-      contato_id: null,
-      agente_id: agenteId,
-      agente_nome: signatureEnabled ? currentUser?.nome || null : null,
-      tipo: "texto",
-      direcao: "saida",
-      conteudo: trimmedMessage,
-      arquivo_url: null,
-      arquivo_nome: null,
-      arquivo_tipo: null,
-      whatsapp_message_id: null,
-      status: "enviada",
-      erro_descricao: null,
-      created_at: new Date().toISOString(),
-    };
+    if (isEditing && editedMsgId) {
+      // Update existing message in-place (optimistic via local edits map)
+      setEditedMessages(prev => ({ ...prev, [editedMsgId]: trimmedMessage }));
+      // Also update in optimistic messages if present
+      setOptimisticMessages(prev => prev.map(m =>
+        m.id === editedMsgId ? { ...m, conteudo: trimmedMessage } : m
+      ));
+      inputRef.current?.focus();
 
-    // Show message immediately in UI
-    setOptimisticMessages(prev => [...prev, optimisticMsg]);
-    inputRef.current?.focus();
+      // Update in DB (fire and forget)
+      supabase
+        .from("omni_mensagens")
+        .update({ conteudo: trimmedMessage })
+        .eq("id", editedMsgId)
+        .then(({ error }) => {
+          if (error) {
+            console.error("Error updating message:", error);
+            toast.error("Erro ao editar mensagem");
+          }
+        });
+    } else {
+      // Create optimistic message
+      const optimisticMsg: OmniMensagem = {
+        id: `temp-${Date.now()}`,
+        atendimento_id: selectedAtendimento.id,
+        contato_id: null,
+        agente_id: agenteId,
+        agente_nome: signatureEnabled ? currentUser?.nome || null : null,
+        tipo: "texto",
+        direcao: "saida",
+        conteudo: trimmedMessage,
+        arquivo_url: null,
+        arquivo_nome: null,
+        arquivo_tipo: null,
+        whatsapp_message_id: null,
+        status: "enviada",
+        erro_descricao: null,
+        created_at: new Date().toISOString(),
+      };
 
-    // Fire and forget - send in background without waiting
-    enviarMensagem(agenteId, "texto", trimmedMessage);
-  }, [messageInput, selectedAtendimento, getAgenteId, currentUser?.nome, enviarMensagem, signatureEnabled, handleTypingStop]);
+      // Show message immediately in UI
+      setOptimisticMessages(prev => [...prev, optimisticMsg]);
+      inputRef.current?.focus();
+
+      // Fire and forget - send in background without waiting
+      enviarMensagem(agenteId, "texto", trimmedMessage);
+    }
+  }, [messageInput, selectedAtendimento, getAgenteId, currentUser?.nome, enviarMensagem, signatureEnabled, handleTypingStop, editingMessage]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
