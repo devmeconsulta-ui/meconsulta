@@ -553,27 +553,60 @@ Deno.serve(async (req) => {
         // Salvar mensagem - tanto entrada quanto saída
         const direcao = isFromMe ? "saida" : "entrada";
         
-        // Status válidos: "enviada" | "entregue" | "lida" | "erro"
-        // Para mensagens recebidas, usamos "entregue" pois já chegou ao servidor
-        const { error: msgError } = await supabase
-          .from("omni_mensagens")
-          .insert({
-            atendimento_id: atendimento.id,
-            contato_id: contato.id,
-            tipo,
-            direcao,
-            conteudo,
-            arquivo_url: arquivoUrl,
-            arquivo_nome: arquivoNome,
-            arquivo_tipo: arquivoTipo,
-            whatsapp_message_id: messageId,
-            status: "entregue",
-          });
-
-        if (msgError) {
-          console.error("Error saving message:", msgError);
+        // For outgoing messages, check if already saved by evolution-send-message edge function
+        if (isFromMe && messageId) {
+          const { data: existingMsg } = await supabase
+            .from("omni_mensagens")
+            .select("id")
+            .eq("whatsapp_message_id", messageId)
+            .maybeSingle();
+          
+          if (existingMsg) {
+            console.log(`Outgoing message ${messageId} already saved by edge function, skipping insert`);
+          } else {
+            // Edge function failed to save, save from webhook (without arquivo_url for outgoing)
+            const { error: msgError } = await supabase
+              .from("omni_mensagens")
+              .insert({
+                atendimento_id: atendimento.id,
+                contato_id: contato.id,
+                tipo,
+                direcao,
+                conteudo,
+                arquivo_url: arquivoUrl,
+                arquivo_nome: arquivoNome,
+                arquivo_tipo: arquivoTipo,
+                whatsapp_message_id: messageId,
+                status: "entregue",
+              });
+            if (msgError) {
+              console.error("Error saving outgoing message:", msgError);
+            } else {
+              console.log(`Outgoing message saved from webhook for atendimento ${atendimento.id}`);
+            }
+          }
         } else {
-          console.log(`Message saved for atendimento ${atendimento.id}, direction: ${direcao}, content: ${conteudo?.substring(0, 50)}`);
+          // Incoming message - always save
+          const { error: msgError } = await supabase
+            .from("omni_mensagens")
+            .insert({
+              atendimento_id: atendimento.id,
+              contato_id: contato.id,
+              tipo,
+              direcao,
+              conteudo,
+              arquivo_url: arquivoUrl,
+              arquivo_nome: arquivoNome,
+              arquivo_tipo: arquivoTipo,
+              whatsapp_message_id: messageId,
+              status: "entregue",
+            });
+
+          if (msgError) {
+            console.error("Error saving message:", msgError);
+          } else {
+            console.log(`Message saved for atendimento ${atendimento.id}, direction: ${direcao}, content: ${conteudo?.substring(0, 50)}`);
+          }
         }
 
         // Se é mensagem de entrada (do cliente) e é texto, verificar se há IA configurada
