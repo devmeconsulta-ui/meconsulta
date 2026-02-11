@@ -77,14 +77,13 @@ export function ClinicaLayout() {
             console.log("[ClinicaLayout] ✅ Found usuarioClinica:", usuarioClinica.id, usuarioClinica.nome);
             setUsuarioClinicaId(usuarioClinica.id);
           } else {
-            // For clinic owners without usuarios_clinica entry, use their main user ID
-            console.log("[ClinicaLayout] ⚠️ No usuarioClinica found, using currentUser.id:", currentUser.id);
-            setUsuarioClinicaId(currentUser.id);
+            // Clinic owner has no usuarios_clinica entry — set null to avoid FK violations
+            console.log("[ClinicaLayout] ⚠️ No usuarioClinica found for clinic owner, setting null");
+            setUsuarioClinicaId(null);
           }
         } else {
-          // Fallback to currentUser.id if no email
-          console.log("[ClinicaLayout] No email, using currentUser.id:", currentUser.id);
-          setUsuarioClinicaId(currentUser.id);
+          console.log("[ClinicaLayout] No email, setting usuarioClinicaId to null");
+          setUsuarioClinicaId(null);
         }
       }
       
