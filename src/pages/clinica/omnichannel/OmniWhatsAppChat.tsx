@@ -237,10 +237,17 @@ function MessageBubble({
         )}
         
         {mensagem.tipo === "audio" && mensagem.arquivo_url && (
-          <AudioPlayerWithFallback 
-            url={mensagem.arquivo_url} 
-            isOutgoing={isOutgoing}
-          />
+          <div className="relative">
+            <AudioPlayerWithFallback 
+              url={mensagem.arquivo_url} 
+              isOutgoing={isOutgoing}
+            />
+            {/* Status overlay on audio play button */}
+            <div className="flex items-center justify-end gap-1 mt-0.5">
+              <span className="text-[10px] text-muted-foreground">{formattedTime}</span>
+              {renderStatus()}
+            </div>
+          </div>
         )}
         {mensagem.tipo === "imagem" && mensagem.arquivo_url && (
           <img src={mensagem.arquivo_url} alt="Imagem" className="rounded max-w-full" />
@@ -253,13 +260,15 @@ function MessageBubble({
             {mensagem.arquivo_nome || "Documento"}
           </a>
         )}
-        {(mensagem.tipo === "texto" || mensagem.conteudo) && (
+        {(mensagem.tipo === "texto" || mensagem.conteudo) && mensagem.tipo !== "audio" && (
           <p className="text-sm whitespace-pre-wrap">{mensagem.conteudo}</p>
         )}
-        <div className="flex items-center justify-end gap-1 mt-1">
-          <span className="text-[10px] text-muted-foreground">{formattedTime}</span>
-          {renderStatus()}
-        </div>
+        {mensagem.tipo !== "audio" && (
+          <div className="flex items-center justify-end gap-1 mt-1">
+            <span className="text-[10px] text-muted-foreground">{formattedTime}</span>
+            {renderStatus()}
+          </div>
+        )}
       </div>
     </div>
   );
