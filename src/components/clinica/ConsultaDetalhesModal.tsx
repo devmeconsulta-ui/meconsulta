@@ -164,14 +164,26 @@ export function ConsultaDetalhesModal({
                 </p>
                 {consulta.paciente?.cpf && (
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Lock className="h-3 w-3" />
-                    CPF: {maskCPF(consulta.paciente.cpf)}
+                    {consulta.origem === "online" ? (
+                      <>
+                        <Lock className="h-3 w-3" />
+                        CPF: {maskCPF(consulta.paciente.cpf)}
+                      </>
+                    ) : (
+                      <>CPF: {consulta.paciente.cpf}</>
+                    )}
                   </p>
                 )}
                 {consulta.paciente?.telefone && (
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Lock className="h-3 w-3" />
-                    Tel: {maskPhone(consulta.paciente.telefone)}
+                    {consulta.origem === "online" ? (
+                      <>
+                        <Lock className="h-3 w-3" />
+                        Tel: {maskPhone(consulta.paciente.telefone)}
+                      </>
+                    ) : (
+                      <>Tel: {consulta.paciente.telefone}</>
+                    )}
                   </p>
                 )}
               </div>
