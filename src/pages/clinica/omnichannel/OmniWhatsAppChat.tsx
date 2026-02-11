@@ -262,7 +262,7 @@ function MessageBubble({
         )}
         {(mensagem.tipo === "texto" || mensagem.conteudo) && mensagem.tipo !== "audio" && (
           <div>
-            {(mensagem as any).encaminhada && (
+            {mensagem.encaminhada && (
               <div className="flex items-center gap-1 mb-1">
                 <Forward className="h-3 w-3 text-muted-foreground" />
                 <span className="text-xs italic text-muted-foreground">Encaminhada</span>

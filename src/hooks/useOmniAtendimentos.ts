@@ -61,6 +61,7 @@ export interface OmniMensagem {
   status: "enviada" | "entregue" | "lida" | "erro";
   erro_descricao: string | null;
   created_at: string;
+  encaminhada?: boolean;
 }
 
 interface UseOmniAtendimentosOptions {
