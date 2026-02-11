@@ -123,12 +123,15 @@ Deno.serve(async (req: Request) => {
         // Gerar token único
         const token = crypto.randomUUID();
 
-        // Formatar data/hora
+        // Formatar data/hora com timezone do Brasil
         const dataHora = new Date(consulta.data_hora);
-        const dataFormatada = dataHora.toLocaleDateString("pt-BR");
+        const dataFormatada = dataHora.toLocaleDateString("pt-BR", {
+          timeZone: "America/Sao_Paulo",
+        });
         const horaFormatada = dataHora.toLocaleTimeString("pt-BR", {
           hour: "2-digit",
           minute: "2-digit",
+          timeZone: "America/Sao_Paulo",
         });
 
         // Montar endereço

@@ -148,10 +148,13 @@ Deno.serve(async (req: Request) => {
 
     // Se for apenas GET, retornar dados da consulta
     if (!action || action === "get") {
-      const dataFormatada = dataConsulta.toLocaleDateString("pt-BR");
+      const dataFormatada = dataConsulta.toLocaleDateString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+      });
       const horaFormatada = dataConsulta.toLocaleTimeString("pt-BR", {
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: "America/Sao_Paulo",
       });
 
       const local = consulta.local;
@@ -206,7 +209,7 @@ Deno.serve(async (req: Request) => {
         await supabase.from("clinica_notificacoes").insert({
           clinica_id: confirmacao.clinica_id,
           titulo: "Consulta confirmada pelo paciente",
-          mensagem: `${consulta.paciente?.nome} confirmou a consulta do dia ${dataConsulta.toLocaleDateString("pt-BR")} às ${dataConsulta.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
+          mensagem: `${consulta.paciente?.nome} confirmou a consulta do dia ${dataConsulta.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} às ${dataConsulta.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })}`,
           tipo: "sucesso",
           categoria: "consultas",
           referencia_id: consulta.id,
@@ -246,7 +249,7 @@ Deno.serve(async (req: Request) => {
         await supabase.from("clinica_notificacoes").insert({
           clinica_id: confirmacao.clinica_id,
           titulo: "Consulta recusada pelo paciente",
-          mensagem: `${consulta.paciente?.nome} não poderá comparecer à consulta do dia ${dataConsulta.toLocaleDateString("pt-BR")} às ${dataConsulta.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
+          mensagem: `${consulta.paciente?.nome} não poderá comparecer à consulta do dia ${dataConsulta.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} às ${dataConsulta.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })}`,
           tipo: "alerta",
           categoria: "consultas",
           referencia_id: consulta.id,
