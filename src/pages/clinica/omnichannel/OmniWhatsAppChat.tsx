@@ -63,6 +63,7 @@ import { AudioRecorder } from "@/components/clinica/omnichannel/AudioRecorder";
 import { AudioPlayerWithFallback } from "@/components/clinica/omnichannel/AudioPlayerWithFallback";
 import { NovoAtendimentoModal } from "@/components/clinica/omnichannel/NovoAtendimentoModal";
 import { EditarContatoOmniModal } from "@/components/clinica/omnichannel/EditarContatoOmniModal";
+import { EncaminharMensagemModal } from "@/components/clinica/omnichannel/EncaminharMensagemModal";
 import { useTypingIndicator, useAITypingIndicator } from "@/hooks/useTypingIndicator";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 
@@ -370,6 +371,7 @@ export default function OmniWhatsAppChat() {
   const [activeTab, setActiveTab] = useState<"all" | "waiting" | "mine">("all");
   const [waitTimeDisplay, setWaitTimeDisplay] = useState("00:00:00");
   const [editingMessage, setEditingMessage] = useState<OmniMensagem | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<OmniMensagem | null>(null);
   const [signatureEnabled, setSignatureEnabled] = useState(true);
   const [iaConversaStatus, setIaConversaStatus] = useState<{ humano_assumiu: boolean; id: string } | null>(null);
   
@@ -597,12 +599,9 @@ export default function OmniWhatsAppChat() {
     }
   }, []);
 
-  // Handle forward message - copy content to input with forward prefix
+  // Handle forward message - open modal to select contact
   const handleForwardMessage = useCallback((msg: OmniMensagem) => {
-    const content = msg.conteudo || msg.arquivo_url || "";
-    setMessageInput(content);
-    inputRef.current?.focus();
-    toast.info("Mensagem copiada para o campo de envio");
+    setForwardingMessage(msg);
   }, []);
 
   // Cancel editing
@@ -1412,6 +1411,17 @@ export default function OmniWhatsAppChat() {
           } : null);
           fetchAtendimentos();
         }}
+      />
+
+      {/* Forward Message Modal */}
+      <EncaminharMensagemModal
+        open={!!forwardingMessage}
+        onClose={() => setForwardingMessage(null)}
+        mensagem={forwardingMessage}
+        clinicaId={clinicaId}
+        agenteId={getAgenteId()}
+        agenteName={signatureEnabled ? currentUser?.nome || null : null}
+        currentAtendimentoId={selectedAtendimento?.id || null}
       />
     </div>
   );
