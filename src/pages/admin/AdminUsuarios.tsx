@@ -290,9 +290,11 @@ export default function AdminUsuarios() {
   // Extract exclusion sets from clinicasData
   const medicoUsuarioIdsInClinics = new Set<string>();
   const pacienteUsuarioIdsInClinics = new Set<string>();
+  const clinicaOwnerIds = new Set<string>();
 
   if (clinicasData) {
     clinicasData.clinicasList.forEach(c => {
+      if (c.usuario_id) clinicaOwnerIds.add(c.usuario_id);
       c.medicos.forEach((m: any) => {
         if (m.usuario_id) medicoUsuarioIdsInClinics.add(m.usuario_id);
       });
@@ -302,8 +304,8 @@ export default function AdminUsuarios() {
     });
   }
 
-  // Filter helpers
-  const admins = (usuarios || []).filter(u => u.tipo === "admin" || u.papel === "superadmin" || u.papel === "admin");
+  // Filter helpers - exclude clinic owners from admins since they appear in their clinic sections
+  const admins = (usuarios || []).filter(u => (u.tipo === "admin" || u.papel === "superadmin" || u.papel === "admin") && !clinicaOwnerIds.has(u.id));
   const medicos = (usuarios || []).filter(u => u.tipo === "medico" && !medicoUsuarioIdsInClinics.has(u.id));
   const pacientes = (usuarios || []).filter(u => u.tipo === "paciente" && !pacienteUsuarioIdsInClinics.has(u.id));
   const clinicaOwners = (usuarios || []).filter(u => u.tipo === "clinica");
