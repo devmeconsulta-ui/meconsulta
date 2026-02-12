@@ -74,6 +74,13 @@ interface ClinicaComUsuarios {
     papel: string;
     ativo: boolean;
   }>;
+  medicos: Array<{
+    id: string;
+    nome: string;
+    especialidade: string | null;
+    crm: string | null;
+    ativo: boolean;
+  }>;
   pacientes: Array<{
     id: string;
     nome: string;
@@ -126,25 +133,27 @@ export default function AdminUsuarios() {
         .order("nome_fantasia");
       if (clinicasError) throw clinicasError;
 
-      const { data: staffData, error: staffError } = await supabase
-        .from("usuarios_clinica")
-        .select("id, nome, email, papel, ativo, clinica_id");
-      if (staffError) throw staffError;
+      const [staffResult, medicosResult, consultasResult] = await Promise.all([
+        supabase.from("usuarios_clinica").select("id, nome, email, papel, ativo, clinica_id"),
+        supabase.from("clinicas_medicos").select("clinica_id, medico:medicos!clinicas_medicos_medico_id_fkey(id, nome, especialidade, crm, ativo)").eq("ativo", true),
+        supabase.from("consultas").select("clinica_id, paciente_id, pacientes(id, nome, email, cpf, telefone)").not("clinica_id", "is", null).not("paciente_id", "is", null),
+      ]);
 
-      // Fetch patients linked to clinics via consultas
-      const { data: consultasData, error: consultasError } = await supabase
-        .from("consultas")
-        .select("clinica_id, paciente_id, pacientes(id, nome, email, cpf, telefone)")
-        .not("clinica_id", "is", null)
-        .not("paciente_id", "is", null);
-      if (consultasError) throw consultasError;
+      if (staffResult.error) throw staffResult.error;
+      if (medicosResult.error) throw medicosResult.error;
+      if (consultasResult.error) throw consultasResult.error;
 
       const result: ClinicaComUsuarios[] = (clinicas || []).map((c) => {
-        const staff = (staffData || []).filter((s: any) => s.clinica_id === c.id);
+        const staff = (staffResult.data || []).filter((s: any) => s.clinica_id === c.id);
         
+        // Médicos vinculados a esta clínica
+        const clinicaMedicos = (medicosResult.data || [])
+          .filter((cm: any) => cm.clinica_id === c.id && cm.medico)
+          .map((cm: any) => cm.medico);
+
         // Deduplicate patients per clinic
         const pacientesMap = new Map<string, any>();
-        (consultasData || []).forEach((con: any) => {
+        (consultasResult.data || []).forEach((con: any) => {
           if (con.clinica_id === c.id && con.pacientes) {
             pacientesMap.set(con.pacientes.id, con.pacientes);
           }
@@ -153,6 +162,7 @@ export default function AdminUsuarios() {
         return {
           ...c,
           usuarios: staff,
+          medicos: clinicaMedicos,
           pacientes: Array.from(pacientesMap.values()),
         };
       });
@@ -235,10 +245,10 @@ export default function AdminUsuarios() {
     return false;
   };
 
-  // Filter helpers
-  const admins = (usuarios || []).filter(u => u.tipo === "admin" && (u.papel === "admin" || u.papel === "superadmin"));
+  // Filter helpers - only actual admins/superadmins, not atendentes
+  const admins = (usuarios || []).filter(u => u.tipo === "admin" || u.papel === "superadmin" || u.papel === "admin");
   const medicos = (usuarios || []).filter(u => u.tipo === "medico");
-  const pacientes = (usuarios || []).filter(u => u.tipo === "paciente");
+  const pacientes = (usuarios || []).filter(u => u.tipo === "paciente" && u.papel !== "atendente" && u.papel !== "supervisor");
   const clinicaOwners = (usuarios || []).filter(u => u.tipo === "clinica");
 
   const filterBySearch = (list: Usuario[]) => {
@@ -508,7 +518,7 @@ export default function AdminUsuarios() {
                             <div>
                               <p className="font-semibold">{clinica.nome_fantasia}</p>
                               <p className="text-xs text-muted-foreground font-normal">
-                                {clinica.cnpj || "Sem CNPJ"} • {clinica.usuarios.length} funcionário(s) • {clinica.pacientes.length} paciente(s)
+                                {clinica.cnpj || "Sem CNPJ"} • {clinica.usuarios.length} funcionário(s) • {clinica.medicos.length} médico(s) • {clinica.pacientes.length} paciente(s)
                               </p>
                             </div>
                           </div>
@@ -523,7 +533,7 @@ export default function AdminUsuarios() {
                       </CardHeader>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
-                      <CardContent className="space-y-4 pt-0">
+                       <CardContent className="space-y-6 pt-0">
                         {/* Staff */}
                         <div>
                           <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
@@ -564,6 +574,50 @@ export default function AdminUsuarios() {
                             <p className="text-sm text-muted-foreground pl-6">Nenhum funcionário cadastrado</p>
                           )}
                         </div>
+
+                        {/* Médicos */}
+                        {(() => {
+                          const filteredMedicos = clinica.medicos.filter(m =>
+                            !search || m.nome.toLowerCase().includes(searchLower) || (m.especialidade || "").toLowerCase().includes(searchLower)
+                          );
+                          return (
+                            <div>
+                              <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                                <Stethoscope className="h-4 w-4" /> Médicos ({filteredMedicos.length})
+                              </h4>
+                              {filteredMedicos.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Nome</TableHead>
+                                        <TableHead>Especialidade</TableHead>
+                                        <TableHead>CRM</TableHead>
+                                        <TableHead>Status</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {filteredMedicos.map((med) => (
+                                        <TableRow key={med.id}>
+                                          <TableCell className="font-medium">{med.nome}</TableCell>
+                                          <TableCell>{med.especialidade || "—"}</TableCell>
+                                          <TableCell>{med.crm || "—"}</TableCell>
+                                          <TableCell>
+                                            <Badge className={med.ativo ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                                              {med.ativo ? "Ativo" : "Inativo"}
+                                            </Badge>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground pl-6">Nenhum médico vinculado</p>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Patients */}
                         <div>
