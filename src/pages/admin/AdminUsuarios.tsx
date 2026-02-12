@@ -133,25 +133,35 @@ export default function AdminUsuarios() {
         .order("nome_fantasia");
       if (clinicasError) throw clinicasError;
 
-      const [staffResult, medicosResult, consultasResult] = await Promise.all([
+      const [staffResult, medicosResult, consultasResult, allMedicosResult] = await Promise.all([
         supabase.from("usuarios_clinica").select("id, nome, email, papel, ativo, clinica_id"),
-        supabase.from("clinicas_medicos").select("clinica_id, medico:medicos!clinicas_medicos_medico_id_fkey(id, nome, especialidade, crm, ativo)").eq("ativo", true),
-        supabase.from("consultas").select("clinica_id, paciente_id, pacientes(id, nome, email, cpf, telefone)").not("clinica_id", "is", null).not("paciente_id", "is", null),
+        supabase.from("clinicas_medicos").select("clinica_id, medico:medicos!clinicas_medicos_medico_id_fkey(id, nome, especialidade, crm, ativo, usuario_id)").eq("ativo", true),
+        supabase.from("consultas").select("clinica_id, paciente_id, pacientes(id, nome, email, cpf, telefone, usuario_id)").not("clinica_id", "is", null).not("paciente_id", "is", null),
+        supabase.from("medicos").select("id, usuario_id"),
       ]);
 
       if (staffResult.error) throw staffResult.error;
       if (medicosResult.error) throw medicosResult.error;
-      if (consultasResult.error) throw consultasResult.error;
+      if (allMedicosResult.error) throw allMedicosResult.error;
 
-      const result: ClinicaComUsuarios[] = (clinicas || []).map((c) => {
+      // Build sets of usuario_ids linked to clinics
+      const medicoIdsInClinics = new Set<string>();
+      (medicosResult.data || []).forEach((cm: any) => {
+        if (cm.medico?.usuario_id) medicoIdsInClinics.add(cm.medico.usuario_id);
+      });
+
+      const pacienteIdsInClinics = new Set<string>();
+      (consultasResult.data || []).forEach((con: any) => {
+        if (con.pacientes?.usuario_id) pacienteIdsInClinics.add(con.pacientes.usuario_id);
+      });
+
+      const clinicasList: ClinicaComUsuarios[] = (clinicas || []).map((c) => {
         const staff = (staffResult.data || []).filter((s: any) => s.clinica_id === c.id);
         
-        // Médicos vinculados a esta clínica
         const clinicaMedicos = (medicosResult.data || [])
           .filter((cm: any) => cm.clinica_id === c.id && cm.medico)
           .map((cm: any) => cm.medico);
 
-        // Deduplicate patients per clinic
         const pacientesMap = new Map<string, any>();
         (consultasResult.data || []).forEach((con: any) => {
           if (con.clinica_id === c.id && con.pacientes) {
@@ -167,7 +177,7 @@ export default function AdminUsuarios() {
         };
       });
 
-      return result;
+      return { clinicasList, medicoIdsInClinics, pacienteIdsInClinics };
     },
   });
 
@@ -245,10 +255,25 @@ export default function AdminUsuarios() {
     return false;
   };
 
-  // Filter helpers - only actual admins/superadmins, not atendentes
+  // Extract exclusion sets from clinicasData
+  const medicoUsuarioIdsInClinics = new Set<string>();
+  const pacienteUsuarioIdsInClinics = new Set<string>();
+
+  if (clinicasData) {
+    clinicasData.clinicasList.forEach(c => {
+      c.medicos.forEach((m: any) => {
+        if (m.usuario_id) medicoUsuarioIdsInClinics.add(m.usuario_id);
+      });
+      c.pacientes.forEach((p: any) => {
+        if (p.usuario_id) pacienteUsuarioIdsInClinics.add(p.usuario_id);
+      });
+    });
+  }
+
+  // Filter helpers
   const admins = (usuarios || []).filter(u => u.tipo === "admin" || u.papel === "superadmin" || u.papel === "admin");
-  const medicos = (usuarios || []).filter(u => u.tipo === "medico");
-  const pacientes = (usuarios || []).filter(u => u.tipo === "paciente" && u.papel !== "atendente" && u.papel !== "supervisor");
+  const medicos = (usuarios || []).filter(u => u.tipo === "medico" && !medicoUsuarioIdsInClinics.has(u.id));
+  const pacientes = (usuarios || []).filter(u => u.tipo === "paciente" && !pacienteUsuarioIdsInClinics.has(u.id));
   const clinicaOwners = (usuarios || []).filter(u => u.tipo === "clinica");
 
   const filterBySearch = (list: Usuario[]) => {
@@ -422,7 +447,7 @@ export default function AdminUsuarios() {
           <TabsTrigger value="clinicas" className="gap-2">
             <Building2 className="h-4 w-4" />
             <span className="hidden sm:inline">Clínicas</span>
-            <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] text-xs">{clinicasData?.length || 0}</Badge>
+            <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] text-xs">{clinicasData?.clinicasList?.length || 0}</Badge>
           </TabsTrigger>
         </TabsList>
 
@@ -480,7 +505,7 @@ export default function AdminUsuarios() {
             {/* Each clinic with staff, doctors and patients */}
             {clinicasLoading ? (
               <div className="space-y-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
-            ) : (clinicasData || []).map((clinica) => {
+            ) : (clinicasData?.clinicasList || []).map((clinica) => {
               const isExpanded = expandedClinicas[clinica.id];
               const searchLower = search.toLowerCase();
               const filteredStaff = clinica.usuarios.filter(u => 
