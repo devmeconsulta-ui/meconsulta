@@ -69,6 +69,7 @@ import { AudioPlayerWithFallback } from "@/components/clinica/omnichannel/AudioP
 import { NovoAtendimentoModal } from "@/components/clinica/omnichannel/NovoAtendimentoModal";
 import { EditarContatoOmniModal } from "@/components/clinica/omnichannel/EditarContatoOmniModal";
 import { EncaminharMensagemModal } from "@/components/clinica/omnichannel/EncaminharMensagemModal";
+import { RespostasRapidasModal } from "@/components/clinica/omnichannel/RespostasRapidasModal";
 import { useTypingIndicator, useAITypingIndicator } from "@/hooks/useTypingIndicator";
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 
@@ -395,6 +396,7 @@ export default function OmniWhatsAppChat() {
   const [editingMessage, setEditingMessage] = useState<OmniMensagem | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<OmniMensagem | null>(null);
   const [signatureEnabled, setSignatureEnabled] = useState(true);
+  const [respostasRapidasOpen, setRespostasRapidasOpen] = useState(false);
   const [editedMessages, setEditedMessages] = useState<Record<string, string>>({});
   const [iaConversaStatus, setIaConversaStatus] = useState<{ humano_assumiu: boolean; id: string } | null>(null);
   
@@ -1469,42 +1471,17 @@ export default function OmniWhatsAppChat() {
               </Tooltip>
 
               {/* Quick Replies */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" title="Respostas rápidas">
-                    <MessageSquareText className="h-5 w-5" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-72 p-2" side="top" align="start" sideOffset={8}>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">Respostas rápidas</p>
-                  <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
-                    {[
-                      { label: "Saudação", texto: "Olá! Tudo bem? Como posso ajudar? 😊" },
-                      { label: "Aguarde", texto: "Um momento, por favor. Estou verificando suas informações." },
-                      { label: "Confirmar consulta", texto: "Gostaria de confirmar sua consulta. Podemos prosseguir?" },
-                      { label: "Enviar localização", texto: "Segue o endereço da clínica para sua consulta." },
-                      { label: "Despedida", texto: "Agradeço o contato! Qualquer dúvida, estamos à disposição. 😊" },
-                      { label: "Remarcar", texto: "Sem problemas! Vamos remarcar sua consulta. Qual o melhor horário para você?" },
-                      { label: "Documentos", texto: "Para a consulta, por favor traga: documento com foto, cartão do convênio e exames anteriores." },
-                    ].map((resp) => (
-                      <Button
-                        key={resp.label}
-                        variant="ghost"
-                        className="justify-start text-left h-auto py-2 px-2 text-sm hover:bg-muted"
-                        onClick={() => {
-                          setMessageInput(resp.texto);
-                          inputRef.current?.focus();
-                        }}
-                      >
-                        <div>
-                          <span className="font-medium text-xs text-primary">{resp.label}</span>
-                          <p className="text-xs text-muted-foreground truncate max-w-[220px]">{resp.texto}</p>
-                        </div>
-                      </Button>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" title="Respostas rápidas" onClick={() => setRespostasRapidasOpen(true)}>
+                <MessageSquareText className="h-5 w-5" />
+              </Button>
+              <RespostasRapidasModal
+                open={respostasRapidasOpen}
+                onClose={() => setRespostasRapidasOpen(false)}
+                onSelect={(texto) => {
+                  setMessageInput(texto);
+                  inputRef.current?.focus();
+                }}
+              />
 
               <Tooltip>
                 <TooltipTrigger asChild>
