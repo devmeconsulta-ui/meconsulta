@@ -261,6 +261,26 @@ export function EncaixeModal({
 
       if (consultaError) throw consultaError;
 
+      // Enviar notificação WhatsApp automática (fire & forget)
+      const telefoneNotif = form.pacienteTelefone || "";
+      if (telefoneNotif && clinicaId) {
+        const localSel = locais.find(l => l.id === form.localId);
+        supabase.functions.invoke("notify-appointment-booked", {
+          body: {
+            clinica_id: clinicaId,
+            paciente_nome: form.pacienteNome,
+            paciente_telefone: telefoneNotif,
+            data_hora: dataHora.toISOString(),
+            medico_nome: medico.nome || "",
+            local_nome: localSel?.nome_local || "",
+          },
+        }).then(res => {
+          if (res.data?.success) {
+            toast.info("Aviso enviado ao paciente via WhatsApp");
+          }
+        }).catch(() => { /* silencioso */ });
+      }
+
       toast.success("Encaixe criado com sucesso!");
       onSuccess();
       onOpenChange(false);
