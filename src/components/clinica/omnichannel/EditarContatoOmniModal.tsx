@@ -49,7 +49,7 @@ export function EditarContatoOmniModal({
   });
 
   useEffect(() => {
-    if (contato) {
+    if (open && contato) {
       setFormData({
         nome: contato.nome || "",
         telefone: contato.telefone || "",
@@ -60,7 +60,7 @@ export function EditarContatoOmniModal({
         observacoes: contato.observacoes || "",
       });
     }
-  }, [contato]);
+  }, [open]);
 
   const handleSave = async () => {
     if (!contato) return;
