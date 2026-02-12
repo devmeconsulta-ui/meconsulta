@@ -43,6 +43,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -455,6 +465,7 @@ export default function OmniWhatsAppChat() {
   const [editarContatoModalOpen, setEditarContatoModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "waiting" | "mine">("all");
   const [filterEtiqueta, setFilterEtiqueta] = useState<string | null>(null);
+  const [encerrarTodosOpen, setEncerrarTodosOpen] = useState(false);
   const [waitTimeDisplay, setWaitTimeDisplay] = useState("00:00:00");
   const [editingMessage, setEditingMessage] = useState<OmniMensagem | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<OmniMensagem | null>(null);
@@ -1184,25 +1195,16 @@ export default function OmniWhatsAppChat() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive"
-                  onClick={async () => {
-                    if (!filteredAtendimentos.length) return;
-                    const confirm = window.confirm(`Encerrar todos os ${filteredAtendimentos.length} atendimentos visíveis?`);
-                    if (!confirm) return;
-                    try {
-                      const ids = filteredAtendimentos.map(a => a.id);
-                      await supabase
-                        .from("omni_atendimentos")
-                        .update({ status: "encerrado", data_encerramento: new Date().toISOString() })
-                        .in("id", ids);
-                      toast.success(`${ids.length} atendimentos encerrados`);
-                      setSelectedAtendimento(null);
-                    } catch {
-                      toast.error("Erro ao encerrar atendimentos");
+                  className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => {
+                    if (!filteredAtendimentos.length) {
+                      toast.info("Nenhum atendimento para encerrar");
+                      return;
                     }
+                    setEncerrarTodosOpen(true);
                   }}
                 >
-                  <XCircle className="h-4 w-4" />
+                  <XCircle className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Encerrar todos</TooltipContent>
@@ -1813,6 +1815,43 @@ export default function OmniWhatsAppChat() {
         agenteName={signatureEnabled ? currentUser?.nome || null : null}
         currentAtendimentoId={selectedAtendimento?.id || null}
       />
+
+      {/* Encerrar Todos AlertDialog */}
+      <AlertDialog open={encerrarTodosOpen} onOpenChange={setEncerrarTodosOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-destructive" />
+              Encerrar todos os atendimentos
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está prestes a encerrar <strong className="text-foreground">{filteredAtendimentos.length}</strong> atendimento(s) visíveis.
+              Essa ação não pode ser desfeita. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                try {
+                  const ids = filteredAtendimentos.map(a => a.id);
+                  await supabase
+                    .from("omni_atendimentos")
+                    .update({ status: "encerrado", data_encerramento: new Date().toISOString() })
+                    .in("id", ids);
+                  toast.success(`${ids.length} atendimento(s) encerrados`);
+                  setSelectedAtendimento(null);
+                } catch {
+                  toast.error("Erro ao encerrar atendimentos");
+                }
+              }}
+            >
+              Encerrar todos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
