@@ -634,8 +634,8 @@ export default function OmniWhatsAppChat() {
             const updated = payload.new as any;
             // Optimistic local update - avoid full refetch
             setAtendimentos(prev => {
-              // If status changed to finalizado/abandonado, remove from list
-              if (updated.status === "finalizado" || updated.status === "abandonado") {
+              // If status changed to finalizado/abandonado/encerrado, remove from list
+              if (["finalizado", "abandonado", "encerrado"].includes(updated.status)) {
                 return prev.filter(a => a.id !== updated.id);
               }
               // Otherwise update in-place keeping joined data
