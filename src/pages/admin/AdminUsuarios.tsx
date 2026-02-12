@@ -100,7 +100,8 @@ export default function AdminUsuarios() {
   const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null);
   const [editUsuario, setEditUsuario] = useState<Partial<Usuario>>({});
   const [expandedClinicas, setExpandedClinicas] = useState<Record<string, boolean>>({});
-  const [pacientesVisiveis, setPacientesVisiveis] = useState<Record<string, number>>({});
+  const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
+  const [adminsVisible, setAdminsVisible] = useState(5);
   const [newUser, setNewUser] = useState({
     nome: "", email: "", senha: "", tipo: "admin", papel: "atendente" as Papel,
   });
@@ -316,70 +317,85 @@ export default function AdminUsuarios() {
     setExpandedClinicas(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const renderUserTable = (list: Usuario[], showTipo = false) => (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nome</TableHead>
-            <TableHead>E-mail</TableHead>
-            {showTipo && <TableHead>Tipo</TableHead>}
-            <TableHead>Papel</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Criado em</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {list.map((usuario) => (
-            <TableRow key={usuario.id}>
-              <TableCell className="font-medium">{usuario.nome}</TableCell>
-              <TableCell>{usuario.email}</TableCell>
-              {showTipo && (
-                <TableCell className="capitalize">{tipoLabels[usuario.tipo] || usuario.tipo}</TableCell>
-              )}
-              <TableCell>
-                <Badge variant="secondary" className={papelColors[usuario.papel] || ""}>
-                  {papelLabels[usuario.papel] || usuario.papel}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <Badge variant={usuario.ativo ? "default" : "secondary"}
-                  className={usuario.ativo ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                  {usuario.ativo ? "Ativo" : "Inativo"}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                {format(new Date(usuario.created_at), "dd/MM/yyyy", { locale: ptBR })}
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-1">
-                  <Button variant="ghost" size="icon" title="Visualizar" onClick={() => openViewDialog(usuario)}>
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  {canEditUser(usuario) && (
-                    <Button variant="ghost" size="icon" title="Editar" onClick={() => openEditDialog(usuario)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
+  const renderUserTable = (list: Usuario[], showTipo = false, paginationKey?: string, visibleCount?: number, setVisible?: (n: number) => void) => {
+    const limit = visibleCount ?? list.length;
+    const visibleList = list.slice(0, limit);
+    const hasMore = list.length > limit;
+
+    return (
+      <div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead>E-mail</TableHead>
+                {showTipo && <TableHead>Tipo</TableHead>}
+                <TableHead>Papel</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Criado em</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleList.map((usuario) => (
+                <TableRow key={usuario.id}>
+                  <TableCell className="font-medium">{usuario.nome}</TableCell>
+                  <TableCell>{usuario.email}</TableCell>
+                  {showTipo && (
+                    <TableCell className="capitalize">{tipoLabels[usuario.tipo] || usuario.tipo}</TableCell>
                   )}
-                  {canDelete && canEditUser(usuario) && (
-                    <Button variant="ghost" size="icon" title="Excluir"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => { if (confirm("Excluir este usuário?")) deleteUsuario.mutate(usuario.id); }}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {list.length === 0 && (
-        <p className="text-muted-foreground text-center py-8">Nenhum usuário encontrado.</p>
-      )}
-    </div>
-  );
+                  <TableCell>
+                    <Badge variant="secondary" className={papelColors[usuario.papel] || ""}>
+                      {papelLabels[usuario.papel] || usuario.papel}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={usuario.ativo ? "default" : "secondary"}
+                      className={usuario.ativo ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                      {usuario.ativo ? "Ativo" : "Inativo"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {format(new Date(usuario.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" title="Visualizar" onClick={() => openViewDialog(usuario)}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {canEditUser(usuario) && (
+                        <Button variant="ghost" size="icon" title="Editar" onClick={() => openEditDialog(usuario)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {canDelete && canEditUser(usuario) && (
+                        <Button variant="ghost" size="icon" title="Excluir"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => { if (confirm("Excluir este usuário?")) deleteUsuario.mutate(usuario.id); }}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {list.length === 0 && (
+            <p className="text-muted-foreground text-center py-8">Nenhum usuário encontrado.</p>
+          )}
+        </div>
+        {hasMore && setVisible && (
+          <div className="flex justify-center pt-3">
+            <Button variant="outline" size="sm" onClick={() => setVisible(limit + 5)}>
+              Ver mais ({list.length - limit} restantes)
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -482,7 +498,7 @@ export default function AdminUsuarios() {
             <CardContent>
               {isLoading ? (
                 <div className="space-y-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-              ) : renderUserTable(filterBySearch(admins))}
+              ) : renderUserTable(filterBySearch(admins), false, "admins", adminsVisible, setAdminsVisible)}
             </CardContent>
           </Card>
         </TabsContent>
@@ -536,83 +552,111 @@ export default function AdminUsuarios() {
                     <CollapsibleContent>
                        <CardContent className="space-y-6 pt-0">
                         {/* Staff */}
-                        <div>
-                          <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
-                            <Users className="h-4 w-4" /> Funcionários ({filteredStaff.length})
-                          </h4>
-                          {filteredStaff.length > 0 ? (
-                            <div className="overflow-x-auto">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Nome</TableHead>
-                                    <TableHead>E-mail</TableHead>
-                                    <TableHead>Papel</TableHead>
-                                    <TableHead>Status</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {filteredStaff.map((staff) => (
-                                    <TableRow key={staff.id}>
-                                      <TableCell className="font-medium">{staff.nome}</TableCell>
-                                      <TableCell>{staff.email}</TableCell>
-                                      <TableCell>
-                                        <Badge variant="secondary" className={papelColors[staff.papel as Papel] || "bg-muted"}>
-                                          {papelLabels[staff.papel as Papel] || staff.papel}
-                                        </Badge>
-                                      </TableCell>
-                                      <TableCell>
-                                        <Badge className={staff.ativo ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                                          {staff.ativo ? "Ativo" : "Inativo"}
-                                        </Badge>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
+                        {(() => {
+                          const staffKey = `staff_${clinica.id}`;
+                          const staffLimit = visibleCounts[staffKey] || 5;
+                          const visibleStaff = filteredStaff.slice(0, staffLimit);
+                          return (
+                            <div>
+                              <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                                <Users className="h-4 w-4" /> Funcionários ({filteredStaff.length})
+                              </h4>
+                              {filteredStaff.length > 0 ? (
+                                <>
+                                  <div className="overflow-x-auto">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead>Nome</TableHead>
+                                          <TableHead>E-mail</TableHead>
+                                          <TableHead>Papel</TableHead>
+                                          <TableHead>Status</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {visibleStaff.map((staff) => (
+                                          <TableRow key={staff.id}>
+                                            <TableCell className="font-medium">{staff.nome}</TableCell>
+                                            <TableCell>{staff.email}</TableCell>
+                                            <TableCell>
+                                              <Badge variant="secondary" className={papelColors[staff.papel as Papel] || "bg-muted"}>
+                                                {papelLabels[staff.papel as Papel] || staff.papel}
+                                              </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge className={staff.ativo ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                                                {staff.ativo ? "Ativo" : "Inativo"}
+                                              </Badge>
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                  {filteredStaff.length > staffLimit && (
+                                    <div className="flex justify-center pt-3">
+                                      <Button variant="outline" size="sm" onClick={() => setVisibleCounts(prev => ({ ...prev, [staffKey]: staffLimit + 5 }))}>
+                                        Ver mais ({filteredStaff.length - staffLimit} restantes)
+                                      </Button>
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <p className="text-sm text-muted-foreground pl-6">Nenhum funcionário cadastrado</p>
+                              )}
                             </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground pl-6">Nenhum funcionário cadastrado</p>
-                          )}
-                        </div>
+                          );
+                        })()}
 
                         {/* Médicos */}
                         {(() => {
+                          const medKey = `med_${clinica.id}`;
+                          const medLimit = visibleCounts[medKey] || 5;
                           const filteredMedicos = clinica.medicos.filter(m =>
                             !search || m.nome.toLowerCase().includes(searchLower) || (m.especialidade || "").toLowerCase().includes(searchLower)
                           );
+                          const visibleMeds = filteredMedicos.slice(0, medLimit);
                           return (
                             <div>
                               <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
                                 <Stethoscope className="h-4 w-4" /> Médicos ({filteredMedicos.length})
                               </h4>
                               {filteredMedicos.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead>Nome</TableHead>
-                                        <TableHead>Especialidade</TableHead>
-                                        <TableHead>CRM</TableHead>
-                                        <TableHead>Status</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {filteredMedicos.map((med) => (
-                                        <TableRow key={med.id}>
-                                          <TableCell className="font-medium">{med.nome}</TableCell>
-                                          <TableCell>{med.especialidade || "—"}</TableCell>
-                                          <TableCell>{med.crm || "—"}</TableCell>
-                                          <TableCell>
-                                            <Badge className={med.ativo ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                                              {med.ativo ? "Ativo" : "Inativo"}
-                                            </Badge>
-                                          </TableCell>
+                                <>
+                                  <div className="overflow-x-auto">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead>Nome</TableHead>
+                                          <TableHead>Especialidade</TableHead>
+                                          <TableHead>CRM</TableHead>
+                                          <TableHead>Status</TableHead>
                                         </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {visibleMeds.map((med) => (
+                                          <TableRow key={med.id}>
+                                            <TableCell className="font-medium">{med.nome}</TableCell>
+                                            <TableCell>{med.especialidade || "—"}</TableCell>
+                                            <TableCell>{med.crm || "—"}</TableCell>
+                                            <TableCell>
+                                              <Badge className={med.ativo ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                                                {med.ativo ? "Ativo" : "Inativo"}
+                                              </Badge>
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                  {filteredMedicos.length > medLimit && (
+                                    <div className="flex justify-center pt-3">
+                                      <Button variant="outline" size="sm" onClick={() => setVisibleCounts(prev => ({ ...prev, [medKey]: medLimit + 5 }))}>
+                                        Ver mais ({filteredMedicos.length - medLimit} restantes)
+                                      </Button>
+                                    </div>
+                                  )}
+                                </>
                               ) : (
                                 <p className="text-sm text-muted-foreground pl-6">Nenhum médico vinculado</p>
                               )}
@@ -621,26 +665,27 @@ export default function AdminUsuarios() {
                         })()}
 
                         {/* Patients */}
-                        <div>
-                          <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
-                            <User className="h-4 w-4" /> Pacientes ({filteredPacientes.length})
-                          </h4>
-                          {filteredPacientes.length > 0 ? (
-                            <div className="overflow-x-auto">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Nome</TableHead>
-                                    <TableHead>CPF</TableHead>
-                                    <TableHead>Telefone</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                {(() => {
-                                    const limit = pacientesVisiveis[clinica.id] || 5;
-                                    const visiblePacs = filteredPacientes.slice(0, limit);
-                                    return (
-                                      <>
+                        {(() => {
+                          const pacKey = `pac_${clinica.id}`;
+                          const pacLimit = visibleCounts[pacKey] || 5;
+                          const visiblePacs = filteredPacientes.slice(0, pacLimit);
+                          return (
+                            <div>
+                              <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                                <User className="h-4 w-4" /> Pacientes ({filteredPacientes.length})
+                              </h4>
+                              {filteredPacientes.length > 0 ? (
+                                <>
+                                  <div className="overflow-x-auto">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead>Nome</TableHead>
+                                          <TableHead>CPF</TableHead>
+                                          <TableHead>Telefone</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
                                         {visiblePacs.map((pac) => (
                                           <TableRow key={pac.id}>
                                             <TableCell className="font-medium">{pac.nome}</TableCell>
@@ -648,30 +693,23 @@ export default function AdminUsuarios() {
                                             <TableCell>{pac.telefone || "—"}</TableCell>
                                           </TableRow>
                                         ))}
-                                      </>
-                                    );
-                                  })()}
-                                </TableBody>
-                              </Table>
-                              {filteredPacientes.length > (pacientesVisiveis[clinica.id] || 5) && (
-                                <div className="flex justify-center pt-3">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setPacientesVisiveis(prev => ({
-                                      ...prev,
-                                      [clinica.id]: (prev[clinica.id] || 5) + 5,
-                                    }))}
-                                  >
-                                    Ver mais ({filteredPacientes.length - (pacientesVisiveis[clinica.id] || 5)} restantes)
-                                  </Button>
-                                </div>
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                  {filteredPacientes.length > pacLimit && (
+                                    <div className="flex justify-center pt-3">
+                                      <Button variant="outline" size="sm" onClick={() => setVisibleCounts(prev => ({ ...prev, [pacKey]: pacLimit + 5 }))}>
+                                        Ver mais ({filteredPacientes.length - pacLimit} restantes)
+                                      </Button>
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <p className="text-sm text-muted-foreground pl-6">Nenhum paciente vinculado</p>
                               )}
                             </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground pl-6">Nenhum paciente vinculado</p>
-                          )}
-                        </div>
+                          );
+                        })()}
                       </CardContent>
                     </CollapsibleContent>
                   </Collapsible>
