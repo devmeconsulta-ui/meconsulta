@@ -334,20 +334,20 @@ export function EditarConsultaModal({
         }
       }
 
-      // Se status mudou para cancelada, liberar o slot da agenda
-      if (formData.status_consulta === "cancelada" && consulta.agenda_slot_id) {
-        await supabase
-          .from("agenda_slots")
-          .update({ disponivel: true })
-          .eq("id", consulta.agenda_slot_id);
-      }
-
       const { error } = await supabase
         .from("consultas")
         .update(updateData)
         .eq("id", consulta.id);
 
       if (error) throw error;
+
+      // Se status mudou para cancelada, liberar o slot da agenda APÓS salvar
+      if (formData.status_consulta === "cancelada" && consulta.agenda_slot_id) {
+        await supabase
+          .from("agenda_slots")
+          .update({ disponivel: true })
+          .eq("id", consulta.agenda_slot_id);
+      }
 
       // Delete removed procedures
       if (procedimentosRemovidos.length > 0) {
@@ -440,6 +440,8 @@ export function EditarConsultaModal({
     
     setDeleting(true);
     try {
+      const slotId = consulta.agenda_slot_id;
+
       // Se tiver pagamento Asaas, cancelar primeiro
       if (consulta.asaas_payment_id) {
         try {
@@ -451,15 +453,7 @@ export function EditarConsultaModal({
         }
       }
 
-      // Liberar slot da agenda se existir
-      if (consulta.agenda_slot_id) {
-        await supabase
-          .from("agenda_slots")
-          .update({ disponivel: true })
-          .eq("id", consulta.agenda_slot_id);
-      }
-
-      // Deletar a consulta (procedimentos são deletados por CASCADE)
+      // Deletar a consulta PRIMEIRO (procedimentos são deletados por CASCADE)
       const { error } = await supabase
         .from("consultas")
         .delete()
@@ -467,9 +461,17 @@ export function EditarConsultaModal({
 
       if (error) throw error;
 
+      // DEPOIS liberar slot da agenda (após deletar consulta, evita race condition)
+      if (slotId) {
+        await supabase
+          .from("agenda_slots")
+          .update({ disponivel: true })
+          .eq("id", slotId);
+      }
+
       toast({
         title: "Consulta excluída",
-        description: "A consulta foi removida com sucesso.",
+        description: "A consulta foi removida e o horário liberado.",
       });
 
       setDeleteDialogOpen(false);
