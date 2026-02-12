@@ -360,40 +360,25 @@ export default function OmniAgentes() {
 
               {/* Agents Table */}
               <Card>
-                <CardContent className="p-0">
-                  <table className="w-full">
+                <CardContent className="p-0 overflow-x-auto">
+                  <table className="w-full min-w-[800px]">
                     <thead>
                       <tr className="border-b bg-muted/30">
-                        <th className="text-left p-4 font-medium">Agente ↑</th>
-                        <th className="text-center p-4 font-medium" colSpan={3}>
-                          <div className="flex flex-col items-center">
-                            <span>Agora</span>
-                            <div className="flex items-center gap-6 mt-1 text-xs text-muted-foreground">
-                              <Play className="w-3 h-3" />
-                              <span>Fila</span>
-                              <MessageSquare className="w-3 h-3" />
-                            </div>
-                          </div>
-                        </th>
-                        <th className="text-center p-4 font-medium" colSpan={5}>
-                          <div className="flex flex-col items-center">
-                            <span>Hoje</span>
-                            <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                              <MessageSquare className="w-3 h-3" />
-                              <span>😊</span>
-                              <span>😊</span>
-                              <span>Logado</span>
-                              <span>Pausa</span>
-                            </div>
-                          </div>
-                        </th>
-                        <th className="text-center p-4 font-medium">Funções</th>
+                        <th className="text-left p-3 font-medium whitespace-nowrap">Agente ↑</th>
+                        <th className="text-center p-3 font-medium whitespace-nowrap">Status</th>
+                        <th className="text-center p-3 font-medium whitespace-nowrap">Filas</th>
+                        <th className="text-center p-3 font-medium whitespace-nowrap">Ativos</th>
+                        <th className="text-center p-3 font-medium whitespace-nowrap">Hoje</th>
+                        <th className="text-center p-3 font-medium whitespace-nowrap">Satisfação</th>
+                        <th className="text-center p-3 font-medium whitespace-nowrap">Logado</th>
+                        <th className="text-center p-3 font-medium whitespace-nowrap">Pausa</th>
+                        <th className="text-center p-3 font-medium whitespace-nowrap">Funções</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredAgentes.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="text-center py-8 text-muted-foreground">
+                          <td colSpan={9} className="text-center py-8 text-muted-foreground">
                             Nenhum agente encontrado
                           </td>
                         </tr>
@@ -402,40 +387,30 @@ export default function OmniAgentes() {
                           const agentStatus = getAgentStatus(agente.id);
                           return (
                           <tr key={agente.id} className="border-b hover:bg-muted/20">
-                            <td className="p-4">
-                              <div className="flex items-center gap-3">
-                                <div className="relative">
-                                  <Avatar className="h-10 w-10">
+                            <td className="p-3">
+                              <div className="flex items-center gap-2">
+                                <div className="relative flex-shrink-0">
+                                  <Avatar className="h-9 w-9">
                                     <AvatarImage src={agente.avatar_url || undefined} />
-                                    <AvatarFallback className="bg-primary/10 text-primary">
+                                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
                                       {getInitials(agente.nome)}
                                     </AvatarFallback>
                                   </Avatar>
-                                  {/* Status indicator dot */}
                                   <span 
-                                    className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background ${
+                                    className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-background ${
                                       agentStatus === "online" 
                                         ? "bg-green-500" 
                                         : agentStatus === "pausa"
                                         ? "bg-orange-500"
                                         : "bg-destructive"
                                     }`}
-                                    title={agentStatus === "online" ? "Online" : agentStatus === "pausa" ? "Em pausa" : "Offline"}
                                   />
                                 </div>
-                                <div>
-                                  <p className="font-medium">{agente.nome}</p>
-                                  <div className="flex items-center gap-1 text-muted-foreground">
-                                    <MessageSquare className="w-3 h-3" />
-                                  </div>
-                                </div>
+                                <span className="font-medium text-sm truncate max-w-[140px]">{agente.nome}</span>
                               </div>
                             </td>
-                            <td className="text-center p-4">
-                              <span className="text-sm">{agente.filas}</span>
-                            </td>
-                            <td className="text-center p-4">
-                              <div className={`inline-flex items-center justify-center w-10 h-10 rounded-full ${
+                            <td className="text-center p-3">
+                              <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
                                 agentStatus === "online" 
                                   ? "bg-green-500/20 text-green-500" 
                                   : agentStatus === "pausa"
@@ -443,54 +418,44 @@ export default function OmniAgentes() {
                                   : "bg-muted text-muted-foreground"
                               }`}>
                                 {agentStatus === "online" ? (
-                                  <Play className="w-5 h-5 fill-current" />
+                                  <Play className="w-4 h-4 fill-current" />
                                 ) : agentStatus === "pausa" ? (
-                                  <Pause className="w-5 h-5" />
+                                  <Pause className="w-4 h-4" />
                                 ) : (
-                                  <Circle className="w-5 h-5" />
+                                  <Circle className="w-4 h-4" />
                                 )}
                               </div>
                             </td>
-                            <td className="text-center p-4">
-                              <div className="text-center">
-                                <span className="font-semibold">{agente.chatsAtivos}</span>
-                                <p className="text-xs text-muted-foreground">chats</p>
-                              </div>
+                            <td className="text-center p-3 text-sm">{agente.filas}</td>
+                            <td className="text-center p-3">
+                              <span className="font-semibold text-sm">{agente.chatsAtivos}</span>
                             </td>
-                            <td className="text-center p-4">
-                              <div className="text-center">
-                                <span className="font-semibold">{agente.chatsHoje}</span>
-                                <p className="text-xs text-muted-foreground">chats</p>
-                              </div>
+                            <td className="text-center p-3">
+                              <span className="font-semibold text-sm">{agente.chatsHoje}</span>
                             </td>
-                            <td className="text-center p-4 text-sm">
+                            <td className="text-center p-3 text-sm">
                               😊 {agente.satisfacaoMedia.toFixed(1)}
                             </td>
-                            <td className="text-center p-4 text-sm">
-                              😊 {agente.satisfacaoTotal.toFixed(1)}
-                            </td>
-                            <td className="text-center p-4 text-sm font-mono">
+                            <td className="text-center p-3 text-sm font-mono">
                               {agente.tempoLogado}
                             </td>
-                            <td className="text-center p-4 text-sm font-mono">
+                            <td className="text-center p-3 text-sm font-mono">
                               {agente.tempoPausa}
                             </td>
-                            <td className="text-center p-4">
-                              <div className="flex items-center justify-center gap-2">
+                            <td className="p-3">
+                              <div className="flex items-center justify-center gap-1">
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <Button 
                                         variant="ghost" 
                                         size="icon" 
-                                        className="h-8 w-8"
+                                        className="h-7 w-7"
                                         onClick={() => {
-                                          // Show filas this agent can access
-                                          setSelectedAgenteFilas({ agente, filas: filas.map(f => f.nome) });
                                           toast.info(`${agente.nome} tem acesso a ${filas.length} fila(s): ${filas.map(f => f.nome).join(", ") || "Nenhuma"}`);
                                         }}
                                       >
-                                        <Users className="w-4 h-4" />
+                                        <Users className="w-3.5 h-3.5" />
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>Ver filas</TooltipContent>
@@ -502,14 +467,13 @@ export default function OmniAgentes() {
                                       <Button 
                                         variant="ghost" 
                                         size="icon" 
-                                        className="h-8 w-8"
+                                        className="h-7 w-7"
                                         onClick={() => {
-                                          // Switch to atendimentos tab filtered by this agent
                                           setFilterAgente(agente.id);
                                           setActiveTab("atendimentos");
                                         }}
                                       >
-                                        <BookOpen className="w-4 h-4" />
+                                        <BookOpen className="w-3.5 h-3.5" />
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>Histórico</TooltipContent>
@@ -521,11 +485,9 @@ export default function OmniAgentes() {
                                       <Button 
                                         variant="ghost" 
                                         size="icon" 
-                                        className="h-8 w-8"
+                                        className="h-7 w-7"
                                         onClick={() => {
-                                          // Show agent's active atendimentos
                                           const agenteAtendimentos = atendimentos.filter(a => a.agente_id === agente.id);
-                                          setSelectedAgenteAtendimentos({ agente, atendimentos: agenteAtendimentos });
                                           if (agenteAtendimentos.length > 0) {
                                             setSelectedAtendimento(agenteAtendimentos[0]);
                                             setIsVisualizarModalOpen(true);
@@ -534,14 +496,14 @@ export default function OmniAgentes() {
                                           }
                                         }}
                                       >
-                                        <Eye className="w-4 h-4" />
+                                        <Eye className="w-3.5 h-3.5" />
                                       </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Visualizar atendimento</TooltipContent>
+                                    <TooltipContent>Visualizar</TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="w-4 h-4" />
+                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                  <MoreVertical className="w-3.5 h-3.5" />
                                 </Button>
                               </div>
                             </td>
