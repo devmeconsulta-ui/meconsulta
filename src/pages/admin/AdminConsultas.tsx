@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Calendar, Filter, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, Search, Eye, Download, ThumbsUp, HelpCircle, UserX, MapPin, Building2 } from "lucide-react";
+import { Calendar as CalendarIcon, Filter, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, Search, Eye, Download, ThumbsUp, HelpCircle, UserX, MapPin, Building2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { format, subDays, startOfDay, endOfDay, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line } from "recharts";
@@ -183,7 +186,7 @@ export default function AdminConsultas() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Calendar className="h-7 w-7" />
+            <CalendarIcon className="h-7 w-7" />
             Consultas
           </h1>
           <p className="text-muted-foreground">Visualize e gerencie todas as consultas do sistema</p>
@@ -204,7 +207,7 @@ export default function AdminConsultas() {
                 <p className="text-3xl font-bold text-foreground">{stats.total}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-primary" />
+                <CalendarIcon className="h-6 w-6 text-primary" />
               </div>
             </div>
           </CardContent>
@@ -377,19 +380,43 @@ export default function AdminConsultas() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Data Inicial</Label>
-              <Input
-                type="date"
-                value={filters.dataInicio}
-                onChange={(e) => setFilters({ ...filters, dataInicio: e.target.value })}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !filters.dataInicio && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filters.dataInicio ? format(parseISO(filters.dataInicio), "dd/MM/yyyy") : "Selecionar"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filters.dataInicio ? parseISO(filters.dataInicio) : undefined}
+                    onSelect={(date) => setFilters({ ...filters, dataInicio: date ? format(date, "yyyy-MM-dd") : "" })}
+                    locale={ptBR}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Data Final</Label>
-              <Input
-                type="date"
-                value={filters.dataFim}
-                onChange={(e) => setFilters({ ...filters, dataFim: e.target.value })}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !filters.dataFim && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filters.dataFim ? format(parseISO(filters.dataFim), "dd/MM/yyyy") : "Selecionar"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filters.dataFim ? parseISO(filters.dataFim) : undefined}
+                    onSelect={(date) => setFilters({ ...filters, dataFim: date ? format(date, "yyyy-MM-dd") : "" })}
+                    locale={ptBR}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <Select
               value={filters.statusConsulta}
