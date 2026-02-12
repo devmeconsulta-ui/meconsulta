@@ -1842,6 +1842,7 @@ export default function OmniWhatsAppChat() {
                     .in("id", ids);
                   toast.success(`${ids.length} atendimento(s) encerrados`);
                   setSelectedAtendimento(null);
+                  await fetchAtendimentos();
                 } catch {
                   toast.error("Erro ao encerrar atendimentos");
                 }
