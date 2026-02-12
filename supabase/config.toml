@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.omni-ai-actions]
 verify_jwt = false
+
+[functions.notify-appointment-booked]
+verify_jwt = false

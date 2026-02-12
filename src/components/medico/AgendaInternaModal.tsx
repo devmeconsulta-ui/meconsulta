@@ -550,6 +550,26 @@ export function AgendaInternaModal({
           .eq("id", finalSlotId);
       }
 
+      // Enviar notificação WhatsApp automática (fire & forget)
+      if (formData.telefone && finalClinicaId) {
+        const medicoSel = medicos.find(m => m.id === (formData.medicoSelecionado || medicoId));
+        const localSel = locais.find(l => l.id === formData.localSelecionado);
+        supabase.functions.invoke("notify-appointment-booked", {
+          body: {
+            clinica_id: finalClinicaId,
+            paciente_nome: formData.nome,
+            paciente_telefone: formData.telefone,
+            data_hora: finalDataHora,
+            medico_nome: medicoSel?.nome || "",
+            local_nome: localSel?.nome_local || "",
+          },
+        }).then(res => {
+          if (res.data?.success) {
+            toast.info("Aviso enviado ao paciente via WhatsApp");
+          }
+        }).catch(() => { /* silencioso */ });
+      }
+
       toast.success("Consulta agendada com sucesso!");
       onOpenChange(false);
       onSuccess();
