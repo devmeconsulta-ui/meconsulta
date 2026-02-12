@@ -1841,7 +1841,7 @@ export default function OmniWhatsAppChat() {
                     const batch = ids.slice(i, i + 100);
                     const { error } = await supabase
                       .from("omni_atendimentos")
-                      .update({ status: "encerrado", data_fechamento: new Date().toISOString() })
+                      .update({ status: "finalizado", data_fechamento: new Date().toISOString() })
                       .in("id", batch);
                     if (error) throw error;
                   }
