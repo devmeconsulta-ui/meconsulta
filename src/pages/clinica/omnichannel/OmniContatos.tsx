@@ -52,6 +52,7 @@ import { VincularPacienteModal } from "@/components/clinica/omnichannel/Vincular
 import { EtiquetasModal } from "@/components/clinica/omnichannel/EtiquetasModal";
 import { useOmniEtiquetas } from "@/hooks/useOmniEtiquetas";
 import { toast } from "sonner";
+import { displayContactName, formatPhoneDisplay } from "@/lib/maskUtils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import * as XLSX from "xlsx";
@@ -528,8 +529,8 @@ export default function OmniContatos() {
                         )}
                       </div>
                       <div>
-                        <p className="font-medium">{contato.nome}</p>
-                        <p className="text-sm text-muted-foreground">{contato.telefone}</p>
+                        <p className="font-medium">{displayContactName(contato.nome, contato.telefone)}</p>
+                        <p className="text-sm text-muted-foreground">{formatPhoneDisplay(contato.telefone)}</p>
                       </div>
                     </div>
                     <DropdownMenu>
@@ -629,7 +630,7 @@ export default function OmniContatos() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-medium">{contato.nome}</p>
+                            <p className="font-medium">{displayContactName(contato.nome, contato.telefone)}</p>
                             {contato.paciente_id && (
                               <Badge variant="outline" className="text-xs bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300">
                                 <UserCheck className="h-3 w-3 mr-1" />
@@ -648,7 +649,7 @@ export default function OmniContatos() {
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Phone className="h-3 w-3 text-muted-foreground" />
-                        {contato.telefone}
+                        {formatPhoneDisplay(contato.telefone)}
                       </div>
                     </TableCell>
                     <TableCell>
