@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { displayContactName, formatPhoneDisplay } from "@/lib/maskUtils";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { OmniAtendimento } from "@/hooks/useOmniAtendimentos";
@@ -75,7 +76,7 @@ function AtendimentoItem({
         <MessageCircle className="h-5 w-5 text-muted-foreground" />
         <div>
           <p className="font-bold text-sm text-foreground">
-            {atendimento.contato?.nome || "Desconhecido"}
+            {displayContactName(atendimento.contato?.nome, atendimento.contato?.telefone)}
           </p>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />

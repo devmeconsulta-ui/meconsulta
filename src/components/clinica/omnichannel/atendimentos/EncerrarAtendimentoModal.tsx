@@ -21,6 +21,7 @@ import {
 import { Calendar, Clock, Loader2, XCircle, CalendarClock } from "lucide-react";
 import { OmniAtendimento } from "@/hooks/useOmniAtendimentos";
 import { format } from "date-fns";
+import { displayContactName } from "@/lib/maskUtils";
 
 interface EncerrarAtendimentoModalProps {
   open: boolean;
@@ -110,7 +111,7 @@ export function EncerrarAtendimentoModal({
             Encerrar atendimento
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Protocolo #{atendimento.protocolo} • {atendimento.contato?.nome || atendimento.contato?.telefone}
+            Protocolo #{atendimento.protocolo} • {displayContactName(atendimento.contato?.nome, atendimento.contato?.telefone)}
           </p>
         </DialogHeader>
 

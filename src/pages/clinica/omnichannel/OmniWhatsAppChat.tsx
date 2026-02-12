@@ -87,6 +87,7 @@ import { useTypingIndicator, useAITypingIndicator } from "@/hooks/useTypingIndic
 import { useOmniFilas } from "@/hooks/useOmniFilas";
 
 import { cn } from "@/lib/utils";
+import { displayContactName, formatPhoneDisplay } from "@/lib/maskUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -376,7 +377,7 @@ function ConversationItem({
   unreadCount?: number;
   allEtiquetas?: Array<{ id: string; nome: string; cor: string }>;
 }) {
-  const contactName = atendimento.contato?.nome || atendimento.contato?.telefone || "Desconhecido";
+  const contactName = displayContactName(atendimento.contato?.nome, atendimento.contato?.telefone);
   const waitTime = formatWaitTime(atendimento.data_abertura);
 
   return (
@@ -1364,7 +1365,7 @@ export default function OmniWhatsAppChat() {
               <Avatar className="h-10 w-10 border-2 border-white/20">
                 <AvatarImage src={selectedAtendimento.contato?.foto_url || undefined} />
                 <AvatarFallback className="bg-muted text-foreground">
-                  {getInitials(selectedAtendimento.contato?.nome || "?")}
+                  {getInitials(displayContactName(selectedAtendimento.contato?.nome, selectedAtendimento.contato?.telefone))}
                 </AvatarFallback>
               </Avatar>
               
@@ -1374,10 +1375,10 @@ export default function OmniWhatsAppChat() {
                   onClick={() => setEditarContatoModalOpen(true)}
                   title="Clique para editar o contato"
                 >
-                  {selectedAtendimento.contato?.nome || selectedAtendimento.contato?.telefone}
+                  {displayContactName(selectedAtendimento.contato?.nome, selectedAtendimento.contato?.telefone)}
                 </h3>
                 <p className="text-xs text-white/70">
-                  {selectedAtendimento.contato?.telefone}
+                  {formatPhoneDisplay(selectedAtendimento.contato?.telefone)}
                   {selectedAtendimento.fila && ` • ${selectedAtendimento.fila.nome}`}
                 </p>
               </div>

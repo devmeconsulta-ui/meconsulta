@@ -20,6 +20,7 @@ import { ptBR } from "date-fns/locale";
 import { useOmniMensagens, OmniMensagem, OmniAtendimento } from "@/hooks/useOmniAtendimentos";
 import { AudioPlayerWithFallback } from "@/components/clinica/omnichannel/AudioPlayerWithFallback";
 import { cn } from "@/lib/utils";
+import { displayContactName, formatPhoneDisplay } from "@/lib/maskUtils";
 
 interface VisualizarConversaModalProps {
   open: boolean;
@@ -196,8 +197,8 @@ export function VisualizarConversaModal({
 
   if (!atendimento) return null;
 
-  const contactName = atendimento.contato?.nome || "Desconhecido";
-  const contactPhone = atendimento.contato?.telefone || "";
+  const contactName = displayContactName(atendimento.contato?.nome, atendimento.contato?.telefone);
+  const contactPhone = formatPhoneDisplay(atendimento.contato?.telefone);
 
   return (
     <Dialog open={open} onOpenChange={() => onClose()}>
