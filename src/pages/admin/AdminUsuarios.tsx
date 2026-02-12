@@ -84,7 +84,6 @@ interface ClinicaComUsuarios {
   pacientes: Array<{
     id: string;
     nome: string;
-    email: string | null;
     cpf: string | null;
     telefone: string | null;
   }>;
@@ -151,7 +150,7 @@ export default function AdminUsuarios() {
       while (true) {
         const { data: batch } = await supabase
           .from("consultas")
-          .select("clinica_id, paciente_id, pacientes(id, nome, email, cpf, telefone, usuario_id)")
+          .select("clinica_id, paciente_id, pacientes(id, nome, cpf, telefone, usuario_id)")
           .not("clinica_id", "is", null)
           .not("paciente_id", "is", null)
           .range(from, from + batchSize - 1);
@@ -500,7 +499,7 @@ export default function AdminUsuarios() {
                 !search || u.nome.toLowerCase().includes(searchLower) || u.email.toLowerCase().includes(searchLower)
               );
               const filteredPacientes = clinica.pacientes.filter(p =>
-                !search || p.nome.toLowerCase().includes(searchLower) || (p.email || "").toLowerCase().includes(searchLower)
+                !search || p.nome.toLowerCase().includes(searchLower) || (p.cpf || "").toLowerCase().includes(searchLower)
               );
 
               // If searching and no matches, hide this clinic
@@ -631,7 +630,6 @@ export default function AdminUsuarios() {
                                 <TableHeader>
                                   <TableRow>
                                     <TableHead>Nome</TableHead>
-                                    <TableHead>E-mail</TableHead>
                                     <TableHead>CPF</TableHead>
                                     <TableHead>Telefone</TableHead>
                                   </TableRow>
@@ -640,7 +638,6 @@ export default function AdminUsuarios() {
                                   {filteredPacientes.map((pac) => (
                                     <TableRow key={pac.id}>
                                       <TableCell className="font-medium">{pac.nome}</TableCell>
-                                      <TableCell>{pac.email || "—"}</TableCell>
                                       <TableCell>{pac.cpf || "—"}</TableCell>
                                       <TableCell>{pac.telefone || "—"}</TableCell>
                                     </TableRow>
