@@ -514,7 +514,19 @@ export default function OmniWhatsAppChat() {
     }
   }, [clinicaId]);
 
-  // Initial fetch and real-time subscription
+  // Debounced refetch to prevent rapid successive fetches
+  const refetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedFetchAtendimentos = useCallback(() => {
+    if (refetchTimeoutRef.current) {
+      clearTimeout(refetchTimeoutRef.current);
+    }
+    refetchTimeoutRef.current = setTimeout(() => {
+      fetchAtendimentos();
+      refetchTimeoutRef.current = null;
+    }, 1000);
+  }, [fetchAtendimentos]);
+
+  // Initial fetch and real-time subscription with optimistic local updates
   useEffect(() => {
     fetchAtendimentos();
 
@@ -524,22 +536,67 @@ export default function OmniWhatsAppChat() {
         .on(
           "postgres_changes",
           {
-            event: "*",
+            event: "INSERT",
             schema: "public",
             table: "omni_atendimentos",
             filter: `clinica_id=eq.${clinicaId}`,
           },
           () => {
-            fetchAtendimentos();
+            // New atendimento - must fetch to get joined data
+            debouncedFetchAtendimentos();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "omni_atendimentos",
+            filter: `clinica_id=eq.${clinicaId}`,
+          },
+          (payload) => {
+            const updated = payload.new as any;
+            // Optimistic local update - avoid full refetch
+            setAtendimentos(prev => {
+              // If status changed to finalizado/abandonado, remove from list
+              if (updated.status === "finalizado" || updated.status === "abandonado") {
+                return prev.filter(a => a.id !== updated.id);
+              }
+              // Otherwise update in-place keeping joined data
+              const exists = prev.some(a => a.id === updated.id);
+              if (exists) {
+                return prev.map(a => 
+                  a.id === updated.id 
+                    ? { ...a, ...updated, contato: a.contato, fila: a.fila, agente: a.agente }
+                    : a
+                );
+              }
+              // New active atendimento not in list - fetch to get joins
+              debouncedFetchAtendimentos();
+              return prev;
+            });
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "omni_atendimentos",
+            filter: `clinica_id=eq.${clinicaId}`,
+          },
+          (payload) => {
+            setAtendimentos(prev => prev.filter(a => a.id !== (payload.old as any).id));
           }
         )
         .subscribe();
 
       return () => {
+        if (refetchTimeoutRef.current) clearTimeout(refetchTimeoutRef.current);
         supabase.removeChannel(channel);
       };
     }
-  }, [clinicaId, fetchAtendimentos]);
+  }, [clinicaId, fetchAtendimentos, debouncedFetchAtendimentos]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -898,13 +955,14 @@ export default function OmniWhatsAppChat() {
         updateData.reabertura_agendada = true;
       }
 
+      // Optimistic: remove from list immediately
+      setAtendimentos(prev => prev.filter(a => a.id !== selectedAtendimento.id));
+      setSelectedAtendimento(null);
+
       await supabase
         .from("omni_atendimentos")
         .update(updateData)
         .eq("id", selectedAtendimento.id);
-
-      setSelectedAtendimento(null);
-      fetchAtendimentos();
       toast.success(
         dataReabertura 
           ? "Atendimento encerrado com reabertura agendada" 
@@ -925,6 +983,13 @@ export default function OmniWhatsAppChat() {
       const atendimento = atendimentos.find((a) => a.id === atendimentoId);
       if (!atendimento) return;
 
+      // Optimistic: update locally
+      setAtendimentos(prev => prev.map(a => 
+        a.id === atendimentoId 
+          ? { ...a, agente_id: novoAgenteId || null, fila_id: novaFilaId || a.fila_id, status: novoAgenteId ? "em_atendimento" as const : "aguardando" as const }
+          : a
+      ));
+
       await supabase
         .from("omni_atendimentos")
         .update({
@@ -933,8 +998,6 @@ export default function OmniWhatsAppChat() {
           status: novoAgenteId ? "em_atendimento" : "aguardando",
         })
         .eq("id", atendimentoId);
-
-      fetchAtendimentos();
       toast.success("Atendimento transferido com sucesso");
     } catch (error) {
       console.error("Error transferring atendimento:", error);
@@ -952,7 +1015,10 @@ export default function OmniWhatsAppChat() {
         .eq("id", selectedAtendimento.id);
 
       setSelectedAtendimento(prev => prev ? { ...prev, etiquetas: newEtiquetas } : null);
-      fetchAtendimentos();
+      // Optimistic: update locally
+      setAtendimentos(prev => prev.map(a => 
+        a.id === selectedAtendimento.id ? { ...a, etiquetas: newEtiquetas } : a
+      ));
       toast.success("Etiquetas atualizadas");
     } catch (error) {
       console.error("Error updating etiquetas:", error);
