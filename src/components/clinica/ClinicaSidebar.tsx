@@ -281,9 +281,7 @@ export function ClinicaSidebar() {
                       <button
                         className={cn(
                           "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                          isTissActive
-                            ? "bg-primary/10 text-primary"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          "bg-primary/10 text-primary"
                         )}
                       >
                         <ClipboardList className="w-5 h-5" />
