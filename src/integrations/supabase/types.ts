@@ -1771,7 +1771,7 @@ export type Database = {
           endereco: string | null
           estado: string | null
           id: string
-          medico_id: string
+          medico_id: string | null
           nome_local: string
           observacoes: string | null
           tipo_atendimento: string
@@ -1785,7 +1785,7 @@ export type Database = {
           endereco?: string | null
           estado?: string | null
           id?: string
-          medico_id: string
+          medico_id?: string | null
           nome_local: string
           observacoes?: string | null
           tipo_atendimento: string
@@ -1799,7 +1799,7 @@ export type Database = {
           endereco?: string | null
           estado?: string | null
           id?: string
-          medico_id?: string
+          medico_id?: string | null
           nome_local?: string
           observacoes?: string | null
           tipo_atendimento?: string
@@ -1814,6 +1814,45 @@ export type Database = {
           },
           {
             foreignKeyName: "locais_atendimento_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      locais_medicos: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          local_id: string
+          medico_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          local_id: string
+          medico_id: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          local_id?: string
+          medico_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "locais_medicos_local_id_fkey"
+            columns: ["local_id"]
+            isOneToOne: false
+            referencedRelation: "locais_atendimento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "locais_medicos_medico_id_fkey"
             columns: ["medico_id"]
             isOneToOne: false
             referencedRelation: "medicos"
