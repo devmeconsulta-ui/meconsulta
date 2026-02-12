@@ -67,6 +67,7 @@ interface ClinicaComUsuarios {
   email_contato: string | null;
   ativo: boolean | null;
   created_at: string | null;
+  usuario_id: string | null;
   usuarios: Array<{
     id: string;
     nome: string;
@@ -130,7 +131,7 @@ export default function AdminUsuarios() {
     queryFn: async () => {
       const { data: clinicas, error: clinicasError } = await supabase
         .from("clinicas")
-        .select("id, nome_fantasia, cnpj, email_contato, ativo, created_at")
+        .select("id, nome_fantasia, cnpj, email_contato, ativo, created_at, usuario_id")
         .order("nome_fantasia");
       if (clinicasError) throw clinicasError;
 
@@ -512,6 +513,14 @@ export default function AdminUsuarios() {
             ) : (clinicasData?.clinicasList || []).map((clinica) => {
               const isExpanded = expandedClinicas[clinica.id];
               const searchLower = search.toLowerCase();
+              
+              // Find clinic owner from usuarios list
+              const clinicaOwner = clinica.usuario_id 
+                ? (usuarios || []).find(u => u.id === clinica.usuario_id) 
+                : null;
+              const filteredOwner = clinicaOwner && (!search || clinicaOwner.nome.toLowerCase().includes(searchLower) || clinicaOwner.email.toLowerCase().includes(searchLower))
+                ? clinicaOwner : null;
+
               const filteredStaff = clinica.usuarios.filter(u => 
                 !search || u.nome.toLowerCase().includes(searchLower) || u.email.toLowerCase().includes(searchLower)
               );
@@ -520,7 +529,7 @@ export default function AdminUsuarios() {
               );
 
               // If searching and no matches, hide this clinic
-              if (search && filteredStaff.length === 0 && filteredPacientes.length === 0) return null;
+              if (search && !filteredOwner && filteredStaff.length === 0 && filteredPacientes.length === 0) return null;
 
               return (
                 <Card key={clinica.id}>
@@ -551,6 +560,45 @@ export default function AdminUsuarios() {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                        <CardContent className="space-y-6 pt-0">
+                        {/* Admin/Owner */}
+                        {clinicaOwner && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                              <Shield className="h-4 w-4" /> Administrador (1)
+                            </h4>
+                            <div className="overflow-x-auto">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Nome</TableHead>
+                                    <TableHead>E-mail</TableHead>
+                                    <TableHead>Papel</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Criado em</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  <TableRow>
+                                    <TableCell className="font-medium">{clinicaOwner.nome}</TableCell>
+                                    <TableCell>{clinicaOwner.email}</TableCell>
+                                    <TableCell>
+                                      <Badge variant="secondary" className="bg-green-100 text-green-800">Admin</Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge className={clinicaOwner.ativo ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                                        {clinicaOwner.ativo ? "Ativo" : "Inativo"}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      {format(new Date(clinicaOwner.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                                    </TableCell>
+                                  </TableRow>
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Staff */}
                         {(() => {
                           const staffKey = `staff_${clinica.id}`;
