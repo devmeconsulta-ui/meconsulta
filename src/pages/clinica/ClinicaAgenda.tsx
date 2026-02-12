@@ -268,14 +268,34 @@ export default function ClinicaAgenda() {
   }, [gerarForm.medicoId]);
 
   async function fetchLocaisForMedico(medicoId: string) {
-    // Busca apenas locais que pertencem a esta clínica
-    const { data } = await supabase
+    // Busca locais vinculados ao médico via tabela de junção locais_medicos
+    const { data: vinculos } = await supabase
+      .from("locais_medicos")
+      .select("local_id, locais_atendimento(id, nome_local, tipo_atendimento)")
+      .eq("medico_id", medicoId);
+
+    const locaisVinculados = (vinculos || [])
+      .map((v: any) => v.locais_atendimento)
+      .filter(Boolean)
+      .filter((l: any) => l.id); // ensure valid
+
+    // Também busca locais da clínica diretamente atribuídos ao médico (legado)
+    const { data: locaisDiretos } = await supabase
       .from("locais_atendimento")
-      .select("id, nome_local, tipo_atendimento, medico_id")
+      .select("id, nome_local, tipo_atendimento")
       .eq("medico_id", medicoId)
       .eq("clinica_id", clinicaData.id)
       .eq("ativo", true);
-    setLocais(data || []);
+
+    // Merge sem duplicatas
+    const allLocais = [...locaisVinculados];
+    for (const ld of (locaisDiretos || [])) {
+      if (!allLocais.find((l: any) => l.id === ld.id)) {
+        allLocais.push(ld);
+      }
+    }
+
+    setLocais(allLocais);
     setGerarForm(prev => ({ ...prev, localId: "" }));
   }
 
@@ -1436,7 +1456,7 @@ export default function ClinicaAgenda() {
   }
 
   const filteredLocaisForMedico = gerarForm.medicoId 
-    ? locais.filter(l => l.medico_id === gerarForm.medicoId)
+    ? locais
     : [];
 
   return (
