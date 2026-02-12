@@ -346,11 +346,13 @@ function ConversationItem({
   isSelected,
   onClick,
   unreadCount,
+  allEtiquetas,
 }: {
   atendimento: OmniAtendimento;
   isSelected: boolean;
   onClick: () => void;
   unreadCount?: number;
+  allEtiquetas?: Array<{ id: string; nome: string; cor: string }>;
 }) {
   const contactName = atendimento.contato?.nome || atendimento.contato?.telefone || "Desconhecido";
   const waitTime = formatWaitTime(atendimento.data_abertura);
@@ -393,11 +395,19 @@ function ConversationItem({
         {/* Show labels */}
         {atendimento.etiquetas && atendimento.etiquetas.length > 0 && (
           <div className="flex gap-1 mt-1 flex-wrap">
-            {atendimento.etiquetas.slice(0, 2).map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-[9px] h-4 px-1">
-                {tag}
-              </Badge>
-            ))}
+            {atendimento.etiquetas.slice(0, 2).map((tag) => {
+              const etq = allEtiquetas?.find(e => e.nome === tag);
+              return (
+                <Badge
+                  key={tag}
+                  variant="secondary"
+                  className="text-[9px] h-4 px-1 text-white"
+                  style={{ backgroundColor: etq?.cor || "#6b7280" }}
+                >
+                  {tag}
+                </Badge>
+              );
+            })}
             {atendimento.etiquetas.length > 2 && (
               <Badge variant="outline" className="text-[9px] h-4 px-1">
                 +{atendimento.etiquetas.length - 2}
@@ -1240,7 +1250,7 @@ export default function OmniWhatsAppChat() {
                 atendimento={atendimento}
                 isSelected={selectedAtendimento?.id === atendimento.id}
                 onClick={() => setSelectedAtendimento(atendimento)}
-                unreadCount={0}
+                allEtiquetas={etiquetas}
               />
             ))
           )}
