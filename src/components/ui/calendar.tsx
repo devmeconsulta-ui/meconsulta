@@ -11,7 +11,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      captionLayout="dropdown-buttons"
+      captionLayout="dropdown"
       fromYear={2020}
       toYear={2035}
       className={cn("p-3", className)}
@@ -19,7 +19,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: "flex justify-center pt-1 relative items-center",
-        caption_label: "text-sm font-medium",
+        caption_label: "hidden",
         caption_dropdowns: "flex gap-1 items-center",
         dropdown: "appearance-none bg-transparent border border-border rounded-md px-2 py-1 text-sm font-medium cursor-pointer hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring",
         dropdown_month: "",
