@@ -522,7 +522,7 @@ export function AgendaInternaModal({
         paciente_id: pacienteId,
         data_hora: finalDataHora,
         origem: "interna",
-        status_consulta: formData.status === "agendado" ? "confirmada" : formData.status,
+        status_consulta: formData.status === "agendado" ? "agendada" : formData.status,
         status_pagamento: "pendente",
         valor_consulta: valorFinalConsulta,
         valor_medico: valorMedico,
