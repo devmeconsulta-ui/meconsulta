@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,17 @@ interface ClinicaContext {
   clinicaData: any;
 }
 
+interface LocalMedico {
+  id: string;
+  medico_id: string;
+  ativo: boolean;
+  medico?: {
+    id: string;
+    nome: string;
+    especialidade: string | null;
+  };
+}
+
 interface LocalAtendimento {
   id: string;
   nome_local: string;
@@ -48,13 +60,8 @@ interface LocalAtendimento {
   cep: string | null;
   tipo_atendimento: string;
   ativo: boolean;
-  medico_id: string;
   clinica_id: string | null;
-  medico?: {
-    id: string;
-    nome: string;
-    especialidade: string | null;
-  };
+  locais_medicos?: LocalMedico[];
 }
 
 export default function ClinicaLocais() {
@@ -81,8 +88,8 @@ export default function ClinicaLocais() {
     estado: "",
     cep: "",
     tipo_atendimento: "presencial",
-    medico_id: "",
     ativo: true,
+    medicos_ids: [] as string[],
   });
 
   // Buscar médicos vinculados à clínica
@@ -100,7 +107,7 @@ export default function ClinicaLocais() {
     enabled: !!clinicaData?.id,
   });
 
-  // Buscar locais de atendimento da clínica
+  // Buscar locais de atendimento da clínica com médicos vinculados
   const { data: locais, isLoading: loadingLocais } = useQuery({
     queryKey: ["clinica-locais-atendimento", clinicaData?.id],
     queryFn: async () => {
@@ -109,7 +116,7 @@ export default function ClinicaLocais() {
         .from("locais_atendimento")
         .select(`
           *,
-          medico:medicos!locais_atendimento_medico_id_fkey(id, nome, especialidade)
+          locais_medicos(id, medico_id, ativo, medico:medicos!locais_medicos_medico_id_fkey(id, nome, especialidade))
         `)
         .eq("clinica_id", clinicaData.id)
         .order("nome_local");
@@ -154,8 +161,8 @@ export default function ClinicaLocais() {
       estado: "",
       cep: "",
       tipo_atendimento: "presencial",
-      medico_id: medicos?.[0]?.medico_id || "",
       ativo: true,
+      medicos_ids: [],
     });
     setLocalDialogOpen(true);
   }
@@ -169,8 +176,8 @@ export default function ClinicaLocais() {
       estado: local.estado || "",
       cep: local.cep || "",
       tipo_atendimento: local.tipo_atendimento,
-      medico_id: local.medico_id,
       ativo: local.ativo,
+      medicos_ids: local.locais_medicos?.map(lm => lm.medico_id) || [],
     });
     setLocalDialogOpen(true);
   }
@@ -181,15 +188,11 @@ export default function ClinicaLocais() {
       toast.error("Nome do local é obrigatório");
       return;
     }
-    if (!localFormData.medico_id) {
-      toast.error("Selecione um médico");
-      return;
-    }
 
     setLoading(true);
 
     if (editingLocal) {
-      // Update existing
+      // Update local
       const { error } = await supabase
         .from("locais_atendimento")
         .update({
@@ -199,22 +202,34 @@ export default function ClinicaLocais() {
           estado: localFormData.estado || null,
           cep: localFormData.cep || null,
           tipo_atendimento: localFormData.tipo_atendimento,
-          medico_id: localFormData.medico_id,
           ativo: localFormData.ativo,
         })
         .eq("id", editingLocal.id);
 
       if (error) {
         toast.error("Erro ao atualizar local");
-        console.error(error);
-      } else {
-        toast.success("Local atualizado com sucesso!");
-        queryClient.invalidateQueries({ queryKey: ["clinica-locais-atendimento"] });
-        setLocalDialogOpen(false);
+        setLoading(false);
+        return;
       }
+
+      // Sync medicos: delete old, insert new
+      await supabase.from("locais_medicos").delete().eq("local_id", editingLocal.id);
+      if (localFormData.medicos_ids.length > 0) {
+        await supabase.from("locais_medicos").insert(
+          localFormData.medicos_ids.map(mid => ({
+            local_id: editingLocal.id,
+            medico_id: mid,
+            ativo: true,
+          }))
+        );
+      }
+
+      toast.success("Local atualizado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["clinica-locais-atendimento"] });
+      setLocalDialogOpen(false);
     } else {
-      // Create new
-      const { error } = await supabase
+      // Create new local (without medico_id)
+      const { data: newLocal, error } = await supabase
         .from("locais_atendimento")
         .insert({
           nome_local: localFormData.nome_local,
@@ -223,19 +238,32 @@ export default function ClinicaLocais() {
           estado: localFormData.estado || null,
           cep: localFormData.cep || null,
           tipo_atendimento: localFormData.tipo_atendimento,
-          medico_id: localFormData.medico_id,
           clinica_id: clinicaData.id,
           ativo: localFormData.ativo,
-        });
+        })
+        .select("id")
+        .single();
 
       if (error) {
         toast.error("Erro ao criar local");
-        console.error(error);
-      } else {
-        toast.success("Local criado com sucesso!");
-        queryClient.invalidateQueries({ queryKey: ["clinica-locais-atendimento"] });
-        setLocalDialogOpen(false);
+        setLoading(false);
+        return;
       }
+
+      // Insert medico links
+      if (localFormData.medicos_ids.length > 0) {
+        await supabase.from("locais_medicos").insert(
+          localFormData.medicos_ids.map(mid => ({
+            local_id: newLocal.id,
+            medico_id: mid,
+            ativo: true,
+          }))
+        );
+      }
+
+      toast.success("Local criado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["clinica-locais-atendimento"] });
+      setLocalDialogOpen(false);
     }
     setLoading(false);
   }
@@ -244,6 +272,9 @@ export default function ClinicaLocais() {
     if (!localToDelete) return;
     setLoading(true);
 
+    // Delete medico links first
+    await supabase.from("locais_medicos").delete().eq("local_id", localToDelete.id);
+
     const { error } = await supabase
       .from("locais_atendimento")
       .delete()
@@ -251,7 +282,6 @@ export default function ClinicaLocais() {
 
     if (error) {
       toast.error("Erro ao excluir local. Verifique se não há consultas vinculadas.");
-      console.error(error);
     } else {
       toast.success("Local excluído com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["clinica-locais-atendimento"] });
@@ -275,11 +305,19 @@ export default function ClinicaLocais() {
     }
   }
 
+  function toggleMedicoSelection(medicoId: string) {
+    setLocalFormData(prev => ({
+      ...prev,
+      medicos_ids: prev.medicos_ids.includes(medicoId)
+        ? prev.medicos_ids.filter(id => id !== medicoId)
+        : [...prev.medicos_ids, medicoId],
+    }));
+  }
+
   const hasAddress = clinicaData?.endereco_principal || clinicaData?.cidade;
 
   return (
     <div className="space-y-6">
-      {/* Endereço Principal da Clínica */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Locais de Atendimento</h2>
@@ -339,22 +377,14 @@ export default function ClinicaLocais() {
                 <Badge variant="secondary">{locais.length}</Badge>
               )}
             </CardTitle>
-            <Button onClick={openNewLocalDialog} className="gap-2" disabled={!medicos?.length}>
+            <Button onClick={openNewLocalDialog} className="gap-2">
               <Plus className="w-4 h-4" />
               Novo Local
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {!medicos?.length ? (
-            <div className="text-center py-8">
-              <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">Nenhum médico vinculado</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Vincule médicos à clínica antes de criar locais de atendimento
-              </p>
-            </div>
-          ) : loadingLocais ? (
+          {loadingLocais ? (
             <div className="text-center py-8 text-muted-foreground">Carregando...</div>
           ) : locais && locais.length > 0 ? (
             <div className="space-y-3">
@@ -395,11 +425,15 @@ export default function ClinicaLocais() {
                             {local.estado && ` - ${local.estado}`}
                           </p>
                         )}
-                        {local.medico && (
-                          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            Dr(a). {local.medico.nome} - {local.medico.especialidade || "Especialidade"}
-                          </p>
+                        {local.locais_medicos && local.locais_medicos.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {local.locais_medicos.map((lm) => (
+                              <Badge key={lm.id} variant="outline" className="text-xs gap-1">
+                                <User className="w-3 h-3" />
+                                Dr(a). {lm.medico?.nome} {lm.medico?.especialidade ? `- ${lm.medico.especialidade}` : ""}
+                              </Badge>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -527,7 +561,7 @@ export default function ClinicaLocais() {
               {editingLocal ? "Editar Local de Atendimento" : "Novo Local de Atendimento"}
             </DialogTitle>
             <DialogDescription>
-              Cadastre um local onde os médicos da clínica realizam atendimentos
+              Cadastre um local e vincule os médicos que atendem nele
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -538,25 +572,6 @@ export default function ClinicaLocais() {
                 onChange={(e) => setLocalFormData({ ...localFormData, nome_local: e.target.value })}
                 placeholder="Ex: Consultório 1, Sala de Exames, etc."
               />
-            </div>
-
-            <div>
-              <Label>Médico Responsável *</Label>
-              <Select
-                value={localFormData.medico_id}
-                onValueChange={(value) => setLocalFormData({ ...localFormData, medico_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o médico" />
-                </SelectTrigger>
-                <SelectContent>
-                  {medicos?.map((vinculo: any) => (
-                    <SelectItem key={vinculo.medico_id} value={vinculo.medico_id}>
-                      Dr(a). {vinculo.medicos?.nome} - {vinculo.medicos?.especialidade || "Especialidade"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             <div>
@@ -612,6 +627,33 @@ export default function ClinicaLocais() {
                 />
               </div>
             </div>
+
+            {/* Médicos - multi-select via checkboxes */}
+            {medicos && medicos.length > 0 && (
+              <div>
+                <Label className="mb-2 block">Médicos que atendem neste local</Label>
+                <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                  {medicos.map((vinculo: any) => (
+                    <div key={vinculo.medico_id} className="flex items-center gap-3">
+                      <Checkbox
+                        id={`med-${vinculo.medico_id}`}
+                        checked={localFormData.medicos_ids.includes(vinculo.medico_id)}
+                        onCheckedChange={() => toggleMedicoSelection(vinculo.medico_id)}
+                      />
+                      <label
+                        htmlFor={`med-${vinculo.medico_id}`}
+                        className="text-sm cursor-pointer flex-1"
+                      >
+                        Dr(a). {vinculo.medicos?.nome} - {vinculo.medicos?.especialidade || "Especialidade"}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {localFormData.medicos_ids.length} médico(s) selecionado(s)
+                </p>
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <Switch

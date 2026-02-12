@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -97,10 +98,10 @@ export function GerenciarMedicoModal({
   const [novaEspecialidade, setNovaEspecialidade] = useState("");
   const [showAddEspecialidade, setShowAddEspecialidade] = useState(false);
   
-  // Local da clínica
-  const [localClinica, setLocalClinica] = useState<Local | null>(null);
+  // Locais da clínica e vínculos do médico
+  const [clinicaLocais, setClinicaLocais] = useState<Local[]>([]);
+  const [medicoLocaisIds, setMedicoLocaisIds] = useState<Set<string>>(new Set());
   const [loadingLocais, setLoadingLocais] = useState(false);
-  const [localAtivo, setLocalAtivo] = useState(true);
   
   // Serviços
   const [servicos, setServicos] = useState<Servico[]>([]);
@@ -120,70 +121,70 @@ export function GerenciarMedicoModal({
         foto_url: medico.foto_url || "",
         aparecer_home: medico.aparecer_home || false,
       });
-      fetchLocalClinica();
+      fetchLocais();
       fetchServicos();
     }
   }, [open, medico]);
 
-  async function fetchLocalClinica() {
+  async function fetchLocais() {
     if (!medico?.id || !clinicaId) return;
     setLoadingLocais(true);
     
-    const { data } = await supabase
+    // Fetch all locais for this clinic
+    const { data: locaisData } = await supabase
       .from("locais_atendimento")
-      .select("*")
-      .eq("medico_id", medico.id)
+      .select("id, nome_local, tipo_atendimento, endereco, cidade, estado, cep, ativo")
       .eq("clinica_id", clinicaId)
-      .maybeSingle();
+      .order("nome_local");
     
-    setLocalClinica(data);
-    setLocalAtivo(data?.ativo ?? true);
+    setClinicaLocais(locaisData || []);
+
+    // Fetch which locais this doctor is linked to
+    const { data: linksData } = await supabase
+      .from("locais_medicos")
+      .select("local_id")
+      .eq("medico_id", medico.id);
+    
+    const linkedIds = new Set((linksData || []).map(l => l.local_id));
+    setMedicoLocaisIds(linkedIds);
     setLoadingLocais(false);
   }
 
-  async function handleVincularLocal() {
-    if (!clinicaData?.endereco_principal) {
-      toast.error("A clínica não possui endereço cadastrado. Cadastre primeiro em 'Locais'.");
-      return;
-    }
-
-    setLoadingLocais(true);
-    const { error } = await supabase
-      .from("locais_atendimento")
-      .insert({
-        medico_id: medico.id,
-        clinica_id: clinicaId,
-        nome_local: clinicaData.nome_fantasia || "Clínica",
-        tipo_atendimento: "presencial",
-        endereco: clinicaData.endereco_principal,
-        cidade: clinicaData.cidade,
-        estado: clinicaData.estado,
-        ativo: true,
+  async function handleToggleLocal(localId: string) {
+    if (!medico?.id) return;
+    
+    const isLinked = medicoLocaisIds.has(localId);
+    
+    if (isLinked) {
+      // Remove link
+      const { error } = await supabase
+        .from("locais_medicos")
+        .delete()
+        .eq("local_id", localId)
+        .eq("medico_id", medico.id);
+      
+      if (error) {
+        toast.error("Erro ao desvincular local");
+        return;
+      }
+      setMedicoLocaisIds(prev => {
+        const next = new Set(prev);
+        next.delete(localId);
+        return next;
       });
-
-    if (error) {
-      toast.error("Erro ao vincular local");
+      toast.success("Médico desvinculado do local");
     } else {
-      toast.success("Médico vinculado ao endereço da clínica!");
-      fetchLocalClinica();
-    }
-    setLoadingLocais(false);
-  }
-
-  async function handleToggleLocalAtivo() {
-    if (!localClinica) return;
-    
-    const newStatus = !localAtivo;
-    const { error } = await supabase
-      .from("locais_atendimento")
-      .update({ ativo: newStatus })
-      .eq("id", localClinica.id);
-
-    if (error) {
-      toast.error("Erro ao atualizar status");
-    } else {
-      setLocalAtivo(newStatus);
-      toast.success(newStatus ? "Local ativado!" : "Local desativado!");
+      // Add link
+      const { error } = await supabase
+        .from("locais_medicos")
+        .insert({ local_id: localId, medico_id: medico.id, ativo: true });
+      
+      if (error) {
+        toast.error("Erro ao vincular local");
+        return;
+      }
+      setMedicoLocaisIds(prev => new Set(prev).add(localId));
+      toast.success("Médico vinculado ao local!");
     }
   }
 
@@ -314,7 +315,7 @@ export function GerenciarMedicoModal({
     toast.success("Foto enviada!");
   }
 
-  const hasClinicaEndereco = clinicaData?.endereco_principal;
+  const linkedCount = medicoLocaisIds.size;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -334,8 +335,8 @@ export function GerenciarMedicoModal({
             </TabsTrigger>
             <TabsTrigger value="locais" className="gap-1">
               <MapPin className="h-4 w-4" />
-              <span className="hidden sm:inline">Local</span>
-              {localClinica && <Badge variant="secondary" className="ml-1 h-5 px-1.5">1</Badge>}
+              <span className="hidden sm:inline">Locais</span>
+              {linkedCount > 0 && <Badge variant="secondary" className="ml-1 h-5 px-1.5">{linkedCount}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="servicos" className="gap-1">
               <FileText className="h-4 w-4" />
@@ -521,78 +522,59 @@ export function GerenciarMedicoModal({
               </div>
             </TabsContent>
 
-            {/* Tab Locais - Mostra apenas o endereço da clínica */}
+            {/* Tab Locais - Checkbox para vincular/desvincular dos locais da clínica */}
             <TabsContent value="locais" className="mt-0 space-y-4">
               {loadingLocais ? (
                 <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-              ) : !hasClinicaEndereco ? (
+              ) : clinicaLocais.length === 0 ? (
                 <div className="text-center py-8">
                   <AlertCircle className="h-12 w-12 mx-auto mb-4 text-amber-500" />
-                  <p className="text-muted-foreground font-medium">A clínica não possui endereço cadastrado</p>
+                  <p className="text-muted-foreground font-medium">Nenhum local cadastrado na clínica</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Cadastre o endereço da clínica primeiro na seção "Locais" do menu
+                    Cadastre locais de atendimento primeiro na seção "Locais" do menu
                   </p>
                 </div>
-              ) : localClinica ? (
-                <Card className={!localAtivo ? "opacity-60" : ""}>
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                          <Building2 className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="font-semibold text-lg">{localClinica.nome_local}</h3>
-                            <Badge variant={localAtivo ? "default" : "secondary"} className="gap-1">
-                              {localAtivo ? <Check className="w-3 h-3" /> : null}
-                              {localAtivo ? "Ativo" : "Inativo"}
-                            </Badge>
-                          </div>
-                          <p className="text-muted-foreground">
-                            {localClinica.endereco}
-                            {localClinica.cidade && `, ${localClinica.cidade}`}
-                            {localClinica.estado && ` - ${localClinica.estado}`}
-                          </p>
-                          <p className="text-sm text-muted-foreground mt-2">
-                            Este médico atende no endereço da clínica
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={localAtivo}
-                          onCheckedChange={handleToggleLocalAtivo}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
               ) : (
-                <div className="text-center py-8">
-                  <MapPin className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-muted-foreground mb-4">
-                    Este médico ainda não está vinculado ao endereço da clínica
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Selecione os locais onde este médico atende:
                   </p>
-                  <Card className="max-w-md mx-auto mb-4">
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <Building2 className="w-5 h-5 text-primary mt-0.5" />
-                        <div className="text-left">
-                          <p className="font-medium">{clinicaData?.nome_fantasia}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {clinicaData?.endereco_principal}
-                            {clinicaData?.cidade && `, ${clinicaData.cidade}`}
-                            {clinicaData?.estado && ` - ${clinicaData.estado}`}
-                          </p>
+                  {clinicaLocais.map((local) => (
+                    <Card key={local.id} className={!local.ativo ? "opacity-60" : ""}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id={`local-${local.id}`}
+                            checked={medicoLocaisIds.has(local.id)}
+                            onCheckedChange={() => handleToggleLocal(local.id)}
+                            className="mt-1"
+                          />
+                          <label htmlFor={`local-${local.id}`} className="flex-1 cursor-pointer">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Building2 className="w-4 h-4 text-primary" />
+                              <span className="font-medium">{local.nome_local}</span>
+                              <Badge variant={local.ativo ? "default" : "secondary"} className="text-xs">
+                                {local.ativo ? "Ativo" : "Inativo"}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {local.tipo_atendimento === "telemedicina" ? "Telemedicina" : "Presencial"}
+                              </Badge>
+                            </div>
+                            {local.endereco && (
+                              <p className="text-sm text-muted-foreground">
+                                {local.endereco}
+                                {local.cidade && `, ${local.cidade}`}
+                                {local.estado && ` - ${local.estado}`}
+                              </p>
+                            )}
+                          </label>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Button onClick={handleVincularLocal} disabled={loadingLocais} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Vincular ao Endereço da Clínica
-                  </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    {linkedCount} local(is) vinculado(s) a este médico
+                  </p>
                 </div>
               )}
             </TabsContent>
