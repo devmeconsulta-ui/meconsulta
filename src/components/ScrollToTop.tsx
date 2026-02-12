@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 
 // Prefixes where internal navigation should NOT scroll to top
-const NO_SCROLL_PREFIXES = ["/clinica/", "/medico/", "/paciente/", "/admin/", "/atendente/"];
+const NO_SCROLL_PREFIXES = ["/clinica", "/medico", "/paciente", "/admin", "/atendente"];
 
 export const ScrollToTop = () => {
   const { pathname } = useLocation();
