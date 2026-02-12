@@ -384,7 +384,7 @@ function ConversationItem({
           <p className="text-xs text-muted-foreground truncate max-w-[160px]">
             {atendimento.status === "aguardando" ? "Aguardando atendimento..." : "Em atendimento"}
           </p>
-          {unreadCount && unreadCount > 0 && (
+          {unreadCount != null && unreadCount > 0 && (
             <Badge className="bg-green-500 text-white text-[10px] h-5 min-w-5 flex items-center justify-center rounded-full">
               {unreadCount}
             </Badge>
