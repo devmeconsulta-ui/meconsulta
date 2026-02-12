@@ -428,21 +428,11 @@ export default function AdminUsuarios() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="admins" className="gap-2">
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">Admins</span>
             <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] text-xs">{admins.length}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="medicos" className="gap-2">
-            <Stethoscope className="h-4 w-4" />
-            <span className="hidden sm:inline">Médicos</span>
-            <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] text-xs">{medicos.length}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="pacientes" className="gap-2">
-            <User className="h-4 w-4" />
-            <span className="hidden sm:inline">Pacientes</span>
-            <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] text-xs">{pacientes.length}</Badge>
           </TabsTrigger>
           <TabsTrigger value="clinicas" className="gap-2">
             <Building2 className="h-4 w-4" />
@@ -463,38 +453,6 @@ export default function AdminUsuarios() {
               {isLoading ? (
                 <div className="space-y-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
               ) : renderUserTable(filterBySearch(admins))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Medicos Tab */}
-        <TabsContent value="medicos">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Stethoscope className="h-5 w-5" /> Médicos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-              ) : renderUserTable(filterBySearch(medicos))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Pacientes Tab */}
-        <TabsContent value="pacientes">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" /> Pacientes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-              ) : renderUserTable(filterBySearch(pacientes))}
             </CardContent>
           </Card>
         </TabsContent>
