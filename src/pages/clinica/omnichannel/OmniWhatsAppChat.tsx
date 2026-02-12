@@ -1540,7 +1540,7 @@ export default function OmniWhatsAppChat() {
                     const showHistoryEnd = !isHistoryMsg && prevMsg?.type === 'message' && prevIsHistory;
                     
                     return (
-                      <div key={msg.id} id={`msg-${msg.id}`} className={cn("transition-colors duration-500", isHistoryMsg && "opacity-60")}>
+                      <div key={msg.id} id={`msg-${msg.id}`} className="transition-colors duration-500">
                         {showHistorySeparator && (
                           <div className="flex items-center justify-center my-3">
                             <span className="bg-muted text-muted-foreground text-xs px-3 py-1 rounded-full shadow-sm flex items-center gap-1.5">
