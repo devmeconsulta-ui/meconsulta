@@ -58,6 +58,8 @@ const statusPagamentoLabels: Record<string, string> = {
 export default function AdminConsultas() {
   const queryClient = useQueryClient();
   const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
+  const [dataInicioOpen, setDataInicioOpen] = useState(false);
+  const [dataFimOpen, setDataFimOpen] = useState(false);
   const [filters, setFilters] = useState({
     dataInicio: format(subDays(new Date(), 30), "yyyy-MM-dd"),
     dataFim: format(new Date(new Date().setMonth(new Date().getMonth() + 3)), "yyyy-MM-dd"),
@@ -380,7 +382,7 @@ export default function AdminConsultas() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Data Inicial</Label>
-              <Popover>
+              <Popover open={dataInicioOpen} onOpenChange={setDataInicioOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !filters.dataInicio && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -391,7 +393,7 @@ export default function AdminConsultas() {
                   <Calendar
                     mode="single"
                     selected={filters.dataInicio ? parseISO(filters.dataInicio) : undefined}
-                    onSelect={(date) => setFilters({ ...filters, dataInicio: date ? format(date, "yyyy-MM-dd") : "" })}
+                    onSelect={(date) => { setFilters({ ...filters, dataInicio: date ? format(date, "yyyy-MM-dd") : "" }); setDataInicioOpen(false); }}
                     locale={ptBR}
                     className={cn("p-3 pointer-events-auto")}
                   />
@@ -400,7 +402,7 @@ export default function AdminConsultas() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Data Final</Label>
-              <Popover>
+              <Popover open={dataFimOpen} onOpenChange={setDataFimOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !filters.dataFim && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -411,7 +413,7 @@ export default function AdminConsultas() {
                   <Calendar
                     mode="single"
                     selected={filters.dataFim ? parseISO(filters.dataFim) : undefined}
-                    onSelect={(date) => setFilters({ ...filters, dataFim: date ? format(date, "yyyy-MM-dd") : "" })}
+                    onSelect={(date) => { setFilters({ ...filters, dataFim: date ? format(date, "yyyy-MM-dd") : "" }); setDataFimOpen(false); }}
                     locale={ptBR}
                     className={cn("p-3 pointer-events-auto")}
                   />
