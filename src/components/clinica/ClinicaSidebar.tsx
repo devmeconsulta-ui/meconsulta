@@ -228,7 +228,7 @@ export function ClinicaSidebar() {
                       cn(
                         "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
                         isActive
-                          ? "bg-primary text-primary-foreground shadow-lg"
+                          ? "bg-amber-400 text-amber-950 shadow-lg"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       )
                     }
