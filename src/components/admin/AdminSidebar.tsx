@@ -34,12 +34,6 @@ const menuItems: MenuItem[] = [
     allowedRoles: ["atendente", "supervisor", "admin", "superadmin"]
   },
   { 
-    title: "Usuários", 
-    url: "/admin/usuarios", 
-    icon: UserCog,
-    allowedRoles: ["admin", "superadmin"]
-  },
-  { 
     title: "Clínicas", 
     url: "/admin/clinicas", 
     icon: Building2,
@@ -68,6 +62,12 @@ const menuItems: MenuItem[] = [
     url: "/admin/financeiro", 
     icon: DollarSign,
     allowedRoles: ["supervisor", "admin", "superadmin"]
+  },
+  { 
+    title: "Usuários", 
+    url: "/admin/usuarios", 
+    icon: UserCog,
+    allowedRoles: ["admin", "superadmin"]
   },
   { 
     title: "Configurações", 
