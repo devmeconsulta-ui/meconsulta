@@ -34,6 +34,8 @@ import {
   Pencil,
   Forward,
   Download,
+  Trash2,
+  History,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -195,12 +197,14 @@ function MessageBubble({
   isFirstAgentMessage,
   onForward,
   onEdit,
+  onDelete,
 }: { 
   mensagem: OmniMensagem; 
   showSignature?: boolean;
   isFirstAgentMessage?: boolean;
   onForward?: (msg: OmniMensagem) => void;
   onEdit?: (msg: OmniMensagem) => void;
+  onDelete?: (msg: OmniMensagem) => void;
 }) {
   const isOutgoing = mensagem.direcao === "saida";
   const formattedTime = format(new Date(mensagem.created_at), "HH:mm", { locale: ptBR });
@@ -265,6 +269,14 @@ function MessageBubble({
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onForward?.(mensagem); }} className="gap-2 text-sm">
                 <Forward className="h-4 w-4" /> Encaminhar
               </DropdownMenuItem>
+              {isOutgoing && (
+                <DropdownMenuItem 
+                  onClick={(e) => { e.stopPropagation(); onDelete?.(mensagem); }} 
+                  className="gap-2 text-sm text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" /> Apagar para todos
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -484,7 +496,7 @@ export default function OmniWhatsAppChat() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { filas } = useOmniFilas(clinicaId);
-  const { mensagens, loading: loadingMessages, enviarMensagem } = useOmniMensagens(selectedAtendimento?.id || null);
+  const { mensagens, historicoMensagens, loading: loadingMessages, enviarMensagem, editarMensagem, apagarMensagem } = useOmniMensagens(selectedAtendimento?.id || null);
   const { notas, criarNota, marcarComoLida } = useOmniNotasInternas(selectedAtendimento?.id || null);
   const { etiquetas, criarEtiqueta } = useOmniEtiquetas(clinicaId);
   
@@ -541,10 +553,13 @@ export default function OmniWhatsAppChat() {
     );
     const pendingOptimistic = optimisticMessages.filter(m => !realContents.has(m.conteudo));
     
-    return [...editedMensagens, ...pendingOptimistic].sort((a, b) => 
+    // Include history from previous atendimentos
+    const historyWithFlag = historicoMensagens.map(m => ({ ...m, _isHistory: true as const }));
+    
+    return [...historyWithFlag, ...editedMensagens, ...pendingOptimistic].sort((a, b) => 
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
-  }, [mensagens, optimisticMessages, editedMessages]);
+  }, [mensagens, optimisticMessages, editedMessages, historicoMensagens]);
 
   // Combine messages and notes for display
   const combinedItems = useMemo(() => {
@@ -771,6 +786,12 @@ export default function OmniWhatsAppChat() {
     setForwardingMessage(msg);
   }, []);
 
+  // Handle delete message
+  const [deletingMessage, setDeletingMessage] = useState<OmniMensagem | null>(null);
+  const handleDeleteMessage = useCallback((msg: OmniMensagem) => {
+    setDeletingMessage(msg);
+  }, []);
+
   // Cancel editing
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);
@@ -800,17 +821,8 @@ export default function OmniWhatsAppChat() {
       ));
       inputRef.current?.focus();
 
-      // Update in DB (fire and forget)
-      supabase
-        .from("omni_mensagens")
-        .update({ conteudo: trimmedMessage })
-        .eq("id", editedMsgId)
-        .then(({ error }) => {
-          if (error) {
-            console.error("Error updating message:", error);
-            toast.error("Erro ao editar mensagem");
-          }
-        });
+      // Edit via edge function (updates DB + WhatsApp)
+      editarMensagem(editedMsgId, trimmedMessage);
     } else {
       // Create optimistic message
       const optimisticMsg: OmniMensagem = {
@@ -838,7 +850,7 @@ export default function OmniWhatsAppChat() {
       // Fire and forget - send in background without waiting
       enviarMensagem(agenteId, "texto", trimmedMessage);
     }
-  }, [messageInput, selectedAtendimento, getAgenteId, currentUser?.nome, enviarMensagem, signatureEnabled, handleTypingStop, editingMessage]);
+  }, [messageInput, selectedAtendimento, getAgenteId, currentUser?.nome, enviarMensagem, editarMensagem, signatureEnabled, handleTypingStop, editingMessage]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -1513,15 +1525,37 @@ export default function OmniWhatsAppChat() {
                       );
                     }
                     
-                    const msg = item.data as OmniMensagem;
+                    const msg = item.data as OmniMensagem & { _isHistory?: boolean };
+                    const isHistoryMsg = !!(msg as any)._isHistory;
                     const previousMessages = combinedItems.slice(0, index)
                       .filter(i => i.type === 'message')
                       .map(i => i.data as OmniMensagem);
                     const isFirstAgentMessage = msg.direcao === "saida" && 
                       previousMessages.every(m => m.direcao !== "saida");
+
+                    // Show history separator before first history message
+                    const prevMsg = index > 0 ? combinedItems[index - 1] : null;
+                    const prevIsHistory = prevMsg?.type === 'message' && !!(prevMsg.data as any)._isHistory;
+                    const showHistorySeparator = isHistoryMsg && (index === 0 || !prevIsHistory) && index === combinedItems.findIndex(i => i.type === 'message');
+                    const showHistoryEnd = !isHistoryMsg && prevMsg?.type === 'message' && prevIsHistory;
                     
                     return (
-                      <div key={msg.id} id={`msg-${msg.id}`} className="transition-colors duration-500">
+                      <div key={msg.id} id={`msg-${msg.id}`} className={cn("transition-colors duration-500", isHistoryMsg && "opacity-60")}>
+                        {showHistorySeparator && (
+                          <div className="flex items-center justify-center my-3">
+                            <span className="bg-muted text-muted-foreground text-xs px-3 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+                              <History className="h-3 w-3" />
+                              Histórico de conversas anteriores
+                            </span>
+                          </div>
+                        )}
+                        {showHistoryEnd && (
+                          <div className="flex items-center justify-center my-3">
+                            <span className="bg-primary/10 text-primary text-xs px-3 py-1 rounded-full shadow-sm font-medium">
+                              Conversa atual
+                            </span>
+                          </div>
+                        )}
                         {showDateSeparator && (
                           <div className="flex items-center justify-center my-3">
                             <span className="bg-muted text-muted-foreground text-xs px-3 py-1 rounded-full shadow-sm">
@@ -1533,8 +1567,9 @@ export default function OmniWhatsAppChat() {
                           mensagem={msg} 
                           showSignature={signatureEnabled}
                           isFirstAgentMessage={isFirstAgentMessage}
-                          onForward={handleForwardMessage}
-                          onEdit={handleEditMessage}
+                          onForward={isHistoryMsg ? undefined : handleForwardMessage}
+                          onEdit={isHistoryMsg ? undefined : handleEditMessage}
+                          onDelete={isHistoryMsg ? undefined : handleDeleteMessage}
                         />
                       </div>
                     );
@@ -1854,6 +1889,35 @@ export default function OmniWhatsAppChat() {
               }}
             >
               Encerrar todos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Message Confirmation */}
+      <AlertDialog open={!!deletingMessage} onOpenChange={(open) => { if (!open) setDeletingMessage(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              Apagar mensagem
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              A mensagem será apagada para todos os participantes. Essa ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deletingMessage) {
+                  apagarMensagem(deletingMessage.id);
+                  setDeletingMessage(null);
+                }
+              }}
+            >
+              Apagar para todos
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

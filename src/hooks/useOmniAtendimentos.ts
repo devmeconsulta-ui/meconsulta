@@ -327,6 +327,7 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
 
 export function useOmniMensagens(atendimentoId: string | null) {
   const [mensagens, setMensagens] = useState<OmniMensagem[]>([]);
+  const [historicoMensagens, setHistoricoMensagens] = useState<OmniMensagem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchMensagens = useCallback(async () => {
@@ -336,6 +337,7 @@ export function useOmniMensagens(atendimentoId: string | null) {
     }
 
     try {
+      // Fetch current atendimento messages
       const { data, error } = await supabase
         .from("omni_mensagens")
         .select(`
@@ -347,14 +349,54 @@ export function useOmniMensagens(atendimentoId: string | null) {
 
       if (error) throw error;
       
-      // Map agente nome to each message
       const mensagensComAgente = (data || []).map((msg: any) => ({
         ...msg,
         agente_nome: msg.agente?.nome || null,
-        agente: undefined, // Remove the nested object
+        agente: undefined,
       })) as OmniMensagem[];
       
       setMensagens(mensagensComAgente);
+
+      // Fetch previous atendimentos history for the same contact
+      const { data: atendimentoData } = await supabase
+        .from("omni_atendimentos")
+        .select("contato_id")
+        .eq("id", atendimentoId)
+        .single();
+
+      if (atendimentoData?.contato_id) {
+        // Get all previous atendimento IDs for this contact (excluding current)
+        const { data: prevAtendimentos } = await supabase
+          .from("omni_atendimentos")
+          .select("id")
+          .eq("contato_id", atendimentoData.contato_id)
+          .neq("id", atendimentoId)
+          .order("data_abertura", { ascending: false })
+          .limit(10);
+
+        if (prevAtendimentos && prevAtendimentos.length > 0) {
+          const prevIds = prevAtendimentos.map(a => a.id);
+          const { data: histData } = await supabase
+            .from("omni_mensagens")
+            .select(`
+              *,
+              agente:usuarios_clinica!agente_id(id, nome)
+            `)
+            .in("atendimento_id", prevIds)
+            .order("created_at", { ascending: true });
+
+          if (histData) {
+            const histMensagens = histData.map((msg: any) => ({
+              ...msg,
+              agente_nome: msg.agente?.nome || null,
+              agente: undefined,
+            })) as OmniMensagem[];
+            setHistoricoMensagens(histMensagens);
+          }
+        } else {
+          setHistoricoMensagens([]);
+        }
+      }
     } catch (error) {
       console.error("Error fetching mensagens:", error);
     } finally {
@@ -404,15 +446,26 @@ export function useOmniMensagens(atendimentoId: string | null) {
             );
           }
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "omni_mensagens",
+            filter: `atendimento_id=eq.${atendimentoId}`,
+          },
+          (payload) => {
+            console.log("[Realtime] Message deleted:", payload.old);
+            setMensagens((prev) => prev.filter((m) => m.id !== (payload.old as any).id));
+          }
+        )
         .subscribe((status) => {
           console.log(`[Realtime] Subscription status for mensagens: ${status}`);
         });
 
       // Fallback polling para sincronizar status de mensagens - a cada 30 segundos
-      // Isso garante que mesmo se um evento realtime for perdido, o status seja atualizado
       const pollInterval = setInterval(async () => {
         try {
-          // Buscar apenas mensagens de saída que não estão "lida" para verificar status
           const { data } = await supabase
             .from("omni_mensagens")
             .select("id, status")
@@ -439,7 +492,7 @@ export function useOmniMensagens(atendimentoId: string | null) {
         } catch (err) {
           console.error("[Polling] Error syncing message status:", err);
         }
-      }, 30000); // 30 segundos
+      }, 30000);
 
       return () => {
         console.log(`[Realtime] Unsubscribing from omni_mensagens for atendimento: ${atendimentoId}`);
@@ -493,10 +546,55 @@ export function useOmniMensagens(atendimentoId: string | null) {
     });
   };
 
+  const editarMensagem = async (mensagemId: string, novoConteudo: string) => {
+    try {
+      // Optimistic update
+      setMensagens(prev => prev.map(m => 
+        m.id === mensagemId ? { ...m, conteudo: novoConteudo } : m
+      ));
+
+      const { error } = await supabase.functions.invoke("evolution-edit-message", {
+        body: { mensagem_id: mensagemId, novo_conteudo: novoConteudo },
+      });
+
+      if (error) {
+        console.error("Error editing message:", error);
+        toast.error("Erro ao editar mensagem");
+      }
+    } catch (err) {
+      console.error("Error editing message:", err);
+      toast.error("Erro ao editar mensagem");
+    }
+  };
+
+  const apagarMensagem = async (mensagemId: string) => {
+    try {
+      // Optimistic remove
+      setMensagens(prev => prev.filter(m => m.id !== mensagemId));
+
+      const { error } = await supabase.functions.invoke("evolution-delete-message", {
+        body: { mensagem_id: mensagemId },
+      });
+
+      if (error) {
+        console.error("Error deleting message:", error);
+        toast.error("Erro ao apagar mensagem");
+      } else {
+        toast.success("Mensagem apagada");
+      }
+    } catch (err) {
+      console.error("Error deleting message:", err);
+      toast.error("Erro ao apagar mensagem");
+    }
+  };
+
   return {
     mensagens,
+    historicoMensagens,
     loading,
     refetch: fetchMensagens,
     enviarMensagem,
+    editarMensagem,
+    apagarMensagem,
   };
 }
