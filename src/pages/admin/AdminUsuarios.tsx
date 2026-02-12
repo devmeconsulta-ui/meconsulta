@@ -133,12 +133,29 @@ export default function AdminUsuarios() {
         .order("nome_fantasia");
       if (clinicasError) throw clinicasError;
 
-      const [staffResult, medicosResult, consultasResult, allMedicosResult] = await Promise.all([
+      // Fetch patients directly from pacientes table via consultas (deduplicated at DB level)
+      const [staffResult, medicosResult, allMedicosResult] = await Promise.all([
         supabase.from("usuarios_clinica").select("id, nome, email, papel, ativo, clinica_id"),
         supabase.from("clinicas_medicos").select("clinica_id, medico:medicos!clinicas_medicos_medico_id_fkey(id, nome, especialidade, crm, ativo, usuario_id)").eq("ativo", true),
-        supabase.from("consultas").select("clinica_id, paciente_id, pacientes(id, nome, email, cpf, telefone, usuario_id)").not("clinica_id", "is", null).not("paciente_id", "is", null),
         supabase.from("medicos").select("id, usuario_id"),
       ]);
+
+      // Fetch distinct paciente per clinica using a dedicated query per clinic
+      // to avoid the 1000 row limit on consultas
+      const pacientesByClinica = new Map<string, Map<string, any>>();
+      for (const c of clinicas || []) {
+        const { data: pacData } = await supabase
+          .from("consultas")
+          .select("paciente_id, pacientes(id, nome, email, cpf, telefone, usuario_id)")
+          .eq("clinica_id", c.id)
+          .not("paciente_id", "is", null);
+        
+        const map = new Map<string, any>();
+        (pacData || []).forEach((con: any) => {
+          if (con.pacientes) map.set(con.pacientes.id, con.pacientes);
+        });
+        pacientesByClinica.set(c.id, map);
+      }
 
       if (staffResult.error) throw staffResult.error;
       if (medicosResult.error) throw medicosResult.error;
@@ -151,8 +168,10 @@ export default function AdminUsuarios() {
       });
 
       const pacienteIdsInClinics = new Set<string>();
-      (consultasResult.data || []).forEach((con: any) => {
-        if (con.pacientes?.usuario_id) pacienteIdsInClinics.add(con.pacientes.usuario_id);
+      pacientesByClinica.forEach((map) => {
+        map.forEach((p: any) => {
+          if (p.usuario_id) pacienteIdsInClinics.add(p.usuario_id);
+        });
       });
 
       const clinicasList: ClinicaComUsuarios[] = (clinicas || []).map((c) => {
@@ -162,18 +181,13 @@ export default function AdminUsuarios() {
           .filter((cm: any) => cm.clinica_id === c.id && cm.medico)
           .map((cm: any) => cm.medico);
 
-        const pacientesMap = new Map<string, any>();
-        (consultasResult.data || []).forEach((con: any) => {
-          if (con.clinica_id === c.id && con.pacientes) {
-            pacientesMap.set(con.pacientes.id, con.pacientes);
-          }
-        });
+        const pacMap = pacientesByClinica.get(c.id) || new Map();
 
         return {
           ...c,
           usuarios: staff,
           medicos: clinicaMedicos,
-          pacientes: Array.from(pacientesMap.values()),
+          pacientes: Array.from(pacMap.values()),
         };
       });
 
