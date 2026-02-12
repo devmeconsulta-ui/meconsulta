@@ -71,6 +71,8 @@ export default function OmniAgentes() {
   const [selectedAtendimento, setSelectedAtendimento] = useState<OmniAtendimento | null>(null);
   const [isTransferirModalOpen, setIsTransferirModalOpen] = useState(false);
   const [isVisualizarModalOpen, setIsVisualizarModalOpen] = useState(false);
+  const [selectedAgenteFilas, setSelectedAgenteFilas] = useState<{agente: Agente; filas: string[]} | null>(null);
+  const [selectedAgenteAtendimentos, setSelectedAgenteAtendimentos] = useState<{agente: Agente; atendimentos: OmniAtendimento[]} | null>(null);
 
   const { atendimentos, loading: loadingAtendimentos, refetch } = useOmniAtendimentos(clinicaId);
   const { filas, loading: loadingFilas } = useOmniFilas(clinicaId);
@@ -478,7 +480,16 @@ export default function OmniAgentes() {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8"
+                                        onClick={() => {
+                                          // Show filas this agent can access
+                                          setSelectedAgenteFilas({ agente, filas: filas.map(f => f.nome) });
+                                          toast.info(`${agente.nome} tem acesso a ${filas.length} fila(s): ${filas.map(f => f.nome).join(", ") || "Nenhuma"}`);
+                                        }}
+                                      >
                                         <Users className="w-4 h-4" />
                                       </Button>
                                     </TooltipTrigger>
@@ -488,7 +499,16 @@ export default function OmniAgentes() {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8"
+                                        onClick={() => {
+                                          // Switch to atendimentos tab filtered by this agent
+                                          setFilterAgente(agente.id);
+                                          setActiveTab("atendimentos");
+                                        }}
+                                      >
                                         <BookOpen className="w-4 h-4" />
                                       </Button>
                                     </TooltipTrigger>
@@ -498,11 +518,26 @@ export default function OmniAgentes() {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8"
+                                        onClick={() => {
+                                          // Show agent's active atendimentos
+                                          const agenteAtendimentos = atendimentos.filter(a => a.agente_id === agente.id);
+                                          setSelectedAgenteAtendimentos({ agente, atendimentos: agenteAtendimentos });
+                                          if (agenteAtendimentos.length > 0) {
+                                            setSelectedAtendimento(agenteAtendimentos[0]);
+                                            setIsVisualizarModalOpen(true);
+                                          } else {
+                                            toast.info(`${agente.nome} não possui atendimentos ativos`);
+                                          }
+                                        }}
+                                      >
                                         <Eye className="w-4 h-4" />
                                       </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Visualizar</TooltipContent>
+                                    <TooltipContent>Visualizar atendimento</TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
                                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -633,7 +668,12 @@ export default function OmniAgentes() {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8"
+                                        onClick={() => handleVisualizarConversa(atendimento)}
+                                      >
                                         <Eye className="w-4 h-4" />
                                       </Button>
                                     </TooltipTrigger>
@@ -643,7 +683,12 @@ export default function OmniAgentes() {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8"
+                                        onClick={() => handleVisualizarConversa(atendimento)}
+                                      >
                                         <MessageSquare className="w-4 h-4" />
                                       </Button>
                                     </TooltipTrigger>
@@ -653,7 +698,12 @@ export default function OmniAgentes() {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8"
+                                        onClick={() => handleTransferir(atendimento)}
+                                      >
                                         <ArrowLeftRight className="w-4 h-4" />
                                       </Button>
                                     </TooltipTrigger>
@@ -663,7 +713,12 @@ export default function OmniAgentes() {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8 text-destructive hover:text-destructive"
+                                        onClick={() => handleEncerrar(atendimento)}
+                                      >
                                         <XCircle className="w-4 h-4" />
                                       </Button>
                                     </TooltipTrigger>
