@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Calendar, Filter, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, Search, Eye, Download, ThumbsUp, HelpCircle, UserX, MapPin } from "lucide-react";
+import { Calendar, Filter, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, Search, Eye, Download, ThumbsUp, HelpCircle, UserX, MapPin, Building2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -57,10 +57,24 @@ export default function AdminConsultas() {
   const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
   const [filters, setFilters] = useState({
     dataInicio: format(subDays(new Date(), 30), "yyyy-MM-dd"),
-    dataFim: format(new Date(new Date().setMonth(new Date().getMonth() + 3)), "yyyy-MM-dd"), // Include future appointments
+    dataFim: format(new Date(new Date().setMonth(new Date().getMonth() + 3)), "yyyy-MM-dd"),
     statusConsulta: "all",
     statusPagamento: "all",
+    clinicaId: "all",
     search: "",
+  });
+
+  // Fetch clinicas for filter
+  const { data: clinicas } = useQuery({
+    queryKey: ["admin-clinicas-filter"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clinicas")
+        .select("id, nome_fantasia")
+        .order("nome_fantasia");
+      if (error) throw error;
+      return data;
+    },
   });
 
   // Fetch consultas
@@ -88,6 +102,10 @@ export default function AdminConsultas() {
       }
       if (filters.statusPagamento !== "all") {
         query = query.eq("status_pagamento", filters.statusPagamento);
+      }
+
+      if (filters.clinicaId !== "all") {
+        query = query.eq("clinica_id", filters.clinicaId);
       }
 
       const { data, error } = await query;
@@ -154,6 +172,7 @@ export default function AdminConsultas() {
       dataFim: format(new Date(new Date().setMonth(new Date().getMonth() + 3)), "yyyy-MM-dd"),
       statusConsulta: "all",
       statusPagamento: "all",
+      clinicaId: "all",
       search: "",
     });
   };
@@ -325,8 +344,8 @@ export default function AdminConsultas() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-            <div className="relative lg:col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar médico ou paciente..."
@@ -373,10 +392,24 @@ export default function AdminConsultas() {
                 <SelectValue placeholder="Status Pagamento" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="all">Todos Pagamentos</SelectItem>
                 <SelectItem value="pago">Pago</SelectItem>
                 <SelectItem value="pendente">Pendente</SelectItem>
                 <SelectItem value="falhou">Falhou</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.clinicaId}
+              onValueChange={(value) => setFilters({ ...filters, clinicaId: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Clínica" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas Clínicas</SelectItem>
+                {(clinicas || []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nome_fantasia}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
