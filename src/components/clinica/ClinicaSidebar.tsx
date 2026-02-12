@@ -148,7 +148,7 @@ export function ClinicaSidebar() {
     item => location.pathname === item.path || location.pathname.startsWith(item.path + "/")
   ) || location.pathname.startsWith("/clinica/tiss");
 
-  const SidebarContent = () => (
+  const sidebarContent = (
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="p-6 border-b border-border">
@@ -371,7 +371,7 @@ export function ClinicaSidebar() {
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <SidebarContent />
+        {sidebarContent}
       </aside>
     </>
   );
