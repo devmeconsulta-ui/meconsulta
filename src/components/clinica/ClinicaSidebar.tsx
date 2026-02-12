@@ -192,9 +192,7 @@ export function ClinicaSidebar() {
               <button
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                  isAtendimentoActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  "bg-amber-400 text-amber-950 shadow-md"
                 )}
               >
                 <Headset className="w-5 h-5" />
