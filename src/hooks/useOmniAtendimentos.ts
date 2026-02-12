@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -144,6 +144,18 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
     }
   }, [clinicaId, statusKey, agenteKey, filaKey]);
 
+  // Debounced refetch to prevent rapid successive fetches from realtime
+  const refetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedFetch = useCallback(() => {
+    if (refetchTimeoutRef.current) {
+      clearTimeout(refetchTimeoutRef.current);
+    }
+    refetchTimeoutRef.current = setTimeout(() => {
+      fetchAtendimentos();
+      refetchTimeoutRef.current = null;
+    }, 1000);
+  }, [fetchAtendimentos]);
+
   useEffect(() => {
     fetchAtendimentos();
 
@@ -154,22 +166,62 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
         .on(
           "postgres_changes",
           {
-            event: "*",
+            event: "INSERT",
             schema: "public",
             table: "omni_atendimentos",
             filter: `clinica_id=eq.${clinicaId}`,
           },
           () => {
-            fetchAtendimentos();
+            debouncedFetch();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "omni_atendimentos",
+            filter: `clinica_id=eq.${clinicaId}`,
+          },
+          (payload) => {
+            const updated = payload.new as any;
+            setAtendimentos(prev => {
+              if (statusFilter?.length && !statusFilter.includes(updated.status)) {
+                return prev.filter(a => a.id !== updated.id);
+              }
+              const exists = prev.some(a => a.id === updated.id);
+              if (exists) {
+                return prev.map(a => 
+                  a.id === updated.id 
+                    ? { ...a, ...updated, contato: a.contato, fila: a.fila, agente: a.agente }
+                    : a
+                );
+              }
+              debouncedFetch();
+              return prev;
+            });
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "omni_atendimentos",
+            filter: `clinica_id=eq.${clinicaId}`,
+          },
+          (payload) => {
+            setAtendimentos(prev => prev.filter(a => a.id !== (payload.old as any).id));
           }
         )
         .subscribe();
 
       return () => {
+        if (refetchTimeoutRef.current) clearTimeout(refetchTimeoutRef.current);
         supabase.removeChannel(channel);
       };
     }
-  }, [clinicaId, fetchAtendimentos]);
+  }, [clinicaId, fetchAtendimentos, debouncedFetch]);
 
   const atribuirAtendimento = async (atendimentoId: string, agenteId: string) => {
     try {
@@ -184,7 +236,12 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
 
       if (error) throw error;
 
-      await fetchAtendimentos();
+      // Optimistic local update
+      setAtendimentos(prev => prev.map(a => 
+        a.id === atendimentoId 
+          ? { ...a, agente_id: agenteId, status: "em_atendimento" as const }
+          : a
+      ));
       toast.success("Atendimento atribuído com sucesso");
     } catch (error) {
       console.error("Error assigning atendimento:", error);
@@ -214,7 +271,12 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
 
       if (error) throw error;
 
-      await fetchAtendimentos();
+      // Optimistic local update
+      setAtendimentos(prev => prev.map(a => 
+        a.id === atendimentoId 
+          ? { ...a, agente_id: novoAgenteId || null, fila_id: novaFilaId || a.fila_id, status: (novoAgenteId ? "em_atendimento" : "aguardando") as any }
+          : a
+      ));
       toast.success("Atendimento transferido com sucesso");
     } catch (error) {
       console.error("Error transferring atendimento:", error);
@@ -243,7 +305,8 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
 
       if (error) throw error;
 
-      await fetchAtendimentos();
+      // Optimistic: remove from list
+      setAtendimentos(prev => prev.filter(a => a.id !== atendimentoId));
       toast.success("Atendimento finalizado");
     } catch (error) {
       console.error("Error finalizing atendimento:", error);
