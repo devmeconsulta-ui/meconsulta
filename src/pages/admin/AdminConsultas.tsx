@@ -260,24 +260,33 @@ export default function AdminConsultas() {
           </CardHeader>
           <CardContent>
             {statusConsultaData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={statusConsultaData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={70}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                  >
-                    {statusConsultaData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              <div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={statusConsultaData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={75}
+                      dataKey="value"
+                    >
+                      {statusConsultaData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => [value, "Consultas"]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex flex-wrap justify-center gap-3 mt-2">
+                  {statusConsultaData.map((entry) => (
+                    <div key={entry.name} className="flex items-center gap-1.5 text-xs">
+                      <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: entry.color }} />
+                      <span className="text-muted-foreground">{entry.name}: <strong className="text-foreground">{entry.value}</strong></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
               <p className="text-center text-muted-foreground py-8">Sem dados</p>
             )}
@@ -290,24 +299,33 @@ export default function AdminConsultas() {
           </CardHeader>
           <CardContent>
             {statusPagamentoData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={statusPagamentoData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={70}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                  >
-                    {statusPagamentoData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              <div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={statusPagamentoData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={75}
+                      dataKey="value"
+                    >
+                      {statusPagamentoData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => [value, "Consultas"]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex flex-wrap justify-center gap-3 mt-2">
+                  {statusPagamentoData.map((entry) => (
+                    <div key={entry.name} className="flex items-center gap-1.5 text-xs">
+                      <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: entry.color }} />
+                      <span className="text-muted-foreground">{entry.name}: <strong className="text-foreground">{entry.value}</strong></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
               <p className="text-center text-muted-foreground py-8">Sem dados</p>
             )}
