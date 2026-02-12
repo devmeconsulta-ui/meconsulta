@@ -46,6 +46,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useOmniMensagens, OmniAtendimento, OmniMensagem } from "@/hooks/useOmniAtendimentos";
@@ -401,6 +406,7 @@ export default function OmniWhatsAppChat() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { filas } = useOmniFilas(clinicaId);
   const { mensagens, loading: loadingMessages, enviarMensagem } = useOmniMensagens(selectedAtendimento?.id || null);
   const { notas, criarNota, marcarComoLida } = useOmniNotasInternas(selectedAtendimento?.id || null);
@@ -799,6 +805,72 @@ export default function OmniWhatsAppChat() {
         toast.error("Erro ao enviar áudio: " + (error?.message || "erro desconhecido"));
       }
     }
+  }, [selectedAtendimento, getAgenteId, currentUser?.nome, signatureEnabled, enviarMensagem]);
+
+  // Handle file attachment upload
+  const handleFileAttachment = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedAtendimento) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 10MB.");
+      return;
+    }
+
+    const agenteId = getAgenteId();
+
+    try {
+      const extension = file.name.split('.').pop() || 'bin';
+      const fileName = `file_${Date.now()}.${extension}`;
+      const filePath = `omni/${selectedAtendimento.clinica_id}/${selectedAtendimento.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("omni-files")
+        .upload(filePath, file, {
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        toast.error("Erro ao fazer upload do arquivo");
+        return;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("omni-files")
+        .getPublicUrl(filePath);
+
+      const tipo: OmniMensagem["tipo"] = file.type.startsWith("image/") ? "imagem" : "documento";
+
+      const optimisticMsg: OmniMensagem = {
+        id: `temp-file-${Date.now()}`,
+        atendimento_id: selectedAtendimento.id,
+        contato_id: null,
+        agente_id: agenteId,
+        agente_nome: signatureEnabled ? currentUser?.nome || null : null,
+        tipo,
+        direcao: "saida",
+        conteudo: null,
+        arquivo_url: publicUrl,
+        arquivo_nome: file.name,
+        arquivo_tipo: file.type,
+        whatsapp_message_id: null,
+        status: "enviada",
+        erro_descricao: null,
+        created_at: new Date().toISOString(),
+      };
+
+      setOptimisticMessages(prev => [...prev, optimisticMsg]);
+      enviarMensagem(agenteId, tipo, undefined, publicUrl, file.name, file.type);
+      toast.success("Arquivo enviado!");
+    } catch (error: any) {
+      console.error("Error uploading file:", error);
+      toast.error("Erro ao enviar arquivo");
+    }
+
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }, [selectedAtendimento, getAgenteId, currentUser?.nome, signatureEnabled, enviarMensagem]);
 
   const handleFinalizarAtendimento = async (
@@ -1279,37 +1351,94 @@ export default function OmniWhatsAppChat() {
 
             {/* Message input - sticky */}
             <div className="flex-shrink-0 bg-muted px-4 py-3 flex items-center gap-2 z-10">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={handleFileAttachment}
+                accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar"
+              />
+
+              {/* Emoji Picker */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" title="Emoji">
                     <Smile className="h-6 w-6" />
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>Emoji</TooltipContent>
-              </Tooltip>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-2" side="top" align="start" sideOffset={8}>
+                  <div className="grid grid-cols-8 gap-1">
+                    {["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😋","😛","😜","🤪","😝","🤗","🤔","🤭","🤫","😶","😐","😏","😒","🙄","😬","😴","😷","🤒","🤕","🤢","🤧","🥵","🥶","😱","😨","😰","😥","😢","😭","😤","🤬","👍","👎","👌","✌️","🤞","🤟","🤘","🤙","👏","🙌","🤝","🙏","💪","❤️","🧡","💛","💚","💙","💜","🖤","🤍","💯","🔥","✨","💫","💥","👋","🎉","🎊"].map((emoji) => (
+                      <Button
+                        key={emoji}
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-lg hover:bg-muted"
+                        onClick={() => {
+                          setMessageInput(prev => prev + emoji);
+                          inputRef.current?.focus();
+                        }}
+                      >
+                        {emoji}
+                      </Button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
               
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                    <Paperclip className="h-6 w-6" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Anexar arquivo</TooltipContent>
-              </Tooltip>
-
+              {/* File Attachment */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     className="text-muted-foreground hover:text-foreground"
-                    onClick={() => toast.info("Respostas rápidas em breve!")}
+                    onClick={() => fileInputRef.current?.click()}
                   >
-                    <MessageSquareText className="h-5 w-5" />
+                    <Paperclip className="h-6 w-6" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Respostas rápidas</TooltipContent>
+                <TooltipContent>Anexar arquivo</TooltipContent>
               </Tooltip>
+
+              {/* Quick Replies */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" title="Respostas rápidas">
+                    <MessageSquareText className="h-5 w-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-2" side="top" align="start" sideOffset={8}>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 px-1">Respostas rápidas</p>
+                  <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
+                    {[
+                      { label: "Saudação", texto: "Olá! Tudo bem? Como posso ajudar? 😊" },
+                      { label: "Aguarde", texto: "Um momento, por favor. Estou verificando suas informações." },
+                      { label: "Confirmar consulta", texto: "Gostaria de confirmar sua consulta. Podemos prosseguir?" },
+                      { label: "Enviar localização", texto: "Segue o endereço da clínica para sua consulta." },
+                      { label: "Despedida", texto: "Agradeço o contato! Qualquer dúvida, estamos à disposição. 😊" },
+                      { label: "Remarcar", texto: "Sem problemas! Vamos remarcar sua consulta. Qual o melhor horário para você?" },
+                      { label: "Documentos", texto: "Para a consulta, por favor traga: documento com foto, cartão do convênio e exames anteriores." },
+                    ].map((resp) => (
+                      <Button
+                        key={resp.label}
+                        variant="ghost"
+                        className="justify-start text-left h-auto py-2 px-2 text-sm hover:bg-muted"
+                        onClick={() => {
+                          setMessageInput(resp.texto);
+                          inputRef.current?.focus();
+                        }}
+                      >
+                        <div>
+                          <span className="font-medium text-xs text-primary">{resp.label}</span>
+                          <p className="text-xs text-muted-foreground truncate max-w-[220px]">{resp.texto}</p>
+                        </div>
+                      </Button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
               <Tooltip>
                 <TooltipTrigger asChild>
