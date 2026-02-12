@@ -477,19 +477,7 @@ export default function AdminUsuarios() {
         {/* Clinicas Tab */}
         <TabsContent value="clinicas">
           <div className="space-y-4">
-            {/* Clinic owners */}
-            {clinicaOwners.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Donos de Clínicas (Contas)</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {renderUserTable(filterBySearch(clinicaOwners))}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Each clinic with staff and patients */}
+            {/* Each clinic with staff, doctors and patients */}
             {clinicasLoading ? (
               <div className="space-y-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
             ) : (clinicasData || []).map((clinica) => {
