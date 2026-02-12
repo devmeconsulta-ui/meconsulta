@@ -548,42 +548,44 @@ export function useOmniMensagens(atendimentoId: string | null) {
 
   const editarMensagem = async (mensagemId: string, novoConteudo: string) => {
     try {
-      // Optimistic update
       setMensagens(prev => prev.map(m => 
         m.id === mensagemId ? { ...m, conteudo: novoConteudo } : m
       ));
 
-      const { error } = await supabase.functions.invoke("evolution-edit-message", {
+      const { data, error } = await supabase.functions.invoke("evolution-edit-message", {
         body: { mensagem_id: mensagemId, novo_conteudo: novoConteudo },
       });
 
-      if (error) {
-        console.error("Error editing message:", error);
+      if (error || data?.error) {
+        console.error("Error editing message:", error || data?.error);
+        fetchMensagens();
         toast.error("Erro ao editar mensagem");
       }
     } catch (err) {
       console.error("Error editing message:", err);
+      fetchMensagens();
       toast.error("Erro ao editar mensagem");
     }
   };
 
   const apagarMensagem = async (mensagemId: string) => {
     try {
-      // Optimistic remove
       setMensagens(prev => prev.filter(m => m.id !== mensagemId));
 
-      const { error } = await supabase.functions.invoke("evolution-delete-message", {
+      const { data, error } = await supabase.functions.invoke("evolution-delete-message", {
         body: { mensagem_id: mensagemId },
       });
 
-      if (error) {
-        console.error("Error deleting message:", error);
+      if (error || data?.error) {
+        console.error("Error deleting message:", error || data?.error);
+        fetchMensagens();
         toast.error("Erro ao apagar mensagem");
       } else {
         toast.success("Mensagem apagada");
       }
     } catch (err) {
       console.error("Error deleting message:", err);
+      fetchMensagens();
       toast.error("Erro ao apagar mensagem");
     }
   };
