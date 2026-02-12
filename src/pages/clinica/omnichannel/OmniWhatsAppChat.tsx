@@ -454,6 +454,7 @@ export default function OmniWhatsAppChat() {
   const [novoAtendimentoModalOpen, setNovoAtendimentoModalOpen] = useState(false);
   const [editarContatoModalOpen, setEditarContatoModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "waiting" | "mine">("all");
+  const [filterEtiqueta, setFilterEtiqueta] = useState<string | null>(null);
   const [waitTimeDisplay, setWaitTimeDisplay] = useState("00:00:00");
   const [editingMessage, setEditingMessage] = useState<OmniMensagem | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<OmniMensagem | null>(null);
@@ -712,9 +713,16 @@ export default function OmniWhatsAppChat() {
           a.contato?.telefone?.includes(search)
       );
     }
+
+    // Apply etiqueta filter
+    if (filterEtiqueta) {
+      filtered = filtered.filter(
+        (a) => a.etiquetas && a.etiquetas.includes(filterEtiqueta)
+      );
+    }
     
     return filtered;
-  }, [atendimentos, searchTerm, activeTab, currentUser?.usuarioClinicaId, isClinicaAdmin]);
+  }, [atendimentos, searchTerm, activeTab, currentUser?.usuarioClinicaId, isClinicaAdmin, filterEtiqueta]);
 
   // Agents for transfer modal
   const [agentes, setAgentes] = useState<Array<{ id: string; nome: string }>>([]);
@@ -1220,6 +1228,49 @@ export default function OmniWhatsAppChat() {
             Meus
           </Button>
           
+          {/* Etiqueta filter */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={filterEtiqueta ? "default" : "ghost"}
+                size="icon"
+                className="h-8 w-8 shrink-0 relative"
+              >
+                <Tag className="h-3.5 w-3.5" />
+                {filterEtiqueta && (
+                  <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-destructive" />
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-1" align="start">
+              <button
+                className={cn(
+                  "w-full text-left px-3 py-1.5 text-sm rounded hover:bg-muted",
+                  !filterEtiqueta && "font-medium text-primary"
+                )}
+                onClick={() => setFilterEtiqueta(null)}
+              >
+                Todas
+              </button>
+              {etiquetas.map((etq) => (
+                <button
+                  key={etq.id}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded hover:bg-muted",
+                    filterEtiqueta === etq.nome && "font-medium text-primary"
+                  )}
+                  onClick={() => setFilterEtiqueta(filterEtiqueta === etq.nome ? null : etq.nome)}
+                >
+                  <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: etq.cor }} />
+                  {etq.nome}
+                </button>
+              ))}
+              {etiquetas.length === 0 && (
+                <p className="text-xs text-muted-foreground px-3 py-2">Nenhuma etiqueta</p>
+              )}
+            </PopoverContent>
+          </Popover>
+
           {/* New conversation button */}
           <Tooltip>
             <TooltipTrigger asChild>
