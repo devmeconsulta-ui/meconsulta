@@ -43,7 +43,25 @@ import {
   UserPlus,
   UserCheck,
   Edit,
+  Trash2,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   format,
   addWeeks,
@@ -145,6 +163,7 @@ export default function ClinicaAgenda() {
   const [ordemChegadaModalOpen, setOrdemChegadaModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
+  const [bulkDeleteDay, setBulkDeleteDay] = useState<Date | null>(null);
 
   // Gerar Slots form state
   const [gerarForm, setGerarForm] = useState({
@@ -542,6 +561,59 @@ export default function ClinicaAgenda() {
     fetchData();
   }
 
+  async function handleBlockAllDay(day: Date, block: boolean) {
+    const daySlots = getSlotsForDay(day);
+    const freeSlots = daySlots.filter(s => {
+      const info = getSlotStatus(s);
+      return block ? info.status === "livre" : info.status === "indisponivel";
+    });
+
+    if (freeSlots.length === 0) {
+      toast.info(block ? "Nenhum horário livre para bloquear" : "Nenhum horário bloqueado para liberar");
+      return;
+    }
+
+    const ids = freeSlots.map(s => s.id);
+    const { error } = await supabase
+      .from("agenda_slots")
+      .update({ disponivel: !block })
+      .in("id", ids);
+
+    if (error) {
+      toast.error("Erro ao atualizar horários");
+      return;
+    }
+
+    toast.success(block ? `${ids.length} horários bloqueados!` : `${ids.length} horários liberados!`);
+    fetchData();
+  }
+
+  async function handleDeleteAllDaySlots(day: Date) {
+    const daySlots = getSlotsForDay(day);
+    // Só pode excluir slots sem consulta
+    const deletableSlots = daySlots.filter(s => !s.consultas || s.consultas.length === 0);
+
+    if (deletableSlots.length === 0) {
+      toast.info("Nenhum horário sem consulta para excluir");
+      return;
+    }
+
+    const ids = deletableSlots.map(s => s.id);
+    const { error } = await supabase
+      .from("agenda_slots")
+      .delete()
+      .in("id", ids);
+
+    if (error) {
+      toast.error("Erro ao excluir horários");
+      return;
+    }
+
+    toast.success(`${ids.length} horários excluídos!`);
+    setBulkDeleteDay(null);
+    fetchData();
+  }
+
   async function handleGerarSlots() {
     if (!gerarForm.medicoId) {
       toast.error("Selecione um médico");
@@ -759,18 +831,43 @@ export default function ClinicaAgenda() {
               className={`card-shadow ${dayIsToday ? "ring-2 ring-primary shadow-lg" : ""}`}
             >
               <CardContent className="p-3">
-                <button
-                  type="button"
-                  onClick={() => handleDayClick(day)}
-                  className={`w-full text-center mb-3 pb-2 border-b transition-colors rounded-t hover:bg-muted/50 ${dayIsToday ? "border-primary" : "border-border"}`}
-                >
-                  <p className={`text-xs uppercase font-medium ${dayIsToday ? "text-primary" : "text-muted-foreground"}`}>
-                    {format(day, "EEE", { locale: ptBR })}
-                  </p>
-                  <p className={`text-lg font-bold ${dayIsToday ? "text-primary" : "text-foreground"}`}>
-                    {format(day, "dd")}
-                  </p>
-                </button>
+                <div className={`flex items-center justify-between mb-3 pb-2 border-b ${dayIsToday ? "border-primary" : "border-border"}`}>
+                  <button
+                    type="button"
+                    onClick={() => handleDayClick(day)}
+                    className="text-center flex-1 transition-colors rounded-t hover:bg-muted/50"
+                  >
+                    <p className={`text-xs uppercase font-medium ${dayIsToday ? "text-primary" : "text-muted-foreground"}`}>
+                      {format(day, "EEE", { locale: ptBR })}
+                    </p>
+                    <p className={`text-lg font-bold ${dayIsToday ? "text-primary" : "text-foreground"}`}>
+                      {format(day, "dd")}
+                    </p>
+                  </button>
+                  {daySlots.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleBlockAllDay(day, true)} className="text-amber-600">
+                          <Ban className="w-4 h-4 mr-2" />
+                          Bloquear todos livres
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleBlockAllDay(day, false)} className="text-green-600">
+                          <Unlock className="w-4 h-4 mr-2" />
+                          Liberar todos bloqueados
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setBulkDeleteDay(day)} className="text-destructive">
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Excluir horários sem consulta
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
 
                 <div className="space-y-2 max-h-80 overflow-y-auto">
                   {daySlots.length === 0 ? (
@@ -832,15 +929,40 @@ export default function ClinicaAgenda() {
                 )}
               </div>
               
-              <Button
-                size="sm"
-                onClick={() => handleDayClick(currentDate)}
-                className="gap-2"
-                disabled={medicos.length === 0 || locais.length === 0}
-              >
-                <Plus className="w-4 h-4" />
-                Agendar
-              </Button>
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1">
+                      <MoreVertical className="w-4 h-4" />
+                      Ações do Dia
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleBlockAllDay(currentDate, true)} className="text-amber-600">
+                      <Ban className="w-4 h-4 mr-2" />
+                      Bloquear todos livres
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleBlockAllDay(currentDate, false)} className="text-green-600">
+                      <Unlock className="w-4 h-4 mr-2" />
+                      Liberar todos bloqueados
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setBulkDeleteDay(currentDate)} className="text-destructive">
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Excluir horários sem consulta
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button
+                  size="sm"
+                  onClick={() => handleDayClick(currentDate)}
+                  className="gap-2"
+                  disabled={medicos.length === 0 || locais.length === 0}
+                >
+                  <Plus className="w-4 h-4" />
+                  Agendar
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -1067,15 +1189,40 @@ export default function ClinicaAgenda() {
                   )}
                 </div>
                 
-                <Button
-                  size="sm"
-                  onClick={() => handleDayClick(expandedMonthDay)}
-                  className="gap-2"
-                  disabled={medicos.length === 0 || locais.length === 0}
-                >
-                  <Plus className="w-4 h-4" />
-                  Agendar
-                </Button>
+                <div className="flex items-center gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-1">
+                        <MoreVertical className="w-4 h-4" />
+                        Ações
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleBlockAllDay(expandedMonthDay, true)} className="text-amber-600">
+                        <Ban className="w-4 h-4 mr-2" />
+                        Bloquear todos livres
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleBlockAllDay(expandedMonthDay, false)} className="text-green-600">
+                        <Unlock className="w-4 h-4 mr-2" />
+                        Liberar todos bloqueados
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setBulkDeleteDay(expandedMonthDay)} className="text-destructive">
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Excluir horários sem consulta
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <Button
+                    size="sm"
+                    onClick={() => handleDayClick(expandedMonthDay)}
+                    className="gap-2"
+                    disabled={medicos.length === 0 || locais.length === 0}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Agendar
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -1686,6 +1833,27 @@ export default function ClinicaAgenda() {
         locais={locais}
         onSuccess={fetchData}
       />
+
+      {/* Alert Dialog para confirmar exclusão em massa */}
+      <AlertDialog open={!!bulkDeleteDay} onOpenChange={(open) => !open && setBulkDeleteDay(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir horários do dia?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Todos os horários sem consulta agendada do dia {bulkDeleteDay ? format(bulkDeleteDay, "dd/MM/yyyy", { locale: ptBR }) : ""} serão excluídos permanentemente. Horários com consultas não serão afetados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => bulkDeleteDay && handleDeleteAllDaySlots(bulkDeleteDay)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
