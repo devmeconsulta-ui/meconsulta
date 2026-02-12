@@ -140,19 +140,35 @@ export default function AdminUsuarios() {
         supabase.from("medicos").select("id, usuario_id"),
       ]);
 
-      // Fetch distinct paciente per clinica using a dedicated query per clinic
-      // to avoid the 1000 row limit on consultas
+      // Fetch distinct patients per clinic - use parallel requests
       const pacientesByClinica = new Map<string, Map<string, any>>();
-      for (const c of clinicas || []) {
-        const { data: pacData } = await supabase
+      const clinicaIds = (clinicas || []).map(c => c.id);
+      
+      // Fetch all consultas with pacientes in batches to avoid 1000 row limit
+      const allConsultas: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      while (true) {
+        const { data: batch } = await supabase
           .from("consultas")
-          .select("paciente_id, pacientes(id, nome, email, cpf, telefone, usuario_id)")
-          .eq("clinica_id", c.id)
-          .not("paciente_id", "is", null);
+          .select("clinica_id, paciente_id, pacientes(id, nome, email, cpf, telefone, usuario_id)")
+          .not("clinica_id", "is", null)
+          .not("paciente_id", "is", null)
+          .range(from, from + batchSize - 1);
         
+        if (!batch || batch.length === 0) break;
+        allConsultas.push(...batch);
+        if (batch.length < batchSize) break;
+        from += batchSize;
+      }
+
+      // Group by clinica
+      for (const c of clinicas || []) {
         const map = new Map<string, any>();
-        (pacData || []).forEach((con: any) => {
-          if (con.pacientes) map.set(con.pacientes.id, con.pacientes);
+        allConsultas.forEach((con: any) => {
+          if (con.clinica_id === c.id && con.pacientes) {
+            map.set(con.pacientes.id, con.pacientes);
+          }
         });
         pacientesByClinica.set(c.id, map);
       }
