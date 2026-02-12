@@ -73,7 +73,7 @@ serve(async (req) => {
 
         try {
           const response = await fetch(
-            `${EVOLUTION_API_URL}/chat/deleteMessage/${instancia.evolution_instance_name}`,
+            `${EVOLUTION_API_URL}/chat/deleteMessageForEveryone/${instancia.evolution_instance_name}`,
             {
               method: "DELETE",
               headers: {
@@ -82,8 +82,8 @@ serve(async (req) => {
               },
               body: JSON.stringify({
                 id: mensagem.whatsapp_message_id,
-                fromMe: true,
                 remoteJid: `${telefoneNormalizado}@s.whatsapp.net`,
+                fromMe: true,
               }),
             }
           );
