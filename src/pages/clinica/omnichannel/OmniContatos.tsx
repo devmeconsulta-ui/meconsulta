@@ -42,12 +42,15 @@ import {
   Download,
   ExternalLink,
   UserCheck,
+  Tag,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { ImportarContatosModal } from "@/components/clinica/omnichannel/ImportarContatosModal";
 import { VincularPacienteModal } from "@/components/clinica/omnichannel/VincularPacienteModal";
+import { EtiquetasModal } from "@/components/clinica/omnichannel/EtiquetasModal";
+import { useOmniEtiquetas } from "@/hooks/useOmniEtiquetas";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -86,7 +89,9 @@ export default function OmniContatos() {
   const [editingContato, setEditingContato] = useState<OmniContato | null>(null);
   const [vincularContato, setVincularContato] = useState<OmniContato | null>(null);
   const [creatingConversa, setCreatingConversa] = useState<string | null>(null);
+  const [etiquetasContato, setEtiquetasContato] = useState<OmniContato | null>(null);
 
+  const { etiquetas: allEtiquetas, criarEtiqueta } = useOmniEtiquetas(clinicaId);
   const [formData, setFormData] = useState({
     nome: "",
     telefone: "",
@@ -538,6 +543,10 @@ export default function OmniContatos() {
                           <Edit className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setEtiquetasContato(contato)}>
+                          <Tag className="h-4 w-4 mr-2" />
+                          Etiquetas
+                        </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleNovaConversa(contato)}
                           disabled={creatingConversa === contato.id}
@@ -587,8 +596,8 @@ export default function OmniContatos() {
               <TableRow>
                 <TableHead>Contato</TableHead>
                 <TableHead>Telefone</TableHead>
+                <TableHead>Etiquetas</TableHead>
                 <TableHead>E-mail</TableHead>
-                <TableHead>Empresa</TableHead>
                 <TableHead>Cadastro</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -643,17 +652,40 @@ export default function OmniContatos() {
                       </div>
                     </TableCell>
                     <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {contato.etiquetas && contato.etiquetas.length > 0 ? (
+                          contato.etiquetas.map((tag) => {
+                            const etq = allEtiquetas.find(e => e.nome === tag);
+                            return (
+                              <Badge
+                                key={tag}
+                                variant="secondary"
+                                className="text-[10px] text-white cursor-pointer"
+                                style={{ backgroundColor: etq?.cor || "#6b7280" }}
+                                onClick={() => setEtiquetasContato(contato)}
+                              >
+                                {tag}
+                              </Badge>
+                            );
+                          })
+                        ) : (
+                          <button
+                            onClick={() => setEtiquetasContato(contato)}
+                            className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                          >
+                            <Tag className="h-3 w-3" />
+                            Adicionar
+                          </button>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       {contato.email ? (
                         <div className="flex items-center gap-1">
                           <Mail className="h-3 w-3 text-muted-foreground" />
                           {contato.email}
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {contato.empresa || (
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
@@ -673,6 +705,10 @@ export default function OmniContatos() {
                           <DropdownMenuItem onClick={() => handleEdit(contato)}>
                             <Edit className="h-4 w-4 mr-2" />
                             Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setEtiquetasContato(contato)}>
+                            <Tag className="h-4 w-4 mr-2" />
+                            Etiquetas
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => handleNovaConversa(contato)}
@@ -726,6 +762,29 @@ export default function OmniContatos() {
             queryClient.invalidateQueries({ queryKey: ["omni-contatos"] });
             setVincularContato(null);
           }}
+        />
+      )}
+
+      {/* Modal Etiquetas */}
+      {etiquetasContato && (
+        <EtiquetasModal
+          open={!!etiquetasContato}
+          onClose={() => setEtiquetasContato(null)}
+          etiquetas={allEtiquetas}
+          selectedEtiquetas={etiquetasContato.etiquetas || []}
+          onSave={async (selected) => {
+            try {
+              await supabase
+                .from("omni_contatos")
+                .update({ etiquetas: selected })
+                .eq("id", etiquetasContato.id);
+              queryClient.invalidateQueries({ queryKey: ["omni-contatos"] });
+              toast.success("Etiquetas atualizadas");
+            } catch {
+              toast.error("Erro ao atualizar etiquetas");
+            }
+          }}
+          onCreateEtiqueta={criarEtiqueta ? async (nome, cor) => { await criarEtiqueta(nome, cor); } : undefined}
         />
       )}
       </div>
