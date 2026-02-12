@@ -100,6 +100,7 @@ export default function AdminUsuarios() {
   const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null);
   const [editUsuario, setEditUsuario] = useState<Partial<Usuario>>({});
   const [expandedClinicas, setExpandedClinicas] = useState<Record<string, boolean>>({});
+  const [pacientesVisiveis, setPacientesVisiveis] = useState<Record<string, number>>({});
   const [newUser, setNewUser] = useState({
     nome: "", email: "", senha: "", tipo: "admin", papel: "atendente" as Papel,
   });
@@ -635,15 +636,37 @@ export default function AdminUsuarios() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {filteredPacientes.map((pac) => (
-                                    <TableRow key={pac.id}>
-                                      <TableCell className="font-medium">{pac.nome}</TableCell>
-                                      <TableCell>{pac.cpf || "—"}</TableCell>
-                                      <TableCell>{pac.telefone || "—"}</TableCell>
-                                    </TableRow>
-                                  ))}
+                                {(() => {
+                                    const limit = pacientesVisiveis[clinica.id] || 5;
+                                    const visiblePacs = filteredPacientes.slice(0, limit);
+                                    return (
+                                      <>
+                                        {visiblePacs.map((pac) => (
+                                          <TableRow key={pac.id}>
+                                            <TableCell className="font-medium">{pac.nome}</TableCell>
+                                            <TableCell>{pac.cpf || "—"}</TableCell>
+                                            <TableCell>{pac.telefone || "—"}</TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </>
+                                    );
+                                  })()}
                                 </TableBody>
                               </Table>
+                              {filteredPacientes.length > (pacientesVisiveis[clinica.id] || 5) && (
+                                <div className="flex justify-center pt-3">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setPacientesVisiveis(prev => ({
+                                      ...prev,
+                                      [clinica.id]: (prev[clinica.id] || 5) + 5,
+                                    }))}
+                                  >
+                                    Ver mais ({filteredPacientes.length - (pacientesVisiveis[clinica.id] || 5)} restantes)
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <p className="text-sm text-muted-foreground pl-6">Nenhum paciente vinculado</p>
