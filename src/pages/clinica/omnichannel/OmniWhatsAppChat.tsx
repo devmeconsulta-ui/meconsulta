@@ -1836,13 +1836,18 @@ export default function OmniWhatsAppChat() {
               onClick={async () => {
                 try {
                   const ids = filteredAtendimentos.map(a => a.id);
-                  await supabase
-                    .from("omni_atendimentos")
-                    .update({ status: "encerrado", data_encerramento: new Date().toISOString() })
-                    .in("id", ids);
+                  // Process in batches of 100 to avoid query limits
+                  for (let i = 0; i < ids.length; i += 100) {
+                    const batch = ids.slice(i, i + 100);
+                    const { error } = await supabase
+                      .from("omni_atendimentos")
+                      .update({ status: "encerrado", data_fechamento: new Date().toISOString() })
+                      .in("id", batch);
+                    if (error) throw error;
+                  }
                   toast.success(`${ids.length} atendimento(s) encerrados`);
                   setSelectedAtendimento(null);
-                  await fetchAtendimentos();
+                  setAtendimentos(prev => prev.filter(a => !ids.includes(a.id)));
                 } catch {
                   toast.error("Erro ao encerrar atendimentos");
                 }
