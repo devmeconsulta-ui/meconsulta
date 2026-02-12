@@ -33,6 +33,7 @@ import {
   Copy,
   Pencil,
   Forward,
+  Download,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -138,6 +139,45 @@ function NotaInternaAlert({ nota, onMarcarLida }: { nota: OmniNotaInterna; onMar
   );
 }
 
+// Image preview modal component
+function ImagePreviewModal({ url, open, onClose }: { url: string; open: boolean; onClose: () => void }) {
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `imagem_${Date.now()}.${blob.type.split("/")[1] || "jpg"}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      toast.success("Download iniciado");
+    } catch {
+      toast.error("Erro ao baixar imagem");
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80" onClick={onClose}>
+      <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute top-2 right-2 flex gap-2 z-10">
+          <Button size="icon" variant="secondary" className="rounded-full h-9 w-9" onClick={handleDownload} title="Baixar">
+            <Download className="h-5 w-5" />
+          </Button>
+          <Button size="icon" variant="secondary" className="rounded-full h-9 w-9" onClick={onClose} title="Fechar">
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+        <img src={url} alt="Visualização" className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
 // Message bubble component
 function MessageBubble({ 
   mensagem, 
@@ -158,6 +198,7 @@ function MessageBubble({
   const agenteName = mensagem.agente_nome;
   const [showActions, setShowActions] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
 
   const handleCopy = () => {
     if (mensagem.conteudo) {
@@ -256,10 +297,22 @@ function MessageBubble({
           </div>
         )}
         {mensagem.tipo === "imagem" && mensagem.arquivo_url && (
-          <img src={mensagem.arquivo_url} alt="Imagem" className="rounded max-w-full" />
+          <>
+            <img
+              src={mensagem.arquivo_url}
+              alt="Imagem"
+              className="rounded max-w-[250px] max-h-[250px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => setImagePreviewOpen(true)}
+            />
+            <ImagePreviewModal
+              url={mensagem.arquivo_url}
+              open={imagePreviewOpen}
+              onClose={() => setImagePreviewOpen(false)}
+            />
+          </>
         )}
         {mensagem.tipo === "video" && mensagem.arquivo_url && (
-          <video controls src={mensagem.arquivo_url} className="rounded max-w-full" />
+          <video controls src={mensagem.arquivo_url} className="rounded max-w-[300px]" />
         )}
         {mensagem.tipo === "documento" && mensagem.arquivo_url && (
           <a href={mensagem.arquivo_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
@@ -287,7 +340,6 @@ function MessageBubble({
     </div>
   );
 }
-
 // Conversation item component
 function ConversationItem({
   atendimento,
