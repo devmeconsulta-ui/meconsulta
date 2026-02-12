@@ -1175,13 +1175,61 @@ export default function OmniWhatsAppChat() {
     <div className="flex h-[calc(100vh-4rem)] bg-background -m-4 sm:-m-6 overflow-hidden">
       {/* Sidebar - Conversation List */}
       <div className="w-80 border-r flex flex-col bg-card">
+        {/* Action bar */}
+        <div className="flex items-center justify-between p-2 border-b">
+          <span className="text-sm font-semibold pl-1">Atendimentos</span>
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive hover:text-destructive"
+                  onClick={async () => {
+                    if (!filteredAtendimentos.length) return;
+                    const confirm = window.confirm(`Encerrar todos os ${filteredAtendimentos.length} atendimentos visíveis?`);
+                    if (!confirm) return;
+                    try {
+                      const ids = filteredAtendimentos.map(a => a.id);
+                      await supabase
+                        .from("omni_atendimentos")
+                        .update({ status: "encerrado", data_encerramento: new Date().toISOString() })
+                        .in("id", ids);
+                      toast.success(`${ids.length} atendimentos encerrados`);
+                      setSelectedAtendimento(null);
+                    } catch {
+                      toast.error("Erro ao encerrar atendimentos");
+                    }
+                  }}
+                >
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Encerrar todos</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="default"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setNovoAtendimentoModalOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Novo atendimento</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+
         {/* Search */}
-        <div className="p-3 border-b">
+        <div className="p-2 border-b">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar"
-              className="pl-9 bg-muted border-0"
+              className="pl-9 bg-muted border-0 h-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -1203,7 +1251,7 @@ export default function OmniWhatsAppChat() {
           <Button
             variant={activeTab === "all" ? "default" : "ghost"}
             size="sm"
-            className="flex-1 h-8 text-xs"
+            className="flex-1 h-7 text-xs"
             onClick={() => setActiveTab("all")}
           >
             <Filter className="h-3 w-3 mr-1" />
@@ -1212,7 +1260,7 @@ export default function OmniWhatsAppChat() {
           <Button
             variant={activeTab === "waiting" ? "default" : "ghost"}
             size="sm"
-            className="flex-1 h-8 text-xs"
+            className="flex-1 h-7 text-xs"
             onClick={() => setActiveTab("waiting")}
           >
             <Clock className="h-3 w-3 mr-1" />
@@ -1221,7 +1269,7 @@ export default function OmniWhatsAppChat() {
           <Button
             variant={activeTab === "mine" ? "default" : "ghost"}
             size="sm"
-            className="flex-1 h-8 text-xs"
+            className="flex-1 h-7 text-xs"
             onClick={() => setActiveTab("mine")}
           >
             <Users className="h-3 w-3 mr-1" />
@@ -1234,11 +1282,11 @@ export default function OmniWhatsAppChat() {
               <Button
                 variant={filterEtiqueta ? "default" : "ghost"}
                 size="icon"
-                className="h-8 w-8 shrink-0 relative"
+                className="h-7 w-7 shrink-0 relative"
               >
-                <Tag className="h-3.5 w-3.5" />
+                <Tag className="h-3 w-3" />
                 {filterEtiqueta && (
-                  <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-destructive" />
+                  <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-destructive" />
                 )}
               </Button>
             </PopoverTrigger>
@@ -1270,21 +1318,6 @@ export default function OmniWhatsAppChat() {
               )}
             </PopoverContent>
           </Popover>
-
-          {/* New conversation button */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="default"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={() => setNovoAtendimentoModalOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Novo atendimento</TooltipContent>
-          </Tooltip>
         </div>
 
         {/* Conversation list */}
