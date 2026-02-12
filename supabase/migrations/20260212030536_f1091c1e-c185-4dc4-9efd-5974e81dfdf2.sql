@@ -1,0 +1,1 @@
+UPDATE omni_atendimentos SET fila_id = 'c8025b6f-041b-4080-bb0c-c08b94365380' WHERE fila_id IS NULL AND status != 'finalizado';
