@@ -227,8 +227,8 @@ Deno.serve(async (req) => {
         const remoteJid = data?.key?.remoteJid || message.key?.remoteJid || message.remoteJid;
         console.log(`remoteJid: ${remoteJid}`);
         
-        if (!remoteJid || remoteJid.includes("@g.us")) {
-          console.log("No remoteJid or is group message, ignoring");
+        if (!remoteJid || remoteJid.includes("@g.us") || remoteJid.includes("@lid")) {
+          console.log("No remoteJid, group message, or linked ID (Facebook/Instagram), ignoring");
           break;
         }
 
@@ -754,8 +754,8 @@ Deno.serve(async (req) => {
         }
 
         const remoteJid = message.key?.remoteJid;
-        if (!remoteJid || remoteJid.includes("@g.us")) {
-          console.log("No remoteJid or is group message, ignoring");
+        if (!remoteJid || remoteJid.includes("@g.us") || remoteJid.includes("@lid")) {
+          console.log("No remoteJid, group message, or linked ID, ignoring");
           break;
         }
 
@@ -1039,7 +1039,7 @@ Deno.serve(async (req) => {
         const messagesByContact: Record<string, typeof messages> = {};
         for (const msg of messages) {
           const remoteJid = msg.key?.remoteJid;
-          if (!remoteJid || remoteJid.includes("@g.us") || remoteJid === "status@broadcast") continue;
+          if (!remoteJid || remoteJid.includes("@g.us") || remoteJid.includes("@lid") || remoteJid === "status@broadcast") continue;
           if (!messagesByContact[remoteJid]) messagesByContact[remoteJid] = [];
           messagesByContact[remoteJid].push(msg);
         }
