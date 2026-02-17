@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -133,6 +133,9 @@ export default function PacientePerfil() {
           <CardContent className="pt-6">
             <div className="flex flex-col items-center text-center">
               <Avatar className="w-24 h-24 mb-4">
+                {pacienteData?.foto_url && (
+                  <AvatarImage src={pacienteData.foto_url} alt={formData.nome} />
+                )}
                 <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
                   {getInitials(formData.nome)}
                 </AvatarFallback>

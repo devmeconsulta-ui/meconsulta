@@ -3455,6 +3455,7 @@ export type Database = {
           created_at: string | null
           data_nascimento: string | null
           estado: string | null
+          foto_url: string | null
           id: string
           nome: string
           telefone: string | null
@@ -3468,6 +3469,7 @@ export type Database = {
           created_at?: string | null
           data_nascimento?: string | null
           estado?: string | null
+          foto_url?: string | null
           id?: string
           nome: string
           telefone?: string | null
@@ -3481,6 +3483,7 @@ export type Database = {
           created_at?: string | null
           data_nascimento?: string | null
           estado?: string | null
+          foto_url?: string | null
           id?: string
           nome?: string
           telefone?: string | null
