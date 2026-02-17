@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.notify-appointment-booked]
 verify_jwt = false
+
+[functions.sync-whatsapp-photos]
+verify_jwt = false
