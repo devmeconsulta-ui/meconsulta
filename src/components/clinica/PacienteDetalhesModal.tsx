@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -205,6 +205,9 @@ export function PacienteDetalhesModal({
         {/* Header com avatar */}
         <div className="flex items-center gap-4 pb-4">
           <Avatar className="h-14 w-14">
+            {paciente?.foto_url && (
+              <AvatarImage src={paciente.foto_url} alt={formData.nome} />
+            )}
             <AvatarFallback className="bg-primary/10 text-primary text-xl">
               {getInitials(formData.nome)}
             </AvatarFallback>

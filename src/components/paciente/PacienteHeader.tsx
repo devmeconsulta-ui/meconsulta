@@ -1,6 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,6 +63,9 @@ export function PacienteHeader({ pacienteData }: PacienteHeaderProps) {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center gap-2 px-2">
                 <Avatar className="h-8 w-8">
+                  {pacienteData?.foto_url && (
+                    <AvatarImage src={pacienteData.foto_url} alt={pacienteData?.nome} />
+                  )}
                   <AvatarFallback className="bg-primary text-primary-foreground text-sm">
                     {getInitials(pacienteData?.nome || currentUser?.nome || "")}
                   </AvatarFallback>

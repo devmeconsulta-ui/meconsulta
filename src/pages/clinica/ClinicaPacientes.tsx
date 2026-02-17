@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { PacienteDetalhesModal } from "@/components/clinica/PacienteDetalhesModal";
 import { ImportarPacientesModal } from "@/components/clinica/ImportarPacientesModal";
@@ -98,7 +98,8 @@ export default function ClinicaPacientes() {
             cidade,
             estado,
             bairro,
-            data_nascimento
+            data_nascimento,
+            foto_url
           )
         `)
         .in("medico_id", mIds)
@@ -402,6 +403,9 @@ export default function ClinicaPacientes() {
                         <TableCell onClick={() => handleOpenDetails(item)}>
                           <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9">
+                              {item.paciente.foto_url && (
+                                <AvatarImage src={item.paciente.foto_url} alt={item.paciente.nome} />
+                              )}
                               <AvatarFallback className="bg-primary/10 text-primary text-sm">
                                 {getInitials(item.paciente.nome)}
                               </AvatarFallback>
