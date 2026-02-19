@@ -125,6 +125,9 @@ export function GerenciarMedicoModal({
   const [resetSenhaDialogOpen, setResetSenhaDialogOpen] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
 
+  // Editar email
+  const [editEmail, setEditEmail] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
   useEffect(() => {
     if (open && medico) {
       setFormData({
@@ -138,6 +141,7 @@ export function GerenciarMedicoModal({
         foto_url: medico.foto_url || "",
         aparecer_home: medico.aparecer_home || false,
       });
+      setEditEmail(medico.email || "");
       fetchLocais();
       fetchServicos();
     }
@@ -234,6 +238,31 @@ export function GerenciarMedicoModal({
       formacao: prev.formacao.filter((_, i) => i !== index)
     }));
   };
+
+  async function handleSaveEmail() {
+    if (!medico?.usuario_id) {
+      toast.error("Médico não possui usuário vinculado");
+      return;
+    }
+    if (!editEmail.trim() || !editEmail.includes("@")) {
+      toast.error("Informe um email válido");
+      return;
+    }
+    setSavingEmail(true);
+    try {
+      const { error } = await supabase
+        .from("usuarios")
+        .update({ email: editEmail.trim() })
+        .eq("id", medico.usuario_id);
+      if (error) throw error;
+      toast.success("Email atualizado com sucesso!");
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao atualizar email");
+    } finally {
+      setSavingEmail(false);
+    }
+  }
 
   async function handleResetPassword() {
     if (!medico?.usuario_id) {
@@ -390,10 +419,25 @@ export function GerenciarMedicoModal({
           <div className="flex-1 overflow-y-auto mt-4">
             {/* Tab Perfil */}
             <TabsContent value="perfil" className="mt-0 space-y-4">
-              {medico?.email && (
-                <div className="sm:col-span-2 p-3 bg-muted/50 rounded-lg flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Email de acesso:</span>
-                  <span className="text-sm font-medium">{medico.email}</span>
+              {medico?.usuario_id && (
+                <div className="sm:col-span-2 p-3 bg-muted/50 rounded-lg space-y-2">
+                  <Label className="text-sm text-muted-foreground">Email de acesso</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      placeholder="email@exemplo.com"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSaveEmail}
+                      disabled={savingEmail || editEmail === medico?.email}
+                    >
+                      {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+                    </Button>
+                  </div>
                 </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
