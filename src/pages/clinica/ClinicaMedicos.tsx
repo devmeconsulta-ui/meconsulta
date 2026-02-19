@@ -128,7 +128,31 @@ export default function ClinicaMedicos() {
         .eq("clinica_id", clinicaData.id);
 
       if (error) throw error;
-      return data || [];
+      
+      // Fetch emails from usuarios table for each doctor
+      const items = data || [];
+      const usuarioIds = items
+        .map((m: any) => m.medico?.usuario_id)
+        .filter(Boolean);
+      
+      if (usuarioIds.length > 0) {
+        const { data: usuarios } = await supabase
+          .from("usuarios")
+          .select("id, email")
+          .in("id", usuarioIds);
+        
+        const emailMap = new Map((usuarios || []).map((u: any) => [u.id, u.email]));
+        
+        return items.map((item: any) => ({
+          ...item,
+          medico: item.medico ? {
+            ...item.medico,
+            email: emailMap.get(item.medico.usuario_id) || null,
+          } : item.medico,
+        }));
+      }
+      
+      return items;
     },
     enabled: !!clinicaData?.id,
   });
@@ -802,6 +826,11 @@ export default function ClinicaMedicos() {
                         <p className="text-xs text-muted-foreground">
                           CRM: {item.medico?.crm}
                         </p>
+                        {item.medico?.email && (
+                          <p className="text-xs text-muted-foreground truncate">
+                            ✉ {item.medico.email}
+                          </p>
+                        )}
                         <div className="mt-2 flex items-center gap-2 flex-wrap">
                           <Badge variant={item.ativo ? "default" : "secondary"}>
                             {item.ativo ? "Ativo" : "Inativo"}
