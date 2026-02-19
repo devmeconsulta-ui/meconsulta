@@ -390,6 +390,12 @@ export function GerenciarMedicoModal({
           <div className="flex-1 overflow-y-auto mt-4">
             {/* Tab Perfil */}
             <TabsContent value="perfil" className="mt-0 space-y-4">
+              {medico?.email && (
+                <div className="sm:col-span-2 p-3 bg-muted/50 rounded-lg flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Email de acesso:</span>
+                  <span className="text-sm font-medium">{medico.email}</span>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nome Completo</Label>
