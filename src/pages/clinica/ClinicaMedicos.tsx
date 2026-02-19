@@ -121,7 +121,8 @@ export default function ClinicaMedicos() {
             aparecer_home,
             bio,
             formacao,
-            telefone_whatsapp
+            telefone_whatsapp,
+            usuario_id
           )
         `)
         .eq("clinica_id", clinicaData.id);
