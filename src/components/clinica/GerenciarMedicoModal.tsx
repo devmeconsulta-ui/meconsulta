@@ -34,7 +34,20 @@ import {
   Building2,
   Check,
   AlertCircle,
+  KeyRound,
+  Loader2,
 } from "lucide-react";
+import { hashPassword } from "@/lib/secureAuth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const especialidadesDefault: string[] = [
   "Cardiologia", "Dermatologia", "Endocrinologia", "Gastroenterologia",
@@ -107,6 +120,10 @@ export function GerenciarMedicoModal({
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [loadingServicos, setLoadingServicos] = useState(false);
   const [novoServico, setNovoServico] = useState("");
+
+  // Redefinir senha
+  const [resetSenhaDialogOpen, setResetSenhaDialogOpen] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   useEffect(() => {
     if (open && medico) {
@@ -217,6 +234,31 @@ export function GerenciarMedicoModal({
       formacao: prev.formacao.filter((_, i) => i !== index)
     }));
   };
+
+  async function handleResetPassword() {
+    if (!medico?.usuario_id) {
+      toast.error("Médico não possui usuário vinculado");
+      return;
+    }
+    setResettingPassword(true);
+    try {
+      const result = await hashPassword("123456");
+      if (result.error || !result.hash) {
+        throw new Error(result.error || "Erro ao gerar hash");
+      }
+      const { error } = await supabase
+        .from("usuarios")
+        .update({ senha_hash: result.hash, deve_trocar_senha: true })
+        .eq("id", medico.usuario_id);
+      if (error) throw error;
+      toast.success("Senha redefinida para 123456. O médico será solicitado a trocar no próximo login.");
+      setResetSenhaDialogOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao redefinir senha");
+    } finally {
+      setResettingPassword(false);
+    }
+  }
 
   async function handleSavePerfil() {
     setLoading(true);
@@ -515,11 +557,61 @@ export function GerenciarMedicoModal({
                 </div>
               </div>
 
+              {/* Redefinir Senha */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <KeyRound className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium text-sm">Redefinir Senha</p>
+                      <p className="text-xs text-muted-foreground">
+                        Redefine a senha para 123456. O médico será obrigado a trocar no próximo login.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setResetSenhaDialogOpen(true)}
+                    className="gap-1.5"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" />
+                    Redefinir
+                  </Button>
+                </div>
+              </div>
+
               <div className="flex justify-end pt-4">
                 <Button onClick={handleSavePerfil} disabled={loading}>
                   {loading ? "Salvando..." : "Salvar Perfil"}
                 </Button>
               </div>
+
+              {/* Alert Dialog de confirmação */}
+              <AlertDialog open={resetSenhaDialogOpen} onOpenChange={setResetSenhaDialogOpen}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Redefinir senha do médico?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      A senha de <strong>{medico?.nome}</strong> será redefinida para <strong>123456</strong>. 
+                      O médico será obrigado a criar uma nova senha no próximo login.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={resettingPassword}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleResetPassword} disabled={resettingPassword}>
+                      {resettingPassword ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Redefinindo...
+                        </>
+                      ) : (
+                        "Confirmar Redefinição"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </TabsContent>
 
             {/* Tab Locais - Checkbox para vincular/desvincular dos locais da clínica */}
