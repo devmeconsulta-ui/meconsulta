@@ -127,6 +127,7 @@ export default function OmniConfirmacaoAgenda() {
   const [filterPeriodo, setFilterPeriodo] = useState<string>("amanha");
   const [filterMedico, setFilterMedico] = useState<string>("todos");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showMultiDoctorWarning, setShowMultiDoctorWarning] = useState(false);
   
   // Novos estados para agendamento
   const [modoEnvio, setModoEnvio] = useState<"agora" | "agendar">("agora");
@@ -308,6 +309,29 @@ export default function OmniConfirmacaoAgenda() {
     }
   };
 
+  // Detectar médicos únicos nas consultas selecionadas
+  const medicosSelecionados = useMemo(() => {
+    const medicosMap = new Map<string, string>();
+    consultasDisponiveis.forEach((c: any) => {
+      if (selectedConsultas.includes(c.id) && c.medico?.id) {
+        medicosMap.set(c.medico.id, c.medico.nome);
+      }
+    });
+    return Array.from(medicosMap.entries()).map(([id, nome]) => ({ id, nome }));
+  }, [selectedConsultas, consultasDisponiveis]);
+
+  // Mudar filtro de médico limpa a seleção
+  const handleFilterMedicoChange = (value: string) => {
+    setFilterMedico(value);
+    setSelectedConsultas([]);
+  };
+
+  // Mudar filtro de período limpa a seleção
+  const handleFilterPeriodoChange = (value: string) => {
+    setFilterPeriodo(value);
+    setSelectedConsultas([]);
+  };
+
   const handleEnviar = async () => {
     if (!selectedFila) {
       alert("Selecione uma fila de envio");
@@ -317,6 +341,15 @@ export default function OmniConfirmacaoAgenda() {
     if (selectedConsultas.length === 0) {
       alert("Selecione pelo menos uma consulta");
       return;
+    }
+
+    // Verificar se há múltiplos médicos selecionados
+    if (medicosSelecionados.length > 1) {
+      const nomesMedicos = medicosSelecionados.map(m => m.nome).join(", ");
+      const confirmar = window.confirm(
+        `⚠️ ATENÇÃO: Você selecionou pacientes de ${medicosSelecionados.length} médicos diferentes:\n\n${nomesMedicos}\n\nCada paciente receberá a mensagem com o nome do SEU médico correto.\n\nDeseja continuar?`
+      );
+      if (!confirmar) return;
     }
 
     // Calcular data de agendamento se modo for agendar
@@ -707,6 +740,28 @@ export default function OmniConfirmacaoAgenda() {
                     </p>
                   </div>
 
+                  {/* Aviso de múltiplos médicos */}
+                  {medicosSelecionados.length > 1 && (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                        <div className="text-xs">
+                          <p className="font-medium text-amber-800 dark:text-amber-300">
+                            {medicosSelecionados.length} médicos selecionados
+                          </p>
+                          <ul className="mt-1 text-amber-700 dark:text-amber-400 space-y-0.5">
+                            {medicosSelecionados.map(m => (
+                              <li key={m.id}>• {m.nome}</li>
+                            ))}
+                          </ul>
+                          <p className="mt-1 text-amber-600 dark:text-amber-500">
+                            Cada paciente receberá o nome do seu médico correto.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Botão de envio */}
                   <Button
                     onClick={handleEnviar}
@@ -766,7 +821,7 @@ export default function OmniConfirmacaoAgenda() {
                       <Button
                         size="sm"
                         variant={filterPeriodo === "hoje" ? "default" : "outline"}
-                        onClick={() => setFilterPeriodo("hoje")}
+                        onClick={() => handleFilterPeriodoChange("hoje")}
                         className="h-8"
                       >
                         <CalendarDays className="h-3 w-3 mr-1" />
@@ -780,7 +835,7 @@ export default function OmniConfirmacaoAgenda() {
                       <Button
                         size="sm"
                         variant={filterPeriodo === "amanha" ? "default" : "outline"}
-                        onClick={() => setFilterPeriodo("amanha")}
+                        onClick={() => handleFilterPeriodoChange("amanha")}
                         className="h-8"
                       >
                         <CalendarDays className="h-3 w-3 mr-1" />
@@ -794,7 +849,7 @@ export default function OmniConfirmacaoAgenda() {
                       <Button
                         size="sm"
                         variant={filterPeriodo === "proximos3" ? "default" : "outline"}
-                        onClick={() => setFilterPeriodo("proximos3")}
+                        onClick={() => handleFilterPeriodoChange("proximos3")}
                         className="h-8"
                       >
                         Próx. 3 dias
@@ -802,7 +857,7 @@ export default function OmniConfirmacaoAgenda() {
                       <Button
                         size="sm"
                         variant={filterPeriodo === "proximos7" ? "default" : "outline"}
-                        onClick={() => setFilterPeriodo("proximos7")}
+                        onClick={() => handleFilterPeriodoChange("proximos7")}
                         className="h-8"
                       >
                         Próx. 7 dias
@@ -810,7 +865,7 @@ export default function OmniConfirmacaoAgenda() {
                       <Button
                         size="sm"
                         variant={filterPeriodo === "todos" ? "default" : "outline"}
-                        onClick={() => setFilterPeriodo("todos")}
+                        onClick={() => handleFilterPeriodoChange("todos")}
                         className="h-8"
                       >
                         Todos
@@ -830,7 +885,7 @@ export default function OmniConfirmacaoAgenda() {
                       </div>
                       <Select
                         value={filterMedico}
-                        onValueChange={setFilterMedico}
+                        onValueChange={handleFilterMedicoChange}
                       >
                         <SelectTrigger>
                           <Stethoscope className="h-4 w-4 mr-2 text-muted-foreground" />
