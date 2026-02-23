@@ -1128,14 +1128,20 @@ export default function ClinicaAgenda() {
       toast.error("Configure médicos e locais antes de agendar");
       return;
     }
+
+    // CRITICAL: Se não tem filtro de médico, exigir seleção para evitar agendar no médico errado
+    if (filterMedico === "todos") {
+      toast.error("Selecione um médico no filtro antes de agendar");
+      return;
+    }
     
     // Create a temporary slot for this day
     const dateTime = new Date(day);
     dateTime.setHours(8, 0, 0, 0);
     
-    const medicoId = filterMedico !== "todos" ? filterMedico : medicos[0].id;
+    const medicoId = filterMedico;
     const medicoLocais = locais.filter(l => l.medico_id === medicoId);
-    const localId = filterLocal !== "todos" ? filterLocal : medicoLocais[0]?.id || locais[0].id;
+    const localId = medicoLocais[0]?.id || locais[0].id;
     const local = locais.find(l => l.id === localId);
     
     const tempSlot: Slot = {

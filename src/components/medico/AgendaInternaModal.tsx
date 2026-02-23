@@ -457,6 +457,9 @@ export function AgendaInternaModal({
       const valorMedico = (valorFinalConsulta * percentualRepasse) / 100;
       const valorPlataforma = valorFinalConsulta - valorMedico;
 
+      // Determinar o médico efetivo (sempre usar o mesmo para slot E consulta)
+      const effectiveMedicoId = formData.medicoSelecionado || medicoId;
+
       // Get the final date/time
       let finalDataHora: string;
       let finalSlotId: string | null = null;
@@ -468,11 +471,11 @@ export function AgendaInternaModal({
         dateTime.setHours(hours, minutes, 0, 0);
         finalDataHora = dateTime.toISOString();
 
-        // Check if a slot already exists for this time/location
+        // Check if a slot already exists for this time/location/medico
         const { data: existingSlot } = await supabase
           .from("agenda_slots")
           .select("id, disponivel")
-          .eq("medico_id", medicoId)
+          .eq("medico_id", effectiveMedicoId)
           .eq("local_id", formData.localSelecionado)
           .eq("data_hora", finalDataHora)
           .maybeSingle();
@@ -483,11 +486,11 @@ export function AgendaInternaModal({
           }
           finalSlotId = existingSlot.id;
         } else {
-          // Create new slot
+          // Create new slot for the effective doctor
           const { data: newSlot, error: slotError } = await supabase
             .from("agenda_slots")
             .insert({
-              medico_id: medicoId,
+              medico_id: effectiveMedicoId,
               local_id: formData.localSelecionado,
               data_hora: finalDataHora,
               disponivel: false,
@@ -503,6 +506,34 @@ export function AgendaInternaModal({
       } else {
         finalDataHora = slotDataHora;
         finalSlotId = slotId;
+
+        // CRITICAL: Se o médico selecionado é diferente do médico do slot,
+        // criar um novo slot para o médico correto e liberar o slot original
+        if (effectiveMedicoId !== medicoId) {
+          // Criar novo slot para o médico correto
+          const { data: newSlot, error: newSlotError } = await supabase
+            .from("agenda_slots")
+            .insert({
+              medico_id: effectiveMedicoId,
+              local_id: formData.localSelecionado,
+              data_hora: finalDataHora,
+              disponivel: false,
+            })
+            .select()
+            .single();
+
+          if (newSlotError) {
+            throw new Error("Erro ao criar horário para o médico selecionado");
+          }
+
+          // Liberar o slot original (voltar a disponível)
+          await supabase
+            .from("agenda_slots")
+            .update({ disponivel: true })
+            .eq("id", slotId);
+
+          finalSlotId = newSlot.id;
+        }
       }
 
       // Get clinica_id from the selected local if not provided directly
@@ -516,9 +547,9 @@ export function AgendaInternaModal({
         finalClinicaId = localData?.clinica_id || null;
       }
 
-      // Create consultation
+      // Create consultation - ALWAYS use effectiveMedicoId for consistency
       const { error: consultaError } = await supabase.from("consultas").insert({
-        medico_id: formData.medicoSelecionado || medicoId,
+        medico_id: effectiveMedicoId,
         paciente_id: pacienteId,
         data_hora: finalDataHora,
         origem: "interna",
