@@ -158,15 +158,31 @@ export default function MedicoAgenda() {
   async function fetchData() {
     setLoading(true);
 
-    // Fetch locations - próprios do médico E de clínicas onde está vinculado
+    // Fetch locations - próprios do médico (legado) + vinculados via locais_medicos
     const { data: locaisData } = await supabase
       .from("locais_atendimento")
       .select("id, nome_local, tipo_atendimento, clinica_id, clinicas(nome_fantasia)")
       .eq("medico_id", medicoData.id)
       .eq("ativo", true);
 
+    // Também buscar locais via tabela de junção locais_medicos
+    const { data: locaisVinculados } = await supabase
+      .from("locais_medicos")
+      .select("local_id, locais_atendimento(id, nome_local, tipo_atendimento, clinica_id, clinicas(nome_fantasia))")
+      .eq("medico_id", medicoData.id)
+      .eq("ativo", true);
+
+    // Merge sem duplicatas
+    const allLocais = [...(locaisData || [])];
+    for (const lv of (locaisVinculados || [])) {
+      const local = (lv as any).locais_atendimento;
+      if (local && !allLocais.find((l: any) => l.id === local.id)) {
+        allLocais.push(local);
+      }
+    }
+
     // Formatar locais com indicação de origem (próprio vs clínica)
-    const locaisFormatados = (locaisData || []).map(local => ({
+    const locaisFormatados = allLocais.map((local: any) => ({
       ...local,
       displayName: local.clinica_id && local.clinicas 
         ? `${local.nome_local} (${local.clinicas.nome_fantasia})`
