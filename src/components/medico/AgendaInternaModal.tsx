@@ -190,10 +190,13 @@ export function AgendaInternaModal({
   useEffect(() => {
     if (open) {
       searchPacientes("");
+      // CRITICAL: Always reset medicoSelecionado to the current slot's medicoId
+      // to prevent stale state from a previously opened modal
       setFormData((prev) => ({
         ...prev,
         localSelecionado: localId || (locais.length > 0 ? locais[0].id : ""),
         valor: valorConsulta,
+        medicoSelecionado: medicoId,
       }));
       // Always use the slotDataHora passed from parent (which contains the clicked date)
       if (slotDataHora) {
@@ -206,7 +209,7 @@ export function AgendaInternaModal({
       }
       fetchConvenios();
     }
-  }, [open, localId, valorConsulta, locais, slotDataHora]);
+  }, [open, localId, valorConsulta, locais, slotDataHora, medicoId]);
 
   useEffect(() => {
     if (selectedPaciente) {
