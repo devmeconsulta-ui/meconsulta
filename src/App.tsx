@@ -72,6 +72,7 @@ import ClinicaConfiguracoes from "./pages/clinica/ClinicaConfiguracoes";
 import ClinicaChat from "./pages/clinica/ClinicaChat";
 import ClinicaCRM from "./pages/clinica/ClinicaCRM";
 import ClinicaTUSS from "./pages/clinica/ClinicaTUSS";
+import ClinicaSuporte from "./pages/clinica/ClinicaSuporte";
 
 // TISS pages
 import TissConfiguracoes from "./pages/clinica/tiss/TissConfiguracoes";
@@ -194,6 +195,7 @@ const App = () => (
               <Route path="tiss/exportar-xml" element={<TissExportarXml />} />
               <Route path="tiss/relatorios" element={<TissRelatorios />} />
               <Route path="configuracoes" element={<ClinicaConfiguracoes />} />
+              <Route path="suporte" element={<ClinicaSuporte />} />
             </Route>
 
             {/* Atendente routes */}
