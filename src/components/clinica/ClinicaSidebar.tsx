@@ -18,6 +18,7 @@ import {
   LucideIcon,
   MessageSquare,
   Headset,
+  LifeBuoy,
   ChevronDown,
   ChevronRight,
   FileSpreadsheet,
@@ -320,6 +321,23 @@ export function ClinicaSidebar() {
 
             return rendered;
           })}
+
+        {/* Suporte */}
+        <NavLink
+          to="/clinica/suporte"
+          onClick={() => setMobileOpen(false)}
+          className={({ isActive }) =>
+            cn(
+              "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+              isActive
+                ? "bg-primary text-primary-foreground shadow-lg"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )
+          }
+        >
+          <LifeBuoy className="w-5 h-5" />
+          Suporte
+        </NavLink>
       </nav>
 
       {/* User info */}
