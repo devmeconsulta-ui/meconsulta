@@ -102,6 +102,7 @@ export function EditarConsultaModal({
   const [eventos, setEventos] = useState<any[]>([]);
   const [formasPagamento, setFormasPagamento] = useState<FormaPagamento[]>([]);
   const [pagamentoDividido, setPagamentoDividido] = useState(false);
+  const [medicosDisponiveis, setMedicosDisponiveis] = useState<Array<{ id: string; nome: string }>>([]);
   
   const [formData, setFormData] = useState({
     data_hora: "",
@@ -112,12 +113,12 @@ export function EditarConsultaModal({
     observacoes_paciente: "",
     valor_consulta: 0,
     nome_paciente_consulta: "",
+    medico_id: "",
   });
 
   useEffect(() => {
     if (consulta && open) {
       const dataHora = parseISO(consulta.data_hora);
-      // Carrega dados iniciais - valor será recalculado após carregar procedimentos
       setFormData({
         data_hora: format(dataHora, "yyyy-MM-dd'T'HH:mm"),
         status_consulta: consulta.status_consulta || "confirmada",
@@ -127,9 +128,9 @@ export function EditarConsultaModal({
         observacoes_paciente: consulta.observacoes_paciente || "",
         valor_consulta: consulta.valor_consulta || 0,
         nome_paciente_consulta: consulta.nome_paciente_consulta || consulta.paciente?.nome || "",
+        medico_id: consulta.medico_id || "",
       });
       
-      // Carrega formas de pagamento se existirem
       if (consulta.formas_pagamento && Array.isArray(consulta.formas_pagamento)) {
         setFormasPagamento(consulta.formas_pagamento);
         setPagamentoDividido(consulta.formas_pagamento.length > 1);
@@ -138,10 +139,9 @@ export function EditarConsultaModal({
         setPagamentoDividido(false);
       }
       
-      // Fetch existing procedures
       fetchProcedimentos();
+      fetchMedicosDisponiveis();
       
-      // Fetch additional data for readOnly mode
       if (readOnly) {
         fetchMedicoData();
         fetchEventos();
@@ -151,6 +151,17 @@ export function EditarConsultaModal({
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
+  const fetchMedicosDisponiveis = async () => {
+    if (!consulta?.clinica_id) return;
+    const { data } = await supabase
+      .from("clinicas_medicos")
+      .select("medico_id, medicos(id, nome)")
+      .eq("clinica_id", consulta.clinica_id)
+      .eq("ativo", true);
+    const meds = data?.map((v: any) => v.medicos).filter(Boolean) || [];
+    setMedicosDisponiveis(meds);
+  };
 
   const fetchMedicoData = async () => {
     if (!consulta?.medico_id) return;
@@ -321,6 +332,7 @@ export function EditarConsultaModal({
         valor_consulta: valorTotal,
         nome_paciente_consulta: formData.nome_paciente_consulta || null,
         formas_pagamento: formData.status_pagamento === "pago" ? formasPagamento : null,
+        medico_id: formData.medico_id || consulta.medico_id,
       };
 
       // Se cancelando, também cancelar no Asaas se tiver payment_id
@@ -341,15 +353,20 @@ export function EditarConsultaModal({
 
       if (error) throw error;
 
-      // Se a data/hora mudou, atualizar também o slot da agenda vinculado
-      // para que o card apareça na posição correta na agenda
-      if (consulta.agenda_slot_id && formData.data_hora) {
+      // Se a data/hora ou médico mudou, atualizar também o slot da agenda vinculado
+      if (consulta.agenda_slot_id) {
+        const slotUpdate: any = {};
         const novaDataHora = new Date(formData.data_hora).toISOString();
-        const dataOriginal = consulta.data_hora;
-        if (novaDataHora !== dataOriginal) {
+        if (novaDataHora !== consulta.data_hora) {
+          slotUpdate.data_hora = novaDataHora;
+        }
+        if (formData.medico_id && formData.medico_id !== consulta.medico_id) {
+          slotUpdate.medico_id = formData.medico_id;
+        }
+        if (Object.keys(slotUpdate).length > 0) {
           await supabase
             .from("agenda_slots")
-            .update({ data_hora: novaDataHora })
+            .update(slotUpdate)
             .eq("id", consulta.agenda_slot_id);
         }
       }
@@ -575,6 +592,30 @@ export function EditarConsultaModal({
                 disabled={readOnly}
               />
             </div>
+
+            {/* Médico */}
+            {!readOnly && medicosDisponiveis.length > 0 && (
+              <div className="space-y-2">
+                <Label>Médico</Label>
+                <Select
+                  value={formData.medico_id}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, medico_id: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o médico" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {medicosDisponiveis.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        Dr(a). {m.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               {/* Status da Consulta */}
