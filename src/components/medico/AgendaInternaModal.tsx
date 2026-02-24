@@ -44,7 +44,8 @@ import {
   Plus,
   Percent,
   DollarSign,
-  RotateCcw
+  RotateCcw,
+  Users
 } from "lucide-react";
 import { maskPhone } from "@/lib/maskUtils";
 
@@ -139,6 +140,9 @@ export function AgendaInternaModal({
   
   // Duração da consulta em minutos
   const [duracaoMinutos, setDuracaoMinutos] = useState(30);
+  
+  // Ordem de chegada - permite múltiplos pacientes no mesmo horário
+  const [isOrdemChegada, setIsOrdemChegada] = useState(false);
   
   // Estado para retorno 30 dias
   const [isRetornoElegivel, setIsRetornoElegivel] = useState(false);
@@ -413,6 +417,7 @@ export function AgendaInternaModal({
     setDescontoValor(0);
     setIsRetornoElegivel(false);
     setDiasDesdeUltimaConsulta(null);
+    setIsOrdemChegada(false);
   }
 
   async function handleSubmit() {
@@ -484,7 +489,7 @@ export function AgendaInternaModal({
           .maybeSingle();
 
         if (existingSlot) {
-          if (!existingSlot.disponivel) {
+          if (!existingSlot.disponivel && !isOrdemChegada) {
             throw new Error("Este horário já está ocupado");
           }
           finalSlotId = existingSlot.id;
@@ -576,8 +581,8 @@ export function AgendaInternaModal({
         throw new Error("Erro ao criar consulta");
       }
 
-      // Mark slot as unavailable (if not already)
-      if (finalSlotId && !isManualBooking) {
+      // Mark slot as unavailable (if not already) - EXCEPT for ordem de chegada
+      if (finalSlotId && !isManualBooking && !isOrdemChegada) {
         await supabase
           .from("agenda_slots")
           .update({ disponivel: false })
@@ -1083,6 +1088,28 @@ export function AgendaInternaModal({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Ordem de Chegada toggle */}
+          <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <Switch
+              checked={isOrdemChegada}
+              onCheckedChange={setIsOrdemChegada}
+            />
+            <div className="flex-1">
+              <Label className="text-sm font-medium cursor-pointer" onClick={() => setIsOrdemChegada(!isOrdemChegada)}>
+                Ordem de Chegada
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Permite agendar múltiplos pacientes no mesmo horário. O atendimento será por ordem de chegada.
+              </p>
+            </div>
+            {isOrdemChegada && (
+              <Badge className="bg-amber-500 text-white text-[10px]">
+                <Users className="w-3 h-3 mr-1" />
+                Múltiplos
+              </Badge>
+            )}
           </div>
 
           {/* Row 5: Value + Discount */}

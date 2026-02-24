@@ -132,6 +132,7 @@ export default function OmniConfirmacaoAgenda() {
   // Novos estados para agendamento
   const [modoEnvio, setModoEnvio] = useState<"agora" | "agendar">("agora");
   const [horarioAgendado, setHorarioAgendado] = useState("06:00");
+  const [incluirOrdemChegada, setIncluirOrdemChegada] = useState(false);
 
   // Filtros globais para dashboard/histórico/gráficos
   const [globalPeriodo, setGlobalPeriodo] = useState<string>("todos");
@@ -369,6 +370,7 @@ export default function OmniConfirmacaoAgenda() {
       intervalo_min: (intervaloEnvio[0] - 1) * 1000,
       intervalo_max: (intervaloEnvio[0] + 1) * 1000,
       agendar_para: agendarPara,
+      ordem_chegada: incluirOrdemChegada,
     });
 
     setSelectedConsultas([]);
@@ -738,6 +740,25 @@ export default function OmniConfirmacaoAgenda() {
                       {"{{especialidade}}"}, {"{{data}}"}, {"{{horario}}"},{" "}
                       {"{{local}}"}, {"{{link_confirmacao}}"}
                     </p>
+
+                    {/* Ordem de Chegada checkbox */}
+                    <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                      <Checkbox
+                        id="ordem-chegada"
+                        checked={incluirOrdemChegada}
+                        onCheckedChange={(checked) => setIncluirOrdemChegada(!!checked)}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <label htmlFor="ordem-chegada" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5" />
+                          Incluir aviso de Ordem de Chegada
+                        </label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Adiciona uma observação de que o atendimento será por ordem de chegada no local.
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Aviso de múltiplos médicos */}

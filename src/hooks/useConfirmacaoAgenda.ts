@@ -32,7 +32,8 @@ interface SendConfirmationParams {
   mensagem_template: string;
   intervalo_min?: number;
   intervalo_max?: number;
-  agendar_para?: string | null; // ISO datetime para agendamento
+  agendar_para?: string | null;
+  ordem_chegada?: boolean;
 }
 
 interface Metrics {
