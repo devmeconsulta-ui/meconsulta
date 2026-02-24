@@ -341,12 +341,37 @@ export function EditarConsultaModal({
 
       if (error) throw error;
 
+      // Se a data/hora mudou, atualizar também o slot da agenda vinculado
+      // para que o card apareça na posição correta na agenda
+      if (consulta.agenda_slot_id && formData.data_hora) {
+        const novaDataHora = new Date(formData.data_hora).toISOString();
+        const dataOriginal = consulta.data_hora;
+        if (novaDataHora !== dataOriginal) {
+          await supabase
+            .from("agenda_slots")
+            .update({ data_hora: novaDataHora })
+            .eq("id", consulta.agenda_slot_id);
+        }
+      }
+
       // Se status mudou para cancelada, liberar o slot da agenda APÓS salvar
       if (formData.status_consulta === "cancelada" && consulta.agenda_slot_id) {
         await supabase
           .from("agenda_slots")
           .update({ disponivel: true })
           .eq("id", consulta.agenda_slot_id);
+      }
+
+      // Atualizar confirmacoes_agenda pendentes com a nova data
+      if (consulta.id && formData.data_hora) {
+        const novaDataHora = new Date(formData.data_hora).toISOString();
+        if (novaDataHora !== consulta.data_hora) {
+          await supabase
+            .from("confirmacoes_agenda")
+            .update({ data_agendamento: novaDataHora })
+            .eq("consulta_id", consulta.id)
+            .in("status", ["pendente", "enviado"]);
+        }
       }
 
       // Delete removed procedures
