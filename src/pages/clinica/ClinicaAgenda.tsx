@@ -374,61 +374,19 @@ export default function ClinicaAgenda() {
           agenda_slot_id,
           paciente_id,
           data_hora,
+          tipo_servico,
+          valor_consulta,
           pacientes(nome)
         `)
         .in("agenda_slot_id", slotIds)
         .neq("status_consulta", "cancelada");
 
-      // Verificar quais pacientes são elegíveis para retorno 
-      // Regra: mesma clínica + mesmo médico + consulta concluída nos últimos 30 dias
-      // Agrupar pacientes por médico para verificação correta
-      const pacienteMedicoMap = new Map<string, Set<string>>();
-      consultasData?.forEach(c => {
-        if (c.paciente_id) {
-          const slot = slotsData.find(s => s.id === c.agenda_slot_id);
-          if (slot?.medico_id) {
-            const key = `${c.paciente_id}-${slot.medico_id}`;
-            if (!pacienteMedicoMap.has(slot.medico_id)) {
-              pacienteMedicoMap.set(slot.medico_id, new Set());
-            }
-            pacienteMedicoMap.get(slot.medico_id)!.add(c.paciente_id);
-          }
-        }
-      });
-      
-      const trintaDiasAtras = subDays(new Date(), 30);
-      let retornoPacientes = new Set<string>();
-      
-      // Para cada médico, buscar pacientes elegíveis para retorno
-      for (const [medicoId, pacienteIds] of pacienteMedicoMap.entries()) {
-        const uniquePacienteIds = [...pacienteIds];
-        
-        if (uniquePacienteIds.length > 0) {
-          const { data: historicoData } = await supabase
-            .from("consultas")
-            .select("paciente_id")
-            .in("paciente_id", uniquePacienteIds)
-            .eq("medico_id", medicoId) // Mesmo médico
-            .eq("clinica_id", clinicaData?.id) // Mesma clínica
-            .in("status_consulta", ["concluida", "atendida_medico"])
-            .gte("data_hora", trintaDiasAtras.toISOString());
-          
-          // Pacientes com pelo menos 1 consulta concluída nos últimos 30 dias são retorno
-          historicoData?.forEach(h => {
-            if (h.paciente_id) {
-              // Guardar como combinação paciente-médico
-              retornoPacientes.add(`${h.paciente_id}-${medicoId}`);
-            }
-          });
-        }
-      }
-
       const slotsWithConsultas = slotsData.map((slot) => ({
         ...slot,
         consultas: consultasData?.filter((c) => c.agenda_slot_id === slot.id).map(c => ({
           ...c,
-          // Verificar retorno considerando combinação paciente-médico
-          isRetorno: c.paciente_id && slot.medico_id ? retornoPacientes.has(`${c.paciente_id}-${slot.medico_id}`) : false
+          // Retorno só aparece quando marcado manualmente no agendamento
+          isRetorno: c.tipo_servico === "retorno" && c.valor_consulta === 0
         })) || [],
       }));
 
