@@ -10,10 +10,11 @@ interface ConfirmationRequest {
   fila_id: string;
   clinica_id: string;
   mensagem_template: string;
-  intervalo_min: number; // milliseconds
-  intervalo_max: number; // milliseconds
-  base_url: string; // URL base para o link de confirmação
-  agendar_para?: string | null; // ISO datetime para agendamento (ex: "2024-01-29T06:00:00")
+  intervalo_min: number;
+  intervalo_max: number;
+  base_url: string;
+  agendar_para?: string | null;
+  ordem_chegada?: boolean;
 }
 
 interface SendResult {
@@ -51,6 +52,7 @@ Deno.serve(async (req: Request) => {
       intervalo_max = 5000,
       base_url,
       agendar_para,
+      ordem_chegada = false,
     } = body;
 
     if (!consulta_ids?.length || !fila_id || !clinica_id) {
@@ -151,6 +153,11 @@ Deno.serve(async (req: Request) => {
           .replace(/{{horario}}/g, horaFormatada)
           .replace(/{{local}}/g, endereco)
           .replace(/{{link_confirmacao}}/g, linkConfirmacao);
+
+        // Adicionar aviso de ordem de chegada
+        if (ordem_chegada) {
+          mensagem += `\n\n⚠️ *Atenção:* O atendimento neste horário será realizado por *ordem de chegada*. Recomendamos chegar com antecedência para garantir prioridade.`;
+        }
 
         // Formatar telefone (remover caracteres não numéricos)
         let telefone = paciente.telefone.replace(/\D/g, "");
