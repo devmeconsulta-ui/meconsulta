@@ -423,7 +423,21 @@ export default function ClinicaAgenda() {
   }
 
   function getSlotStatus(slot: Slot) {
-    if (!slot.disponivel || (slot.consultas && slot.consultas.length > 0)) {
+    const hasConsultas = slot.consultas && slot.consultas.length > 0;
+    
+    // Slot disponível COM consultas = ordem de chegada (aceita mais pacientes)
+    if (slot.disponivel && hasConsultas) {
+      const consulta = slot.consultas![0];
+      return {
+        status: "ordem_chegada",
+        origem: consulta.origem || "interna",
+        pacienteNome: slot.consultas!.map(c => c.nome_paciente_consulta || c.pacientes?.nome || "Paciente").join(", "),
+        isRetorno: false,
+        totalPacientes: slot.consultas!.length,
+      };
+    }
+    
+    if (!slot.disponivel || hasConsultas) {
       const consulta = slot.consultas?.[0];
       if (consulta) {
         return {
@@ -431,11 +445,12 @@ export default function ClinicaAgenda() {
           origem: consulta.origem || "online",
           pacienteNome: consulta.nome_paciente_consulta || consulta.pacientes?.nome || "Paciente",
           isRetorno: consulta.isRetorno || false,
+          totalPacientes: slot.consultas?.length || 1,
         };
       }
-      return { status: "indisponivel", origem: null, pacienteNome: null, isRetorno: false };
+      return { status: "indisponivel", origem: null, pacienteNome: null, isRetorno: false, totalPacientes: 0 };
     }
-    return { status: "livre", origem: null, pacienteNome: null, isRetorno: false };
+    return { status: "livre", origem: null, pacienteNome: null, isRetorno: false, totalPacientes: 0 };
   }
 
   function getFilteredSlots() {
@@ -475,7 +490,8 @@ export default function ClinicaAgenda() {
 
   function handleSlotClick(slot: Slot) {
     const slotInfo = getSlotStatus(slot);
-    if (slotInfo.status === "livre") {
+    if (slotInfo.status === "livre" || slotInfo.status === "ordem_chegada") {
+      // Slot livre ou ordem de chegada (aceita mais pacientes)
       setSelectedSlot(slot);
       setAgendaModalOpen(true);
     } else if (slotInfo.status === "reservado" && slot.consultas && slot.consultas.length > 0) {
@@ -703,12 +719,16 @@ export default function ClinicaAgenda() {
     const isBloqueado = slotInfo.status === "indisponivel";
     const hasConsulta = slot.consultas && slot.consultas.length > 0;
 
+    const isOrdemChegada = slotInfo.status === "ordem_chegada";
+
     return (
       <div
         key={slot.id}
         className={`relative w-full p-2 rounded-lg text-left transition-all text-xs select-none ${
           isLivre
             ? "bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40"
+            : isOrdemChegada
+            ? "bg-amber-600/90 text-white border-l-4 border-l-amber-400"
             : isOnline
             ? "bg-blue-600/90 text-white border-l-4 border-l-blue-400"
             : isInterna
@@ -730,8 +750,15 @@ export default function ClinicaAgenda() {
             <span className={`font-semibold ${isBloqueado ? "text-red-600 dark:text-red-400" : ""}`}>
               {format(parseISO(slot.data_hora), "HH:mm")}
             </span>
-            {/* Ícone de editar para slots com consulta */}
-            {hasConsulta && !compact && (
+            {/* Badge de ordem de chegada */}
+            {isOrdemChegada && (
+              <Badge className="bg-white/20 text-white text-[9px] px-1 py-0 ml-auto">
+                <Users className="w-2.5 h-2.5 mr-0.5" />
+                {slotInfo.totalPacientes}
+              </Badge>
+            )}
+            {/* Ícone de editar para slots com consulta (não ordem de chegada) */}
+            {hasConsulta && !compact && !isOrdemChegada && (
               <Edit className="w-3 h-3 text-white/70 ml-auto" />
             )}
           </div>
@@ -741,7 +768,22 @@ export default function ClinicaAgenda() {
             </p>
           )}
           {!compact && (
-            slotInfo.pacienteNome ? (
+            isOrdemChegada ? (
+              <div className="mt-1 space-y-0.5">
+                {slot.consultas!.map((c, i) => (
+                  <div key={c.id} className="flex items-center gap-1">
+                    <Users className="w-2.5 h-2.5 text-white/70 shrink-0" />
+                    <span className="truncate text-white/90 text-[10px]">
+                      {i + 1}. {c.nome_paciente_consulta || c.pacientes?.nome || "Paciente"}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-1 mt-1 text-white/60">
+                  <UserPlus className="w-2.5 h-2.5" />
+                  <span className="text-[10px] font-medium">+ Adicionar paciente</span>
+                </div>
+              </div>
+            ) : slotInfo.pacienteNome ? (
               <div className="mt-1 space-y-1">
                 <div className="flex items-center gap-1">
                   {isOnline ? (
@@ -954,6 +996,7 @@ export default function ClinicaAgenda() {
               {daySlots.map((slot) => {
                 const slotInfo = getSlotStatus(slot);
                 const isLivre = slotInfo.status === "livre";
+                const isOrdemChegada = slotInfo.status === "ordem_chegada";
                 const isOnline = slotInfo.origem === "online";
                 const isInterna = slotInfo.origem === "interna" || slotInfo.origem === "ia_whatsapp";
                 const isBloqueado = slotInfo.status === "indisponivel";
@@ -966,6 +1009,8 @@ export default function ClinicaAgenda() {
                     className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
                       isLivre
                         ? "bg-white dark:bg-card border-blue-200 dark:border-blue-800 hover:border-blue-400"
+                        : isOrdemChegada
+                        ? "bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700"
                         : isOnline
                         ? "bg-blue-50 dark:bg-blue-950/50 border-blue-300 dark:border-blue-700"
                         : isInterna
@@ -1006,7 +1051,15 @@ export default function ClinicaAgenda() {
                       )}
                       
                       {/* Badge de Status */}
-                      {slotInfo.pacienteNome ? (
+                      {isOrdemChegada ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge className="bg-amber-600 text-white text-xs">
+                            <Users className="w-3 h-3 mr-1" />
+                            Ordem de Chegada ({slotInfo.totalPacientes})
+                          </Badge>
+                          <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
+                        </div>
+                      ) : slotInfo.pacienteNome ? (
                         <div className="flex items-center gap-2 flex-wrap">
                           {isOnline ? (
                             <Badge className="bg-blue-600 text-white text-xs">
@@ -1020,7 +1073,6 @@ export default function ClinicaAgenda() {
                             </Badge>
                           )}
                           <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
-                          {/* Badge de Retorno - elegível para valor zero (últimos 30 dias) */}
                           {slotInfo.isRetorno && (
                             <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs gap-1">
                               <RotateCcw className="w-3 h-3" />
@@ -1037,18 +1089,18 @@ export default function ClinicaAgenda() {
                     
                     {/* Ações à direita */}
                     <div className="flex items-center gap-3">
-                      {isLivre && (
+                      {(isLivre || isOrdemChegada) && (
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => handleSlotClick(slot)}
                           className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
                         >
-                          <Plus className="w-4 h-4" />
-                          Marcar
+                          <UserPlus className="w-4 h-4" />
+                          {isOrdemChegada ? "+ Paciente" : "Marcar"}
                         </Button>
                       )}
-                      {hasConsulta && slot.consultas && slot.consultas.length > 0 && (
+                      {hasConsulta && slot.consultas && slot.consultas.length > 0 && !isOrdemChegada && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1220,6 +1272,7 @@ export default function ClinicaAgenda() {
                 {daySlots.map((slot) => {
                   const slotInfo = getSlotStatus(slot);
                   const isLivre = slotInfo.status === "livre";
+                  const isOrdemChegada = slotInfo.status === "ordem_chegada";
                   const isOnline = slotInfo.origem === "online";
                   const isInterna = slotInfo.origem === "interna";
                   const isBloqueado = slotInfo.status === "indisponivel";
@@ -1232,6 +1285,8 @@ export default function ClinicaAgenda() {
                       className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
                         isLivre
                           ? "bg-white dark:bg-card border-blue-200 dark:border-blue-800 hover:border-blue-400"
+                          : isOrdemChegada
+                          ? "bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700"
                           : isOnline
                           ? "bg-blue-50 dark:bg-blue-950/50 border-blue-300 dark:border-blue-700"
                           : isInterna
@@ -1272,7 +1327,15 @@ export default function ClinicaAgenda() {
                         )}
                         
                         {/* Badge de Status */}
-                        {slotInfo.pacienteNome ? (
+                        {isOrdemChegada ? (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge className="bg-amber-600 text-white text-xs">
+                              <Users className="w-3 h-3 mr-1" />
+                              Ordem de Chegada ({slotInfo.totalPacientes})
+                            </Badge>
+                            <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
+                          </div>
+                        ) : slotInfo.pacienteNome ? (
                           <div className="flex items-center gap-2 flex-wrap">
                             {isOnline ? (
                               <Badge className="bg-blue-600 text-white text-xs">
@@ -1286,7 +1349,6 @@ export default function ClinicaAgenda() {
                               </Badge>
                             )}
                             <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
-                            {/* Badge de Retorno - elegível para valor zero (últimos 30 dias) */}
                             {slotInfo.isRetorno && (
                               <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs gap-1">
                                 <RotateCcw className="w-3 h-3" />
@@ -1303,18 +1365,18 @@ export default function ClinicaAgenda() {
                       
                       {/* Ações à direita */}
                       <div className="flex items-center gap-3">
-                        {isLivre && (
+                        {(isLivre || isOrdemChegada) && (
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => handleSlotClick(slot)}
                             className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
                           >
-                            <Plus className="w-4 h-4" />
-                            Marcar
+                            <UserPlus className="w-4 h-4" />
+                            {isOrdemChegada ? "+ Paciente" : "Marcar"}
                           </Button>
                         )}
-                        {hasConsulta && slot.consultas && slot.consultas.length > 0 && (
+                        {hasConsulta && slot.consultas && slot.consultas.length > 0 && !isOrdemChegada && (
                           <Button
                             size="sm"
                             variant="ghost"
