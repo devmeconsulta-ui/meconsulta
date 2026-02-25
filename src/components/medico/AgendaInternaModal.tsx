@@ -212,8 +212,28 @@ export function AgendaInternaModal({
         setSelectedTime("08:00");
       }
       fetchConvenios();
+      
+      // Auto-detect ordem de chegada: if slot already has consultas but is still available
+      if (!isManualBooking) {
+        checkIfOrdemChegada();
+      }
     }
   }, [open, localId, valorConsulta, locais, slotDataHora, medicoId]);
+
+  async function checkIfOrdemChegada() {
+    // Check if this slot already has consultas (meaning it's an ordem de chegada slot)
+    const { data: existingConsultas } = await supabase
+      .from("consultas")
+      .select("id")
+      .eq("agenda_slot_id", slotId)
+      .neq("status_consulta", "cancelada")
+      .limit(1);
+    
+    if (existingConsultas && existingConsultas.length > 0) {
+      // Slot already has patients - auto-enable ordem de chegada
+      setIsOrdemChegada(true);
+    }
+  }
 
   useEffect(() => {
     if (selectedPaciente) {
@@ -501,7 +521,7 @@ export function AgendaInternaModal({
               medico_id: effectiveMedicoId,
               local_id: formData.localSelecionado,
               data_hora: finalDataHora,
-              disponivel: false,
+              disponivel: isOrdemChegada ? true : false,
             })
             .select()
             .single();
@@ -525,7 +545,7 @@ export function AgendaInternaModal({
               medico_id: effectiveMedicoId,
               local_id: formData.localSelecionado,
               data_hora: finalDataHora,
-              disponivel: false,
+              disponivel: isOrdemChegada ? true : false,
             })
             .select()
             .single();
