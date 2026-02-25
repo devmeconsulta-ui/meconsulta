@@ -539,6 +539,13 @@ export default function ClinicaFinanceiro() {
     const convenioAFaturar = convenioConsultas.reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
     const convenioQtd = convenioConsultas.length;
 
+    // Concluídas com pagamento pendente
+    const concluidasPendentesConsultas = filteredConsultas.filter(
+      (c) => c.status_consulta === "concluida" && c.status_pagamento === "pendente"
+    );
+    const concluidasPendentes = concluidasPendentesConsultas.reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
+    const concluidasPendentesQtd = concluidasPendentesConsultas.length;
+
     const total = filteredConsultas.length;
     const pagos = filteredConsultas.filter((c) => c.status_pagamento === "pago").length;
 
@@ -558,6 +565,8 @@ export default function ClinicaFinanceiro() {
       pagos,
       convenioAFaturar,
       convenioQtd,
+      concluidasPendentes,
+      concluidasPendentesQtd,
       // Legacy compatibility
       pago: pagoOnline,
       pendente: pendenteOnline,
@@ -1777,6 +1786,8 @@ export default function ClinicaFinanceiro() {
             saldoPrevistoInterno={metrics.pagoInterno + metrics.pendenteInterno}
             convenioAFaturar={metrics.convenioAFaturar}
             convenioQtd={metrics.convenioQtd}
+            concluidasPendentes={metrics.concluidasPendentes}
+            concluidasPendentesQtd={metrics.concluidasPendentesQtd}
             aReceber={metrics.pendenteTotal + totalContasReceber}
             aPagar={totalContasPagar}
             saldoPrevistoGeral={(metrics.pagoTotal + metrics.pendenteTotal + totalContasReceber) - totalContasPagar}
