@@ -198,6 +198,16 @@ export default function ClinicaDashboard() {
       // Total faturado (online + interno)
       const faturamentoTotal = faturamentoOnline + faturamentoInterno;
 
+      // Concluídas com pagamento pendente (atendidas mas não pagas)
+      const concluidasPendentes = consultas
+        .filter((c) => c.status_consulta === "concluida" && c.status_pagamento === "pendente")
+        .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
+
+      const concluidasPendentesQtd = consultas
+        .filter((c) => c.status_consulta === "concluida" && c.status_pagamento === "pendente")
+        .length;
+
+      // Pendente (excluindo canceladas e concluídas que já têm card próprio)
       const pendente = consultas
         .filter((c) => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada")
         .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
@@ -235,6 +245,8 @@ export default function ClinicaDashboard() {
         faturamentoOnline,
         faturamentoInterno,
         pendente,
+        concluidasPendentes,
+        concluidasPendentesQtd,
         consultasHoje,
         consultasAmanha,
         consultasPorDia: Object.entries(consultasPorDia)
@@ -517,8 +529,8 @@ export default function ClinicaDashboard() {
         </Card>
       </div>
 
-      {/* Total Faturado e Pendente */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+      {/* Total Faturado, Concluídas Pendentes, Pendente e Previsão */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -528,6 +540,19 @@ export default function ClinicaDashboard() {
                 <p className="text-xs text-green-600 dark:text-green-400 mt-1">Online + Interno</p>
               </div>
               <CheckCircle className="h-10 w-10 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20 border-orange-200 dark:border-orange-800">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-orange-700 dark:text-orange-300">Concluídas s/ Pgto</p>
+                <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{formatCurrency(stats?.concluidasPendentes || 0)}</p>
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">{stats?.concluidasPendentesQtd || 0} consulta(s) atendida(s)</p>
+              </div>
+              <Clock className="h-10 w-10 text-orange-500" />
             </div>
           </CardContent>
         </Card>
@@ -545,7 +570,7 @@ export default function ClinicaDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20 border-indigo-200 dark:border-indigo-800 col-span-2 lg:col-span-1">
+        <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20 border-indigo-200 dark:border-indigo-800">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>

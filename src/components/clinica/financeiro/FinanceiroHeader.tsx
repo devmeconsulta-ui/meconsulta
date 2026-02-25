@@ -75,6 +75,9 @@ interface FinanceiroHeaderProps {
   // Convênio metrics
   convenioAFaturar?: number;
   convenioQtd?: number;
+  // Concluídas pendentes
+  concluidasPendentes?: number;
+  concluidasPendentesQtd?: number;
   // Geral
   aReceber: number;
   aPagar: number;
@@ -94,6 +97,8 @@ export function FinanceiroHeader({
   saldoPrevistoInterno,
   convenioAFaturar = 0,
   convenioQtd = 0,
+  concluidasPendentes = 0,
+  concluidasPendentesQtd = 0,
   aReceber,
   aPagar,
   saldoPrevistoGeral,
@@ -175,8 +180,16 @@ export function FinanceiroHeader({
         />
       </div>
 
-      {/* Linha 2 - Contas, Convênio e Previsão Geral */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Linha 2 - Concluídas Pendentes, Contas, Convênio e Previsão Geral */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <MetricCard
+          title="Concluídas s/ Pgto"
+          value={formatCurrency(concluidasPendentes)}
+          subtitle={`${concluidasPendentesQtd} consulta(s) atendida(s)`}
+          icon={<Clock className="w-5 h-5" />}
+          variant="warning"
+        />
+
         <MetricCard
           title="A Receber"
           value={formatCurrency(aReceber)}
@@ -190,7 +203,7 @@ export function FinanceiroHeader({
           value={formatCurrency(aPagar)}
           subtitle="Contas a vencer"
           icon={<TrendingDown className="w-5 h-5" />}
-          variant="warning"
+          variant="danger"
         />
 
         <MetricCard
