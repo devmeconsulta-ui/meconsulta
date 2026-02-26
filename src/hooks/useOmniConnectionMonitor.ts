@@ -50,7 +50,7 @@ export function useOmniConnectionMonitor(clinicaId: string | null): ConnectionMo
           continue;
         }
 
-        if (instancia.status !== "connected") {
+        if (instancia.status === "disconnected") {
           disconnected.push({
             filaId: fila.id,
             filaNome: fila.nome,
