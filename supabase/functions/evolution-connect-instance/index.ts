@@ -10,8 +10,21 @@ interface ConnectInstanceRequest {
   sync_history_days?: number;
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      console.warn(`Fetch attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : error);
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error("All retry attempts failed");
+}
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -41,7 +54,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar instância no banco
     const { data: instancia, error: fetchError } = await supabase
       .from("omni_instancias")
       .select("*")
@@ -58,7 +70,6 @@ Deno.serve(async (req) => {
 
     console.log(`Connecting instance: ${instancia.evolution_instance_name}`);
 
-    // Atualizar status para connecting
     await supabase
       .from("omni_instancias")
       .update({ status: "connecting" })
@@ -67,9 +78,9 @@ Deno.serve(async (req) => {
     // If sync_history_days is specified, configure the instance settings
     if (sync_history_days && sync_history_days > 0) {
       console.log(`Configuring sync history for ${sync_history_days} days`);
-      
+
       try {
-        const settingsResponse = await fetch(
+        const settingsResponse = await fetchWithRetry(
           `${EVOLUTION_API_URL}/settings/set/${instancia.evolution_instance_name}`,
           {
             method: "POST",
@@ -86,7 +97,9 @@ Deno.serve(async (req) => {
               syncFullHistory: true,
               daysLimitImportMessages: sync_history_days,
             }),
-          }
+          },
+          3,
+          800
         );
 
         const settingsData = await settingsResponse.json();
@@ -97,29 +110,27 @@ Deno.serve(async (req) => {
         }
       } catch (settingsErr) {
         console.warn("Error setting sync history:", settingsErr);
-        // Non-blocking - continue with connection
       }
     }
 
-    // Buscar QR Code na Evolution API
+    // Buscar QR Code na Evolution API com retry
     let qrData;
     try {
-      const qrResponse = await fetch(
+      const qrResponse = await fetchWithRetry(
         `${EVOLUTION_API_URL}/instance/connect/${instancia.evolution_instance_name}`,
         {
           method: "GET",
-          headers: {
-            "apikey": EVOLUTION_API_KEY,
-          },
-        }
+          headers: { "apikey": EVOLUTION_API_KEY },
+        },
+        4,
+        1000
       );
 
       qrData = await qrResponse.json();
 
       if (!qrResponse.ok) {
         console.error("Evolution API error getting QR:", qrData);
-        
-        // Reverter status
+
         await supabase
           .from("omni_instancias")
           .update({ status: "disconnected" })
@@ -130,17 +141,19 @@ Deno.serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-    } catch (fetchError) {
-      console.error("Evolution API unreachable:", fetchError);
-      
-      // Reverter status
+    } catch (fetchErr) {
+      console.error("Evolution API unreachable after retries:", fetchErr);
+
       await supabase
         .from("omni_instancias")
         .update({ status: "disconnected" })
         .eq("id", instancia_id);
 
       return new Response(
-        JSON.stringify({ error: "Servidor Evolution API indisponível. Verifique se o servidor está online.", details: fetchError instanceof Error ? fetchError.message : "Connection error" }),
+        JSON.stringify({
+          error: "Servidor Evolution API indisponível. Tente novamente em alguns segundos.",
+          details: fetchErr instanceof Error ? fetchErr.message : "Connection error",
+        }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

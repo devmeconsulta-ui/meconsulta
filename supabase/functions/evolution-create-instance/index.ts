@@ -14,6 +14,20 @@ interface CreateInstanceRequest {
   instance_name?: string;
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      console.warn(`Fetch attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : error);
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error("All retry attempts failed");
+}
+
 app.options("*", (c) => {
   return c.text("ok", 200, corsHeaders);
 });
@@ -39,28 +53,30 @@ app.post("*", async (c) => {
       return c.json({ error: "clinica_id e nome são obrigatórios" }, 400, corsHeaders);
     }
 
-    // Gera um nome único para a instância
     const evolutionInstanceName = instance_name || `clinic_${clinica_id.substring(0, 8)}_${Date.now()}`;
-
-    // Configuração do webhook que receberá os eventos
     const webhookUrl = `${SUPABASE_URL}/functions/v1/evolution-webhook`;
 
     console.log(`Creating Evolution instance: ${evolutionInstanceName}`);
 
-    // Criar instância na Evolution API
-    const evolutionResponse = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": EVOLUTION_API_KEY,
+    // Criar instância com retry
+    const evolutionResponse = await fetchWithRetry(
+      `${EVOLUTION_API_URL}/instance/create`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": EVOLUTION_API_KEY,
+        },
+        body: JSON.stringify({
+          instanceName: evolutionInstanceName,
+          integration: "WHATSAPP-BAILEYS",
+          token: EVOLUTION_API_KEY,
+          qrcode: true,
+        }),
       },
-      body: JSON.stringify({
-        instanceName: evolutionInstanceName,
-        integration: "WHATSAPP-BAILEYS",
-        token: EVOLUTION_API_KEY,
-        qrcode: true,
-      }),
-    });
+      4,
+      1000
+    );
 
     const evolutionData = await evolutionResponse.json();
 
@@ -71,9 +87,9 @@ app.post("*", async (c) => {
 
     console.log("Evolution instance created:", evolutionData);
 
-    // Configurar webhook separadamente (Evolution API v2)
+    // Configurar webhook com retry
     console.log(`Configuring webhook for instance: ${evolutionInstanceName}`);
-    
+
     const webhookConfig = {
       webhook: {
         enabled: true,
@@ -91,25 +107,36 @@ app.post("*", async (c) => {
       },
     };
 
-    const webhookResponse = await fetch(`${EVOLUTION_API_URL}/webhook/set/${evolutionInstanceName}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": EVOLUTION_API_KEY,
-      },
-      body: JSON.stringify(webhookConfig),
-    });
+    let webhookOk = false;
+    let webhookData: any = {};
+    try {
+      const webhookResponse = await fetchWithRetry(
+        `${EVOLUTION_API_URL}/webhook/set/${evolutionInstanceName}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": EVOLUTION_API_KEY,
+          },
+          body: JSON.stringify(webhookConfig),
+        },
+        3,
+        800
+      );
 
-    const webhookData = await webhookResponse.json();
+      webhookData = await webhookResponse.json();
+      webhookOk = webhookResponse.ok;
 
-    if (!webhookResponse.ok) {
-      console.warn("Webhook configuration warning:", webhookData);
-      // Não falha se o webhook não configurar, apenas loga o aviso
-    } else {
-      console.log("Webhook configured successfully:", webhookData);
+      if (!webhookOk) {
+        console.warn("Webhook configuration warning:", webhookData);
+      } else {
+        console.log("Webhook configured successfully:", webhookData);
+      }
+    } catch (whErr) {
+      console.warn("Webhook configuration failed (non-blocking):", whErr);
     }
 
-    // Salvar instância no banco de dados
+    // Salvar instância no banco
     const { data: instancia, error: dbError } = await supabase
       .from("omni_instancias")
       .insert({
@@ -123,7 +150,7 @@ app.post("*", async (c) => {
           integration: "WHATSAPP-BAILEYS",
           created_at_evolution: evolutionData,
           webhook_config: webhookConfig,
-          webhook_configured: webhookResponse.ok,
+          webhook_configured: webhookOk,
         },
       })
       .select()
@@ -140,7 +167,7 @@ app.post("*", async (c) => {
       success: true,
       instancia,
       evolution_data: evolutionData,
-      webhook_configured: webhookResponse.ok,
+      webhook_configured: webhookOk,
       webhook_data: webhookData,
     }, 200, corsHeaders);
   } catch (error: unknown) {
