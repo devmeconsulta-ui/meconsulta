@@ -102,20 +102,36 @@ Deno.serve(async (req) => {
     }
 
     // Buscar QR Code na Evolution API
-    const qrResponse = await fetch(
-      `${EVOLUTION_API_URL}/instance/connect/${instancia.evolution_instance_name}`,
-      {
-        method: "GET",
-        headers: {
-          "apikey": EVOLUTION_API_KEY,
-        },
+    let qrData;
+    try {
+      const qrResponse = await fetch(
+        `${EVOLUTION_API_URL}/instance/connect/${instancia.evolution_instance_name}`,
+        {
+          method: "GET",
+          headers: {
+            "apikey": EVOLUTION_API_KEY,
+          },
+        }
+      );
+
+      qrData = await qrResponse.json();
+
+      if (!qrResponse.ok) {
+        console.error("Evolution API error getting QR:", qrData);
+        
+        // Reverter status
+        await supabase
+          .from("omni_instancias")
+          .update({ status: "disconnected" })
+          .eq("id", instancia_id);
+
+        return new Response(
+          JSON.stringify({ error: "Erro ao gerar QR Code", details: qrData }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-    );
-
-    const qrData = await qrResponse.json();
-
-    if (!qrResponse.ok) {
-      console.error("Evolution API error getting QR:", qrData);
+    } catch (fetchError) {
+      console.error("Evolution API unreachable:", fetchError);
       
       // Reverter status
       await supabase
@@ -124,8 +140,8 @@ Deno.serve(async (req) => {
         .eq("id", instancia_id);
 
       return new Response(
-        JSON.stringify({ error: "Erro ao gerar QR Code", details: qrData }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Servidor Evolution API indisponível. Verifique se o servidor está online.", details: fetchError instanceof Error ? fetchError.message : "Connection error" }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
