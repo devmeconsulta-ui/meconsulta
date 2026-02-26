@@ -9,8 +9,21 @@ interface ConnectionStatusRequest {
   instancia_id: string;
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      console.warn(`Fetch attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : error);
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error("All retry attempts failed");
+}
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -40,7 +53,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar instância
     const { data: instancia, error: fetchError } = await supabase
       .from("omni_instancias")
       .select("*")
@@ -56,23 +68,26 @@ Deno.serve(async (req) => {
 
     console.log(`Checking connection status for: ${instancia.evolution_instance_name}`);
 
-    // Verificar status na Evolution API
-    const statusResponse = await fetch(
-      `${EVOLUTION_API_URL}/instance/connectionState/${instancia.evolution_instance_name}`,
-      {
-        method: "GET",
-        headers: {
-          "apikey": EVOLUTION_API_KEY,
+    let statusData;
+    let statusOk = false;
+
+    try {
+      const statusResponse = await fetchWithRetry(
+        `${EVOLUTION_API_URL}/instance/connectionState/${instancia.evolution_instance_name}`,
+        {
+          method: "GET",
+          headers: { "apikey": EVOLUTION_API_KEY },
         },
-      }
-    );
+        3,
+        800
+      );
 
-    const statusData = await statusResponse.json();
-
-    if (!statusResponse.ok) {
-      console.error("Evolution API error:", statusData);
+      statusData = await statusResponse.json();
+      statusOk = statusResponse.ok;
+    } catch (err) {
+      console.error("Evolution API unreachable after retries:", err);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: true,
           status: instancia.status,
           numero_whatsapp: instancia.numero_whatsapp,
@@ -82,17 +97,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Mapear status
+    if (!statusOk) {
+      console.error("Evolution API error:", statusData);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          status: instancia.status,
+          numero_whatsapp: instancia.numero_whatsapp,
+          from_cache: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const state = statusData.state || statusData.instance?.state;
     let dbStatus: string = "disconnected";
-    
+
     if (state === "open" || state === "connected") {
       dbStatus = "connected";
     } else if (state === "connecting") {
       dbStatus = "connecting";
     }
 
-    // Atualizar no banco se diferente
     if (dbStatus !== instancia.status) {
       await supabase
         .from("omni_instancias")

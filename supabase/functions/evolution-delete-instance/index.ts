@@ -12,6 +12,20 @@ interface DeleteInstanceRequest {
   instancia_id: string;
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      console.warn(`Fetch attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : error);
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error("All retry attempts failed");
+}
+
 app.options("*", (c) => {
   return c.text("ok", 200, corsHeaders);
 });
@@ -36,7 +50,6 @@ app.post("*", async (c) => {
       return c.json({ error: "instancia_id é obrigatório" }, 400, corsHeaders);
     }
 
-    // Buscar instância
     const { data: instancia, error: fetchError } = await supabase
       .from("omni_instancias")
       .select("*")
@@ -49,33 +62,27 @@ app.post("*", async (c) => {
 
     console.log(`Deleting instance: ${instancia.evolution_instance_name}`);
 
-    // Primeiro tentar fazer logout (desconectar) na Evolution API
+    // Logout com retry
     try {
-      const logoutResponse = await fetch(
+      const logoutResponse = await fetchWithRetry(
         `${EVOLUTION_API_URL}/instance/logout/${instancia.evolution_instance_name}`,
-        {
-          method: "DELETE",
-          headers: {
-            "apikey": EVOLUTION_API_KEY,
-          },
-        }
+        { method: "DELETE", headers: { "apikey": EVOLUTION_API_KEY } },
+        2,
+        500
       );
       const logoutData = await logoutResponse.json();
       console.log("Logout response:", logoutData);
     } catch (logoutError) {
-      console.warn("Error during logout (may already be disconnected):", logoutError);
+      console.warn("Error during logout (proceeding):", logoutError);
     }
 
-    // Deletar instância na Evolution API
+    // Delete com retry
     try {
-      const deleteResponse = await fetch(
+      const deleteResponse = await fetchWithRetry(
         `${EVOLUTION_API_URL}/instance/delete/${instancia.evolution_instance_name}`,
-        {
-          method: "DELETE",
-          headers: {
-            "apikey": EVOLUTION_API_KEY,
-          },
-        }
+        { method: "DELETE", headers: { "apikey": EVOLUTION_API_KEY } },
+        3,
+        800
       );
 
       const deleteData = await deleteResponse.json();
@@ -89,23 +96,22 @@ app.post("*", async (c) => {
       console.warn("Evolution API unreachable during delete (proceeding with local cleanup):", evoError);
     }
 
-    // Verificar se há filas usando esta instância
+    // Desvincular filas
     const { data: filasUsando } = await supabase
       .from("omni_filas")
       .select("id")
       .eq("instancia_id", instancia_id);
 
     if (filasUsando && filasUsando.length > 0) {
-      // Desvincular filas da instância
       await supabase
         .from("omni_filas")
         .update({ instancia_id: null })
         .eq("instancia_id", instancia_id);
-      
+
       console.log(`Unlinked ${filasUsando.length} queues from instance`);
     }
 
-    // Deletar instância do banco de dados
+    // Deletar do banco
     const { error: deleteError } = await supabase
       .from("omni_instancias")
       .delete()

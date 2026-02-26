@@ -17,6 +17,20 @@ interface SendMessageRequest {
   encaminhada?: boolean;
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      console.warn(`Fetch attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : error);
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error("All retry attempts failed");
+}
+
 // Declare EdgeRuntime for background tasks
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
@@ -173,8 +187,8 @@ serve(async (req) => {
 
     console.log(`[${Date.now() - startTime}ms] Sending to Evolution API: ${evolutionEndpoint}`, JSON.stringify(evolutionBody));
 
-    // Enviar mensagem via Evolution API
-    const sendResponse = await fetch(
+    // Enviar mensagem via Evolution API com retry
+    const sendResponse = await fetchWithRetry(
       `${EVOLUTION_API_URL}/message/${evolutionEndpoint}/${instancia.evolution_instance_name}`,
       {
         method: "POST",
@@ -183,7 +197,9 @@ serve(async (req) => {
           "apikey": EVOLUTION_API_KEY,
         },
         body: JSON.stringify(evolutionBody),
-      }
+      },
+      3,
+      800
     );
 
     const sendData = await sendResponse.json();

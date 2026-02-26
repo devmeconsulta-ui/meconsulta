@@ -9,8 +9,21 @@ interface DisconnectInstanceRequest {
   instancia_id: string;
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      console.warn(`Fetch attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : error);
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error("All retry attempts failed");
+}
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -40,7 +53,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar instância
     const { data: instancia, error: fetchError } = await supabase
       .from("omni_instancias")
       .select("*")
@@ -56,30 +68,27 @@ Deno.serve(async (req) => {
 
     console.log(`Disconnecting instance: ${instancia.evolution_instance_name}`);
 
-    // Desconectar na Evolution API
-    const logoutResponse = await fetch(
-      `${EVOLUTION_API_URL}/instance/logout/${instancia.evolution_instance_name}`,
-      {
-        method: "DELETE",
-        headers: {
-          "apikey": EVOLUTION_API_KEY,
-        },
+    // Desconectar com retry
+    try {
+      const logoutResponse = await fetchWithRetry(
+        `${EVOLUTION_API_URL}/instance/logout/${instancia.evolution_instance_name}`,
+        { method: "DELETE", headers: { "apikey": EVOLUTION_API_KEY } },
+        3,
+        800
+      );
+
+      const logoutData = await logoutResponse.json();
+      if (!logoutResponse.ok) {
+        console.error("Evolution API error during logout:", logoutData);
       }
-    );
-
-    const logoutData = await logoutResponse.json();
-
-    if (!logoutResponse.ok) {
-      console.error("Evolution API error during logout:", logoutData);
+    } catch (err) {
+      console.warn("Evolution API unreachable during disconnect (updating DB anyway):", err);
     }
 
-    // Atualizar status no banco
+    // Sempre atualiza o banco
     const { error: updateError } = await supabase
       .from("omni_instancias")
-      .update({
-        status: "disconnected",
-        numero_whatsapp: null,
-      })
+      .update({ status: "disconnected", numero_whatsapp: null })
       .eq("id", instancia_id);
 
     if (updateError) {
@@ -89,10 +98,7 @@ Deno.serve(async (req) => {
     console.log("Instance disconnected successfully");
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Instância desconectada com sucesso",
-      }),
+      JSON.stringify({ success: true, message: "Instância desconectada com sucesso" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
