@@ -67,23 +67,26 @@ app.post("*", async (c) => {
     }
 
     // Deletar instância na Evolution API
-    const deleteResponse = await fetch(
-      `${EVOLUTION_API_URL}/instance/delete/${instancia.evolution_instance_name}`,
-      {
-        method: "DELETE",
-        headers: {
-          "apikey": EVOLUTION_API_KEY,
-        },
+    try {
+      const deleteResponse = await fetch(
+        `${EVOLUTION_API_URL}/instance/delete/${instancia.evolution_instance_name}`,
+        {
+          method: "DELETE",
+          headers: {
+            "apikey": EVOLUTION_API_KEY,
+          },
+        }
+      );
+
+      const deleteData = await deleteResponse.json();
+
+      if (!deleteResponse.ok) {
+        console.error("Evolution API error during delete:", deleteData);
+      } else {
+        console.log("Instance deleted from Evolution API:", deleteData);
       }
-    );
-
-    const deleteData = await deleteResponse.json();
-
-    if (!deleteResponse.ok) {
-      console.error("Evolution API error during delete:", deleteData);
-      // Continua mesmo se a Evolution API falhar (pode já ter sido deletada)
-    } else {
-      console.log("Instance deleted from Evolution API:", deleteData);
+    } catch (evoError) {
+      console.warn("Evolution API unreachable during delete (proceeding with local cleanup):", evoError);
     }
 
     // Verificar se há filas usando esta instância
