@@ -4051,11 +4051,21 @@ export type Database = {
         Row: {
           clinica_id: string
           created_at: string
+          cursor_json: Json | null
+          days_back: number | null
           error_message: string | null
+          finished_at: string | null
           id: string
           instancia_id: string
+          job_type: string
+          last_error: string | null
           last_synced_at: string | null
+          progress_chats_done: number | null
+          progress_chats_total: number | null
           progress_count: number | null
+          progress_messages_done: number | null
+          provider: string
+          started_at: string | null
           status: string
           total_count: number | null
           updated_at: string
@@ -4063,11 +4073,21 @@ export type Database = {
         Insert: {
           clinica_id: string
           created_at?: string
+          cursor_json?: Json | null
+          days_back?: number | null
           error_message?: string | null
+          finished_at?: string | null
           id?: string
           instancia_id: string
+          job_type?: string
+          last_error?: string | null
           last_synced_at?: string | null
+          progress_chats_done?: number | null
+          progress_chats_total?: number | null
           progress_count?: number | null
+          progress_messages_done?: number | null
+          provider?: string
+          started_at?: string | null
           status?: string
           total_count?: number | null
           updated_at?: string
@@ -4075,11 +4095,21 @@ export type Database = {
         Update: {
           clinica_id?: string
           created_at?: string
+          cursor_json?: Json | null
+          days_back?: number | null
           error_message?: string | null
+          finished_at?: string | null
           id?: string
           instancia_id?: string
+          job_type?: string
+          last_error?: string | null
           last_synced_at?: string | null
+          progress_chats_done?: number | null
+          progress_chats_total?: number | null
           progress_count?: number | null
+          progress_messages_done?: number | null
+          provider?: string
+          started_at?: string | null
           status?: string
           total_count?: number | null
           updated_at?: string
