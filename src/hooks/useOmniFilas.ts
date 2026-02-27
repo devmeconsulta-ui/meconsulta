@@ -182,27 +182,32 @@ export function useOmniFilas(clinicaId: string | null) {
 
     try {
       // Create via Z-API
+      const payload = { clinica_id: clinicaId, nome };
+      console.log("[createInstancia] Calling zapi-create-instance", { endpoint: "zapi-create-instance", method: "POST", payload });
+
       const response = await supabase.functions.invoke("zapi-create-instance", {
-        body: { clinica_id: clinicaId, nome },
+        body: payload,
       });
 
+      console.log("[createInstancia] Response:", { error: response.error, data: response.data });
+
       if (response.error) {
-        console.error("Edge function error (full):", response.error);
-        throw { message: response.error.message || response.error, status: response.error.status };
+        console.error("[createInstancia] Edge function error (full):", response.error);
+        throw { message: response.error.message || String(response.error), status: (response.error as any)?.status };
       }
 
       const data = response.data;
-      // Handle { ok: false, message: "..." } from pre-flight checks
       if (data?.ok === false) {
-        console.error("Backend pre-flight error:", JSON.stringify(data, null, 2));
+        console.error("[createInstancia] Backend pre-flight error:", JSON.stringify(data, null, 2));
         throw { message: data.message || "Erro de configuração no backend" };
       }
       if (!data?.success) {
         const errMsg = data?.error || data?.details || data?.message || "Resposta inesperada do servidor";
-        console.error("Backend error (full payload):", JSON.stringify(data, null, 2));
+        console.error("[createInstancia] Backend error (full payload):", JSON.stringify(data, null, 2));
         throw { message: errMsg, status: data?.status };
       }
 
+      console.log("[createInstancia] Success:", { instancia_id: data.instancia?.id, webhook_configured: data.webhook_configured });
       await fetchInstancias();
       toast.success("Instância criada com sucesso");
       
