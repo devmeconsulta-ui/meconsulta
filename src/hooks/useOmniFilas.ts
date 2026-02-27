@@ -186,12 +186,16 @@ export function useOmniFilas(clinicaId: string | null) {
         body: { clinica_id: clinicaId, nome },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        console.error("Edge function error (full):", response.error);
+        throw { message: response.error.message || response.error, status: response.error.status };
+      }
 
       const data = response.data;
       if (!data?.success) {
-        toast.error(data?.error || "Erro ao criar instância");
-        return null;
+        const errMsg = data?.error || data?.details || "Resposta inesperada do servidor";
+        console.error("Backend error (full payload):", JSON.stringify(data, null, 2));
+        throw { message: errMsg, status: data?.status };
       }
 
       await fetchInstancias();
@@ -199,9 +203,12 @@ export function useOmniFilas(clinicaId: string | null) {
       
       // Return instancia + qrcode so UI can show QR immediately
       return { instancia: data.instancia, qrcode: data.qrcode };
-    } catch (error) {
-      console.error("Error creating instancia:", error);
-      toast.error("Erro ao criar instância. Verifique sua conexão.");
+    } catch (error: any) {
+      console.error("Error creating instancia (full payload):", JSON.stringify(error, null, 2));
+      const msg = error?.message || error?.details || null;
+      const status = error?.status || error?.statusCode || null;
+      const suffix = status ? ` (HTTP ${status})` : "";
+      toast.error(msg ? `Erro ao criar instância: ${msg}${suffix}` : "Erro interno ao criar instância. Consulte logs.");
       return null;
     }
   };
