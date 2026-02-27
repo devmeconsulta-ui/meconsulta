@@ -14,6 +14,11 @@ const corsHeaders = {
 const ZAPI_BASE = "https://api.z-api.io";
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  // GUARD: block any integrator endpoint — this project uses client API only
+  if (/integrator/i.test(url)) {
+    throw new Error("Endpoint de integrador não permitido neste projeto. Use apenas endpoints client Z-API.");
+  }
+
   for (let i = 0; i < retries; i++) {
     try {
       return await fetch(url, options);
