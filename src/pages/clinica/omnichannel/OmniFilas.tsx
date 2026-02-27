@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -73,7 +74,13 @@ const CORES_FILA = [
 
 export default function OmniFilas() {
   const { clinicaData } = useOutletContext<ClinicaContext>();
+  const { currentUser: authUser } = useAuth();
   const clinicaId = clinicaData?.id || null;
+
+  // Only superadmin/admin roles can see technical details
+  const isSuperAdmin = useMemo(() => {
+    return authUser?.papel === "superadmin" || authUser?.papel === "admin" || authUser?.tipo === "admin";
+  }, [authUser]);
 
   const {
     filas,
@@ -658,11 +665,6 @@ export default function OmniFilas() {
                           <WifiOff className="h-5 w-5 text-muted-foreground" />
                         )}
                         <span className="font-medium">{instancia.nome}</span>
-                        {instancia.provider !== "zapi" && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 opacity-50">
-                            Legacy
-                          </Badge>
-                        )}
                       </div>
                       <Badge
                         variant={
@@ -687,8 +689,8 @@ export default function OmniFilas() {
                       </p>
                     )}
 
-                    {/* Webhook status warning */}
-                    {!instancia.webhooks_configured && (
+                    {/* Webhook warning - only for super admin */}
+                    {isSuperAdmin && !instancia.webhooks_configured && (
                       <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 px-2 py-1.5 rounded mb-3">
                         <Settings className="h-3.5 w-3.5 flex-shrink-0" />
                         <span>Webhooks pendentes — mensagens podem não ser recebidas</span>
@@ -830,6 +832,54 @@ export default function OmniFilas() {
                         </AlertDialogContent>
                       </AlertDialog>
                     </div>
+
+                    {/* Super Admin: Technical Details */}
+                    {isSuperAdmin && (
+                      <details className="mt-3 border-t pt-3">
+                        <summary className="text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1">
+                          <Settings className="h-3 w-3" />
+                          Detalhes Técnicos
+                        </summary>
+                        <div className="mt-2 space-y-1.5 text-xs text-muted-foreground">
+                          <div className="flex justify-between">
+                            <span>Provider:</span>
+                            <span className="font-mono">{instancia.provider}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Instance ID:</span>
+                            <span className="font-mono truncate max-w-[150px]" title={instancia.zapi_instance_id || "-"}>
+                              {instancia.zapi_instance_id || "-"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Webhooks:</span>
+                            <Badge variant={instancia.webhooks_configured ? "default" : "destructive"} className="text-[10px] h-4">
+                              {instancia.webhooks_configured ? "Configurados" : "Pendentes"}
+                            </Badge>
+                          </div>
+                          {instancia.webhooks_configured_at && (
+                            <div className="flex justify-between">
+                              <span>Webhooks em:</span>
+                              <span className="font-mono">{new Date(instancia.webhooks_configured_at).toLocaleString("pt-BR")}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between">
+                            <span>Webhook URL:</span>
+                            <span className="font-mono truncate max-w-[150px]" title={instancia.webhook_url || "-"}>
+                              {instancia.webhook_url ? "✔ Configurada" : "-"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Servidor:</span>
+                            <span className="font-mono">{instancia.servidor_url || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Criada em:</span>
+                            <span className="font-mono">{new Date(instancia.created_at).toLocaleString("pt-BR")}</span>
+                          </div>
+                        </div>
+                      </details>
+                    )}
                   </CardContent>
                 </Card>
               ))}
