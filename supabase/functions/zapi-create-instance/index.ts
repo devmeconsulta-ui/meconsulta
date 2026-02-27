@@ -8,6 +8,10 @@ const corsHeaders = {
 const ZAPI_BASE = "https://api.z-api.io";
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  // GUARD: block any integrator endpoint usage
+  if (/integrator/i.test(url)) {
+    throw new Error("Endpoint integrator não permitido. Use client API.");
+  }
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, options);
@@ -77,7 +81,7 @@ Deno.serve(async (req) => {
     let createData: any;
     try {
       const createResponse = await fetchWithRetry(
-        `${ZAPI_BASE}/instances/integrator/on-demand`,
+        `${ZAPI_BASE}/instances/create`,
         {
           method: "POST",
           headers: {
