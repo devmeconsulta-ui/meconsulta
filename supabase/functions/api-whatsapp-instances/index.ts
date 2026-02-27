@@ -153,14 +153,13 @@ Deno.serve(async (req) => {
     const zapiInstanceId = createData?.id || createData?.instanceId || null;
     const zapiToken = createData?.token || null;
     const hasRemoteCredentials = Boolean(zapiInstanceId && zapiToken);
-
-    if (!hasRemoteCredentials) {
-      webhookError = typeof createAttemptError === "string" ? createAttemptError : JSON.stringify(createAttemptError || {});
-    }
+    const initialWebhookError = !hasRemoteCredentials
+      ? (typeof createAttemptError === "string" ? createAttemptError : JSON.stringify(createAttemptError || {}))
+      : null;
 
     // --- 2. Configure webhooks (bulk endpoint with notifySentByMe) ---
     let webhookOk = false;
-    let webhookError: string | null = null;
+    let webhookError: string | null = initialWebhookError;
 
     if (hasRemoteCredentials) {
       try {
