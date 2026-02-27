@@ -89,6 +89,9 @@ Deno.serve(async (req) => {
     const webhookUrl = `${SUPABASE_URL}/functions/v1/webhook-receiver?provider=zapi&company=${clinicaId}`;
 
     let createData: any;
+    let autoProvisioned = true;
+    let createAttemptError: any = null;
+
     try {
       const createEndpoints = [
         `${ZAPI_BASE}/instances`,
@@ -137,95 +140,95 @@ Deno.serve(async (req) => {
       }
 
       if (!createData) {
-        await logToDb(supabase, clinicaId, null, "create_instance", "error", { response: lastError });
-        const errMsg = lastError?.error || lastError?.message || "Endpoint de criação não encontrado para Client API";
-        return jsonResponse({
-          ok: false,
-          message: `Erro Z-API: ${errMsg}`,
-          statusCode: 502,
-        }, 502);
+        autoProvisioned = false;
+        createAttemptError = lastError;
+        console.warn("[api-whatsapp-instances] Auto-create unavailable via Client API, continuing in pending mode.", lastError);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Connection error";
-      console.error("[api-whatsapp-instances] Z-API unreachable:", msg);
-      await logToDb(supabase, clinicaId, null, "create_instance", "error", { error: msg });
-      return jsonResponse({ ok: false, message: `Z-API indisponível: ${msg}`, statusCode: 503 }, 503);
+      autoProvisioned = false;
+      createAttemptError = err instanceof Error ? err.message : err;
+      console.warn("[api-whatsapp-instances] Auto-create failed, continuing in pending mode:", createAttemptError);
     }
 
-    const zapiInstanceId = createData.id || createData.instanceId;
-    const zapiToken = createData.token;
+    const zapiInstanceId = createData?.id || createData?.instanceId || null;
+    const zapiToken = createData?.token || null;
+    const hasRemoteCredentials = Boolean(zapiInstanceId && zapiToken);
 
-    if (!zapiInstanceId || !zapiToken) {
-      console.error("[api-whatsapp-instances] Missing credentials in response:", createData);
-      await logToDb(supabase, clinicaId, null, "create_instance", "error", { response: createData });
-      return jsonResponse({ ok: false, message: "Z-API não retornou credenciais válidas.", statusCode: 500 }, 500);
+    if (!hasRemoteCredentials) {
+      webhookError = typeof createAttemptError === "string" ? createAttemptError : JSON.stringify(createAttemptError || {});
     }
 
     // --- 2. Configure webhooks (bulk endpoint with notifySentByMe) ---
     let webhookOk = false;
     let webhookError: string | null = null;
 
-    try {
-      const whResp = await fetchWithRetry(
-        `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/update-every-webhooks`,
-        {
-          method: "PUT",
-          headers: authHeaders,
-          body: JSON.stringify({ value: webhookUrl, notifySentByMe: true }),
-        },
-        3,
-        1000
-      );
-      const whData = await whResp.json();
-      console.log("[api-whatsapp-instances] Webhooks response:", JSON.stringify(whData), "HTTP:", whResp.status);
-      if (whResp.ok && whData.value === true) {
-        webhookOk = true;
-      } else {
-        webhookError = JSON.stringify(whData);
+    if (hasRemoteCredentials) {
+      try {
+        const whResp = await fetchWithRetry(
+          `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/update-every-webhooks`,
+          {
+            method: "PUT",
+            headers: authHeaders,
+            body: JSON.stringify({ value: webhookUrl, notifySentByMe: true }),
+          },
+          3,
+          1000
+        );
+        const whData = await whResp.json();
+        console.log("[api-whatsapp-instances] Webhooks response:", JSON.stringify(whData), "HTTP:", whResp.status);
+        if (whResp.ok && whData.value === true) {
+          webhookOk = true;
+        } else {
+          webhookError = JSON.stringify(whData);
+        }
+      } catch (err) {
+        webhookError = err instanceof Error ? err.message : "Connection error";
       }
-    } catch (err) {
-      webhookError = err instanceof Error ? err.message : "Connection error";
-    }
 
-    // Fallback to individual webhook endpoints
-    if (!webhookOk) {
-      console.log("[api-whatsapp-instances] Fallback: individual webhook endpoints");
-      const endpoints = [
-        "update-webhook-received-delivery",  // ao receber
-        "update-webhook-message-status",     // status da mensagem
-        "update-webhook-delivery",           // ao enviar
-        "update-webhook-disconnected",       // ao desconectar
-        "update-webhook-connected",          // ao conectar
-        "update-webhook-chat-presence",      // presença do chat
-      ];
-      let allOk = true;
-      for (const ep of endpoints) {
-        try {
-          const resp = await fetchWithRetry(
-            `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/${ep}`,
-            { method: "PUT", headers: authHeaders, body: JSON.stringify({ value: webhookUrl }) },
-            2, 500
-          );
-          if (!resp.ok) allOk = false;
-          await resp.text();
-        } catch { allOk = false; }
+      // Fallback to individual webhook endpoints
+      if (!webhookOk) {
+        console.log("[api-whatsapp-instances] Fallback: individual webhook endpoints");
+        const endpoints = [
+          "update-webhook-received-delivery",  // ao receber
+          "update-webhook-message-status",     // status da mensagem
+          "update-webhook-delivery",           // ao enviar
+          "update-webhook-disconnected",       // ao desconectar
+          "update-webhook-connected",          // ao conectar
+          "update-webhook-chat-presence",      // presença do chat
+        ];
+        let allOk = true;
+        for (const ep of endpoints) {
+          try {
+            const resp = await fetchWithRetry(
+              `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/${ep}`,
+              { method: "PUT", headers: authHeaders, body: JSON.stringify({ value: webhookUrl }) },
+              2, 500
+            );
+            if (!resp.ok) allOk = false;
+            await resp.text();
+          } catch {
+            allOk = false;
+          }
+        }
+        webhookOk = allOk;
       }
-      webhookOk = allOk;
     }
 
     // --- 3. Get QR Code ---
     let qrData: any = null;
-    try {
-      await new Promise(r => setTimeout(r, 2000));
-      const qrResp = await fetchWithRetry(
-        `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/qr-code/image`,
-        { method: "GET", headers: authHeaders },
-        3, 2000
-      );
-      qrData = await qrResp.json();
-      console.log("[api-whatsapp-instances] QR code HTTP:", qrResp.status);
-    } catch (err) {
-      console.warn("[api-whatsapp-instances] QR fetch (non-blocking):", err);
+    if (hasRemoteCredentials) {
+      try {
+        await new Promise(r => setTimeout(r, 2000));
+        const qrResp = await fetchWithRetry(
+          `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/qr-code/image`,
+          { method: "GET", headers: authHeaders },
+          3, 2000
+        );
+        qrData = await qrResp.json();
+        console.log("[api-whatsapp-instances] QR code HTTP:", qrResp.status);
+      } catch (err) {
+        console.warn("[api-whatsapp-instances] QR fetch (non-blocking):", err);
+      }
     }
 
     // --- 4. Save to DB ---
@@ -238,17 +241,19 @@ Deno.serve(async (req) => {
         zapi_instance_id: zapiInstanceId,
         zapi_token: zapiToken,
         evolution_instance_name: null,
-        status: "connecting",
+        status: hasRemoteCredentials ? "connecting" : "disconnected",
         webhook_url: webhookUrl,
         servidor_url: ZAPI_BASE,
         webhooks_configured: webhookOk,
         webhooks_configured_at: webhookOk ? new Date().toISOString() : null,
         configuracoes: {
-          zapi_response: createData,
+          zapi_response: createData || null,
           webhook_configured: webhookOk,
           webhook_error: webhookError,
           notify_sent_by_me: true,
           history_window: historyWindow || null,
+          auto_provisioned: autoProvisioned,
+          create_attempt_error: createAttemptError || null,
         },
       })
       .select()
@@ -257,7 +262,7 @@ Deno.serve(async (req) => {
     if (dbError) {
       console.error("[api-whatsapp-instances] DB save error:", dbError);
       await logToDb(supabase, clinicaId, null, "create_instance", "error", { error: dbError });
-      return jsonResponse({ ok: false, message: "Instância criada na Z-API mas erro ao salvar no banco.", statusCode: 500 }, 500);
+      return jsonResponse({ ok: false, message: "Erro ao salvar instância no banco.", statusCode: 500 }, 500);
     }
 
     // --- 5. Sync job ---
@@ -271,9 +276,10 @@ Deno.serve(async (req) => {
     await logToDb(supabase, clinicaId, instancia.id, "create_instance", "success", {
       zapi_instance_id: zapiInstanceId,
       webhook_configured: webhookOk,
+      auto_provisioned: autoProvisioned,
     });
 
-    console.log(`[api-whatsapp-instances] Done: ${instancia.id} (webhooks: ${webhookOk})`);
+    console.log(`[api-whatsapp-instances] Done: ${instancia.id} (webhooks: ${webhookOk}, autoProvisioned: ${autoProvisioned})`);
 
     return jsonResponse({
       ok: true,
@@ -281,9 +287,10 @@ Deno.serve(async (req) => {
       instanceId: instancia.id,
       instancia,
       qrCodeBase64: qrData?.value || qrData || null,
-      status: "connecting",
+      status: hasRemoteCredentials ? "connecting" : "disconnected",
       webhook_configured: webhookOk,
-      ...(webhookOk ? {} : { warning: "Webhooks pendentes — configure no painel Z-API." }),
+      ...(webhookOk ? {} : { warning: "Webhooks pendentes — mensagens podem não ser recebidas." }),
+      ...(!autoProvisioned ? { warning_create: "Criação automática na Z-API não disponível com Client API. Instância salva como pendente." } : {}),
     });
   } catch (error: unknown) {
     console.error("[api-whatsapp-instances] Unhandled:", error);
