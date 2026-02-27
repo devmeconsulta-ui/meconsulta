@@ -498,6 +498,19 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // --- Security: validate Z-API Security Token ---
+    const ZAPI_SECURITY_TOKEN = Deno.env.get("ZAPI_SECURITY_TOKEN");
+    if (ZAPI_SECURITY_TOKEN) {
+      const incomingToken = req.headers.get("x-security-token") || req.headers.get("X-Security-Token");
+      if (incomingToken !== ZAPI_SECURITY_TOKEN) {
+        console.warn("[Z-API Webhook] Invalid security token. Rejecting.");
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
