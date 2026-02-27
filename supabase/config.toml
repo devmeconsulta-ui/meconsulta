@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.zapi-sync-history]
 verify_jwt = false
+
+[functions.zapi-adapter]
+verify_jwt = false
