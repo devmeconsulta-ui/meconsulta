@@ -5,6 +5,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const ZAPI_BASE = "https://api.z-api.io";
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 800): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      console.warn(`Fetch attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : error);
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error("All retry attempts failed");
+}
+
 interface AcaoFollowUp {
   id: string;
   tempo_minutos: number;
@@ -30,14 +46,12 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+    const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     console.log("[Followup] Starting follow-up processing...");
 
-    // Buscar conversas de IA que têm follow-ups pendentes e não foram transferidas
     const { data: conversas, error: conversasError } = await supabase
       .from("omni_ia_conversas")
       .select(`
@@ -79,27 +93,21 @@ Deno.serve(async (req) => {
       const ultimaMensagem = new Date(c.ultima_mensagem_cliente);
       const minutosInativos = Math.floor((agora.getTime() - ultimaMensagem.getTime()) / 60000);
       
-      // Ordenar follow-ups por tempo
       const followupsPendentes = c.followup_pendentes
         .filter((f: AcaoFollowUp) => f.ativa && !c.followup_executados?.includes(f.id))
         .sort((a: AcaoFollowUp, b: AcaoFollowUp) => a.tempo_minutos - b.tempo_minutos);
 
-      if (followupsPendentes.length === 0) {
-        continue;
-      }
+      if (followupsPendentes.length === 0) continue;
 
-      // Verificar qual follow-up deve ser executado
       const followupParaExecutar = followupsPendentes.find(
         (f: AcaoFollowUp) => minutosInativos >= f.tempo_minutos
       );
 
-      if (!followupParaExecutar) {
-        continue;
-      }
+      if (!followupParaExecutar) continue;
 
       console.log(`[Followup] Processing follow-up ${followupParaExecutar.id} for conversa ${c.id} after ${minutosInativos} minutes`);
 
-      // Buscar dados do atendimento
+      // Buscar dados do atendimento com instância Z-API
       const { data: atendimento, error: atendimentoError } = await supabase
         .from("omni_atendimentos")
         .select(`
@@ -107,7 +115,7 @@ Deno.serve(async (req) => {
           clinica_id, 
           status,
           contato:omni_contatos(id, telefone, nome),
-          fila:omni_filas(id, nome, instancia:omni_instancias(id, evolution_instance_name))
+          fila:omni_filas(id, nome, instancia:omni_instancias(id, zapi_instance_id, zapi_token))
         `)
         .eq("id", c.atendimento_id)
         .single();
@@ -117,7 +125,6 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Verificar se atendimento ainda está ativo
       if (!["aguardando", "em_atendimento"].includes(atendimento.status)) {
         console.log(`[Followup] Atendimento ${c.atendimento_id} no longer active, skipping`);
         continue;
@@ -127,43 +134,46 @@ Deno.serve(async (req) => {
       const fila = atendimento.fila as any;
       const instancia = fila?.instancia;
 
-      // Executar a ação do follow-up
       try {
         switch (followupParaExecutar.acao) {
           case "mensagem": {
-            if (!followupParaExecutar.mensagem || !instancia?.evolution_instance_name) {
-              console.log("[Followup] Missing message or instance, skipping");
+            if (!followupParaExecutar.mensagem || !instancia?.zapi_instance_id || !instancia?.zapi_token) {
+              console.log("[Followup] Missing message or Z-API instance, skipping");
               break;
             }
 
-            // Personalizar mensagem com nome do contato
             let mensagem = followupParaExecutar.mensagem;
             if (contato?.nome) {
               mensagem = mensagem.replace(/\{nome\}/gi, contato.nome);
             }
 
-            // Enviar mensagem via Evolution API
-            if (EVOLUTION_API_URL && EVOLUTION_API_KEY) {
-              const sendResponse = await fetch(
-                `${EVOLUTION_API_URL}/message/sendText/${instancia.evolution_instance_name}`,
+            // Enviar mensagem via Z-API
+            if (ZAPI_CLIENT_TOKEN) {
+              let telefoneNormalizado = contato.telefone.replace(/\D/g, "");
+              if (telefoneNormalizado.length <= 11) {
+                telefoneNormalizado = `55${telefoneNormalizado}`;
+              }
+
+              const sendResponse = await fetchWithRetry(
+                `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/send-text`,
                 {
                   method: "POST",
                   headers: {
-                    "apikey": EVOLUTION_API_KEY,
                     "Content-Type": "application/json",
+                    "Client-Token": ZAPI_CLIENT_TOKEN,
                   },
                   body: JSON.stringify({
-                    number: contato.telefone,
-                    text: mensagem,
+                    phone: telefoneNormalizado,
+                    message: mensagem,
                   }),
-                }
+                },
+                3, 800
               );
 
               if (sendResponse.ok) {
                 const sendData = await sendResponse.json();
-                console.log(`[Followup] Sent follow-up message to ${contato.telefone}`);
+                console.log(`[Followup] Sent follow-up message to ${contato.telefone} via Z-API`);
 
-                // Salvar mensagem no banco
                 await supabase
                   .from("omni_mensagens")
                   .insert({
@@ -172,19 +182,20 @@ Deno.serve(async (req) => {
                     tipo: "texto",
                     direcao: "saida",
                     conteudo: mensagem,
-                    whatsapp_message_id: sendData?.key?.id,
+                    whatsapp_message_id: sendData?.messageId || sendData?.zapiMessageId,
                     status: "enviada",
                     agente_nome: "Sistema (Follow-up)",
                   });
               } else {
                 console.error("[Followup] Failed to send message:", await sendResponse.text());
               }
+            } else {
+              console.warn("[Followup] ZAPI_CLIENT_TOKEN not configured");
             }
             break;
           }
 
           case "encerrar": {
-            // Encerrar o atendimento
             await supabase
               .from("omni_atendimentos")
               .update({
@@ -194,7 +205,6 @@ Deno.serve(async (req) => {
               })
               .eq("id", atendimento.id);
 
-            // Marcar conversa como transferida (para parar processamento)
             await supabase
               .from("omni_ia_conversas")
               .update({ transferido_para_humano: true })
@@ -205,14 +215,12 @@ Deno.serve(async (req) => {
           }
 
           case "transferir": {
-            // Buscar agente de IA para saber a fila de transferência
             const { data: agente } = await supabase
               .from("omni_ia_agentes")
               .select("fila_transferencia_id")
               .eq("id", c.agente_id)
               .single();
 
-            // Transferir para humano
             const updateData: any = {
               agente_id: null,
               status: "aguardando",
@@ -237,7 +245,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Marcar follow-up como executado
         const executados = [...(c.followup_executados || []), followupParaExecutar.id];
         await supabase
           .from("omni_ia_conversas")
@@ -253,7 +260,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[Followup] Completed. Processed ${processedCount} follow-ups`);
+    console.log(`[Followup] Completed. Processed ${processedCount} follow-ups (via Z-API)`);
 
     return new Response(JSON.stringify({ processed: processedCount }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

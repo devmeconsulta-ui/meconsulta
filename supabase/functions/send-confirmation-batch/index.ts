@@ -5,6 +5,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const ZAPI_BASE = "https://api.z-api.io";
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 800): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      console.warn(`Fetch attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : error);
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error("All retry attempts failed");
+}
+
 interface ConfirmationRequest {
   consulta_ids: string[];
   fila_id: string;
@@ -33,11 +49,10 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
-    const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
+    const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
 
-    if (!evolutionApiUrl || !evolutionApiKey) {
-      throw new Error("EVOLUTION_API_URL ou EVOLUTION_API_KEY não configurados");
+    if (!ZAPI_CLIENT_TOKEN) {
+      throw new Error("ZAPI_CLIENT_TOKEN não configurado");
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -59,13 +74,10 @@ Deno.serve(async (req: Request) => {
       throw new Error("consulta_ids, fila_id e clinica_id são obrigatórios");
     }
 
-    // Se for agendado, salvar apenas os registros pendentes e não enviar
     const isAgendado = !!agendar_para;
-
-    // Limitar a 50 mensagens por lote
     const consultasToProcess = consulta_ids.slice(0, 50);
 
-    // Buscar dados da fila (instância WhatsApp)
+    // Buscar dados da fila (instância WhatsApp via Z-API)
     const { data: fila, error: filaError } = await supabase
       .from("omni_filas")
       .select(`
@@ -79,13 +91,14 @@ Deno.serve(async (req: Request) => {
       throw new Error(`Fila não encontrada: ${filaError?.message}`);
     }
 
-    if (!fila.instancia?.evolution_instance_name) {
-      throw new Error("Fila não possui instância WhatsApp conectada");
+    const instancia = fila.instancia;
+    if (!instancia?.zapi_instance_id || !instancia?.zapi_token) {
+      throw new Error("Fila não possui instância WhatsApp Z-API conectada");
     }
 
-    const instanceName = fila.instancia.evolution_instance_name;
+    const zapiBase = `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}`;
 
-    // Buscar dados das consultas - usando FK explícita para evitar ambiguidade
+    // Buscar dados das consultas
     const { data: consultas, error: consultasError } = await supabase
       .from("consultas")
       .select(`
@@ -108,43 +121,27 @@ Deno.serve(async (req: Request) => {
       const consulta = consultas[i];
 
       try {
-        // Verificar se paciente tem telefone
         const paciente = consulta.paciente as any;
         const medico = consulta.medico as any;
         const local = consulta.local as any;
 
         if (!paciente?.telefone) {
-          results.push({
-            consulta_id: consulta.id,
-            success: false,
-            error: "Paciente sem telefone cadastrado",
-          });
+          results.push({ consulta_id: consulta.id, success: false, error: "Paciente sem telefone cadastrado" });
           continue;
         }
 
-        // Gerar token único
         const token = crypto.randomUUID();
 
-        // Formatar data/hora com timezone do Brasil
         const dataHora = new Date(consulta.data_hora);
-        const dataFormatada = dataHora.toLocaleDateString("pt-BR", {
-          timeZone: "America/Sao_Paulo",
-        });
-        const horaFormatada = dataHora.toLocaleTimeString("pt-BR", {
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZone: "America/Sao_Paulo",
-        });
+        const dataFormatada = dataHora.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+        const horaFormatada = dataHora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
 
-        // Montar endereço
         const endereco = local
           ? `${local.nome_local}${local.endereco ? ` - ${local.endereco}` : ""}${local.cidade ? `, ${local.cidade}` : ""}${local.estado ? `/${local.estado}` : ""}`
           : "A confirmar";
 
-        // Gerar link de confirmação
         const linkConfirmacao = `${base_url}/confirmar-consulta/${token}`;
 
-        // Substituir variáveis no template
         let mensagem = mensagem_template
           .replace(/{{nome_paciente}}/g, paciente.nome || "")
           .replace(/{{nome_medico}}/g, medico?.nome || "")
@@ -154,15 +151,11 @@ Deno.serve(async (req: Request) => {
           .replace(/{{local}}/g, endereco)
           .replace(/{{link_confirmacao}}/g, linkConfirmacao);
 
-        // Adicionar aviso de ordem de chegada
         if (ordem_chegada) {
           mensagem += `\n\n⚠️ *Atenção:* O atendimento neste horário será realizado por *ordem de chegada*. Recomendamos chegar com antecedência para garantir prioridade.`;
         }
 
-        // Formatar telefone (remover caracteres não numéricos)
         let telefone = paciente.telefone.replace(/\D/g, "");
-        
-        // Adicionar código do país se necessário
         if (!telefone.startsWith("55")) {
           telefone = "55" + telefone;
         }
@@ -180,7 +173,6 @@ Deno.serve(async (req: Request) => {
           status: isAgendado ? "agendada" : "pendente",
         };
 
-        // Se for agendado, salvar data de agendamento
         if (isAgendado && agendar_para) {
           confirmacaoData.data_agendamento = agendar_para;
         }
@@ -195,88 +187,67 @@ Deno.serve(async (req: Request) => {
           throw new Error(`Erro ao salvar confirmação: ${insertError.message}`);
         }
 
-        // Se for agendado, apenas registrar e não enviar agora
         if (isAgendado) {
-          results.push({
-            consulta_id: consulta.id,
-            success: true,
-            token,
-            agendado: true,
-          });
+          results.push({ consulta_id: consulta.id, success: true, token, agendado: true });
           continue;
         }
 
-        // Enviar mensagem via Evolution API (apenas se for envio imediato)
-        const evolutionResponse = await fetch(
-          `${evolutionApiUrl}/message/sendText/${instanceName}`,
+        // Enviar mensagem via Z-API
+        const zapiResponse = await fetchWithRetry(
+          `${zapiBase}/send-text`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              apikey: evolutionApiKey,
+              "Client-Token": ZAPI_CLIENT_TOKEN,
             },
             body: JSON.stringify({
-              number: telefone,
-              text: mensagem,
+              phone: telefone,
+              message: mensagem,
             }),
-          }
+          },
+          3, 800
         );
 
-        const evolutionResult = await evolutionResponse.json();
+        const zapiResult = await zapiResponse.json();
 
-        if (!evolutionResponse.ok) {
-          // Atualizar status para erro
+        if (!zapiResponse.ok) {
           await supabase
             .from("confirmacoes_agenda")
             .update({
               status: "erro",
-              erro_descricao: evolutionResult.message || "Erro ao enviar mensagem",
+              erro_descricao: zapiResult.message || JSON.stringify(zapiResult) || "Erro ao enviar mensagem",
             })
             .eq("id", confirmacao.id);
 
           results.push({
             consulta_id: consulta.id,
             success: false,
-            error: evolutionResult.message || "Erro ao enviar mensagem",
+            error: zapiResult.message || "Erro ao enviar mensagem",
           });
         } else {
-          // Atualizar status para enviada
           await supabase
             .from("confirmacoes_agenda")
             .update({
               status: "enviada",
               data_envio: new Date().toISOString(),
-              whatsapp_message_id: evolutionResult.key?.id || null,
+              whatsapp_message_id: zapiResult.messageId || zapiResult.zapiMessageId || null,
             })
             .eq("id", confirmacao.id);
 
-          results.push({
-            consulta_id: consulta.id,
-            success: true,
-            token,
-          });
-
+          results.push({ consulta_id: consulta.id, success: true, token });
           sentCount++;
         }
 
-        // Delay entre mensagens (para evitar bloqueio)
+        // Delay entre mensagens
         if (i < consultas.length - 1) {
-          const delay =
-            Math.floor(Math.random() * (intervalo_max - intervalo_min + 1)) +
-            intervalo_min;
-          
-          // Pausa maior a cada 20 mensagens
+          const delay = Math.floor(Math.random() * (intervalo_max - intervalo_min + 1)) + intervalo_min;
           const extraDelay = sentCount > 0 && sentCount % 20 === 0 ? 10000 : 0;
-          
           await new Promise((resolve) => setTimeout(resolve, delay + extraDelay));
         }
       } catch (error: any) {
         console.error(`Erro na consulta ${consulta.id}:`, error);
-        results.push({
-          consulta_id: consulta.id,
-          success: false,
-          error: error.message,
-        });
+        results.push({ consulta_id: consulta.id, success: false, error: error.message });
       }
     }
 
@@ -284,29 +255,17 @@ Deno.serve(async (req: Request) => {
     const agendadasCount = results.filter((r) => r.agendado).length;
     const failCount = results.filter((r) => !r.success).length;
 
-    console.log(`Processamento concluído: ${successCount} enviadas, ${agendadasCount} agendadas, ${failCount} falhas`);
+    console.log(`[SendConfirmation] Concluído: ${successCount} enviadas, ${agendadasCount} agendadas, ${failCount} falhas (via Z-API)`);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        total: results.length,
-        enviadas: successCount,
-        agendadas: agendadasCount,
-        falhas: failCount,
-        results,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ success: true, total: results.length, enviadas: successCount, agendadas: agendadasCount, falhas: failCount, results }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
     console.error("Erro no send-confirmation-batch:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

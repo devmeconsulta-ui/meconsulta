@@ -157,14 +157,31 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Buscar instância pelo nome
+    // Buscar instância pelo nome (legacy Evolution) ou por zapi_instance_id
     console.log(`Looking for instance: ${instance}`);
     
-    const { data: instanciaData, error: instanciaError } = await supabase
+    // Try evolution_instance_name first (legacy), then fall back to other lookups
+    let instanciaData: any = null;
+    let instanciaError: any = null;
+    
+    const { data: instByEvolution, error: errEvolution } = await supabase
       .from("omni_instancias")
       .select("*, clinica_id")
       .eq("evolution_instance_name", instance)
-      .single();
+      .maybeSingle();
+    
+    if (instByEvolution) {
+      instanciaData = instByEvolution;
+    } else {
+      // Try by ID
+      const { data: instById, error: errById } = await supabase
+        .from("omni_instancias")
+        .select("*, clinica_id")
+        .eq("id", instance)
+        .maybeSingle();
+      instanciaData = instById;
+      instanciaError = errById;
+    }
 
     if (instanciaError) {
       console.log(`Instance query error:`, instanciaError);
@@ -370,24 +387,14 @@ Deno.serve(async (req) => {
         let arquivoTipo = null;
 
         const msgContent = message.message || message;
-        const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-        const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+        const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
 
         // Helper function to download media and upload to Supabase Storage
         // Helper: Convert OGG/Opus to MP3 using external API (for Safari compatibility)
         const convertOggToMp3 = async (oggBase64: string): Promise<string | null> => {
           try {
-            console.log("[Audio Convert] Starting OGG to MP3 conversion via Cloudflare AI...");
-            
-            // Use a lightweight audio transcoding approach
-            // Since Deno edge functions can't run FFmpeg, we use a workaround:
-            // Store BOTH formats - OGG for Chrome/Firefox/Edge, and provide MP3 fallback info
-            // The frontend will handle the actual playback logic
-            
-            // For now, we'll save as OGG but the frontend has been updated
-            // to properly handle OGG playback with enhanced controls
-            
-            return null; // Return null to indicate no conversion happened
+            console.log("[Audio Convert] Starting OGG to MP3 conversion...");
+            return null;
           } catch (error) {
             console.error("[Audio Convert] Error:", error);
             return null;
@@ -395,31 +402,26 @@ Deno.serve(async (req) => {
         };
 
         const downloadAndUploadMedia = async (messageKey: string, mimeType: string, mediaType: string): Promise<string | null> => {
-          if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !messageKey) {
-            console.log("[Media] Missing API config or message key");
+          // Download media via Z-API
+          if (!ZAPI_CLIENT_TOKEN || !instanciaData.zapi_instance_id || !instanciaData.zapi_token || !messageKey) {
+            console.log("[Media] Missing Z-API config or message key");
             return null;
           }
 
           try {
-            console.log(`[Media] Downloading ${mediaType} with key: ${messageKey}`);
+            console.log(`[Media] Downloading ${mediaType} with key: ${messageKey} via Z-API`);
             
-            // Get base64 from Evolution API
+            const ZAPI_BASE = "https://api.z-api.io";
             const mediaResponse = await fetch(
-              `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${instance}`,
+              `${ZAPI_BASE}/instances/${instanciaData.zapi_instance_id}/token/${instanciaData.zapi_token}/download-media-message/${messageKey}`,
               {
-                method: "POST",
-                headers: {
-                  "apikey": EVOLUTION_API_KEY,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  message: { key: { id: messageKey } },
-                }),
+                method: "GET",
+                headers: { "Client-Token": ZAPI_CLIENT_TOKEN },
               }
             );
 
             if (!mediaResponse.ok) {
-              console.error(`[Media] Failed to get base64: ${mediaResponse.status}`);
+              console.error(`[Media] Failed to download via Z-API: ${mediaResponse.status}`);
               return null;
             }
 
@@ -553,7 +555,7 @@ Deno.serve(async (req) => {
         // Salvar mensagem - tanto entrada quanto saída
         const direcao = isFromMe ? "saida" : "entrada";
         
-        // For outgoing messages, check if already saved by evolution-send-message edge function
+        // For outgoing messages, check if already saved by send-message edge function
         if (isFromMe && messageId) {
           const { data: existingMsg } = await supabase
             .from("omni_mensagens")
@@ -634,43 +636,37 @@ Deno.serve(async (req) => {
               if (aiData.ai_active && aiData.mensagens && aiData.mensagens.length > 0) {
                 console.log(`[AI] Got ${aiData.mensagens.length} messages to send`);
                 
-                // Buscar instância para enviar mensagem
-                const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-                const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+                // Send via Z-API
+                const ZAPI_CT = Deno.env.get("ZAPI_CLIENT_TOKEN");
+                const ZAPI_BASE = "https://api.z-api.io";
 
-                if (EVOLUTION_API_URL && EVOLUTION_API_KEY) {
-                  const instanceName = instanciaData.evolution_instance_name;
+                if (ZAPI_CT && instanciaData.zapi_instance_id && instanciaData.zapi_token) {
+                  const zapiEndpoint = `${ZAPI_BASE}/instances/${instanciaData.zapi_instance_id}/token/${instanciaData.zapi_token}/send-text`;
                   
                   for (let i = 0; i < aiData.mensagens.length; i++) {
                     const msgToSend = aiData.mensagens[i];
                     
-                    // Delay entre mensagens para simular digitação
                     if (i > 0) {
                       await new Promise(resolve => setTimeout(resolve, 1500));
                     }
                     
                     try {
-                      // Enviar mensagem via Evolution API
-                      const sendResponse = await fetch(
-                        `${EVOLUTION_API_URL}/message/sendText/${instanceName}`,
-                        {
-                          method: "POST",
-                          headers: {
-                            "apikey": EVOLUTION_API_KEY,
-                            "Content-Type": "application/json",
-                          },
-                          body: JSON.stringify({
-                            number: telefone,
-                            text: msgToSend,
-                          }),
-                        }
-                      );
+                      let phoneNorm = telefone.replace(/\D/g, "");
+                      if (phoneNorm.length <= 11) phoneNorm = `55${phoneNorm}`;
+
+                      const sendResponse = await fetch(zapiEndpoint, {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "Client-Token": ZAPI_CT,
+                        },
+                        body: JSON.stringify({ phone: phoneNorm, message: msgToSend }),
+                      });
 
                       if (sendResponse.ok) {
                         const sendData = await sendResponse.json();
-                        console.log(`[AI] Sent message ${i + 1}: ${msgToSend.substring(0, 50)}...`);
+                        console.log(`[AI] Sent message ${i + 1} via Z-API: ${msgToSend.substring(0, 50)}...`);
                         
-                        // Salvar mensagem de IA no banco
                         await supabase
                           .from("omni_mensagens")
                           .insert({
@@ -679,40 +675,39 @@ Deno.serve(async (req) => {
                             tipo: "texto",
                             direcao: "saida",
                             conteudo: msgToSend,
-                            whatsapp_message_id: sendData?.key?.id,
+                            whatsapp_message_id: sendData?.messageId || sendData?.zapiMessageId,
                             status: "enviada",
                             agente_nome: aiData.agente_nome,
                           });
                       } else {
-                        console.error("[AI] Failed to send message:", await sendResponse.text());
+                        console.error("[AI] Failed to send message via Z-API:", await sendResponse.text());
                       }
                     } catch (sendError) {
                       console.error("[AI] Error sending message:", sendError);
                     }
                   }
+                } else {
+                  console.warn("[AI] Z-API credentials missing, cannot send AI messages");
                 }
               } else if (aiData.mensagem) {
-                // Mensagem de transferência ou similar
                 console.log(`[AI] Transfer message: ${aiData.mensagem}`);
                 
-                const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-                const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+                const ZAPI_CT = Deno.env.get("ZAPI_CLIENT_TOKEN");
+                const ZAPI_BASE = "https://api.z-api.io";
 
-                if (EVOLUTION_API_URL && EVOLUTION_API_KEY) {
-                  const instanceName = instanciaData.evolution_instance_name;
-                  
+                if (ZAPI_CT && instanciaData.zapi_instance_id && instanciaData.zapi_token) {
+                  let phoneNorm = telefone.replace(/\D/g, "");
+                  if (phoneNorm.length <= 11) phoneNorm = `55${phoneNorm}`;
+
                   await fetch(
-                    `${EVOLUTION_API_URL}/message/sendText/${instanceName}`,
+                    `${ZAPI_BASE}/instances/${instanciaData.zapi_instance_id}/token/${instanciaData.zapi_token}/send-text`,
                     {
                       method: "POST",
                       headers: {
-                        "apikey": EVOLUTION_API_KEY,
                         "Content-Type": "application/json",
+                        "Client-Token": ZAPI_CT,
                       },
-                      body: JSON.stringify({
-                        number: telefone,
-                        text: aiData.mensagem,
-                      }),
+                      body: JSON.stringify({ phone: phoneNorm, message: aiData.mensagem }),
                     }
                   );
                   
