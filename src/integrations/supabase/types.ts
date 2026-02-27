@@ -3102,6 +3102,7 @@ export type Database = {
           contato_id: string | null
           conteudo: string | null
           created_at: string
+          dedup_hash: string | null
           direcao: string
           encaminhada: boolean
           erro_descricao: string | null
@@ -3121,6 +3122,7 @@ export type Database = {
           contato_id?: string | null
           conteudo?: string | null
           created_at?: string
+          dedup_hash?: string | null
           direcao: string
           encaminhada?: boolean
           erro_descricao?: string | null
@@ -3140,6 +3142,7 @@ export type Database = {
           contato_id?: string | null
           conteudo?: string | null
           created_at?: string
+          dedup_hash?: string | null
           direcao?: string
           encaminhada?: boolean
           erro_descricao?: string | null
