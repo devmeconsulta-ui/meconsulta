@@ -115,39 +115,78 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Configure webhooks
-    const webhookBaseUrl = `${SUPABASE_URL}/functions/v1/zapi-webhook`;
-    const webhookUrls = [
-      { endpoint: "update-webhook-received-delivery", url: webhookBaseUrl },
-      { endpoint: "update-webhook-message-status", url: webhookBaseUrl },
-      { endpoint: "update-webhook-delivery", url: webhookBaseUrl },
-      { endpoint: "update-webhook-disconnected", url: webhookBaseUrl },
-    ];
+    // 2. Configure ALL webhooks via single endpoint (update-every-webhooks)
+    // This sets: Ao enviar, Ao receber, Ao conectar, Ao desconectar, Presença do chat, Status da mensagem
+    // notifySentByMe=true enables "Notificar as enviadas por mim também"
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/zapi-webhook`;
+    let webhookOk = false;
+    let webhookError: string | null = null;
 
-    let webhookOk = true;
-    for (const wh of webhookUrls) {
-      try {
-        const whResp = await fetchWithRetry(
-          `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/${wh.endpoint}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json", "Client-Token": ZAPI_CLIENT_TOKEN },
-            body: JSON.stringify({ value: wh.url }),
-          },
-          2, 500
-        );
-        if (!whResp.ok) {
-          const whData = await whResp.json();
-          console.warn(`[Z-API] Webhook ${wh.endpoint} warning:`, whData);
-          webhookOk = false;
-        } else {
-          await whResp.text();
-          console.log(`[Z-API] Webhook ${wh.endpoint} configured`);
-        }
-      } catch (err) {
-        console.warn(`[Z-API] Webhook ${wh.endpoint} failed:`, err);
-        webhookOk = false;
+    try {
+      console.log(`[Z-API] Configuring all webhooks via update-every-webhooks`);
+      const whResp = await fetchWithRetry(
+        `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/update-every-webhooks`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "Client-Token": ZAPI_CLIENT_TOKEN },
+          body: JSON.stringify({
+            value: webhookUrl,
+            notifySentByMe: true,
+          }),
+        },
+        3, 1000
+      );
+
+      const whData = await whResp.json();
+      if (whResp.ok && whData.value === true) {
+        webhookOk = true;
+        console.log("[Z-API] All webhooks configured successfully (notifySentByMe=true)");
+      } else {
+        webhookError = JSON.stringify(whData);
+        console.warn("[Z-API] update-every-webhooks returned unexpected:", whData);
       }
+    } catch (err) {
+      webhookError = err instanceof Error ? err.message : "Connection error";
+      console.error("[Z-API] update-every-webhooks failed:", webhookError);
+    }
+
+    // If bulk failed, try individual endpoints as fallback
+    if (!webhookOk) {
+      console.log("[Z-API] Falling back to individual webhook endpoints");
+      const individualEndpoints = [
+        "update-webhook-received-delivery",  // Ao receber (inclui enviadas por mim)
+        "update-webhook-message-status",     // Status da mensagem
+        "update-webhook-delivery",           // Ao enviar
+        "update-webhook-disconnected",       // Ao desconectar
+        "update-webhook-connected",          // Ao conectar
+      ];
+
+      let allOk = true;
+      for (const endpoint of individualEndpoints) {
+        try {
+          const resp = await fetchWithRetry(
+            `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/${endpoint}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json", "Client-Token": ZAPI_CLIENT_TOKEN },
+              body: JSON.stringify({ value: webhookUrl }),
+            },
+            2, 500
+          );
+          if (!resp.ok) {
+            const data = await resp.json();
+            console.warn(`[Z-API] ${endpoint} warning:`, data);
+            allOk = false;
+          } else {
+            await resp.text();
+            console.log(`[Z-API] ${endpoint} configured`);
+          }
+        } catch (err) {
+          console.warn(`[Z-API] ${endpoint} failed:`, err);
+          allOk = false;
+        }
+      }
+      webhookOk = allOk;
     }
 
     // 3. Get QR Code
@@ -176,11 +215,15 @@ Deno.serve(async (req) => {
         zapi_token: zapiToken,
         evolution_instance_name: null,
         status: "connecting",
-        webhook_url: webhookBaseUrl,
+        webhook_url: webhookUrl,
         servidor_url: ZAPI_BASE,
+        webhooks_configured: webhookOk,
+        webhooks_configured_at: webhookOk ? new Date().toISOString() : null,
         configuracoes: {
           zapi_response: createData,
           webhook_configured: webhookOk,
+          webhook_error: webhookError,
+          notify_sent_by_me: true,
         },
       })
       .select()
