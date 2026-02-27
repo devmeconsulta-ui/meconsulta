@@ -181,30 +181,25 @@ export function useOmniFilas(clinicaId: string | null) {
     if (!clinicaId) return null;
 
     try {
-      // Create via Z-API
-      const payload = { clinica_id: clinicaId, nome };
-      console.log("[createInstancia] Calling zapi-create-instance", { endpoint: "zapi-create-instance", method: "POST", payload });
+      // Standardized endpoint: POST api-whatsapp-instances
+      const payload = { clinica_id: clinicaId, instanceName: nome };
+      console.log("[createInstancia] POST api-whatsapp-instances", payload);
 
-      const response = await supabase.functions.invoke("zapi-create-instance", {
+      const response = await supabase.functions.invoke("api-whatsapp-instances", {
         body: payload,
       });
 
       console.log("[createInstancia] Response:", { error: response.error, data: response.data });
 
       if (response.error) {
-        console.error("[createInstancia] Edge function error (full):", response.error);
+        console.error("[createInstancia] Edge function error:", response.error);
         throw { message: response.error.message || String(response.error), status: (response.error as any)?.status };
       }
 
       const data = response.data;
       if (data?.ok === false) {
-        console.error("[createInstancia] Backend pre-flight error:", JSON.stringify(data, null, 2));
-        throw { message: data.message || "Erro de configuração no backend" };
-      }
-      if (!data?.success) {
-        const errMsg = data?.error || data?.details || data?.message || "Resposta inesperada do servidor";
-        console.error("[createInstancia] Backend error (full payload):", JSON.stringify(data, null, 2));
-        throw { message: errMsg, status: data?.status };
+        console.error("[createInstancia] Backend error:", JSON.stringify(data, null, 2));
+        throw { message: data.message || "Erro de configuração no backend", status: data.statusCode };
       }
 
       console.log("[createInstancia] Success:", { instancia_id: data.instancia?.id, webhook_configured: data.webhook_configured });

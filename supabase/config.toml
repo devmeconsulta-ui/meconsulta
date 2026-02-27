@@ -95,3 +95,6 @@ verify_jwt = false
 
 [functions.omni-media-download]
 verify_jwt = false
+
+[functions.api-whatsapp-instances]
+verify_jwt = false
