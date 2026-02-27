@@ -3036,42 +3036,51 @@ export type Database = {
           clinica_id: string
           configuracoes: Json | null
           created_at: string
-          evolution_instance_name: string
+          evolution_instance_name: string | null
           id: string
           nome: string
           numero_whatsapp: string | null
+          provider: string
           servidor_url: string | null
           status: string
           updated_at: string
           webhook_url: string | null
+          zapi_instance_id: string | null
+          zapi_token: string | null
         }
         Insert: {
           api_key_hash?: string | null
           clinica_id: string
           configuracoes?: Json | null
           created_at?: string
-          evolution_instance_name: string
+          evolution_instance_name?: string | null
           id?: string
           nome: string
           numero_whatsapp?: string | null
+          provider?: string
           servidor_url?: string | null
           status?: string
           updated_at?: string
           webhook_url?: string | null
+          zapi_instance_id?: string | null
+          zapi_token?: string | null
         }
         Update: {
           api_key_hash?: string | null
           clinica_id?: string
           configuracoes?: Json | null
           created_at?: string
-          evolution_instance_name?: string
+          evolution_instance_name?: string | null
           id?: string
           nome?: string
           numero_whatsapp?: string | null
+          provider?: string
           servidor_url?: string | null
           status?: string
           updated_at?: string
           webhook_url?: string | null
+          zapi_instance_id?: string | null
+          zapi_token?: string | null
         }
         Relationships: [
           {
@@ -4034,6 +4043,60 @@ export type Database = {
             columns: ["medico_id"]
             isOneToOne: false
             referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_sync_jobs: {
+        Row: {
+          clinica_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          instancia_id: string
+          last_synced_at: string | null
+          progress_count: number | null
+          status: string
+          total_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          clinica_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          instancia_id: string
+          last_synced_at?: string | null
+          progress_count?: number | null
+          status?: string
+          total_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          clinica_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          instancia_id?: string
+          last_synced_at?: string | null
+          progress_count?: number | null
+          status?: string
+          total_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_sync_jobs_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_sync_jobs_instancia_id_fkey"
+            columns: ["instancia_id"]
+            isOneToOne: false
+            referencedRelation: "omni_instancias"
             referencedColumns: ["id"]
           },
         ]

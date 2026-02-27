@@ -5,9 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface DisconnectInstanceRequest {
-  instancia_id: string;
-}
+const ZAPI_BASE = "https://api.z-api.io";
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
   for (let i = 0; i < retries; i++) {
@@ -29,22 +27,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "Evolution API não configurada" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const body: DisconnectInstanceRequest = await req.json();
-    const { instancia_id } = body;
+    const { instancia_id } = await req.json();
 
     if (!instancia_id) {
       return new Response(
@@ -66,36 +53,63 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ===== Z-API PROVIDER =====
+    if (instancia.provider === "zapi") {
+      const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
+      if (ZAPI_CLIENT_TOKEN && instancia.zapi_instance_id && instancia.zapi_token) {
+        try {
+          await fetchWithRetry(
+            `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/disconnect`,
+            { method: "DELETE", headers: { "Client-Token": ZAPI_CLIENT_TOKEN } },
+            2, 500
+          );
+        } catch (err) {
+          console.warn("[Z-API] Disconnect error (proceeding):", err);
+        }
+      }
+
+      await supabase
+        .from("omni_instancias")
+        .update({ status: "disconnected", numero_whatsapp: null })
+        .eq("id", instancia_id);
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Instância desconectada com sucesso" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ===== EVOLUTION PROVIDER =====
+    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
+    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: "Evolution API não configurada" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     console.log(`Disconnecting instance: ${instancia.evolution_instance_name}`);
 
-    // Desconectar com retry
     try {
       const logoutResponse = await fetchWithRetry(
         `${EVOLUTION_API_URL}/instance/logout/${instancia.evolution_instance_name}`,
         { method: "DELETE", headers: { "apikey": EVOLUTION_API_KEY } },
-        3,
-        800
+        3, 800
       );
-
       const logoutData = await logoutResponse.json();
       if (!logoutResponse.ok) {
         console.error("Evolution API error during logout:", logoutData);
       }
     } catch (err) {
-      console.warn("Evolution API unreachable during disconnect (updating DB anyway):", err);
+      console.warn("Evolution API unreachable during disconnect:", err);
     }
 
-    // Sempre atualiza o banco
-    const { error: updateError } = await supabase
+    await supabase
       .from("omni_instancias")
       .update({ status: "disconnected", numero_whatsapp: null })
       .eq("id", instancia_id);
-
-    if (updateError) {
-      console.error("Database update error:", updateError);
-    }
-
-    console.log("Instance disconnected successfully");
 
     return new Response(
       JSON.stringify({ success: true, message: "Instância desconectada com sucesso" }),

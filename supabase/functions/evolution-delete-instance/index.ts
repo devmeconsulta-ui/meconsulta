@@ -8,9 +8,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface DeleteInstanceRequest {
-  instancia_id: string;
-}
+const ZAPI_BASE = "https://api.z-api.io";
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
   for (let i = 0; i < retries; i++) {
@@ -32,19 +30,11 @@ app.options("*", (c) => {
 
 app.post("*", async (c) => {
   try {
-    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-      return c.json({ error: "Evolution API não configurada" }, 500, corsHeaders);
-    }
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const body: DeleteInstanceRequest = await c.req.json();
-    const { instancia_id } = body;
+    const { instancia_id } = await c.req.json();
 
     if (!instancia_id) {
       return c.json({ error: "instancia_id é obrigatório" }, 400, corsHeaders);
@@ -60,69 +50,113 @@ app.post("*", async (c) => {
       return c.json({ error: "Instância não encontrada" }, 404, corsHeaders);
     }
 
+    // ===== Z-API PROVIDER =====
+    if (instancia.provider === "zapi") {
+      const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
+
+      // Try to disconnect on Z-API
+      if (ZAPI_CLIENT_TOKEN && instancia.zapi_instance_id && instancia.zapi_token) {
+        try {
+          await fetchWithRetry(
+            `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/disconnect`,
+            { method: "DELETE", headers: { "Client-Token": ZAPI_CLIENT_TOKEN } },
+            2, 500
+          );
+        } catch (err) {
+          console.warn("[Z-API] Disconnect error (proceeding):", err);
+        }
+      }
+
+      // Unlink queues
+      const { data: filasUsando } = await supabase
+        .from("omni_filas")
+        .select("id")
+        .eq("instancia_id", instancia_id);
+
+      if (filasUsando?.length) {
+        await supabase
+          .from("omni_filas")
+          .update({ instancia_id: null })
+          .eq("instancia_id", instancia_id);
+      }
+
+      // Delete sync jobs
+      await supabase
+        .from("whatsapp_sync_jobs")
+        .delete()
+        .eq("instancia_id", instancia_id);
+
+      // Delete from DB
+      const { error: deleteError } = await supabase
+        .from("omni_instancias")
+        .delete()
+        .eq("id", instancia_id);
+
+      if (deleteError) {
+        return c.json({ error: "Erro ao excluir instância", details: deleteError }, 500, corsHeaders);
+      }
+
+      return c.json({
+        success: true,
+        message: "Instância Z-API excluída com sucesso",
+        filas_desvinculadas: filasUsando?.length || 0,
+      }, 200, corsHeaders);
+    }
+
+    // ===== EVOLUTION PROVIDER =====
+    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
+    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+      return c.json({ error: "Evolution API não configurada" }, 500, corsHeaders);
+    }
+
     console.log(`Deleting instance: ${instancia.evolution_instance_name}`);
 
-    // Logout com retry
     try {
-      const logoutResponse = await fetchWithRetry(
+      await fetchWithRetry(
         `${EVOLUTION_API_URL}/instance/logout/${instancia.evolution_instance_name}`,
         { method: "DELETE", headers: { "apikey": EVOLUTION_API_KEY } },
-        2,
-        500
+        2, 500
       );
-      const logoutData = await logoutResponse.json();
-      console.log("Logout response:", logoutData);
     } catch (logoutError) {
       console.warn("Error during logout (proceeding):", logoutError);
     }
 
-    // Delete com retry
     try {
       const deleteResponse = await fetchWithRetry(
         `${EVOLUTION_API_URL}/instance/delete/${instancia.evolution_instance_name}`,
         { method: "DELETE", headers: { "apikey": EVOLUTION_API_KEY } },
-        3,
-        800
+        3, 800
       );
-
-      const deleteData = await deleteResponse.json();
-
       if (!deleteResponse.ok) {
+        const deleteData = await deleteResponse.json();
         console.error("Evolution API error during delete:", deleteData);
-      } else {
-        console.log("Instance deleted from Evolution API:", deleteData);
       }
     } catch (evoError) {
-      console.warn("Evolution API unreachable during delete (proceeding with local cleanup):", evoError);
+      console.warn("Evolution API unreachable during delete (proceeding):", evoError);
     }
 
-    // Desvincular filas
     const { data: filasUsando } = await supabase
       .from("omni_filas")
       .select("id")
       .eq("instancia_id", instancia_id);
 
-    if (filasUsando && filasUsando.length > 0) {
+    if (filasUsando?.length) {
       await supabase
         .from("omni_filas")
         .update({ instancia_id: null })
         .eq("instancia_id", instancia_id);
-
-      console.log(`Unlinked ${filasUsando.length} queues from instance`);
     }
 
-    // Deletar do banco
     const { error: deleteError } = await supabase
       .from("omni_instancias")
       .delete()
       .eq("id", instancia_id);
 
     if (deleteError) {
-      console.error("Database delete error:", deleteError);
       return c.json({ error: "Erro ao excluir instância do banco", details: deleteError }, 500, corsHeaders);
     }
-
-    console.log("Instance deleted successfully from database");
 
     return c.json({
       success: true,
