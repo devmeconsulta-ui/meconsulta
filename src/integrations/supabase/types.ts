@@ -4109,6 +4109,57 @@ export type Database = {
           },
         ]
       }
+      whatsapp_message_logs: {
+        Row: {
+          clinica_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          instancia_id: string | null
+          payload: Json
+          provider: string
+          success: boolean
+          to: string
+        }
+        Insert: {
+          clinica_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          instancia_id?: string | null
+          payload?: Json
+          provider?: string
+          success?: boolean
+          to: string
+        }
+        Update: {
+          clinica_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          instancia_id?: string | null
+          payload?: Json
+          provider?: string
+          success?: boolean
+          to?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_message_logs_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_message_logs_instancia_id_fkey"
+            columns: ["instancia_id"]
+            isOneToOne: false
+            referencedRelation: "omni_instancias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_sync_jobs: {
         Row: {
           clinica_id: string

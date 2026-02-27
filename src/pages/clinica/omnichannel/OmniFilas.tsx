@@ -46,6 +46,7 @@ import {
   Phone,
   Calendar,
   Bot,
+  Send,
 } from "lucide-react";
 import { useOmniFilas, OmniFila } from "@/hooks/useOmniFilas";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
@@ -96,11 +97,40 @@ export default function OmniFilas() {
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [creatingInstancia, setCreatingInstancia] = useState(false);
   const [deletingInstanciaId, setDeletingInstanciaId] = useState<string | null>(null);
+  const [testSendInstanciaId, setTestSendInstanciaId] = useState<string | null>(null);
+  const [testSendPhone, setTestSendPhone] = useState("");
+  const [testSending, setTestSending] = useState(false);
 
   const handleDeleteInstancia = async (instanciaId: string) => {
     setDeletingInstanciaId(instanciaId);
     await deleteInstancia(instanciaId);
     setDeletingInstanciaId(null);
+  };
+
+  const handleTestSend = async () => {
+    if (!testSendInstanciaId || !testSendPhone) {
+      toast.error("Informe o número de telefone");
+      return;
+    }
+    setTestSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("zapi-test-send", {
+        body: { instancia_id: testSendInstanciaId, telefone: testSendPhone },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success("Mensagem de teste enviada com sucesso!");
+        setTestSendInstanciaId(null);
+        setTestSendPhone("");
+      } else {
+        toast.error(data?.error || "Erro ao enviar mensagem de teste");
+      }
+    } catch (err) {
+      console.error("Test send error:", err);
+      toast.error("Erro ao enviar mensagem de teste");
+    } finally {
+      setTestSending(false);
+    }
   };
 
   const [checkingConnection, setCheckingConnection] = useState(false);
@@ -577,6 +607,33 @@ export default function OmniFilas() {
         </DialogContent>
       </Dialog>
 
+      {/* Test Send Dialog */}
+      <Dialog open={!!testSendInstanciaId} onOpenChange={(open) => { if (!open) setTestSendInstanciaId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Testar Envio</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <Label>Número (DDI+DDD+Número)</Label>
+              <Input
+                value={testSendPhone}
+                onChange={(e) => setTestSendPhone(e.target.value)}
+                placeholder="5511999999999"
+                type="tel"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Mensagem: "✅ Integração MeConsulta + WhatsApp ativa"
+              </p>
+            </div>
+            <Button onClick={handleTestSend} disabled={testSending} className="w-full">
+              {testSending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Enviar Teste
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Instâncias */}
       <Card>
         <CardHeader>
@@ -716,6 +773,19 @@ export default function OmniFilas() {
                               Conectar
                             </>
                           )}
+                        </Button>
+                      )}
+                      {instancia.status === "connected" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setTestSendInstanciaId(instancia.id);
+                            setTestSendPhone("");
+                          }}
+                          title="Testar envio"
+                        >
+                          <Send className="h-4 w-4" />
                         </Button>
                       )}
                       <Button
