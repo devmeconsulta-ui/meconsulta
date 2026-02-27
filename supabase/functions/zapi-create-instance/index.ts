@@ -93,9 +93,12 @@ Deno.serve(async (req) => {
 
     // 2. Configure webhooks
     const webhookBaseUrl = `${SUPABASE_URL}/functions/v1/zapi-webhook`;
+    // Use update-webhook-received-delivery to also receive "enviadas por mim" (fromMe=true)
+    // This is critical: outgoing messages sent from phone/WhatsApp Web arrive via ReceivedCallback
+    // Docs: https://developer.z-api.io/webhooks/on-message-received#update-webhook-received-delivery
     const webhookUrls = [
-      { endpoint: "update-webhook-received", url: webhookBaseUrl },
-      { endpoint: "update-webhook-status", url: webhookBaseUrl },
+      { endpoint: "update-webhook-received-delivery", url: webhookBaseUrl },
+      { endpoint: "update-webhook-message-status", url: webhookBaseUrl },
       { endpoint: "update-webhook-delivery", url: webhookBaseUrl },
       { endpoint: "update-webhook-disconnected", url: webhookBaseUrl },
     ];
