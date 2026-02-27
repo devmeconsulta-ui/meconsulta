@@ -177,13 +177,13 @@ export function useOmniFilas(clinicaId: string | null) {
     }
   };
 
-  const createInstancia = async (nome: string) => {
+  const createInstancia = async (nome: string, zapiInstanceId: string, zapiToken: string) => {
     if (!clinicaId) return null;
 
     try {
-      // Standardized endpoint: POST api-whatsapp-instances
-      const payload = { clinica_id: clinicaId, instanceName: nome };
-      console.log("[createInstancia] POST api-whatsapp-instances", payload);
+      // Register existing Z-API instance (no integrator endpoint)
+      const payload = { clinica_id: clinicaId, instanceName: nome, zapiInstanceId, zapiToken };
+      console.log("[createInstancia] POST api-whatsapp-instances (register)", { ...payload, zapiToken: "***" });
 
       const response = await supabase.functions.invoke("api-whatsapp-instances", {
         body: payload,
@@ -206,30 +206,26 @@ export function useOmniFilas(clinicaId: string | null) {
       await fetchInstancias();
 
       if (data.warning) {
-        toast.warning(`Instância criada com aviso: ${data.warning}`);
+        toast.warning(`Instância registrada com aviso: ${data.warning}`);
       } else {
-        toast.success("Instância criada com sucesso");
+        toast.success("Instância registrada com sucesso!");
       }
       
-      // Return instancia + qrcode so UI can show QR immediately
       return { instancia: data.instancia, qrcode: data.qrCodeBase64 || data.qrcode, warning: data.warning };
     } catch (error: any) {
       console.error("[createInstancia] Error (full):", JSON.stringify(error, null, 2));
       const status = error?.status || error?.statusCode || null;
       const msg = error?.message || null;
 
-      // Map specific status codes to clear messages
       let toastMsg: string;
       if (status === 401 || status === 403) {
-        toastMsg = "Token Z-API inválido ou sem permissão";
-      } else if (status === 404) {
-        toastMsg = "Endpoint Z-API incorreto (verifique /instances e tipo web/mobile)";
+        toastMsg = "Instance ID ou Token Z-API inválidos. Verifique no painel Z-API.";
       } else if (status === 500) {
         toastMsg = msg || "Falha interna. Consulte logs.";
       } else if (msg) {
         toastMsg = msg;
       } else {
-        toastMsg = "Erro interno ao criar instância. Consulte logs.";
+        toastMsg = "Erro interno ao registrar instância. Consulte logs.";
       }
 
       toast.error(toastMsg);

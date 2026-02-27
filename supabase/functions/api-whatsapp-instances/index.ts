@@ -1,6 +1,8 @@
-// Standardized endpoint: POST /api/whatsapp/instances
-// Front calls: supabase.functions.invoke("api-whatsapp-instances", { body: { instanceName, historyWindow? } })
-// Internally delegates to Z-API. Old "zapi-create-instance" kept temporarily.
+// Standardized endpoint: POST /api-whatsapp-instances
+// Registers an existing Z-API instance (created in the Z-API admin panel).
+// The user provides instanceId + token + name.
+// This function configures webhooks and saves to DB.
+// NO integrator endpoint is used.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -49,20 +51,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // --- Auth / context ---
-    const authHeader = req.headers.get("authorization");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
-
-    console.log(`[api-whatsapp-instances] DEBUG: ZAPI_CLIENT_TOKEN length=${ZAPI_CLIENT_TOKEN?.length || 0}, first4=${ZAPI_CLIENT_TOKEN?.substring(0, 4) || "EMPTY"}`);
+    const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN") || "";
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    // --- Pre-flight checks ---
-    if (!ZAPI_CLIENT_TOKEN) {
-      return jsonResponse({ ok: false, message: "Configuração Z-API ausente: defina ZAPI_CLIENT_TOKEN nas secrets.", statusCode: 500 }, 500);
-    }
 
     // --- Parse body ---
     let body: any;
@@ -74,81 +67,72 @@ Deno.serve(async (req) => {
 
     const instanceName: string = body.instanceName;
     const clinicaId: string = body.clinica_id;
-    const historyWindow: string | undefined = body.historyWindow;
+    const zapiInstanceId: string = body.zapiInstanceId;
+    const zapiToken: string = body.zapiToken;
 
-    if (!instanceName || !clinicaId) {
-      return jsonResponse({ ok: false, message: "instanceName e clinica_id são obrigatórios.", statusCode: 400 }, 400);
+    if (!instanceName || !clinicaId || !zapiInstanceId || !zapiToken) {
+      return jsonResponse({
+        ok: false,
+        message: "Campos obrigatórios: instanceName, clinica_id, zapiInstanceId, zapiToken.",
+        statusCode: 400,
+      }, 400);
     }
 
-    console.log(`[api-whatsapp-instances] Creating: ${instanceName} for clinic: ${clinicaId} (historyWindow: ${historyWindow || "default"})`);
+    console.log(`[api-whatsapp-instances] Registering instance: ${instanceName} (Z-API ID: ${zapiInstanceId}) for clinic: ${clinicaId}`);
 
-    // --- 1. Create instance on Z-API ---
-    let createData: any;
+    // Build Client-Token header (optional — only sent if configured)
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (ZAPI_CLIENT_TOKEN) {
+      headers["Client-Token"] = ZAPI_CLIENT_TOKEN;
+    }
+
+    // --- 1. Validate instance by fetching status from Z-API (normal client endpoint) ---
+    // Endpoint: GET /instances/{instanceId}/token/{token}/status
+    let instanceValid = false;
     try {
-      const createResp = await fetchWithRetry(
-        `${ZAPI_BASE}/instances/integrator/on-demand`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Client-Token": ZAPI_CLIENT_TOKEN },
-          body: JSON.stringify({ name: instanceName }),
-        },
-        3,
+      const statusResp = await fetchWithRetry(
+        `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/status`,
+        { method: "GET", headers },
+        2,
         1000
       );
+      const statusData = await statusResp.json();
+      console.log("[api-whatsapp-instances] Status check response:", JSON.stringify(statusData), "HTTP:", statusResp.status);
 
-      createData = await createResp.json();
-
-      if (!createResp.ok) {
-        console.error("[api-whatsapp-instances] Z-API error:", createData, "status:", createResp.status);
-        await logToDb(supabase, clinicaId, null, "create_instance", "error", { response: createData, status: createResp.status });
-
-        if (createResp.status === 401 || createResp.status === 403) {
-          return jsonResponse({ ok: false, message: "Token Z-API inválido ou sem permissão (401/403).", statusCode: createResp.status }, 401);
-        }
-        if (createResp.status === 404) {
-          return jsonResponse({ ok: false, message: "Endpoint Z-API não encontrado (404). Verifique o path e o tipo de instância.", statusCode: 404 }, 404);
-        }
+      if (statusResp.ok) {
+        instanceValid = true;
+      } else if (statusResp.status === 401 || statusResp.status === 403) {
         return jsonResponse({
           ok: false,
-          message: `Erro Z-API (HTTP ${createResp.status}): ${createData?.message || createData?.error || JSON.stringify(createData)}`,
-          statusCode: createResp.status,
-        }, 502);
+          message: "Instance ID ou Token inválidos. Verifique no painel Z-API.",
+          statusCode: 401,
+        }, 401);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Connection error";
-      console.error("[api-whatsapp-instances] Z-API unreachable:", msg);
-      await logToDb(supabase, clinicaId, null, "create_instance", "error", { error: msg });
-      return jsonResponse({ ok: false, message: `Z-API indisponível: ${msg}`, statusCode: 503 }, 503);
+      console.warn("[api-whatsapp-instances] Status check failed (non-blocking):", err instanceof Error ? err.message : err);
+      // Continue anyway — instance might still work
+      instanceValid = true;
     }
 
-    console.log("[api-whatsapp-instances] Z-API response:", JSON.stringify(createData));
-
-    const zapiInstanceId = createData.id || createData.instanceId;
-    const zapiToken = createData.token;
-
-    if (!zapiInstanceId || !zapiToken) {
-      console.error("[api-whatsapp-instances] Missing credentials in Z-API response:", createData);
-      await logToDb(supabase, clinicaId, null, "create_instance", "error", { response: createData });
-      return jsonResponse({ ok: false, message: "Resposta inválida da Z-API (sem credenciais). Contate o suporte.", statusCode: 500 }, 500);
-    }
-
-    // --- 2. Configure webhooks (ao enviar, ao receber, ao conectar, ao desconectar, presença, status) ---
+    // --- 2. Configure webhooks using normal client endpoints ---
     const webhookUrl = `${SUPABASE_URL}/functions/v1/zapi-webhook?provider=zapi&company=${clinicaId}`;
     let webhookOk = false;
     let webhookError: string | null = null;
 
+    // Try bulk webhook endpoint first
     try {
       const whResp = await fetchWithRetry(
         `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/update-every-webhooks`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json", "Client-Token": ZAPI_CLIENT_TOKEN },
+          headers,
           body: JSON.stringify({ value: webhookUrl, notifySentByMe: true }),
         },
         3,
         1000
       );
       const whData = await whResp.json();
+      console.log("[api-whatsapp-instances] update-every-webhooks response:", JSON.stringify(whData), "HTTP:", whResp.status);
       if (whResp.ok && whData.value === true) {
         webhookOk = true;
         console.log("[api-whatsapp-instances] All webhooks configured (notifySentByMe=true)");
@@ -176,7 +160,7 @@ Deno.serve(async (req) => {
         try {
           const resp = await fetchWithRetry(
             `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/${ep}`,
-            { method: "PUT", headers: { "Content-Type": "application/json", "Client-Token": ZAPI_CLIENT_TOKEN }, body: JSON.stringify({ value: webhookUrl }) },
+            { method: "PUT", headers, body: JSON.stringify({ value: webhookUrl }) },
             2, 500
           );
           if (!resp.ok) { await resp.text(); allOk = false; } else { await resp.text(); }
@@ -185,16 +169,16 @@ Deno.serve(async (req) => {
       webhookOk = allOk;
     }
 
-    // --- 3. QR Code ---
+    // --- 3. Try to get QR Code ---
     let qrData: any = null;
     try {
-      await new Promise(r => setTimeout(r, 2000));
       const qrResp = await fetchWithRetry(
         `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/qr-code/image`,
-        { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN } },
-        3, 2000
+        { method: "GET", headers },
+        2, 1000
       );
       qrData = await qrResp.json();
+      console.log("[api-whatsapp-instances] QR code response HTTP:", qrResp.status);
     } catch (err) {
       console.warn("[api-whatsapp-instances] QR fetch (non-blocking):", err);
     }
@@ -215,11 +199,11 @@ Deno.serve(async (req) => {
         webhooks_configured: webhookOk,
         webhooks_configured_at: webhookOk ? new Date().toISOString() : null,
         configuracoes: {
-          zapi_response: createData,
+          registered_manually: true,
           webhook_configured: webhookOk,
           webhook_error: webhookError,
           notify_sent_by_me: true,
-          history_window: historyWindow || null,
+          instance_valid: instanceValid,
         },
       })
       .select()
@@ -227,8 +211,8 @@ Deno.serve(async (req) => {
 
     if (dbError) {
       console.error("[api-whatsapp-instances] DB save error:", dbError);
-      await logToDb(supabase, clinicaId, null, "create_instance", "error", { error: dbError });
-      return jsonResponse({ ok: false, message: "Instância criada na Z-API mas houve erro ao salvar no banco.", statusCode: 500, details: dbError }, 500);
+      await logToDb(supabase, clinicaId, null, "register_instance", "error", { error: dbError });
+      return jsonResponse({ ok: false, message: "Erro ao salvar instância no banco.", statusCode: 500, details: dbError }, 500);
     }
 
     // --- 5. Sync job ---
@@ -239,12 +223,12 @@ Deno.serve(async (req) => {
     });
 
     // --- 6. Log success ---
-    await logToDb(supabase, clinicaId, instancia.id, "create_instance", "success", {
+    await logToDb(supabase, clinicaId, instancia.id, "register_instance", "success", {
       zapi_instance_id: zapiInstanceId,
       webhook_configured: webhookOk,
     });
 
-    console.log(`[api-whatsapp-instances] Done: ${instancia.id}`);
+    console.log(`[api-whatsapp-instances] Done: ${instancia.id} (webhooks: ${webhookOk})`);
 
     return jsonResponse({
       ok: true,
