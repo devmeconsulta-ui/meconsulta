@@ -1860,6 +1860,75 @@ export type Database = {
           },
         ]
       }
+      managed_instances: {
+        Row: {
+          clinica_id: string
+          created_at: string | null
+          created_by: string | null
+          display_name: string
+          external_instance_id: string | null
+          external_token: string | null
+          id: string
+          last_error: string | null
+          last_health_check: string | null
+          omni_instancia_id: string | null
+          phone_number: string | null
+          provider: string | null
+          status: string | null
+          updated_at: string | null
+          webhook_configured: boolean | null
+        }
+        Insert: {
+          clinica_id: string
+          created_at?: string | null
+          created_by?: string | null
+          display_name: string
+          external_instance_id?: string | null
+          external_token?: string | null
+          id?: string
+          last_error?: string | null
+          last_health_check?: string | null
+          omni_instancia_id?: string | null
+          phone_number?: string | null
+          provider?: string | null
+          status?: string | null
+          updated_at?: string | null
+          webhook_configured?: boolean | null
+        }
+        Update: {
+          clinica_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          display_name?: string
+          external_instance_id?: string | null
+          external_token?: string | null
+          id?: string
+          last_error?: string | null
+          last_health_check?: string | null
+          omni_instancia_id?: string | null
+          phone_number?: string | null
+          provider?: string | null
+          status?: string | null
+          updated_at?: string | null
+          webhook_configured?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "managed_instances_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "managed_instances_omni_instancia_id_fkey"
+            columns: ["omni_instancia_id"]
+            isOneToOne: false
+            referencedRelation: "omni_instancias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meconsulta_pay_solicitacoes: {
         Row: {
           cpf: string
@@ -2084,6 +2153,63 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_outbox: {
+        Row: {
+          atendimento_id: string
+          attempts: number | null
+          clinica_id: string
+          created_at: string | null
+          error: string | null
+          id: string
+          instance_id: string | null
+          mensagem_id: string
+          payload: Json | null
+          processed_at: string | null
+          status: string | null
+        }
+        Insert: {
+          atendimento_id: string
+          attempts?: number | null
+          clinica_id: string
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          instance_id?: string | null
+          mensagem_id: string
+          payload?: Json | null
+          processed_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          atendimento_id?: string
+          attempts?: number | null
+          clinica_id?: string
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          instance_id?: string | null
+          mensagem_id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_outbox_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_outbox_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "managed_instances"
             referencedColumns: ["id"]
           },
         ]
@@ -3531,6 +3657,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_integrations: {
+        Row: {
+          config: Json | null
+          enabled: boolean | null
+          id: string
+          provider: string
+          updated_at: string | null
+        }
+        Insert: {
+          config?: Json | null
+          enabled?: boolean | null
+          id?: string
+          provider: string
+          updated_at?: string | null
+        }
+        Update: {
+          config?: Json | null
+          enabled?: boolean | null
+          id?: string
+          provider?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       prescricoes_documentos: {
         Row: {
