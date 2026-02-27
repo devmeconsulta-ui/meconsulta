@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
     // 2. Configure ALL webhooks via single endpoint (update-every-webhooks)
     // This sets: Ao enviar, Ao receber, Ao conectar, Ao desconectar, Presença do chat, Status da mensagem
     // notifySentByMe=true enables "Notificar as enviadas por mim também"
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/zapi-webhook`;
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/webhook-receiver?provider=zapi&company=${clinica_id}`;
     let webhookOk = false;
     let webhookError: string | null = null;
 
@@ -186,6 +186,7 @@ Deno.serve(async (req) => {
         "update-webhook-delivery",           // Ao enviar
         "update-webhook-disconnected",       // Ao desconectar
         "update-webhook-connected",          // Ao conectar
+        "update-webhook-chat-presence",      // Presença do chat
       ];
 
       let allOk = true;

@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
     console.log(`[api-whatsapp-instances] Creating: ${instanceName} for clinic: ${clinicaId}`);
 
     // --- 1. Create instance on Z-API (Client API) ---
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/zapi-webhook?provider=zapi&company=${clinicaId}`;
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/webhook-receiver?provider=zapi&company=${clinicaId}`;
 
     let createData: any;
     try {
@@ -168,11 +168,12 @@ Deno.serve(async (req) => {
     if (!webhookOk) {
       console.log("[api-whatsapp-instances] Fallback: individual webhook endpoints");
       const endpoints = [
-        "update-webhook-received-delivery",
-        "update-webhook-message-status",
-        "update-webhook-delivery",
-        "update-webhook-disconnected",
-        "update-webhook-connected",
+        "update-webhook-received-delivery",  // ao receber
+        "update-webhook-message-status",     // status da mensagem
+        "update-webhook-delivery",           // ao enviar
+        "update-webhook-disconnected",       // ao desconectar
+        "update-webhook-connected",          // ao conectar
+        "update-webhook-chat-presence",      // presença do chat
       ];
       let allOk = true;
       for (const ep of endpoints) {

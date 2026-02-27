@@ -689,8 +689,8 @@ export default function OmniFilas() {
                       </p>
                     )}
 
-                    {/* Webhook warning - only for super admin */}
-                    {isSuperAdmin && !instancia.webhooks_configured && (
+                    {/* Webhook warning - visible to all users */}
+                    {!instancia.webhooks_configured && (
                       <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 px-2 py-1.5 rounded mb-3">
                         <Settings className="h-3.5 w-3.5 flex-shrink-0" />
                         <span>Webhooks pendentes — mensagens podem não ser recebidas</span>
