@@ -177,36 +177,27 @@ export function useOmniFilas(clinicaId: string | null) {
     }
   };
 
-  const createInstancia = async (nome: string, zapiInstanceId?: string, zapiToken?: string) => {
+  const createInstancia = async (nome: string) => {
     if (!clinicaId) return null;
 
     try {
-      const payload: any = { clinica_id: clinicaId, instanceName: nome };
-      // If Z-API credentials provided (admin mode), include them
-      if (zapiInstanceId && zapiToken) {
-        payload.zapiInstanceId = zapiInstanceId;
-        payload.zapiToken = zapiToken;
-      }
-      console.log("[createInstancia] POST api-whatsapp-instances", { ...payload, zapiToken: zapiToken ? "***" : undefined });
+      console.log("[createInstancia] POST zapi-manage create_instance", { nome, clinicaId });
 
-      const response = await supabase.functions.invoke("api-whatsapp-instances", {
-        body: payload,
+      const response = await supabase.functions.invoke("zapi-manage", {
+        body: { action: "create_instance", clinica_id: clinicaId, display_name: nome },
       });
 
       console.log("[createInstancia] Response:", { error: response.error, data: response.data });
 
       if (response.error) {
-        console.error("[createInstancia] Edge function error:", response.error);
-        throw { message: response.error.message || String(response.error), status: (response.error as any)?.status };
+        throw { message: response.error.message || String(response.error) };
       }
 
       const data = response.data;
       if (data?.ok === false) {
-        console.error("[createInstancia] Backend error:", JSON.stringify(data, null, 2));
-        throw { message: data.message || "Erro de configuração no backend", status: data.statusCode };
+        throw { message: data.message || "Erro de configuração no backend" };
       }
 
-      console.log("[createInstancia] Success:", { instancia_id: data.instancia?.id });
       await fetchInstancias();
 
       if (data.warning) {
@@ -214,25 +205,22 @@ export function useOmniFilas(clinicaId: string | null) {
       } else {
         toast.success("Instância criada com sucesso!");
       }
-      
-      return { instancia: data.instancia, qrcode: data.qrCodeBase64 || data.qrcode, warning: data.warning };
+
+      return { instancia: data.instancia, qrcode: data.qrCodeBase64, warning: data.warning };
     } catch (error: any) {
-      console.error("[createInstancia] Error (full):", JSON.stringify(error, null, 2));
-      const msg = error?.message || "Erro interno ao criar instância. Consulte logs.";
-      toast.error(msg);
+      console.error("[createInstancia] Error:", error);
+      toast.error(error?.message || "Erro ao criar instância");
       return null;
     }
   };
 
-  const connectInstancia = async (instanciaId: string, syncHistoryDays?: number) => {
+  const connectInstancia = async (instanciaId: string) => {
     try {
-      // Uses evolution-connect-instance (Z-API internally)
-      const response = await supabase.functions.invoke("evolution-connect-instance", {
-        body: { instancia_id: instanciaId, sync_history_days: syncHistoryDays },
+      const response = await supabase.functions.invoke("zapi-manage", {
+        body: { action: "get_qr_code", instancia_id: instanciaId },
       });
 
       if (response.error) throw response.error;
-
       return response.data;
     } catch (error) {
       console.error("Error connecting instancia:", error);
@@ -243,9 +231,8 @@ export function useOmniFilas(clinicaId: string | null) {
 
   const disconnectInstancia = async (instanciaId: string) => {
     try {
-      // Uses evolution-disconnect-instance (Z-API internally)
-      const response = await supabase.functions.invoke("evolution-disconnect-instance", {
-        body: { instancia_id: instanciaId },
+      const response = await supabase.functions.invoke("zapi-manage", {
+        body: { action: "disconnect_instance", instancia_id: instanciaId },
       });
 
       if (response.error) throw response.error;
@@ -260,9 +247,8 @@ export function useOmniFilas(clinicaId: string | null) {
 
   const deleteInstancia = async (instanciaId: string) => {
     try {
-      // Uses evolution-delete-instance (Z-API internally)
-      const response = await supabase.functions.invoke("evolution-delete-instance", {
-        body: { instancia_id: instanciaId },
+      const response = await supabase.functions.invoke("zapi-manage", {
+        body: { action: "delete_instance", instancia_id: instanciaId },
       });
 
       if (response.error) throw response.error;
@@ -279,9 +265,8 @@ export function useOmniFilas(clinicaId: string | null) {
 
   const checkConnectionStatus = async (instanciaId: string) => {
     try {
-      // Uses evolution-connection-status (Z-API internally)
-      const response = await supabase.functions.invoke("evolution-connection-status", {
-        body: { instancia_id: instanciaId },
+      const response = await supabase.functions.invoke("zapi-manage", {
+        body: { action: "get_status", instancia_id: instanciaId },
       });
 
       if (response.error) throw response.error;

@@ -265,7 +265,7 @@ export default function OmniFilas() {
 
   const handleConnect = async (instanciaId: string) => {
     setConnectingId(instanciaId);
-    const result = await connectInstancia(instanciaId, syncHistoryDays || undefined);
+    const result = await connectInstancia(instanciaId);
     setConnectingId(null);
 
     if (result?.qrcode) {
