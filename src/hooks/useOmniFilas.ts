@@ -207,7 +207,7 @@ export function useOmniFilas(clinicaId: string | null) {
       toast.success("Instância criada com sucesso");
       
       // Return instancia + qrcode so UI can show QR immediately
-      return { instancia: data.instancia, qrcode: data.qrcode };
+      return { instancia: data.instancia, qrcode: data.qrCodeBase64 || data.qrcode };
     } catch (error: any) {
       console.error("Error creating instancia (full payload):", JSON.stringify(error, null, 2));
       const msg = error?.message || error?.details || null;

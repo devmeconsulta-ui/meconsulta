@@ -247,8 +247,10 @@ Deno.serve(async (req) => {
     return jsonResponse({
       ok: true,
       success: true,
+      instanceId: instancia.id,
       instancia,
-      qrcode: qrData?.value || qrData,
+      qrCodeBase64: qrData?.value || qrData || null,
+      status: "connecting",
       webhook_configured: webhookOk,
     });
   } catch (error: unknown) {
