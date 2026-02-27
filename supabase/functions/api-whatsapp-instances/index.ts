@@ -90,9 +90,22 @@ Deno.serve(async (req) => {
 
     let createData: any;
     try {
-      const createResp = await fetchWithRetry(
+      const createEndpoints = [
+        `${ZAPI_BASE}/instances`,
         `${ZAPI_BASE}/instances/create`,
-        {
+      ];
+
+      const extractCredentials = (payload: any) => {
+        const direct = payload?.data ?? payload?.instance ?? payload;
+        if (direct?.id && direct?.token) return direct;
+        const firstContent = Array.isArray(payload?.content) ? payload.content[0] : null;
+        if (firstContent?.id && firstContent?.token) return firstContent;
+        return null;
+      };
+
+      let lastError: any = null;
+      for (const endpoint of createEndpoints) {
+        const createResp = await fetchWithRetry(endpoint, {
           method: "POST",
           headers: authHeaders,
           body: JSON.stringify({
@@ -103,24 +116,34 @@ Deno.serve(async (req) => {
             connectedCallbackUrl: webhookUrl,
             messageStatusCallbackUrl: webhookUrl,
           }),
-        },
-        3,
-        1500
-      );
+        }, 3, 1500);
 
-      createData = await createResp.json();
-      console.log("[api-whatsapp-instances] Z-API create response:", JSON.stringify(createData), "HTTP:", createResp.status);
+        const payload = await createResp.json().catch(() => ({}));
+        console.log(`[api-whatsapp-instances] Create attempt ${endpoint} HTTP:`, createResp.status);
 
-      if (!createResp.ok) {
-        console.error("[api-whatsapp-instances] Z-API error:", createData, "status:", createResp.status);
-        await logToDb(supabase, clinicaId, null, "create_instance", "error", { response: createData, status: createResp.status });
+        if (payload?.error === "NOT_FOUND") {
+          lastError = payload;
+          continue;
+        }
 
-        const errMsg = createData?.error || createData?.message || JSON.stringify(createData);
+        const credentials = extractCredentials(payload);
+        if (!createResp.ok || !credentials) {
+          lastError = payload;
+          continue;
+        }
+
+        createData = credentials;
+        break;
+      }
+
+      if (!createData) {
+        await logToDb(supabase, clinicaId, null, "create_instance", "error", { response: lastError });
+        const errMsg = lastError?.error || lastError?.message || "Endpoint de criação não encontrado para Client API";
         return jsonResponse({
           ok: false,
-          message: `Erro Z-API (HTTP ${createResp.status}): ${errMsg}`,
-          statusCode: createResp.status,
-        }, createResp.status >= 500 ? 502 : createResp.status);
+          message: `Erro Z-API: ${errMsg}`,
+          statusCode: 502,
+        }, 502);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Connection error";
