@@ -178,19 +178,27 @@ export function useOmniFilas(clinicaId: string | null) {
     if (!clinicaId) return null;
 
     try {
-      // Use Z-API as default provider for new instances
+      // Always create via Z-API — Evolution API discontinued
       const response = await supabase.functions.invoke("zapi-create-instance", {
         body: { clinica_id: clinicaId, nome },
       });
 
       if (response.error) throw response.error;
 
+      const data = response.data;
+      if (!data?.success) {
+        toast.error(data?.error || "Erro ao criar instância");
+        return null;
+      }
+
       await fetchInstancias();
       toast.success("Instância criada com sucesso");
-      return response.data?.instancia;
+      
+      // Return instancia + qrcode so UI can show QR immediately
+      return { instancia: data.instancia, qrcode: data.qrcode };
     } catch (error) {
       console.error("Error creating instancia:", error);
-      toast.error("Erro ao criar instância");
+      toast.error("Erro ao criar instância. Verifique sua conexão.");
       return null;
     }
   };
