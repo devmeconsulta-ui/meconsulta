@@ -73,6 +73,42 @@ Deno.serve(async (req) => {
     const zapiId = instancia.zapi_instance_id;
     const zapiToken = instancia.zapi_token;
 
+    // Idempotency: skip if a sync completed successfully in the last 6 hours
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const { data: recentSync } = await supabase
+      .from("whatsapp_sync_jobs")
+      .select("id, status, last_synced_at")
+      .eq("instancia_id", instancia_id)
+      .eq("status", "done")
+      .gte("last_synced_at", sixHoursAgo)
+      .limit(1)
+      .single();
+
+    if (recentSync) {
+      console.log(`[Z-API Sync] Skipping - already synced at ${recentSync.last_synced_at}`);
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: "Already synced recently", last_synced_at: recentSync.last_synced_at }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Also check if a sync is currently running
+    const { data: runningSync } = await supabase
+      .from("whatsapp_sync_jobs")
+      .select("id")
+      .eq("instancia_id", instancia_id)
+      .eq("status", "running")
+      .limit(1)
+      .single();
+
+    if (runningSync) {
+      console.log(`[Z-API Sync] Skipping - sync already running`);
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: "Sync already running" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Update or create sync job
     let { data: syncJob } = await supabase
       .from("whatsapp_sync_jobs")

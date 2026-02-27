@@ -82,11 +82,32 @@ Deno.serve(async (req) => {
           phoneNumber = statusData.phone.replace(/\D/g, "");
         }
 
+        const wasDisconnected = instancia.status !== "connected";
         if (dbStatus !== instancia.status || phoneNumber !== instancia.numero_whatsapp) {
           await supabase
             .from("omni_instancias")
             .update({ status: dbStatus, numero_whatsapp: phoneNumber })
             .eq("id", instancia_id);
+        }
+
+        // Auto-trigger sync when transitioning to connected
+        if (dbStatus === "connected" && wasDisconnected) {
+          try {
+            const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+            if (SUPABASE_ANON_KEY) {
+              fetch(`${SUPABASE_URL}/functions/v1/zapi-sync-history`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+                },
+                body: JSON.stringify({ instancia_id }),
+              }).catch(err => console.warn("[ConnectionStatus] Sync trigger error:", err));
+              console.log(`[ConnectionStatus] Triggered sync for instance ${instancia_id}`);
+            }
+          } catch (syncErr) {
+            console.warn("[ConnectionStatus] Sync trigger error:", syncErr);
+          }
         }
 
         return new Response(
