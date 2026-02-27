@@ -5,9 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface ConnectionStatusRequest {
-  instancia_id: string;
-}
+const ZAPI_BASE = "https://api.z-api.io";
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
   for (let i = 0; i < retries; i++) {
@@ -29,22 +27,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "Evolution API não configurada" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const body: ConnectionStatusRequest = await req.json();
-    const { instancia_id } = body;
+    const { instancia_id } = await req.json();
 
     if (!instancia_id) {
       return new Response(
@@ -66,6 +53,65 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ===== Z-API PROVIDER =====
+    if (instancia.provider === "zapi") {
+      const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
+      if (!ZAPI_CLIENT_TOKEN || !instancia.zapi_instance_id || !instancia.zapi_token) {
+        return new Response(
+          JSON.stringify({ success: true, status: instancia.status, numero_whatsapp: instancia.numero_whatsapp, from_cache: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      try {
+        const statusResponse = await fetchWithRetry(
+          `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/status`,
+          { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN } },
+          3, 800
+        );
+        const statusData = await statusResponse.json();
+        
+        let dbStatus = "disconnected";
+        const connected = statusData.connected || statusData.status === "connected" || statusData.status === "CONNECTED";
+        if (connected) dbStatus = "connected";
+        else if (statusData.status === "connecting") dbStatus = "connecting";
+
+        // Get phone number if connected
+        let phoneNumber = instancia.numero_whatsapp;
+        if (dbStatus === "connected" && statusData.phone) {
+          phoneNumber = statusData.phone.replace(/\D/g, "");
+        }
+
+        if (dbStatus !== instancia.status || phoneNumber !== instancia.numero_whatsapp) {
+          await supabase
+            .from("omni_instancias")
+            .update({ status: dbStatus, numero_whatsapp: phoneNumber })
+            .eq("id", instancia_id);
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, status: dbStatus, numero_whatsapp: phoneNumber }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ success: true, status: instancia.status, numero_whatsapp: instancia.numero_whatsapp, from_cache: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // ===== EVOLUTION PROVIDER (existing logic) =====
+    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
+    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: "Evolution API não configurada" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     console.log(`Checking connection status for: ${instancia.evolution_instance_name}`);
 
     let statusData;
@@ -74,65 +120,36 @@ Deno.serve(async (req) => {
     try {
       const statusResponse = await fetchWithRetry(
         `${EVOLUTION_API_URL}/instance/connectionState/${instancia.evolution_instance_name}`,
-        {
-          method: "GET",
-          headers: { "apikey": EVOLUTION_API_KEY },
-        },
-        3,
-        800
+        { method: "GET", headers: { "apikey": EVOLUTION_API_KEY } },
+        3, 800
       );
-
       statusData = await statusResponse.json();
       statusOk = statusResponse.ok;
     } catch (err) {
-      console.error("Evolution API unreachable after retries:", err);
       return new Response(
-        JSON.stringify({
-          success: true,
-          status: instancia.status,
-          numero_whatsapp: instancia.numero_whatsapp,
-          from_cache: true,
-        }),
+        JSON.stringify({ success: true, status: instancia.status, numero_whatsapp: instancia.numero_whatsapp, from_cache: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (!statusOk) {
-      console.error("Evolution API error:", statusData);
       return new Response(
-        JSON.stringify({
-          success: true,
-          status: instancia.status,
-          numero_whatsapp: instancia.numero_whatsapp,
-          from_cache: true,
-        }),
+        JSON.stringify({ success: true, status: instancia.status, numero_whatsapp: instancia.numero_whatsapp, from_cache: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const state = statusData.state || statusData.instance?.state;
-    let dbStatus: string = "disconnected";
-
-    if (state === "open" || state === "connected") {
-      dbStatus = "connected";
-    } else if (state === "connecting") {
-      dbStatus = "connecting";
-    }
+    let dbStatus = "disconnected";
+    if (state === "open" || state === "connected") dbStatus = "connected";
+    else if (state === "connecting") dbStatus = "connecting";
 
     if (dbStatus !== instancia.status) {
-      await supabase
-        .from("omni_instancias")
-        .update({ status: dbStatus })
-        .eq("id", instancia_id);
+      await supabase.from("omni_instancias").update({ status: dbStatus }).eq("id", instancia_id);
     }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        status: dbStatus,
-        numero_whatsapp: instancia.numero_whatsapp,
-        evolution_state: state,
-      }),
+      JSON.stringify({ success: true, status: dbStatus, numero_whatsapp: instancia.numero_whatsapp, evolution_state: state }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {

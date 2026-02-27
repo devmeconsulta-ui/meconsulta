@@ -80,3 +80,12 @@ verify_jwt = false
 
 [functions.sync-whatsapp-photos]
 verify_jwt = false
+
+[functions.zapi-create-instance]
+verify_jwt = false
+
+[functions.zapi-webhook]
+verify_jwt = false
+
+[functions.zapi-sync-history]
+verify_jwt = false

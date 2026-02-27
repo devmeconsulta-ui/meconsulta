@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -6,16 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface SendMessageRequest {
-  atendimento_id: string;
-  agente_id?: string | null;
-  tipo: "texto" | "imagem" | "audio" | "video" | "documento";
-  conteudo?: string;
-  arquivo_url?: string;
-  arquivo_nome?: string;
-  arquivo_tipo?: string;
-  encaminhada?: boolean;
-}
+const ZAPI_BASE = "https://api.z-api.io";
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
   for (let i = 0; i < retries; i++) {
@@ -31,29 +21,149 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
   throw new Error("All retry attempts failed");
 }
 
-// Declare EdgeRuntime for background tasks
+interface SendMessageRequest {
+  atendimento_id: string;
+  agente_id?: string | null;
+  tipo: "texto" | "imagem" | "audio" | "video" | "documento";
+  conteudo?: string;
+  arquivo_url?: string;
+  arquivo_nome?: string;
+  arquivo_tipo?: string;
+  encaminhada?: boolean;
+}
+
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
-serve(async (req) => {
+async function sendViaZAPI(
+  instancia: any,
+  telefoneNormalizado: string,
+  tipo: string,
+  conteudo: string | undefined,
+  arquivo_url: string | undefined,
+  arquivo_nome: string | undefined,
+): Promise<{ ok: boolean; data: any; messageId?: string }> {
+  const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
+  if (!ZAPI_CLIENT_TOKEN || !instancia.zapi_instance_id || !instancia.zapi_token) {
+    return { ok: false, data: { error: "Z-API credentials missing" } };
+  }
+
+  const zapiBase = `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}`;
+  const headers = {
+    "Content-Type": "application/json",
+    "Client-Token": ZAPI_CLIENT_TOKEN,
+  };
+
+  let endpoint: string;
+  let body: any;
+
+  switch (tipo) {
+    case "texto":
+      endpoint = `${zapiBase}/send-text`;
+      body = { phone: telefoneNormalizado, message: conteudo };
+      break;
+    case "imagem":
+      endpoint = `${zapiBase}/send-image`;
+      body = { phone: telefoneNormalizado, image: arquivo_url, caption: conteudo };
+      break;
+    case "audio":
+      endpoint = `${zapiBase}/send-audio`;
+      body = { phone: telefoneNormalizado, audio: arquivo_url };
+      break;
+    case "video":
+      endpoint = `${zapiBase}/send-video`;
+      body = { phone: telefoneNormalizado, video: arquivo_url, caption: conteudo };
+      break;
+    case "documento":
+      endpoint = `${zapiBase}/send-document-url`;
+      body = { phone: telefoneNormalizado, document: arquivo_url, fileName: arquivo_nome };
+      break;
+    default:
+      endpoint = `${zapiBase}/send-text`;
+      body = { phone: telefoneNormalizado, message: conteudo };
+  }
+
+  const response = await fetchWithRetry(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  }, 3, 800);
+
+  const data = await response.json();
+  const messageId = data.messageId || data.zapiMessageId || data.id;
+  return { ok: response.ok, data, messageId };
+}
+
+async function sendViaEvolution(
+  instancia: any,
+  telefoneFormatado: string,
+  tipo: string,
+  conteudo: string | undefined,
+  arquivo_url: string | undefined,
+  arquivo_nome: string | undefined,
+): Promise<{ ok: boolean; data: any; messageId?: string }> {
+  const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
+  const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+
+  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+    return { ok: false, data: { error: "Evolution API not configured" } };
+  }
+
+  let evolutionEndpoint = "sendText";
+  let evolutionBody: any = { number: telefoneFormatado };
+
+  switch (tipo) {
+    case "texto":
+      evolutionBody.text = conteudo;
+      break;
+    case "imagem":
+      evolutionEndpoint = "sendMedia";
+      evolutionBody.mediatype = "image";
+      evolutionBody.media = arquivo_url;
+      evolutionBody.caption = conteudo;
+      break;
+    case "audio":
+      evolutionEndpoint = "sendWhatsAppAudio";
+      evolutionBody.audio = arquivo_url;
+      break;
+    case "video":
+      evolutionEndpoint = "sendMedia";
+      evolutionBody.mediatype = "video";
+      evolutionBody.media = arquivo_url;
+      evolutionBody.caption = conteudo;
+      break;
+    case "documento":
+      evolutionEndpoint = "sendMedia";
+      evolutionBody.mediatype = "document";
+      evolutionBody.media = arquivo_url;
+      evolutionBody.fileName = arquivo_nome;
+      break;
+  }
+
+  const response = await fetchWithRetry(
+    `${EVOLUTION_API_URL}/message/${evolutionEndpoint}/${instancia.evolution_instance_name}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": EVOLUTION_API_KEY },
+      body: JSON.stringify(evolutionBody),
+    },
+    3, 800
+  );
+
+  const data = await response.json();
+  const messageId = data.key?.id || data.id;
+  return { ok: response.ok, data, messageId };
+}
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   const startTime = Date.now();
-  
+
   try {
-    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "Evolution API não configurada" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const body: SendMessageRequest = await req.json();
@@ -66,28 +176,21 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[${Date.now() - startTime}ms] Starting message send for atendimento: ${atendimento_id}`);
+    console.log(`[${Date.now() - startTime}ms] Sending message for atendimento: ${atendimento_id}`);
 
-    // Buscar atendimento com contato e instância - OPTIMIZED QUERY
+    // Fetch atendimento with contact and instance
     const { data: atendimento, error: atendimentoError } = await supabase
       .from("omni_atendimentos")
       .select(`
-        id,
-        clinica_id,
-        data_abertura,
-        data_primeira_resposta,
-        fila_id,
+        id, clinica_id, data_abertura, data_primeira_resposta, fila_id,
         contato:omni_contatos!contato_id(id, telefone),
         fila:omni_filas!fila_id(
-          id,
-          nome,
-          instancia:omni_instancias!instancia_id(evolution_instance_name, status)
+          id, nome,
+          instancia:omni_instancias!instancia_id(id, evolution_instance_name, status, provider, zapi_instance_id, zapi_token)
         )
       `)
       .eq("id", atendimento_id)
       .single();
-
-    console.log(`[${Date.now() - startTime}ms] Atendimento fetched`);
 
     if (atendimentoError || !atendimento) {
       return new Response(
@@ -100,207 +203,101 @@ serve(async (req) => {
     const fila = atendimento.fila;
     let instancia = fila?.instancia;
 
-    // FALLBACK: If no queue linked, find any connected instance for this clinic
-    if (!atendimento.fila_id || !fila || !instancia) {
-      console.log(`Atendimento ${atendimento_id} sem fila vinculada, buscando instância da clínica...`);
-      
-      const { data: instanciaFallback, error: instanciaError } = await supabase
+    // Fallback: find any connected instance for this clinic
+    if (!instancia) {
+      const { data: instanciaFallback } = await supabase
         .from("omni_instancias")
-        .select("evolution_instance_name, status")
+        .select("id, evolution_instance_name, status, provider, zapi_instance_id, zapi_token")
         .eq("clinica_id", atendimento.clinica_id)
         .eq("status", "connected")
         .limit(1)
         .maybeSingle();
 
-      if (instanciaError || !instanciaFallback) {
-        console.error("Nenhuma instância conectada encontrada para clínica:", atendimento.clinica_id);
+      if (!instanciaFallback) {
         return new Response(
-          JSON.stringify({ 
-            error: "Nenhuma instância WhatsApp conectada", 
-            details: "Configure e conecte uma instância WhatsApp em Omnichannel > Integrações." 
-          }),
+          JSON.stringify({ error: "Nenhuma instância WhatsApp conectada" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      console.log(`Usando instância fallback: ${instanciaFallback.evolution_instance_name}`);
       instancia = instanciaFallback;
     }
 
     if (instancia.status !== "connected") {
-      console.error("Instância desconectada:", instancia.evolution_instance_name);
       return new Response(
-        JSON.stringify({ 
-          error: "WhatsApp desconectado", 
-          details: "A instância WhatsApp precisa ser reconectada. Acesse Omnichannel > Integrações para reconectar." 
-        }),
+        JSON.stringify({ error: "WhatsApp desconectado" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Normalizar telefone - garantir código do país 55 para Brasil
-    let telefoneNormalizado = contato.telefone.replace(/\D/g, ""); // Remove non-digits
-    
-    // Se telefone não tem código do país (menos de 12 dígitos), adiciona 55
+    // Normalize phone
+    let telefoneNormalizado = contato.telefone.replace(/\D/g, "");
     if (telefoneNormalizado.length === 10 || telefoneNormalizado.length === 11) {
       telefoneNormalizado = `55${telefoneNormalizado}`;
-      console.log(`Telefone normalizado com código do país: ${telefoneNormalizado}`);
     }
-    
-    const telefoneFormatado = contato.telefone.includes("@") 
-      ? contato.telefone 
+    const telefoneFormatado = contato.telefone.includes("@")
+      ? contato.telefone
       : `${telefoneNormalizado}@s.whatsapp.net`;
 
-    let evolutionEndpoint = "sendText";
-    let evolutionBody: any = {
-      number: telefoneFormatado,
-    };
+    // Send via appropriate provider
+    const provider = instancia.provider || "evolution";
+    let result: { ok: boolean; data: any; messageId?: string };
 
-    // Configurar body baseado no tipo de mensagem
-    switch (tipo) {
-      case "texto":
-        evolutionBody.text = conteudo;
-        break;
-      case "imagem":
-        evolutionEndpoint = "sendMedia";
-        evolutionBody.mediatype = "image";
-        evolutionBody.media = arquivo_url;
-        evolutionBody.caption = conteudo;
-        break;
-      case "audio":
-        evolutionEndpoint = "sendWhatsAppAudio";
-        evolutionBody.audio = arquivo_url;
-        break;
-      case "video":
-        evolutionEndpoint = "sendMedia";
-        evolutionBody.mediatype = "video";
-        evolutionBody.media = arquivo_url;
-        evolutionBody.caption = conteudo;
-        break;
-      case "documento":
-        evolutionEndpoint = "sendMedia";
-        evolutionBody.mediatype = "document";
-        evolutionBody.media = arquivo_url;
-        evolutionBody.fileName = arquivo_nome;
-        break;
+    if (provider === "zapi") {
+      result = await sendViaZAPI(instancia, telefoneNormalizado, tipo, conteudo, arquivo_url, arquivo_nome);
+    } else {
+      result = await sendViaEvolution(instancia, telefoneFormatado, tipo, conteudo, arquivo_url, arquivo_nome);
     }
 
-    console.log(`[${Date.now() - startTime}ms] Sending to Evolution API: ${evolutionEndpoint}`, JSON.stringify(evolutionBody));
+    console.log(`[${Date.now() - startTime}ms] API response received (provider: ${provider})`);
 
-    // Enviar mensagem via Evolution API com retry
-    const sendResponse = await fetchWithRetry(
-      `${EVOLUTION_API_URL}/message/${evolutionEndpoint}/${instancia.evolution_instance_name}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": EVOLUTION_API_KEY,
-        },
-        body: JSON.stringify(evolutionBody),
-      },
-      3,
-      800
-    );
+    if (!result.ok) {
+      console.error(`${provider} API send error:`, result.data);
 
-    const sendData = await sendResponse.json();
-    console.log(`[${Date.now() - startTime}ms] Evolution API response received`);
-
-    if (!sendResponse.ok) {
-      console.error("Evolution API send error:", sendData);
-      
-      // Save error message in background - validate agente_id first
       EdgeRuntime.waitUntil((async () => {
         let validAgenteId = agente_id || null;
         if (validAgenteId) {
-          const { data: agenteExists } = await supabase
-            .from("usuarios_clinica")
-            .select("id")
-            .eq("id", validAgenteId)
-            .maybeSingle();
+          const { data: agenteExists } = await supabase.from("usuarios_clinica").select("id").eq("id", validAgenteId).maybeSingle();
           if (!agenteExists) validAgenteId = null;
         }
         await supabase.from("omni_mensagens").insert({
-          atendimento_id,
-          agente_id: validAgenteId,
-          contato_id: contato.id,
-          tipo,
-          direcao: "saida",
-          conteudo,
-          arquivo_url,
-          arquivo_nome,
-          arquivo_tipo,
-          status: "erro",
-          erro_descricao: JSON.stringify(sendData),
+          atendimento_id, agente_id: validAgenteId, contato_id: contato.id,
+          tipo, direcao: "saida", conteudo, arquivo_url, arquivo_nome, arquivo_tipo,
+          status: "erro", erro_descricao: JSON.stringify(result.data),
         });
       })());
 
       return new Response(
-        JSON.stringify({ error: "Erro ao enviar mensagem", details: sendData }),
+        JSON.stringify({ error: "Erro ao enviar mensagem", details: result.data }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const messageId = sendData.key?.id || sendData.id;
+    const messageId = result.messageId;
 
-    // BACKGROUND TASK: Save message, update atendimento, and pause AI if human is responding
+    // Background: save message, update atendimento, pause AI
     EdgeRuntime.waitUntil((async () => {
       try {
-        // Validate agente_id exists in usuarios_clinica before inserting
         let validAgenteId = agente_id || null;
         if (validAgenteId) {
-          const { data: agenteExists } = await supabase
-            .from("usuarios_clinica")
-            .select("id")
-            .eq("id", validAgenteId)
-            .maybeSingle();
-          if (!agenteExists) {
-            console.log(`[Background] agente_id ${validAgenteId} not found in usuarios_clinica, setting to null`);
-            validAgenteId = null;
-          }
+          const { data: agenteExists } = await supabase.from("usuarios_clinica").select("id").eq("id", validAgenteId).maybeSingle();
+          if (!agenteExists) validAgenteId = null;
         }
 
-        // Save message to DB
-        const { error: msgError } = await supabase
-          .from("omni_mensagens")
-          .insert({
-            atendimento_id,
-            agente_id: validAgenteId,
-            contato_id: contato.id,
-            tipo,
-            direcao: "saida",
-            conteudo,
-            arquivo_url,
-            arquivo_nome,
-            arquivo_tipo,
-            whatsapp_message_id: messageId,
-            status: "enviada",
-            encaminhada: encaminhada || false,
-          });
+        await supabase.from("omni_mensagens").insert({
+          atendimento_id, agente_id: validAgenteId, contato_id: contato.id,
+          tipo, direcao: "saida", conteudo, arquivo_url, arquivo_nome, arquivo_tipo,
+          whatsapp_message_id: messageId, status: "enviada", encaminhada: encaminhada || false,
+        });
 
-        if (msgError) {
-          console.error("Error saving message to DB:", msgError);
-        }
-
-        // Update first response time if not set
         if (!atendimento.data_primeira_resposta && agente_id) {
-          await supabase
-            .from("omni_atendimentos")
-            .update({
-              data_primeira_resposta: new Date().toISOString(),
-              agente_id,
-              status: "em_atendimento",
-              tempo_primeira_resposta: Math.floor(
-                (Date.now() - new Date(atendimento.data_abertura).getTime()) / 1000
-              ),
-            })
-            .eq("id", atendimento_id);
+          await supabase.from("omni_atendimentos").update({
+            data_primeira_resposta: new Date().toISOString(),
+            agente_id, status: "em_atendimento",
+            tempo_primeira_resposta: Math.floor((Date.now() - new Date(atendimento.data_abertura).getTime()) / 1000),
+          }).eq("id", atendimento_id);
         }
 
-        // ========== PAUSAR IA QUANDO HUMANO RESPONDE ==========
-        // Se um operador humano está enviando mensagem, pausar a IA
-        console.log("[AI-PAUSE] Human operator sent message, checking if AI should pause...");
-        
-        // Buscar a conversa de IA ativa para este atendimento
+        // Pause AI when human responds
         const { data: conversaIA } = await supabase
           .from("omni_ia_conversas")
           .select("id, humano_assumiu, agente_id")
@@ -308,50 +305,26 @@ serve(async (req) => {
           .single();
 
         if (conversaIA && !conversaIA.humano_assumiu) {
-          // Verificar configuração do agente
           const { data: agenteConfig } = await supabase
             .from("omni_ia_agentes")
             .select("pausar_quando_humano_responde")
             .eq("id", conversaIA.agente_id)
             .single();
 
-          const deveParar = agenteConfig?.pausar_quando_humano_responde ?? true;
-
-          if (deveParar) {
-            // Marcar que humano assumiu - IA para de responder
+          if (agenteConfig?.pausar_quando_humano_responde ?? true) {
             await supabase
               .from("omni_ia_conversas")
-              .update({
-                humano_assumiu: true,
-                humano_assumiu_em: new Date().toISOString(),
-                transferido_para_humano: true,
-              })
+              .update({ humano_assumiu: true, humano_assumiu_em: new Date().toISOString(), transferido_para_humano: true })
               .eq("id", conversaIA.id);
-
-            console.log(`[AI-PAUSE] Human took over atendimento ${atendimento_id}, AI will stop responding`);
-          } else {
-            console.log("[AI-PAUSE] Agent configured to NOT pause when human responds");
           }
-        } else if (conversaIA?.humano_assumiu) {
-          console.log("[AI-PAUSE] AI already paused for this conversation");
-        } else {
-          console.log("[AI-PAUSE] No AI conversation found for this atendimento");
         }
-
-        console.log(`[Background] Message saved successfully: ${messageId}`);
       } catch (err) {
-        console.error("[Background] Error in background task:", err);
+        console.error("[Background] Error:", err);
       }
     })());
 
-    console.log(`[${Date.now() - startTime}ms] Returning response immediately`);
-
-    // Return immediately - DB operations run in background
     return new Response(
-      JSON.stringify({
-        success: true,
-        whatsapp_id: messageId,
-      }),
+      JSON.stringify({ success: true, whatsapp_id: messageId }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {

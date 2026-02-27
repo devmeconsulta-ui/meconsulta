@@ -177,7 +177,8 @@ export function useOmniFilas(clinicaId: string | null) {
     if (!clinicaId) return null;
 
     try {
-      const response = await supabase.functions.invoke("evolution-create-instance", {
+      // Use Z-API as default provider for new instances
+      const response = await supabase.functions.invoke("zapi-create-instance", {
         body: { clinica_id: clinicaId, nome },
       });
 
