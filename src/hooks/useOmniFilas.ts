@@ -181,7 +181,7 @@ export function useOmniFilas(clinicaId: string | null) {
     if (!clinicaId) return null;
 
     try {
-      // Always create via Z-API — Evolution API discontinued
+      // Create via Z-API
       const response = await supabase.functions.invoke("zapi-create-instance", {
         body: { clinica_id: clinicaId, nome },
       });
@@ -208,6 +208,7 @@ export function useOmniFilas(clinicaId: string | null) {
 
   const connectInstancia = async (instanciaId: string, syncHistoryDays?: number) => {
     try {
+      // Uses evolution-connect-instance (Z-API internally)
       const response = await supabase.functions.invoke("evolution-connect-instance", {
         body: { instancia_id: instanciaId, sync_history_days: syncHistoryDays },
       });
@@ -224,6 +225,7 @@ export function useOmniFilas(clinicaId: string | null) {
 
   const disconnectInstancia = async (instanciaId: string) => {
     try {
+      // Uses evolution-disconnect-instance (Z-API internally)
       const response = await supabase.functions.invoke("evolution-disconnect-instance", {
         body: { instancia_id: instanciaId },
       });
@@ -240,6 +242,7 @@ export function useOmniFilas(clinicaId: string | null) {
 
   const deleteInstancia = async (instanciaId: string) => {
     try {
+      // Uses evolution-delete-instance (Z-API internally)
       const response = await supabase.functions.invoke("evolution-delete-instance", {
         body: { instancia_id: instanciaId },
       });
@@ -258,6 +261,7 @@ export function useOmniFilas(clinicaId: string | null) {
 
   const checkConnectionStatus = async (instanciaId: string) => {
     try {
+      // Uses evolution-connection-status (Z-API internally)
       const response = await supabase.functions.invoke("evolution-connection-status", {
         body: { instancia_id: instanciaId },
       });
