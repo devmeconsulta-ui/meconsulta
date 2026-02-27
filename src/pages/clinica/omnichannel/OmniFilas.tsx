@@ -196,6 +196,8 @@ export default function OmniFilas() {
   });
 
   const [novaInstanciaNome, setNovaInstanciaNome] = useState("");
+  const [novaInstanciaId, setNovaInstanciaId] = useState("");
+  const [novaInstanciaToken, setNovaInstanciaToken] = useState("");
 
   const handleCreateFila = async () => {
     if (!novaFilaData.nome) {
@@ -238,19 +240,20 @@ export default function OmniFilas() {
   };
 
   const handleCreateInstancia = async () => {
-    if (!novaInstanciaNome) {
-      toast.error("Nome da instância é obrigatório");
+    if (!novaInstanciaNome || !novaInstanciaId || !novaInstanciaToken) {
+      toast.error("Preencha todos os campos: Nome, Instance ID e Token");
       return;
     }
 
     setCreatingInstancia(true);
-    const result = await createInstancia(novaInstanciaNome);
+    const result = await createInstancia(novaInstanciaNome, novaInstanciaId, novaInstanciaToken);
     setCreatingInstancia(false);
 
     if (result?.instancia) {
       setShowNovaInstancia(false);
       setNovaInstanciaNome("");
-      // Show QR code immediately if available
+      setNovaInstanciaId("");
+      setNovaInstanciaToken("");
       if (result.qrcode) {
         setQrCodeData({ instanciaId: result.instancia.id, qrcode: result.qrcode });
       }
@@ -303,9 +306,12 @@ export default function OmniFilas() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Nova Instância WhatsApp</DialogTitle>
+                <DialogTitle>Registrar Instância WhatsApp</DialogTitle>
+                <p className="text-sm text-muted-foreground">
+                  Crie a instância no painel Z-API e cole o Instance ID e Token abaixo.
+                </p>
               </DialogHeader>
-              <div className="space-y-4 pt-4">
+              <div className="space-y-4 pt-2">
                 <div>
                   <Label>Nome da Instância</Label>
                   <Input
@@ -314,13 +320,30 @@ export default function OmniFilas() {
                     placeholder="Ex: Atendimento Geral"
                   />
                 </div>
+                <div>
+                  <Label>Instance ID (Z-API)</Label>
+                  <Input
+                    value={novaInstanciaId}
+                    onChange={(e) => setNovaInstanciaId(e.target.value)}
+                    placeholder="Ex: 3B0E2C5A5F..."
+                  />
+                </div>
+                <div>
+                  <Label>Token (Z-API)</Label>
+                  <Input
+                    type="password"
+                    value={novaInstanciaToken}
+                    onChange={(e) => setNovaInstanciaToken(e.target.value)}
+                    placeholder="Cole o token da instância"
+                  />
+                </div>
                 <Button
                   onClick={handleCreateInstancia}
                   disabled={creatingInstancia}
                   className="w-full"
                 >
                   {creatingInstancia && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Criar Instância
+                  Registrar Instância
                 </Button>
               </div>
             </DialogContent>
