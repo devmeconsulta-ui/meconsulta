@@ -80,41 +80,59 @@ Deno.serve(async (req) => {
     // 1. Create instance on Z-API
     let createData: any;
     try {
-      const createResponse = await fetchWithRetry(
+      const createEndpoints = [
+        `${ZAPI_BASE}/instances`,
         `${ZAPI_BASE}/instances/create`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Client-Token": ZAPI_CLIENT_TOKEN,
+      ];
+
+      const extractCredentials = (payload: any) => {
+        const direct = payload?.data ?? payload?.instance ?? payload;
+        if (direct?.id && direct?.token) return direct;
+        const firstContent = Array.isArray(payload?.content) ? payload.content[0] : null;
+        if (firstContent?.id && firstContent?.token) return firstContent;
+        return null;
+      };
+
+      let lastError: any = null;
+      for (const endpoint of createEndpoints) {
+        const createResponse = await fetchWithRetry(
+          endpoint,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Client-Token": ZAPI_CLIENT_TOKEN,
+            },
+            body: JSON.stringify({ name: nome }),
           },
-          body: JSON.stringify({ name: nome }),
-        },
-        3, 1000
-      );
+          3,
+          1000
+        );
 
-      createData = await createResponse.json();
+        const payload = await createResponse.json().catch(() => ({}));
+        console.log(`[Z-API] Create attempt ${endpoint} HTTP:`, createResponse.status);
 
-      if (!createResponse.ok) {
-        console.error("[Z-API] Create error:", createData, "status:", createResponse.status);
-        await logError(supabase, clinica_id, null, "zapi_create_instance", { response: createData, status: createResponse.status });
-
-        // Specific HTTP status messages
-        if (createResponse.status === 401 || createResponse.status === 403) {
-          return new Response(
-            JSON.stringify({ ok: false, message: "Token Z-API inválido ou sem permissão (401/403)" }),
-            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        if (createResponse.status === 404) {
-          return new Response(
-            JSON.stringify({ ok: false, message: "Endpoint Z-API não encontrado (404). Verifique o path e o tipo de instância (web/mobile)." }),
-            { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+        if (payload?.error === "NOT_FOUND") {
+          lastError = payload;
+          continue;
         }
 
+        const credentials = extractCredentials(payload);
+        if (!createResponse.ok || !credentials) {
+          lastError = payload;
+          continue;
+        }
+
+        createData = credentials;
+        break;
+      }
+
+      if (!createData) {
+        await logError(supabase, clinica_id, null, "zapi_create_instance", {
+          response: lastError,
+        });
         return new Response(
-          JSON.stringify({ ok: false, message: `Erro Z-API (HTTP ${createResponse.status}): ${createData?.message || createData?.error || JSON.stringify(createData)}` }),
+          JSON.stringify({ ok: false, message: `Erro Z-API: ${lastError?.error || lastError?.message || "Endpoint de criação não encontrado para Client API"}` }),
           { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
