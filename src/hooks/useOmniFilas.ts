@@ -177,13 +177,17 @@ export function useOmniFilas(clinicaId: string | null) {
     }
   };
 
-  const createInstancia = async (nome: string, zapiInstanceId: string, zapiToken: string) => {
+  const createInstancia = async (nome: string, zapiInstanceId?: string, zapiToken?: string) => {
     if (!clinicaId) return null;
 
     try {
-      // Register existing Z-API instance (no integrator endpoint)
-      const payload = { clinica_id: clinicaId, instanceName: nome, zapiInstanceId, zapiToken };
-      console.log("[createInstancia] POST api-whatsapp-instances (register)", { ...payload, zapiToken: "***" });
+      const payload: any = { clinica_id: clinicaId, instanceName: nome };
+      // If Z-API credentials provided (admin mode), include them
+      if (zapiInstanceId && zapiToken) {
+        payload.zapiInstanceId = zapiInstanceId;
+        payload.zapiToken = zapiToken;
+      }
+      console.log("[createInstancia] POST api-whatsapp-instances", { ...payload, zapiToken: zapiToken ? "***" : undefined });
 
       const response = await supabase.functions.invoke("api-whatsapp-instances", {
         body: payload,
@@ -202,33 +206,20 @@ export function useOmniFilas(clinicaId: string | null) {
         throw { message: data.message || "Erro de configuração no backend", status: data.statusCode };
       }
 
-      console.log("[createInstancia] Success:", { instancia_id: data.instancia?.id, webhook_configured: data.webhook_configured });
+      console.log("[createInstancia] Success:", { instancia_id: data.instancia?.id });
       await fetchInstancias();
 
       if (data.warning) {
-        toast.warning(`Instância registrada com aviso: ${data.warning}`);
+        toast.warning(`Instância criada com aviso: ${data.warning}`);
       } else {
-        toast.success("Instância registrada com sucesso!");
+        toast.success("Instância criada com sucesso!");
       }
       
       return { instancia: data.instancia, qrcode: data.qrCodeBase64 || data.qrcode, warning: data.warning };
     } catch (error: any) {
       console.error("[createInstancia] Error (full):", JSON.stringify(error, null, 2));
-      const status = error?.status || error?.statusCode || null;
-      const msg = error?.message || null;
-
-      let toastMsg: string;
-      if (status === 401 || status === 403) {
-        toastMsg = "Instance ID ou Token Z-API inválidos. Verifique no painel Z-API.";
-      } else if (status === 500) {
-        toastMsg = msg || "Falha interna. Consulte logs.";
-      } else if (msg) {
-        toastMsg = msg;
-      } else {
-        toastMsg = "Erro interno ao registrar instância. Consulte logs.";
-      }
-
-      toast.error(toastMsg);
+      const msg = error?.message || "Erro interno ao criar instância. Consulte logs.";
+      toast.error(msg);
       return null;
     }
   };

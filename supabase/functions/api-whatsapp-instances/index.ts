@@ -72,18 +72,49 @@ Deno.serve(async (req) => {
 
     const instanceName: string = body.instanceName;
     const clinicaId: string = body.clinica_id;
-    const zapiInstanceId: string = body.zapiInstanceId;
-    const zapiToken: string = body.zapiToken;
+    const zapiInstanceId: string | undefined = body.zapiInstanceId;
+    const zapiToken: string | undefined = body.zapiToken;
 
-    if (!instanceName || !clinicaId || !zapiInstanceId || !zapiToken) {
-      return jsonResponse({
-        ok: false,
-        message: "Campos obrigatórios: instanceName, clinica_id, zapiInstanceId, zapiToken.",
-        statusCode: 400,
-      }, 400);
+    if (!instanceName || !clinicaId) {
+      return jsonResponse({ ok: false, message: "instanceName e clinica_id são obrigatórios.", statusCode: 400 }, 400);
     }
 
-    console.log(`[api-whatsapp-instances] Registering instance: ${instanceName} (Z-API ID: ${zapiInstanceId}) for clinic: ${clinicaId}`);
+    // --- Simple mode: no Z-API credentials = just save to DB (client UI) ---
+    if (!zapiInstanceId || !zapiToken) {
+      console.log(`[api-whatsapp-instances] Simple mode: saving ${instanceName} for clinic ${clinicaId} (pending Z-API setup)`);
+
+      const { data: instancia, error: dbError } = await supabase
+        .from("omni_instancias")
+        .insert({
+          clinica_id: clinicaId,
+          nome: instanceName,
+          provider: "zapi",
+          status: "pending_setup",
+          webhooks_configured: false,
+          configuracoes: { awaiting_zapi_credentials: true },
+        })
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error("[api-whatsapp-instances] DB save error:", dbError);
+        return jsonResponse({ ok: false, message: "Erro ao salvar instância.", statusCode: 500 }, 500);
+      }
+
+      await logToDb(supabase, clinicaId, instancia.id, "create_instance_pending", "success", {});
+
+      return jsonResponse({
+        ok: true,
+        success: true,
+        instanceId: instancia.id,
+        instancia,
+        status: "pending_setup",
+        warning: "Instância criada. Um administrador precisa configurar as credenciais Z-API.",
+      });
+    }
+
+    // --- Full mode: with Z-API credentials (admin) ---
+    console.log(`[api-whatsapp-instances] Full mode: registering ${instanceName} (Z-API ID: ${zapiInstanceId}) for clinic: ${clinicaId}`);
 
     // Build Client-Token header (optional — only sent if configured)
     const headers: Record<string, string> = { "Content-Type": "application/json" };
