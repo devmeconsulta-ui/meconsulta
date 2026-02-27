@@ -93,67 +93,6 @@ async function sendViaZAPI(
   return { ok: response.ok, data, messageId };
 }
 
-async function sendViaEvolution(
-  instancia: any,
-  telefoneFormatado: string,
-  tipo: string,
-  conteudo: string | undefined,
-  arquivo_url: string | undefined,
-  arquivo_nome: string | undefined,
-): Promise<{ ok: boolean; data: any; messageId?: string }> {
-  const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-  const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
-
-  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-    return { ok: false, data: { error: "Evolution API not configured" } };
-  }
-
-  let evolutionEndpoint = "sendText";
-  let evolutionBody: any = { number: telefoneFormatado };
-
-  switch (tipo) {
-    case "texto":
-      evolutionBody.text = conteudo;
-      break;
-    case "imagem":
-      evolutionEndpoint = "sendMedia";
-      evolutionBody.mediatype = "image";
-      evolutionBody.media = arquivo_url;
-      evolutionBody.caption = conteudo;
-      break;
-    case "audio":
-      evolutionEndpoint = "sendWhatsAppAudio";
-      evolutionBody.audio = arquivo_url;
-      break;
-    case "video":
-      evolutionEndpoint = "sendMedia";
-      evolutionBody.mediatype = "video";
-      evolutionBody.media = arquivo_url;
-      evolutionBody.caption = conteudo;
-      break;
-    case "documento":
-      evolutionEndpoint = "sendMedia";
-      evolutionBody.mediatype = "document";
-      evolutionBody.media = arquivo_url;
-      evolutionBody.fileName = arquivo_nome;
-      break;
-  }
-
-  const response = await fetchWithRetry(
-    `${EVOLUTION_API_URL}/message/${evolutionEndpoint}/${instancia.evolution_instance_name}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "apikey": EVOLUTION_API_KEY },
-      body: JSON.stringify(evolutionBody),
-    },
-    3, 800
-  );
-
-  const data = await response.json();
-  const messageId = data.key?.id || data.id;
-  return { ok: response.ok, data, messageId };
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -178,7 +117,6 @@ Deno.serve(async (req) => {
 
     console.log(`[${Date.now() - startTime}ms] Sending message for atendimento: ${atendimento_id}`);
 
-    // Fetch atendimento with contact and instance
     const { data: atendimento, error: atendimentoError } = await supabase
       .from("omni_atendimentos")
       .select(`
@@ -186,7 +124,7 @@ Deno.serve(async (req) => {
         contato:omni_contatos!contato_id(id, telefone),
         fila:omni_filas!fila_id(
           id, nome,
-          instancia:omni_instancias!instancia_id(id, evolution_instance_name, status, provider, zapi_instance_id, zapi_token)
+          instancia:omni_instancias!instancia_id(id, status, zapi_instance_id, zapi_token)
         )
       `)
       .eq("id", atendimento_id)
@@ -207,7 +145,7 @@ Deno.serve(async (req) => {
     if (!instancia) {
       const { data: instanciaFallback } = await supabase
         .from("omni_instancias")
-        .select("id, evolution_instance_name, status, provider, zapi_instance_id, zapi_token")
+        .select("id, status, zapi_instance_id, zapi_token")
         .eq("clinica_id", atendimento.clinica_id)
         .eq("status", "connected")
         .limit(1)
@@ -234,24 +172,13 @@ Deno.serve(async (req) => {
     if (telefoneNormalizado.length === 10 || telefoneNormalizado.length === 11) {
       telefoneNormalizado = `55${telefoneNormalizado}`;
     }
-    const telefoneFormatado = contato.telefone.includes("@")
-      ? contato.telefone
-      : `${telefoneNormalizado}@s.whatsapp.net`;
 
-    // Send via appropriate provider
-    const provider = instancia.provider || "evolution";
-    let result: { ok: boolean; data: any; messageId?: string };
+    const result = await sendViaZAPI(instancia, telefoneNormalizado, tipo, conteudo, arquivo_url, arquivo_nome);
 
-    if (provider === "zapi") {
-      result = await sendViaZAPI(instancia, telefoneNormalizado, tipo, conteudo, arquivo_url, arquivo_nome);
-    } else {
-      result = await sendViaEvolution(instancia, telefoneFormatado, tipo, conteudo, arquivo_url, arquivo_nome);
-    }
-
-    console.log(`[${Date.now() - startTime}ms] API response received (provider: ${provider})`);
+    console.log(`[${Date.now() - startTime}ms] Z-API response received`);
 
     if (!result.ok) {
-      console.error(`${provider} API send error:`, result.data);
+      console.error("Z-API send error:", result.data);
 
       EdgeRuntime.waitUntil((async () => {
         let validAgenteId = agente_id || null;

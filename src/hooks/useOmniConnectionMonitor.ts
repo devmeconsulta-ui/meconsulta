@@ -33,7 +33,7 @@ export function useOmniConnectionMonitor(clinicaId: string | null): ConnectionMo
           id,
           nome,
           ativo,
-          instancia:omni_instancias!instancia_id(id, nome, status, evolution_instance_name)
+          instancia:omni_instancias!instancia_id(id, nome, status)
         `)
         .eq("clinica_id", clinicaId)
         .eq("ativo", true);
@@ -58,14 +58,13 @@ export function useOmniConnectionMonitor(clinicaId: string | null): ConnectionMo
             instanciaNome: instancia.nome,
           });
         } else {
-          // Verify real-time connection with Evolution API
+          // Verify real-time connection with Z-API
           try {
             const response = await supabase.functions.invoke("evolution-connection-status", {
               body: { instancia_id: instancia.id },
             });
 
-            if (response.data?.status !== "connected" && response.data?.state !== "open") {
-              // Update local DB to reflect disconnection
+            if (response.data?.status !== "connected") {
               await supabase
                 .from("omni_instancias")
                 .update({ status: "disconnected" })
@@ -79,7 +78,7 @@ export function useOmniConnectionMonitor(clinicaId: string | null): ConnectionMo
               });
             }
           } catch (err) {
-            console.error("Error checking Evolution connection:", err);
+            console.error("Error checking Z-API connection:", err);
           }
         }
       }

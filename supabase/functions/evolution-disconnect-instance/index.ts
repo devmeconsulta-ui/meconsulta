@@ -29,6 +29,7 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const { instancia_id } = await req.json();
@@ -53,57 +54,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ===== Z-API PROVIDER =====
-    if (instancia.provider === "zapi") {
-      const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
-      if (ZAPI_CLIENT_TOKEN && instancia.zapi_instance_id && instancia.zapi_token) {
-        try {
-          await fetchWithRetry(
-            `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/disconnect`,
-            { method: "DELETE", headers: { "Client-Token": ZAPI_CLIENT_TOKEN } },
-            2, 500
-          );
-        } catch (err) {
-          console.warn("[Z-API] Disconnect error (proceeding):", err);
-        }
+    // Disconnect via Z-API
+    if (ZAPI_CLIENT_TOKEN && instancia.zapi_instance_id && instancia.zapi_token) {
+      try {
+        await fetchWithRetry(
+          `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/disconnect`,
+          { method: "DELETE", headers: { "Client-Token": ZAPI_CLIENT_TOKEN } },
+          2, 500
+        );
+      } catch (err) {
+        console.warn("[Z-API] Disconnect error (proceeding):", err);
       }
-
-      await supabase
-        .from("omni_instancias")
-        .update({ status: "disconnected", numero_whatsapp: null })
-        .eq("id", instancia_id);
-
-      return new Response(
-        JSON.stringify({ success: true, message: "Instância desconectada com sucesso" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // ===== EVOLUTION PROVIDER =====
-    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
-
-    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "Evolution API não configurada" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log(`Disconnecting instance: ${instancia.evolution_instance_name}`);
-
-    try {
-      const logoutResponse = await fetchWithRetry(
-        `${EVOLUTION_API_URL}/instance/logout/${instancia.evolution_instance_name}`,
-        { method: "DELETE", headers: { "apikey": EVOLUTION_API_KEY } },
-        3, 800
-      );
-      const logoutData = await logoutResponse.json();
-      if (!logoutResponse.ok) {
-        console.error("Evolution API error during logout:", logoutData);
-      }
-    } catch (err) {
-      console.warn("Evolution API unreachable during disconnect:", err);
     }
 
     await supabase

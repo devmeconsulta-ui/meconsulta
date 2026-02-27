@@ -120,7 +120,7 @@ export default function OmniFilas() {
           body: { instancia_id: qrCodeData.instanciaId },
         });
 
-        if (!error && (data?.status === "connected" || data?.evolution_state === "open")) {
+        if (!error && (data?.status === "connected")) {
           toast.success("WhatsApp conectado com sucesso!");
           setQrCodeData(null);
           // Refresh instances
