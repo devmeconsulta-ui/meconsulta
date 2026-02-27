@@ -592,6 +592,11 @@ export default function OmniFilas() {
                           <WifiOff className="h-5 w-5 text-muted-foreground" />
                         )}
                         <span className="font-medium">{instancia.nome}</span>
+                        {instancia.provider !== "zapi" && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 opacity-50">
+                            Legacy
+                          </Badge>
+                        )}
                       </div>
                       <Badge
                         variant={
@@ -617,7 +622,7 @@ export default function OmniFilas() {
                     )}
 
                     {/* Webhook status warning */}
-                    {!(instancia as any).webhooks_configured && (
+                    {!instancia.webhooks_configured && (
                       <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 px-2 py-1.5 rounded mb-3">
                         <Settings className="h-3.5 w-3.5 flex-shrink-0" />
                         <span>Webhooks pendentes — mensagens podem não ser recebidas</span>

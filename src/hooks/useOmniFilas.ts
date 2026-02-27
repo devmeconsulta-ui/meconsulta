@@ -7,11 +7,14 @@ export interface OmniInstancia {
   clinica_id: string;
   nome: string;
   numero_whatsapp: string | null;
+  provider: string;
   zapi_instance_id: string | null;
   zapi_token: string | null;
   status: "disconnected" | "connecting" | "connected";
   webhook_url: string | null;
   servidor_url: string | null;
+  webhooks_configured: boolean;
+  webhooks_configured_at: string | null;
   configuracoes: Record<string, unknown>;
   created_at: string;
   updated_at: string;
