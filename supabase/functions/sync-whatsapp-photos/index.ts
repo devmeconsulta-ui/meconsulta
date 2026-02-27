@@ -5,6 +5,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const ZAPI_BASE = "https://api.z-api.io";
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      console.warn(`Fetch attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : error);
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error("All retry attempts failed");
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -13,17 +29,8 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
-    const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-
-    if (!evolutionApiUrl || !evolutionApiKey) {
-      return new Response(
-        JSON.stringify({ success: false, reason: "evolution_not_configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     const { clinica_id } = await req.json();
 
     if (!clinica_id) {
@@ -33,7 +40,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Buscar instância WhatsApp da clínica
+    // Find a connected WhatsApp instance for this clinic
     const { data: fila } = await supabase
       .from("omni_filas")
       .select(`*, instancia:omni_instancias(*)`)
@@ -42,17 +49,18 @@ Deno.serve(async (req: Request) => {
       .limit(1)
       .maybeSingle();
 
-    if (!fila?.instancia?.evolution_instance_name) {
+    const instancia = fila?.instancia as any;
+    if (!instancia) {
       return new Response(
         JSON.stringify({ success: false, reason: "no_whatsapp_instance" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const instanceName = fila.instancia.evolution_instance_name;
-    console.log("Using instance:", instanceName);
+    const provider = instancia.provider || "evolution";
+    console.log(`Using instance: ${instancia.id}, provider: ${provider}`);
 
-    // Buscar pacientes sem foto que têm telefone
+    // Fetch patients without photos
     const { data: pacientes } = await supabase
       .from("pacientes")
       .select("id, telefone, nome")
@@ -69,7 +77,6 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log(`Processing ${pacientes.length} pacientes`);
-
     let updated = 0;
     let errors = 0;
 
@@ -82,39 +89,63 @@ Deno.serve(async (req: Request) => {
         }
 
         console.log(`Fetching photo for ${paciente.nome} (${telefone})`);
+        let profilePictureUrl: string | null = null;
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        const profilePicResponse = await fetch(
-          `${evolutionApiUrl}/chat/fetchProfilePictureUrl/${instanceName}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              apikey: evolutionApiKey,
-            },
-            body: JSON.stringify({ number: telefone }),
-            signal: controller.signal,
-          }
-        );
-
-        clearTimeout(timeoutId);
-
-        if (profilePicResponse.ok) {
-          const profileData = await profilePicResponse.json();
-          const profilePictureUrl = profileData?.profilePictureUrl;
-          console.log(`Photo result for ${paciente.nome}:`, profilePictureUrl ? "found" : "not found");
-
-          if (profilePictureUrl) {
-            await supabase
-              .from("pacientes")
-              .update({ foto_url: profilePictureUrl })
-              .eq("id", paciente.id);
-            updated++;
+        if (provider === "zapi") {
+          // Z-API: get profile picture
+          const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
+          if (ZAPI_CLIENT_TOKEN && instancia.zapi_instance_id && instancia.zapi_token) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            try {
+              const response = await fetchWithRetry(
+                `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
+                { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN }, signal: controller.signal },
+                2, 800
+              );
+              clearTimeout(timeoutId);
+              if (response.ok) {
+                const data = await response.json();
+                profilePictureUrl = data.link || data.profilePictureUrl || data.imgUrl || null;
+              }
+            } catch (e) {
+              clearTimeout(timeoutId);
+              console.log(`Z-API photo fetch failed for ${paciente.nome}:`, e instanceof Error ? e.message : e);
+            }
           }
         } else {
-          console.log(`Photo fetch failed for ${paciente.nome}: ${profilePicResponse.status}`);
+          // Evolution API: get profile picture
+          const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
+          const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
+          if (evolutionApiUrl && evolutionApiKey && instancia.evolution_instance_name) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            try {
+              const response = await fetch(
+                `${evolutionApiUrl}/chat/fetchProfilePictureUrl/${instancia.evolution_instance_name}`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", apikey: evolutionApiKey },
+                  body: JSON.stringify({ number: telefone }),
+                  signal: controller.signal,
+                }
+              );
+              clearTimeout(timeoutId);
+              if (response.ok) {
+                const data = await response.json();
+                profilePictureUrl = data?.profilePictureUrl || null;
+              }
+            } catch (e) {
+              clearTimeout(timeoutId);
+              console.log(`Evolution photo fetch failed for ${paciente.nome}:`, e instanceof Error ? e.message : e);
+            }
+          }
+        }
+
+        if (profilePictureUrl) {
+          await supabase.from("pacientes").update({ foto_url: profilePictureUrl }).eq("id", paciente.id);
+          updated++;
+          console.log(`Photo updated for ${paciente.nome}`);
         }
 
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -124,7 +155,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Cross-reference: copiar fotos de omni_contatos para pacientes com mesmo telefone
+    // Cross-reference: copy photos from omni_contatos to pacientes with same phone
     const { data: contatosComFoto } = await supabase
       .from("omni_contatos")
       .select("telefone, foto_url")
@@ -132,7 +163,6 @@ Deno.serve(async (req: Request) => {
       .not("telefone", "is", null);
 
     if (contatosComFoto && contatosComFoto.length > 0) {
-      // Buscar pacientes sem foto novamente
       const { data: pacientesSemFoto } = await supabase
         .from("pacientes")
         .select("id, telefone")
@@ -140,27 +170,19 @@ Deno.serve(async (req: Request) => {
         .not("telefone", "is", null);
 
       if (pacientesSemFoto) {
-        // Build phone -> foto_url map from contatos
         const fotoMap = new Map<string, string>();
         for (const c of contatosComFoto) {
           const cleanPhone = c.telefone.replace(/\D/g, "");
-          // Store with and without 55 prefix
           fotoMap.set(cleanPhone, c.foto_url);
-          if (cleanPhone.startsWith("55")) {
-            fotoMap.set(cleanPhone.slice(2), c.foto_url);
-          } else {
-            fotoMap.set("55" + cleanPhone, c.foto_url);
-          }
+          if (cleanPhone.startsWith("55")) fotoMap.set(cleanPhone.slice(2), c.foto_url);
+          else fotoMap.set("55" + cleanPhone, c.foto_url);
         }
 
         for (const p of pacientesSemFoto) {
           const cleanPhone = p.telefone.replace(/\D/g, "");
           const foto = fotoMap.get(cleanPhone);
           if (foto) {
-            await supabase
-              .from("pacientes")
-              .update({ foto_url: foto })
-              .eq("id", p.id);
+            await supabase.from("pacientes").update({ foto_url: foto }).eq("id", p.id);
             updated++;
             console.log(`Cross-ref foto for paciente ${p.id}`);
           }
@@ -171,12 +193,7 @@ Deno.serve(async (req: Request) => {
     console.log(`Done: ${updated} updated, ${errors} errors`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        pacientes_updated: updated,
-        total_processed: pacientes.length,
-        errors 
-      }),
+      JSON.stringify({ success: true, pacientes_updated: updated, total_processed: pacientes.length, errors }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
