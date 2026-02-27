@@ -207,9 +207,13 @@ export default function OmniFilas() {
     const result = await createInstancia(novaInstanciaNome);
     setCreatingInstancia(false);
 
-    if (result) {
+    if (result?.instancia) {
       setShowNovaInstancia(false);
       setNovaInstanciaNome("");
+      // Show QR code immediately if available
+      if (result.qrcode) {
+        setQrCodeData({ instanciaId: result.instancia.id, qrcode: result.qrcode });
+      }
     }
   };
 

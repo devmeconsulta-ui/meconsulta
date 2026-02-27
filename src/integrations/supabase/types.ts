@@ -4065,6 +4065,44 @@ export type Database = {
           },
         ]
       }
+      whatsapp_logs: {
+        Row: {
+          acao: string
+          clinica_id: string | null
+          created_at: string
+          detalhes: Json | null
+          id: string
+          instancia_id: string | null
+          status: string
+        }
+        Insert: {
+          acao: string
+          clinica_id?: string | null
+          created_at?: string
+          detalhes?: Json | null
+          id?: string
+          instancia_id?: string | null
+          status?: string
+        }
+        Update: {
+          acao?: string
+          clinica_id?: string | null
+          created_at?: string
+          detalhes?: Json | null
+          id?: string
+          instancia_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_logs_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_sync_jobs: {
         Row: {
           clinica_id: string
