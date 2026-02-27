@@ -90,7 +90,7 @@ async function autoDistribuirAtendimento(
   }
 }
 
-// Download media from URL and upload to Supabase Storage
+// Download media from Z-API URL and upload to Supabase Storage
 async function downloadAndUploadMedia(
   supabase: any,
   mediaUrl: string | null,
@@ -179,7 +179,8 @@ async function sendViaZapi(
 
     if (response.ok) {
       const data = await response.json();
-      return { messageId: data.messageId, success: true };
+      // Z-API returns zaapId and messageId
+      return { messageId: data.zaapId || data.messageId, success: true };
     } else {
       console.error("[Z-API Send] Failed:", response.status, await response.text());
       return { success: false };
@@ -266,14 +267,12 @@ async function findOrCreateAtendimento(
     }
     atendimento = novoAtendimento;
 
-    // Auto-distribute
     const assignedAgentId = await autoDistribuirAtendimento(supabase, atendimento.id, fila?.id || null, clinicaId);
     if (assignedAgentId) {
       atendimento.agente_id = assignedAgentId;
       atendimento.status = "em_atendimento";
     }
   } else {
-    // Update fila if missing
     if (!atendimento.fila_id) {
       const { data: fila } = await supabase
         .from("omni_filas")
@@ -291,7 +290,8 @@ async function findOrCreateAtendimento(
   return atendimento;
 }
 
-// Extract message content from Z-API payload
+// Extract message content from Z-API ReceivedCallback payload
+// Docs: https://developer.z-api.io/webhooks/on-message-received
 function extractZapiContent(payload: any): {
   tipo: string;
   conteudo: string;
@@ -310,28 +310,29 @@ function extractZapiContent(payload: any): {
   } else if (payload.image) {
     tipo = "imagem";
     conteudo = payload.image.caption || "";
-    arquivoUrl = payload.image.imageUrl || payload.image.url;
+    arquivoUrl = payload.image.imageUrl || payload.image.thumbnailUrl;
     arquivoTipo = payload.image.mimeType || "image/jpeg";
   } else if (payload.audio) {
     tipo = "audio";
     conteudo = "[Áudio]";
-    arquivoUrl = payload.audio.audioUrl || payload.audio.url;
+    arquivoUrl = payload.audio.audioUrl;
     arquivoTipo = payload.audio.mimeType || "audio/ogg";
   } else if (payload.video) {
     tipo = "video";
     conteudo = payload.video.caption || "";
-    arquivoUrl = payload.video.videoUrl || payload.video.url;
+    arquivoUrl = payload.video.videoUrl;
     arquivoTipo = payload.video.mimeType || "video/mp4";
   } else if (payload.document) {
     tipo = "documento";
-    conteudo = payload.document.fileName || "[Documento]";
-    arquivoUrl = payload.document.documentUrl || payload.document.url;
+    conteudo = payload.document.fileName || payload.document.title || "[Documento]";
+    arquivoUrl = payload.document.documentUrl;
     arquivoNome = payload.document.fileName;
     arquivoTipo = payload.document.mimeType;
   } else if (payload.sticker) {
     tipo = "sticker";
     conteudo = "[Sticker]";
-    arquivoUrl = payload.sticker.stickerUrl || payload.sticker.url;
+    arquivoUrl = payload.sticker.stickerUrl;
+    arquivoTipo = payload.sticker.mimeType;
   } else if (payload.location) {
     tipo = "localizacao";
     conteudo = JSON.stringify({
@@ -339,6 +340,7 @@ function extractZapiContent(payload: any): {
       longitude: payload.location.longitude,
       name: payload.location.name,
       address: payload.location.address,
+      url: payload.location.url,
     });
   } else if (payload.contact) {
     tipo = "texto";
@@ -350,7 +352,7 @@ function extractZapiContent(payload: any): {
   return { tipo, conteudo, arquivoUrl, arquivoNome, arquivoTipo };
 }
 
-// Process AI response and send messages back (same pipeline as Evolution webhook)
+// Process AI response and send messages back via Z-API (same pipeline as Evolution)
 async function processAIResponse(
   supabase: any,
   instanciaData: any,
@@ -413,7 +415,6 @@ async function processAIResponse(
         }
       }
     } else if (aiData.mensagem) {
-      // Transfer message
       const result = await sendViaZapi(instanciaData, telefone, aiData.mensagem);
       if (result.success) {
         await supabase.from("omni_mensagens").insert({
@@ -450,7 +451,6 @@ async function checkAIPause(
 
     if (!conversaIA || conversaIA.humano_assumiu) return;
 
-    // Check if message was sent by AI (match recent AI messages)
     const { data: recentIAMsgs } = await supabase
       .from("omni_mensagens")
       .select("conteudo, agente_nome")
@@ -505,6 +505,8 @@ Deno.serve(async (req) => {
     const payload = await req.json();
     console.log("[Z-API Webhook] Received:", JSON.stringify(payload).substring(0, 1000));
 
+    // Z-API sends "type" to identify the callback type
+    // Docs: https://developer.z-api.io/webhooks/introduction
     const type = payload.type;
     const instanceId = payload.instanceId;
 
@@ -533,43 +535,72 @@ Deno.serve(async (req) => {
     console.log(`[Z-API Webhook] Instance: ${instanciaData.id}, type: ${type}`);
 
     switch (type) {
-      // ===================== INCOMING MESSAGE =====================
+      // =====================================================================
+      // ReceivedCallback — Incoming AND outgoing messages (when configured
+      // with update-webhook-received-delivery to include "enviadas por mim")
+      // Docs: https://developer.z-api.io/webhooks/on-message-received
+      // =====================================================================
       case "ReceivedCallback": {
         const phone = payload.phone;
         const isGroup = payload.isGroup;
+        const isNewsletter = payload.isNewsletter;
         const fromMe = payload.fromMe || false;
         const messageId = payload.messageId;
+        const isStatusReply = payload.isStatusReply;
+        const isEdit = payload.isEdit;
 
-        if (!phone || isGroup) {
-          console.log("[Z-API Webhook] No phone or group message, ignoring");
+        // Ignore groups, newsletters, status replies
+        if (!phone || isGroup || isNewsletter || isStatusReply) {
+          console.log("[Z-API Webhook] Ignored: group/newsletter/statusReply/no phone");
+          break;
+        }
+
+        // Handle edited messages — update existing message content
+        if (isEdit && messageId) {
+          const newContent = payload.text?.message || "";
+          if (newContent) {
+            const { error } = await supabase
+              .from("omni_mensagens")
+              .update({ conteudo: newContent })
+              .eq("whatsapp_message_id", payload.referenceMessageId || messageId);
+            if (!error) {
+              console.log(`[Z-API Webhook] Message edited: ${payload.referenceMessageId || messageId}`);
+            }
+          }
           break;
         }
 
         const telefone = phone.replace(/\D/g, "");
         console.log(`[Z-API Webhook] ReceivedCallback from ${telefone}, fromMe: ${fromMe}`);
 
-        // Use only incoming senderName (not fromMe which is owner)
-        const senderName = (!fromMe && payload.senderName) ? payload.senderName : null;
-        const contato = await findOrCreateContato(supabase, clinica_id, telefone, senderName, payload.photo || null);
+        // Z-API docs: senderName is the contact name, only use for incoming
+        const senderName = (!fromMe && (payload.senderName || payload.chatName)) ? (payload.senderName || payload.chatName) : null;
+        const fotoUrl = (!fromMe && payload.photo) ? payload.photo : (payload.senderPhoto || null);
+        
+        const contato = await findOrCreateContato(supabase, clinica_id, telefone, senderName, fotoUrl);
         if (!contato) break;
 
-        const atendimento = await findOrCreateAtendimento(supabase, clinica_id, contato.id, instanciaData.id);
+        // For outgoing messages (fromMe), use "em_atendimento" status
+        const atendimento = await findOrCreateAtendimento(
+          supabase, clinica_id, contato.id, instanciaData.id,
+          fromMe ? "em_atendimento" : "aguardando"
+        );
         if (!atendimento) break;
 
-        // Check for duplicate
+        // Check for duplicate using whatsapp_message_id UNIQUE constraint
         if (messageId) {
           const { data: existingMsg } = await supabase
             .from("omni_mensagens")
             .select("id")
             .eq("whatsapp_message_id", messageId)
-            .single();
+            .maybeSingle();
           if (existingMsg) {
-            console.log(`[Z-API Webhook] Message ${messageId} already exists`);
+            console.log(`[Z-API Webhook] Message ${messageId} already exists, skipping`);
             break;
           }
         }
 
-        // Extract content
+        // Extract content from Z-API payload
         const { tipo, conteudo, arquivoUrl: rawArquivoUrl, arquivoNome, arquivoTipo } = extractZapiContent(payload);
 
         if (!conteudo && tipo === "texto") {
@@ -577,9 +608,10 @@ Deno.serve(async (req) => {
           break;
         }
 
-        // Download media and upload to Supabase Storage (same as Evolution)
+        // Download media and upload to Supabase Storage
+        // Z-API media URLs expire in 30 days, so we persist them
         let arquivoUrl = rawArquivoUrl;
-        if (rawArquivoUrl && !fromMe && messageId && tipo !== "texto") {
+        if (rawArquivoUrl && messageId && tipo !== "texto") {
           const storedUrl = await downloadAndUploadMedia(
             supabase, rawArquivoUrl, arquivoTipo || "application/octet-stream",
             tipo === "imagem" ? "image" : tipo === "video" ? "video" : tipo === "audio" ? "audio" : "document",
@@ -588,35 +620,77 @@ Deno.serve(async (req) => {
           if (storedUrl) arquivoUrl = storedUrl;
         }
 
-        // Save message
-        const { error: msgError } = await supabase
-          .from("omni_mensagens")
-          .insert({
-            atendimento_id: atendimento.id,
-            contato_id: contato.id,
-            tipo,
-            direcao: fromMe ? "saida" : "entrada",
-            conteudo,
-            arquivo_url: arquivoUrl,
-            arquivo_nome: arquivoNome,
-            arquivo_tipo: arquivoTipo,
-            whatsapp_message_id: messageId,
-            status: "entregue",
-          });
+        // Determine direction
+        const direcao = fromMe ? "saida" : "entrada";
 
-        if (msgError) {
-          console.error("[Z-API Webhook] Error saving message:", msgError);
+        // Save message — for outgoing (fromMe), check if already saved by edge function
+        if (fromMe && messageId) {
+          const { data: existingOutMsg } = await supabase
+            .from("omni_mensagens")
+            .select("id")
+            .eq("whatsapp_message_id", messageId)
+            .maybeSingle();
+          
+          if (existingOutMsg) {
+            console.log(`[Z-API Webhook] Outgoing message ${messageId} already saved by edge function, skipping`);
+          } else {
+            // Edge function didn't save it (sent from phone/WhatsApp Web)
+            const { error: msgError } = await supabase
+              .from("omni_mensagens")
+              .insert({
+                atendimento_id: atendimento.id,
+                contato_id: contato.id,
+                tipo,
+                direcao,
+                conteudo,
+                arquivo_url: arquivoUrl,
+                arquivo_nome: arquivoNome,
+                arquivo_tipo: arquivoTipo,
+                whatsapp_message_id: messageId,
+                status: "entregue",
+              });
+            if (msgError) {
+              console.error("[Z-API Webhook] Error saving outgoing message:", msgError);
+            } else {
+              console.log(`[Z-API Webhook] Outgoing message saved from webhook`);
+            }
+
+            // Pause AI if human sent from phone (same as Evolution SEND_MESSAGE)
+            if (conteudo) {
+              await checkAIPause(supabase, atendimento.id, conteudo);
+            }
+          }
         } else {
-          console.log(`[Z-API Webhook] Message saved: ${messageId}, direction: ${fromMe ? "saida" : "entrada"}`);
+          // Incoming message — always save
+          const { error: msgError } = await supabase
+            .from("omni_mensagens")
+            .insert({
+              atendimento_id: atendimento.id,
+              contato_id: contato.id,
+              tipo,
+              direcao,
+              conteudo,
+              arquivo_url: arquivoUrl,
+              arquivo_nome: arquivoNome,
+              arquivo_tipo: arquivoTipo,
+              whatsapp_message_id: messageId,
+              status: "entregue",
+            });
+
+          if (msgError) {
+            console.error("[Z-API Webhook] Error saving message:", msgError);
+          } else {
+            console.log(`[Z-API Webhook] Incoming message saved: ${messageId}`);
+          }
         }
 
-        // Update contact last message
+        // Update contact last message timestamp
         await supabase
           .from("omni_contatos")
           .update({ ultima_mensagem: new Date().toISOString() })
           .eq("id", contato.id);
 
-        // If incoming text message, trigger AI pipeline (same as Evolution)
+        // If incoming text message, trigger full AI pipeline
         if (!fromMe && tipo === "texto" && conteudo) {
           await processAIResponse(supabase, instanciaData, atendimento.id, contato.id, telefone, conteudo, clinica_id);
         }
@@ -624,78 +698,51 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // ===================== OUTGOING MESSAGE (sent from phone/WhatsApp Web) =====================
-      case "SentByMeCallback": {
-        const phone = payload.phone;
-        const isGroup = payload.isGroup;
-        const messageId = payload.messageId;
-
-        if (!phone || isGroup) break;
-
-        const telefone = phone.replace(/\D/g, "");
-        console.log(`[Z-API Webhook] SentByMeCallback to ${telefone}, messageId: ${messageId}`);
-
-        const contato = await findOrCreateContato(supabase, clinica_id, telefone, null, null);
-        if (!contato) break;
-
-        const atendimento = await findOrCreateAtendimento(supabase, clinica_id, contato.id, instanciaData.id, "em_atendimento");
-        if (!atendimento) break;
-
-        // Check duplicate
-        if (messageId) {
-          const { data: existingMsg } = await supabase
+      // =====================================================================
+      // DeliveryCallback — Confirms message was sent/delivered to WhatsApp
+      // Docs: https://developer.z-api.io/webhooks/on-message-send
+      // Only has: phone, zaapId, messageId, type, instanceId (NO content)
+      // =====================================================================
+      case "DeliveryCallback": {
+        const deliveryMsgId = payload.zaapId || payload.messageId;
+        if (deliveryMsgId) {
+          // Just confirm delivery — update status if not already more advanced
+          const { data: msgAtual } = await supabase
             .from("omni_mensagens")
-            .select("id")
-            .eq("whatsapp_message_id", messageId)
+            .select("status")
+            .eq("whatsapp_message_id", deliveryMsgId)
             .maybeSingle();
-          if (existingMsg) {
-            console.log(`[Z-API Webhook] Outgoing message ${messageId} already saved, skipping`);
-            break;
+
+          const statusAtual = msgAtual?.status || "enviada";
+          const nivelAtual = statusHierarchy[statusAtual] || 0;
+
+          if (nivelAtual < (statusHierarchy["entregue"] || 2)) {
+            await supabase
+              .from("omni_mensagens")
+              .update({ status: "entregue" })
+              .eq("whatsapp_message_id", deliveryMsgId);
+            console.log(`[Z-API Webhook] DeliveryCallback: ${deliveryMsgId} -> entregue`);
           }
         }
-
-        // Extract content
-        const { tipo, conteudo, arquivoUrl, arquivoNome, arquivoTipo } = extractZapiContent(payload);
-
-        // Save outgoing message
-        const { error: msgError } = await supabase
-          .from("omni_mensagens")
-          .insert({
-            atendimento_id: atendimento.id,
-            contato_id: contato.id,
-            tipo,
-            direcao: "saida",
-            conteudo,
-            arquivo_url: arquivoUrl,
-            arquivo_nome: arquivoNome,
-            arquivo_tipo: arquivoTipo,
-            whatsapp_message_id: messageId,
-            status: "enviada",
-          });
-
-        if (msgError) {
-          console.error("[Z-API Webhook] Error saving outgoing message:", msgError);
-        } else {
-          console.log(`[Z-API Webhook] Outgoing message saved for atendimento ${atendimento.id}`);
-        }
-
-        // Check if human took over (pause AI) — same logic as Evolution SEND_MESSAGE
-        if (conteudo) {
-          await checkAIPause(supabase, atendimento.id, conteudo);
-        }
-
         break;
       }
 
-      // ===================== STATUS UPDATE =====================
+      // =====================================================================
+      // MessageStatusCallback — Status changes (SENT, RECEIVED, READ, PLAYED)
+      // Docs: https://developer.z-api.io/webhooks/on-whatsapp-message-status-changes
+      // =====================================================================
       case "MessageStatusCallback": {
         const newStatusRaw = payload.status;
         const ids = payload.ids || [];
 
+        // Z-API status values per docs:
+        // SENT, RECEIVED, READ, READ_BY_ME, PLAYED, DELETED
         const zapiStatusMap: Record<string, string> = {
           "SENT": "enviada",
+          "RECEIVED": "entregue",
           "DELIVERED": "entregue",
           "READ": "lida",
+          "READ_BY_ME": "lida",
           "PLAYED": "lida",
           "FAILED": "erro",
           "DELETED": "apagada",
@@ -707,7 +754,7 @@ Deno.serve(async (req) => {
         for (const msgId of ids) {
           if (!msgId) continue;
 
-          // Check current status to avoid downgrade
+          // Check current status to avoid downgrade (same as Evolution)
           const { data: msgAtual } = await supabase
             .from("omni_mensagens")
             .select("status")
@@ -717,20 +764,23 @@ Deno.serve(async (req) => {
           const statusAtual = msgAtual?.status || "enviada";
           const nivelAtual = statusHierarchy[statusAtual] || 0;
 
+          // Allow upgrade or special statuses like "apagada"
           if (newStatus === "apagada" || nivelNovo > nivelAtual) {
             const { error } = await supabase
               .from("omni_mensagens")
               .update({ status: newStatus })
               .eq("whatsapp_message_id", msgId);
             if (!error) {
-              console.log(`[Z-API Webhook] Status updated: ${msgId} -> ${newStatus}`);
+              console.log(`[Z-API Webhook] Status: ${msgId} ${statusAtual} -> ${newStatus}`);
             }
           }
         }
         break;
       }
 
-      // ===================== CONNECTION EVENTS =====================
+      // =====================================================================
+      // DisconnectedCallback — Instance lost connection
+      // =====================================================================
       case "DisconnectedCallback": {
         console.log("[Z-API Webhook] Instance disconnected");
         await supabase
@@ -740,6 +790,9 @@ Deno.serve(async (req) => {
         break;
       }
 
+      // =====================================================================
+      // ConnectedCallback — Instance connected (trigger history sync)
+      // =====================================================================
       case "ConnectedCallback": {
         console.log("[Z-API Webhook] Instance connected");
         const phone = payload.phone || payload.wid;
@@ -752,7 +805,7 @@ Deno.serve(async (req) => {
           .update(updateData)
           .eq("id", instanciaData.id);
 
-        // Trigger sync history (idempotent)
+        // Trigger idempotent sync history
         try {
           const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
           if (SUPABASE_ANON_KEY) {
