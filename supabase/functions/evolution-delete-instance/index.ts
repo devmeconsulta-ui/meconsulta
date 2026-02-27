@@ -1,3 +1,4 @@
+// NOTE: Named "evolution-delete-instance" for backward compatibility. Uses Z-API exclusively.
 import { Hono } from "jsr:@hono/hono";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 

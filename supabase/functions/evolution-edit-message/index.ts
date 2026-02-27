@@ -1,3 +1,4 @@
+// NOTE: Named "evolution-edit-message" for backward compatibility. Uses Z-API exclusively.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
