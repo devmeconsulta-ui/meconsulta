@@ -5,6 +5,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const ZAPI_BASE = "https://api.z-api.io";
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      console.warn(`Fetch attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : error);
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error("All retry attempts failed");
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -13,13 +29,12 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
-    const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
+    const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
 
-    if (!evolutionApiUrl || !evolutionApiKey) {
-      console.log("Evolution API não configurada, notificação ignorada");
+    if (!ZAPI_CLIENT_TOKEN) {
+      console.log("Z-API não configurada, notificação ignorada");
       return new Response(
-        JSON.stringify({ success: false, reason: "evolution_not_configured" }),
+        JSON.stringify({ success: false, reason: "zapi_not_configured" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -44,15 +59,14 @@ Deno.serve(async (req: Request) => {
       .limit(1)
       .maybeSingle();
 
-    if (filaError || !fila?.instancia?.evolution_instance_name) {
-      console.log("Nenhuma instância WhatsApp ativa encontrada para a clínica", clinica_id);
+    const instancia = fila?.instancia as any;
+    if (filaError || !instancia?.zapi_instance_id || !instancia?.zapi_token) {
+      console.log("Nenhuma instância Z-API ativa encontrada para a clínica", clinica_id);
       return new Response(
         JSON.stringify({ success: false, reason: "no_whatsapp_instance" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const instanceName = fila.instancia.evolution_instance_name;
 
     // Formatar telefone
     let telefone = paciente_telefone.replace(/\D/g, "");
@@ -60,26 +74,19 @@ Deno.serve(async (req: Request) => {
       telefone = "55" + telefone;
     }
 
-    // === Buscar foto de perfil do WhatsApp e salvar no paciente ===
+    // === Buscar foto de perfil do WhatsApp via Z-API e salvar no paciente ===
     try {
-      const profilePicResponse = await fetch(
-        `${evolutionApiUrl}/chat/fetchProfilePictureUrl/${instanceName}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: evolutionApiKey,
-          },
-          body: JSON.stringify({ number: telefone }),
-        }
+      const profilePicResponse = await fetchWithRetry(
+        `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
+        { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN } },
+        2, 800
       );
 
       if (profilePicResponse.ok) {
         const profileData = await profilePicResponse.json();
-        const profilePictureUrl = profileData?.profilePictureUrl;
+        const profilePictureUrl = profileData?.link || profileData?.profilePictureUrl || profileData?.imgUrl;
 
         if (profilePictureUrl) {
-          // Buscar paciente pelo telefone (sem prefixo 55)
           const telefoneSem55 = telefone.startsWith("55") ? telefone.slice(2) : telefone;
           
           const { data: paciente } = await supabase
@@ -96,7 +103,6 @@ Deno.serve(async (req: Request) => {
             console.log("Foto do WhatsApp salva para paciente", paciente.id);
           }
 
-          // Também atualizar contato omni se existir
           await supabase
             .from("omni_contatos")
             .update({ foto_url: profilePictureUrl })
@@ -108,7 +114,7 @@ Deno.serve(async (req: Request) => {
       console.log("Erro ao buscar foto do WhatsApp (não bloqueante):", picError);
     }
 
-    // Formatar data/hora com timezone do Brasil
+    // Formatar data/hora
     const dataHora = new Date(data_hora);
     const dataFormatada = dataHora.toLocaleDateString("pt-BR", {
       timeZone: "America/Sao_Paulo",
@@ -123,28 +129,28 @@ Deno.serve(async (req: Request) => {
       timeZone: "America/Sao_Paulo",
     });
 
-    // Montar mensagem
     const mensagem = `Olá ${paciente_nome || ""}! 🏥\n\nSeu horário foi reservado com sucesso:\n\n📅 *Data:* ${dataFormatada}\n🕐 *Horário:* ${horaFormatada}\n👨‍⚕️ *Médico(a):* Dr(a). ${medico_nome || ""}${local_nome ? `\n📍 *Local:* ${local_nome}` : ""}\n\nEm caso de dúvidas, entre em contato conosco.\nObrigado! 😊`;
 
-    // Enviar via Evolution API
-    const evolutionResponse = await fetch(
-      `${evolutionApiUrl}/message/sendText/${instanceName}`,
+    // Enviar via Z-API
+    const zapiResponse = await fetchWithRetry(
+      `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/send-text`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: evolutionApiKey,
+          "Client-Token": ZAPI_CLIENT_TOKEN,
         },
         body: JSON.stringify({
-          number: telefone,
-          text: mensagem,
+          phone: telefone,
+          message: mensagem,
         }),
-      }
+      },
+      3, 800
     );
 
-    const result = await evolutionResponse.json();
+    const result = await zapiResponse.json();
 
-    if (!evolutionResponse.ok) {
+    if (!zapiResponse.ok) {
       console.error("Erro ao enviar notificação WhatsApp:", result);
       return new Response(
         JSON.stringify({ success: false, error: result.message || "Erro ao enviar" }),

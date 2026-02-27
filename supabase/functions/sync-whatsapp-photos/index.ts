@@ -29,6 +29,7 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { clinica_id } = await req.json();
@@ -37,6 +38,13 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ success: false, error: "clinica_id obrigatório" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!ZAPI_CLIENT_TOKEN) {
+      return new Response(
+        JSON.stringify({ success: false, reason: "zapi_not_configured" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -50,15 +58,14 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     const instancia = fila?.instancia as any;
-    if (!instancia) {
+    if (!instancia?.zapi_instance_id || !instancia?.zapi_token) {
       return new Response(
         JSON.stringify({ success: false, reason: "no_whatsapp_instance" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const provider = instancia.provider || "evolution";
-    console.log(`Using instance: ${instancia.id}, provider: ${provider}`);
+    console.log(`Using Z-API instance: ${instancia.id}`);
 
     // Fetch patients without photos
     const { data: pacientes } = await supabase
@@ -89,63 +96,28 @@ Deno.serve(async (req: Request) => {
         }
 
         console.log(`Fetching photo for ${paciente.nome} (${telefone})`);
-        let profilePictureUrl: string | null = null;
 
-        if (provider === "zapi") {
-          // Z-API: get profile picture
-          const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
-          if (ZAPI_CLIENT_TOKEN && instancia.zapi_instance_id && instancia.zapi_token) {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-            try {
-              const response = await fetchWithRetry(
-                `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
-                { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN }, signal: controller.signal },
-                2, 800
-              );
-              clearTimeout(timeoutId);
-              if (response.ok) {
-                const data = await response.json();
-                profilePictureUrl = data.link || data.profilePictureUrl || data.imgUrl || null;
-              }
-            } catch (e) {
-              clearTimeout(timeoutId);
-              console.log(`Z-API photo fetch failed for ${paciente.nome}:`, e instanceof Error ? e.message : e);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        try {
+          const response = await fetchWithRetry(
+            `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
+            { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN }, signal: controller.signal },
+            2, 800
+          );
+          clearTimeout(timeoutId);
+          if (response.ok) {
+            const data = await response.json();
+            const profilePictureUrl = data.link || data.profilePictureUrl || data.imgUrl || null;
+            if (profilePictureUrl) {
+              await supabase.from("pacientes").update({ foto_url: profilePictureUrl }).eq("id", paciente.id);
+              updated++;
+              console.log(`Photo updated for ${paciente.nome}`);
             }
           }
-        } else {
-          // Evolution API: get profile picture
-          const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
-          const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-          if (evolutionApiUrl && evolutionApiKey && instancia.evolution_instance_name) {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-            try {
-              const response = await fetch(
-                `${evolutionApiUrl}/chat/fetchProfilePictureUrl/${instancia.evolution_instance_name}`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", apikey: evolutionApiKey },
-                  body: JSON.stringify({ number: telefone }),
-                  signal: controller.signal,
-                }
-              );
-              clearTimeout(timeoutId);
-              if (response.ok) {
-                const data = await response.json();
-                profilePictureUrl = data?.profilePictureUrl || null;
-              }
-            } catch (e) {
-              clearTimeout(timeoutId);
-              console.log(`Evolution photo fetch failed for ${paciente.nome}:`, e instanceof Error ? e.message : e);
-            }
-          }
-        }
-
-        if (profilePictureUrl) {
-          await supabase.from("pacientes").update({ foto_url: profilePictureUrl }).eq("id", paciente.id);
-          updated++;
-          console.log(`Photo updated for ${paciente.nome}`);
+        } catch (e) {
+          clearTimeout(timeoutId);
+          console.log(`Z-API photo fetch failed for ${paciente.nome}:`, e instanceof Error ? e.message : e);
         }
 
         await new Promise(resolve => setTimeout(resolve, 200));

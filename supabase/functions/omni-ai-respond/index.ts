@@ -258,23 +258,23 @@ Deno.serve(async (req) => {
 
     console.log(`[AI] Calling Lovable AI Gateway with model: ${modeloGateway}`);
 
-    // Get Evolution API config for typing indicator
-    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+    // Get Z-API config for typing indicator
+    const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
 
     // Buscar instância para enviar typing para o WhatsApp do cliente
-    let instanceName: string | null = null;
+    let zapiInstanceId: string | null = null;
+    let zapiToken: string | null = null;
     let clientPhone: string | null = atendimento.contato?.telefone || null;
     
-    if (EVOLUTION_API_URL && EVOLUTION_API_KEY && atendimento.fila_id) {
-      // Buscar instância pela fila
+    if (ZAPI_CLIENT_TOKEN && atendimento.fila_id) {
       const { data: fila } = await supabase
         .from("omni_filas")
-        .select("instancia:omni_instancias(evolution_instance_name)")
+        .select("instancia:omni_instancias(zapi_instance_id, zapi_token)")
         .eq("id", atendimento.fila_id)
         .single();
       
-      instanceName = (fila as any)?.instancia?.evolution_instance_name || null;
+      zapiInstanceId = (fila as any)?.instancia?.zapi_instance_id || null;
+      zapiToken = (fila as any)?.instancia?.zapi_token || null;
     }
 
     // Broadcast AI typing indicator via Supabase Realtime (para painel interno)
@@ -304,25 +304,17 @@ Deno.serve(async (req) => {
     // Send typing indicator to WhatsApp (para o cliente ver "escrevendo...")
     // Note: Using fire-and-forget pattern to avoid blocking
     const sendWhatsAppTyping = (isTyping: boolean) => {
-      if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !instanceName || !clientPhone) {
+      if (!ZAPI_CLIENT_TOKEN || !zapiInstanceId || !zapiToken || !clientPhone) {
         return;
       }
       
+      const phone = clientPhone.replace(/\D/g, "");
+      const phoneNorm = phone.length <= 11 ? `55${phone}` : phone;
+      
       // Fire-and-forget - don't await
-      fetch(
-        `${EVOLUTION_API_URL}/chat/updatePresence/${instanceName}`,
-        {
-          method: "POST",
-          headers: {
-            "apikey": EVOLUTION_API_KEY,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            number: clientPhone,
-            presence: isTyping ? "composing" : "paused",
-          }),
-        }
-      ).catch(() => {}); // Ignore errors silently
+      // Z-API doesn't have a direct typing endpoint, but we can use update-presence
+      // For now, skip typing indicator on Z-API as it's not critical
+      // The internal Supabase Realtime typing still works
     };
 
     // Start typing indicators (fire-and-forget, non-blocking)
