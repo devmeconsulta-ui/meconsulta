@@ -5,6 +5,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Status hierarchy (higher = more advanced, never downgrade)
+const statusHierarchy: Record<string, number> = {
+  "erro": 0,
+  "enviada": 1,
+  "entregue": 2,
+  "lida": 3,
+};
+
 // Auto-distribute atendimento to online agents based on queue strategy
 async function autoDistribuirAtendimento(
   supabase: any,
@@ -19,7 +27,10 @@ async function autoDistribuirAtendimento(
       .select("estrategia_distribuicao, atendimentos_max_agente, nome")
       .eq("id", filaId)
       .single();
-    if (!fila || fila.estrategia_distribuicao === "manual") return null;
+    if (!fila) return null;
+
+    const estrategia = fila.estrategia_distribuicao || "round_robin";
+    if (estrategia === "manual") return null;
 
     const { data: agentesVinculados } = await supabase
       .from("omni_agentes")
@@ -57,8 +68,13 @@ async function autoDistribuirAtendimento(
     const availableAgents = onlineIds.filter((id: string) => countMap[id] < maxAtendimentos);
     if (!availableAgents.length) return null;
 
-    availableAgents.sort((a: string, b: string) => countMap[a] - countMap[b]);
-    const selectedAgentId = availableAgents[0];
+    let selectedAgentId: string;
+    if (estrategia === "aleatorio") {
+      selectedAgentId = availableAgents[Math.floor(Math.random() * availableAgents.length)];
+    } else {
+      availableAgents.sort((a: string, b: string) => countMap[a] - countMap[b]);
+      selectedAgentId = availableAgents[0];
+    }
 
     await supabase
       .from("omni_atendimentos")
@@ -71,6 +87,408 @@ async function autoDistribuirAtendimento(
   } catch (err) {
     console.error("[AutoDistrib] Error:", err);
     return null;
+  }
+}
+
+// Download media from URL and upload to Supabase Storage
+async function downloadAndUploadMedia(
+  supabase: any,
+  mediaUrl: string | null,
+  mimeType: string,
+  mediaType: string,
+  clinicaId: string,
+  atendimentoId: string,
+  messageKey: string
+): Promise<string | null> {
+  if (!mediaUrl) return null;
+
+  try {
+    console.log(`[Media] Downloading ${mediaType} from Z-API URL`);
+    const response = await fetch(mediaUrl);
+    if (!response.ok) {
+      console.error(`[Media] Download failed: ${response.status}`);
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const binaryData = new Uint8Array(arrayBuffer);
+
+    let normalizedMime = mimeType.split(";")[0].trim();
+    let ext = "bin";
+
+    if (mediaType === "audio") {
+      normalizedMime = "audio/ogg";
+      ext = "ogg";
+    } else if (normalizedMime.includes("image/jpeg") || normalizedMime.includes("image/jpg")) {
+      ext = "jpg";
+    } else if (normalizedMime.includes("image/png")) {
+      ext = "png";
+    } else if (normalizedMime.includes("image/webp")) {
+      ext = "webp";
+    } else if (normalizedMime.includes("video")) {
+      ext = "mp4";
+    } else if (normalizedMime.includes("pdf")) {
+      ext = "pdf";
+    }
+
+    const fileName = `${mediaType}_${Date.now()}_${messageKey.substring(0, 8)}.${ext}`;
+    const filePath = `omni/${clinicaId}/${atendimentoId}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("omni-files")
+      .upload(filePath, binaryData, { contentType: normalizedMime, upsert: false });
+
+    if (uploadError) {
+      console.error("[Media] Upload error:", uploadError);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage.from("omni-files").getPublicUrl(filePath);
+    console.log(`[Media] Uploaded to: ${urlData.publicUrl}`);
+    return urlData.publicUrl;
+  } catch (error) {
+    console.error("[Media] Error:", error);
+    return null;
+  }
+}
+
+// Send message via Z-API
+async function sendViaZapi(
+  instanciaData: any,
+  telefone: string,
+  text: string
+): Promise<{ messageId?: string; success: boolean }> {
+  const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
+  if (!ZAPI_CLIENT_TOKEN || !instanciaData.zapi_instance_id || !instanciaData.zapi_token) {
+    console.error("[Z-API Send] Missing Z-API credentials");
+    return { success: false };
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.z-api.io/instances/${instanciaData.zapi_instance_id}/token/${instanciaData.zapi_token}/send-text`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Client-Token": ZAPI_CLIENT_TOKEN,
+        },
+        body: JSON.stringify({ phone: telefone, message: text }),
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      return { messageId: data.messageId, success: true };
+    } else {
+      console.error("[Z-API Send] Failed:", response.status, await response.text());
+      return { success: false };
+    }
+  } catch (err) {
+    console.error("[Z-API Send] Error:", err);
+    return { success: false };
+  }
+}
+
+// Find or create contact
+async function findOrCreateContato(
+  supabase: any,
+  clinicaId: string,
+  telefone: string,
+  senderName: string | null,
+  fotoUrl: string | null
+) {
+  let { data: contato } = await supabase
+    .from("omni_contatos")
+    .select("*")
+    .eq("clinica_id", clinicaId)
+    .eq("telefone", telefone)
+    .single();
+
+  if (!contato) {
+    const nome = (senderName && senderName !== "Você") ? senderName : telefone;
+    const { data: novoContato, error } = await supabase
+      .from("omni_contatos")
+      .insert({ clinica_id: clinicaId, nome, telefone, foto_url: fotoUrl || null })
+      .select()
+      .single();
+    if (error) {
+      console.error("[Contact] Error creating:", error);
+      return null;
+    }
+    contato = novoContato;
+  }
+  return contato;
+}
+
+// Find or create atendimento
+async function findOrCreateAtendimento(
+  supabase: any,
+  clinicaId: string,
+  contatoId: string,
+  instanciaId: string,
+  statusInicial: string = "aguardando"
+) {
+  let { data: atendimento } = await supabase
+    .from("omni_atendimentos")
+    .select("*")
+    .eq("clinica_id", clinicaId)
+    .eq("contato_id", contatoId)
+    .in("status", ["aguardando", "em_atendimento"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (!atendimento) {
+    const { data: fila } = await supabase
+      .from("omni_filas")
+      .select("id, nome")
+      .eq("instancia_id", instanciaId)
+      .eq("ativo", true)
+      .limit(1)
+      .single();
+
+    const { data: novoAtendimento, error } = await supabase
+      .from("omni_atendimentos")
+      .insert({
+        clinica_id: clinicaId,
+        contato_id: contatoId,
+        fila_id: fila?.id || null,
+        status: statusInicial,
+        canal: "whatsapp",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[Atendimento] Error creating:", error);
+      return null;
+    }
+    atendimento = novoAtendimento;
+
+    // Auto-distribute
+    const assignedAgentId = await autoDistribuirAtendimento(supabase, atendimento.id, fila?.id || null, clinicaId);
+    if (assignedAgentId) {
+      atendimento.agente_id = assignedAgentId;
+      atendimento.status = "em_atendimento";
+    }
+  } else {
+    // Update fila if missing
+    if (!atendimento.fila_id) {
+      const { data: fila } = await supabase
+        .from("omni_filas")
+        .select("id")
+        .eq("instancia_id", instanciaId)
+        .eq("ativo", true)
+        .limit(1)
+        .single();
+      if (fila?.id) {
+        await supabase.from("omni_atendimentos").update({ fila_id: fila.id }).eq("id", atendimento.id);
+        atendimento.fila_id = fila.id;
+      }
+    }
+  }
+  return atendimento;
+}
+
+// Extract message content from Z-API payload
+function extractZapiContent(payload: any): {
+  tipo: string;
+  conteudo: string;
+  arquivoUrl: string | null;
+  arquivoNome: string | null;
+  arquivoTipo: string | null;
+} {
+  let tipo = "texto";
+  let conteudo = "";
+  let arquivoUrl: string | null = null;
+  let arquivoNome: string | null = null;
+  let arquivoTipo: string | null = null;
+
+  if (payload.text?.message) {
+    conteudo = payload.text.message;
+  } else if (payload.image) {
+    tipo = "imagem";
+    conteudo = payload.image.caption || "";
+    arquivoUrl = payload.image.imageUrl || payload.image.url;
+    arquivoTipo = payload.image.mimeType || "image/jpeg";
+  } else if (payload.audio) {
+    tipo = "audio";
+    conteudo = "[Áudio]";
+    arquivoUrl = payload.audio.audioUrl || payload.audio.url;
+    arquivoTipo = payload.audio.mimeType || "audio/ogg";
+  } else if (payload.video) {
+    tipo = "video";
+    conteudo = payload.video.caption || "";
+    arquivoUrl = payload.video.videoUrl || payload.video.url;
+    arquivoTipo = payload.video.mimeType || "video/mp4";
+  } else if (payload.document) {
+    tipo = "documento";
+    conteudo = payload.document.fileName || "[Documento]";
+    arquivoUrl = payload.document.documentUrl || payload.document.url;
+    arquivoNome = payload.document.fileName;
+    arquivoTipo = payload.document.mimeType;
+  } else if (payload.sticker) {
+    tipo = "sticker";
+    conteudo = "[Sticker]";
+    arquivoUrl = payload.sticker.stickerUrl || payload.sticker.url;
+  } else if (payload.location) {
+    tipo = "localizacao";
+    conteudo = JSON.stringify({
+      latitude: payload.location.latitude,
+      longitude: payload.location.longitude,
+      name: payload.location.name,
+      address: payload.location.address,
+    });
+  } else if (payload.contact) {
+    tipo = "texto";
+    conteudo = `[Contato: ${payload.contact.displayName || ""}]`;
+  } else {
+    conteudo = payload.body || payload.caption || "";
+  }
+
+  return { tipo, conteudo, arquivoUrl, arquivoNome, arquivoTipo };
+}
+
+// Process AI response and send messages back (same pipeline as Evolution webhook)
+async function processAIResponse(
+  supabase: any,
+  instanciaData: any,
+  atendimentoId: string,
+  contatoId: string,
+  telefone: string,
+  conteudo: string,
+  clinicaId: string
+) {
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  try {
+    const aiResponse = await fetch(`${SUPABASE_URL}/functions/v1/omni-ai-respond`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        atendimento_id: atendimentoId,
+        mensagem: conteudo,
+        clinica_id: clinicaId,
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      console.log("[AI] AI respond returned error:", aiResponse.status);
+      return;
+    }
+
+    const aiData = await aiResponse.json();
+
+    if (aiData.ai_active && aiData.mensagens && aiData.mensagens.length > 0) {
+      console.log(`[AI] Got ${aiData.mensagens.length} messages to send via Z-API`);
+
+      for (let i = 0; i < aiData.mensagens.length; i++) {
+        const msgToSend = aiData.mensagens[i];
+
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+
+        const result = await sendViaZapi(instanciaData, telefone, msgToSend);
+
+        if (result.success) {
+          console.log(`[AI] Sent message ${i + 1}: ${msgToSend.substring(0, 50)}...`);
+          await supabase.from("omni_mensagens").insert({
+            atendimento_id: atendimentoId,
+            contato_id: contatoId,
+            tipo: "texto",
+            direcao: "saida",
+            conteudo: msgToSend,
+            whatsapp_message_id: result.messageId,
+            status: "enviada",
+            agente_nome: aiData.agente_nome,
+          });
+        } else {
+          console.error("[AI] Failed to send message via Z-API");
+        }
+      }
+    } else if (aiData.mensagem) {
+      // Transfer message
+      const result = await sendViaZapi(instanciaData, telefone, aiData.mensagem);
+      if (result.success) {
+        await supabase.from("omni_mensagens").insert({
+          atendimento_id: atendimentoId,
+          contato_id: contatoId,
+          tipo: "texto",
+          direcao: "saida",
+          conteudo: aiData.mensagem,
+          whatsapp_message_id: result.messageId,
+          status: "enviada",
+          agente_nome: aiData.agente_nome,
+        });
+      }
+    } else {
+      console.log("[AI] No AI response or AI not active");
+    }
+  } catch (aiError) {
+    console.error("[AI] Error:", aiError);
+  }
+}
+
+// Check if human took over and pause AI (same logic as Evolution SEND_MESSAGE)
+async function checkAIPause(
+  supabase: any,
+  atendimentoId: string,
+  conteudo: string
+) {
+  try {
+    const { data: conversaIA } = await supabase
+      .from("omni_ia_conversas")
+      .select("id, humano_assumiu, agente_id")
+      .eq("atendimento_id", atendimentoId)
+      .single();
+
+    if (!conversaIA || conversaIA.humano_assumiu) return;
+
+    // Check if message was sent by AI (match recent AI messages)
+    const { data: recentIAMsgs } = await supabase
+      .from("omni_mensagens")
+      .select("conteudo, agente_nome")
+      .eq("atendimento_id", atendimentoId)
+      .eq("direcao", "saida")
+      .not("agente_nome", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    const isFromIA = recentIAMsgs?.some(
+      (m: any) => m.conteudo && conteudo && m.conteudo.trim() === conteudo.trim()
+    );
+
+    if (isFromIA) {
+      console.log("[AI-PAUSE] Message appears to be from AI itself, not pausing");
+      return;
+    }
+
+    const { data: agenteConfig } = await supabase
+      .from("omni_ia_agentes")
+      .select("pausar_quando_humano_responde")
+      .eq("id", conversaIA.agente_id)
+      .single();
+
+    if (agenteConfig?.pausar_quando_humano_responde ?? true) {
+      await supabase
+        .from("omni_ia_conversas")
+        .update({
+          humano_assumiu: true,
+          humano_assumiu_em: new Date().toISOString(),
+          transferido_para_humano: true,
+        })
+        .eq("id", conversaIA.id);
+
+      console.log(`[AI-PAUSE] Human took over for atendimento ${atendimentoId}`);
+    }
+  } catch (err) {
+    console.error("[AI-PAUSE] Error:", err);
   }
 }
 
@@ -115,8 +533,8 @@ Deno.serve(async (req) => {
     console.log(`[Z-API Webhook] Instance: ${instanciaData.id}, type: ${type}`);
 
     switch (type) {
+      // ===================== INCOMING MESSAGE =====================
       case "ReceivedCallback": {
-        // Incoming message
         const phone = payload.phone;
         const isGroup = payload.isGroup;
         const fromMe = payload.fromMe || false;
@@ -128,74 +546,15 @@ Deno.serve(async (req) => {
         }
 
         const telefone = phone.replace(/\D/g, "");
-        console.log(`[Z-API Webhook] Message from ${telefone}, fromMe: ${fromMe}`);
+        console.log(`[Z-API Webhook] ReceivedCallback from ${telefone}, fromMe: ${fromMe}`);
 
-        // Find or create contact
-        let { data: contato } = await supabase
-          .from("omni_contatos")
-          .select("*")
-          .eq("clinica_id", clinica_id)
-          .eq("telefone", telefone)
-          .single();
+        // Use only incoming senderName (not fromMe which is owner)
+        const senderName = (!fromMe && payload.senderName) ? payload.senderName : null;
+        const contato = await findOrCreateContato(supabase, clinica_id, telefone, senderName, payload.photo || null);
+        if (!contato) break;
 
-        if (!contato) {
-          const senderName = (!fromMe && payload.senderName) ? payload.senderName : telefone;
-          const { data: novoContato, error: contatoError } = await supabase
-            .from("omni_contatos")
-            .insert({
-              clinica_id,
-              nome: senderName,
-              telefone,
-              foto_url: payload.photo || null,
-            })
-            .select()
-            .single();
-          if (contatoError) {
-            console.error("[Z-API Webhook] Error creating contact:", contatoError);
-            break;
-          }
-          contato = novoContato;
-        }
-
-        // Find default queue
-        const { data: fila } = await supabase
-          .from("omni_filas")
-          .select("id, nome")
-          .eq("instancia_id", instanciaData.id)
-          .eq("ativo", true)
-          .limit(1)
-          .single();
-
-        // Find or create atendimento
-        let { data: atendimento } = await supabase
-          .from("omni_atendimentos")
-          .select("*")
-          .eq("clinica_id", clinica_id)
-          .eq("contato_id", contato.id)
-          .in("status", ["aguardando", "em_atendimento"])
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        if (!atendimento) {
-          const { data: novoAtendimento, error: atError } = await supabase
-            .from("omni_atendimentos")
-            .insert({
-              clinica_id,
-              contato_id: contato.id,
-              fila_id: fila?.id || null,
-              status: "aguardando",
-              canal: "whatsapp",
-            })
-            .select()
-            .single();
-          if (atError) {
-            console.error("[Z-API Webhook] Error creating atendimento:", atError);
-            break;
-          }
-          atendimento = novoAtendimento;
-          await autoDistribuirAtendimento(supabase, atendimento.id, fila?.id || null, clinica_id);
-        }
+        const atendimento = await findOrCreateAtendimento(supabase, clinica_id, contato.id, instanciaData.id);
+        if (!atendimento) break;
 
         // Check for duplicate
         if (messageId) {
@@ -211,51 +570,22 @@ Deno.serve(async (req) => {
         }
 
         // Extract content
-        let tipo = "texto";
-        let conteudo = "";
-        let arquivoUrl = null;
-        let arquivoNome = null;
-        let arquivoTipo = null;
+        const { tipo, conteudo, arquivoUrl: rawArquivoUrl, arquivoNome, arquivoTipo } = extractZapiContent(payload);
 
-        if (payload.text?.message) {
-          conteudo = payload.text.message;
-        } else if (payload.image) {
-          tipo = "imagem";
-          conteudo = payload.image.caption || "[Imagem]";
-          arquivoUrl = payload.image.imageUrl || payload.image.url;
-          arquivoTipo = payload.image.mimeType || "image/jpeg";
-        } else if (payload.audio) {
-          tipo = "audio";
-          conteudo = "[Áudio]";
-          arquivoUrl = payload.audio.audioUrl || payload.audio.url;
-          arquivoTipo = payload.audio.mimeType || "audio/ogg";
-        } else if (payload.video) {
-          tipo = "video";
-          conteudo = payload.video.caption || "[Vídeo]";
-          arquivoUrl = payload.video.videoUrl || payload.video.url;
-          arquivoTipo = payload.video.mimeType || "video/mp4";
-        } else if (payload.document) {
-          tipo = "documento";
-          conteudo = payload.document.fileName || "[Documento]";
-          arquivoUrl = payload.document.documentUrl || payload.document.url;
-          arquivoNome = payload.document.fileName;
-          arquivoTipo = payload.document.mimeType;
-        } else if (payload.sticker) {
-          tipo = "sticker";
-          conteudo = "[Sticker]";
-          arquivoUrl = payload.sticker.stickerUrl || payload.sticker.url;
-        } else if (payload.location) {
-          tipo = "localizacao";
-          conteudo = `[Localização: ${payload.location.latitude}, ${payload.location.longitude}]`;
-        } else if (payload.contact) {
-          tipo = "texto";
-          conteudo = `[Contato: ${payload.contact.displayName || ""}]`;
-        } else {
-          conteudo = payload.body || payload.caption || "";
-          if (!conteudo) {
-            console.log("[Z-API Webhook] Unknown message type, skipping");
-            break;
-          }
+        if (!conteudo && tipo === "texto") {
+          console.log("[Z-API Webhook] Empty text message, skipping");
+          break;
+        }
+
+        // Download media and upload to Supabase Storage (same as Evolution)
+        let arquivoUrl = rawArquivoUrl;
+        if (rawArquivoUrl && !fromMe && messageId && tipo !== "texto") {
+          const storedUrl = await downloadAndUploadMedia(
+            supabase, rawArquivoUrl, arquivoTipo || "application/octet-stream",
+            tipo === "imagem" ? "image" : tipo === "video" ? "video" : tipo === "audio" ? "audio" : "document",
+            clinica_id, atendimento.id, messageId
+          );
+          if (storedUrl) arquivoUrl = storedUrl;
         }
 
         // Save message
@@ -277,7 +607,7 @@ Deno.serve(async (req) => {
         if (msgError) {
           console.error("[Z-API Webhook] Error saving message:", msgError);
         } else {
-          console.log(`[Z-API Webhook] Message saved: ${messageId}`);
+          console.log(`[Z-API Webhook] Message saved: ${messageId}, direction: ${fromMe ? "saida" : "entrada"}`);
         }
 
         // Update contact last message
@@ -286,35 +616,83 @@ Deno.serve(async (req) => {
           .update({ ultima_mensagem: new Date().toISOString() })
           .eq("id", contato.id);
 
-        // Trigger AI responder if not fromMe
-        if (!fromMe) {
-          try {
-            const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
-            if (SUPABASE_ANON_KEY) {
-              fetch(`${SUPABASE_URL}/functions/v1/omni-ai-respond`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-                },
-                body: JSON.stringify({
-                  atendimento_id: atendimento.id,
-                  mensagem_conteudo: conteudo,
-                  contato_nome: contato.nome,
-                }),
-              }).catch(err => console.warn("[Z-API Webhook] AI respond error:", err));
-            }
-          } catch (aiErr) {
-            console.warn("[Z-API Webhook] AI error:", aiErr);
-          }
+        // If incoming text message, trigger AI pipeline (same as Evolution)
+        if (!fromMe && tipo === "texto" && conteudo) {
+          await processAIResponse(supabase, instanciaData, atendimento.id, contato.id, telefone, conteudo, clinica_id);
         }
 
         break;
       }
 
+      // ===================== OUTGOING MESSAGE (sent from phone/WhatsApp Web) =====================
+      case "SentByMeCallback": {
+        const phone = payload.phone;
+        const isGroup = payload.isGroup;
+        const messageId = payload.messageId;
+
+        if (!phone || isGroup) break;
+
+        const telefone = phone.replace(/\D/g, "");
+        console.log(`[Z-API Webhook] SentByMeCallback to ${telefone}, messageId: ${messageId}`);
+
+        const contato = await findOrCreateContato(supabase, clinica_id, telefone, null, null);
+        if (!contato) break;
+
+        const atendimento = await findOrCreateAtendimento(supabase, clinica_id, contato.id, instanciaData.id, "em_atendimento");
+        if (!atendimento) break;
+
+        // Check duplicate
+        if (messageId) {
+          const { data: existingMsg } = await supabase
+            .from("omni_mensagens")
+            .select("id")
+            .eq("whatsapp_message_id", messageId)
+            .maybeSingle();
+          if (existingMsg) {
+            console.log(`[Z-API Webhook] Outgoing message ${messageId} already saved, skipping`);
+            break;
+          }
+        }
+
+        // Extract content
+        const { tipo, conteudo, arquivoUrl, arquivoNome, arquivoTipo } = extractZapiContent(payload);
+
+        // Save outgoing message
+        const { error: msgError } = await supabase
+          .from("omni_mensagens")
+          .insert({
+            atendimento_id: atendimento.id,
+            contato_id: contato.id,
+            tipo,
+            direcao: "saida",
+            conteudo,
+            arquivo_url: arquivoUrl,
+            arquivo_nome: arquivoNome,
+            arquivo_tipo: arquivoTipo,
+            whatsapp_message_id: messageId,
+            status: "enviada",
+          });
+
+        if (msgError) {
+          console.error("[Z-API Webhook] Error saving outgoing message:", msgError);
+        } else {
+          console.log(`[Z-API Webhook] Outgoing message saved for atendimento ${atendimento.id}`);
+        }
+
+        // Check if human took over (pause AI) — same logic as Evolution SEND_MESSAGE
+        if (conteudo) {
+          await checkAIPause(supabase, atendimento.id, conteudo);
+        }
+
+        break;
+      }
+
+      // ===================== STATUS UPDATE =====================
       case "MessageStatusCallback": {
-        // Status update (delivered, read, etc.)
-        const statusMap: Record<string, string> = {
+        const newStatusRaw = payload.status;
+        const ids = payload.ids || [];
+
+        const zapiStatusMap: Record<string, string> = {
           "SENT": "enviada",
           "DELIVERED": "entregue",
           "READ": "lida",
@@ -323,22 +701,36 @@ Deno.serve(async (req) => {
           "DELETED": "apagada",
         };
 
-        const newStatus = statusMap[payload.status] || payload.status;
-        const ids = payload.ids || [];
+        const newStatus = zapiStatusMap[newStatusRaw] || newStatusRaw;
+        const nivelNovo = statusHierarchy[newStatus] || 0;
 
         for (const msgId of ids) {
           if (!msgId) continue;
-          const { error } = await supabase
+
+          // Check current status to avoid downgrade
+          const { data: msgAtual } = await supabase
             .from("omni_mensagens")
-            .update({ status: newStatus })
-            .eq("whatsapp_message_id", msgId);
-          if (!error) {
-            console.log(`[Z-API Webhook] Status updated: ${msgId} -> ${newStatus}`);
+            .select("status")
+            .eq("whatsapp_message_id", msgId)
+            .maybeSingle();
+
+          const statusAtual = msgAtual?.status || "enviada";
+          const nivelAtual = statusHierarchy[statusAtual] || 0;
+
+          if (newStatus === "apagada" || nivelNovo > nivelAtual) {
+            const { error } = await supabase
+              .from("omni_mensagens")
+              .update({ status: newStatus })
+              .eq("whatsapp_message_id", msgId);
+            if (!error) {
+              console.log(`[Z-API Webhook] Status updated: ${msgId} -> ${newStatus}`);
+            }
           }
         }
         break;
       }
 
+      // ===================== CONNECTION EVENTS =====================
       case "DisconnectedCallback": {
         console.log("[Z-API Webhook] Instance disconnected");
         await supabase
@@ -360,7 +752,7 @@ Deno.serve(async (req) => {
           .update(updateData)
           .eq("id", instanciaData.id);
 
-        // Trigger sync history
+        // Trigger sync history (idempotent)
         try {
           const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
           if (SUPABASE_ANON_KEY) {
