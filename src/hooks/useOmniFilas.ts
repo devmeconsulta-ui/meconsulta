@@ -204,16 +204,35 @@ export function useOmniFilas(clinicaId: string | null) {
 
       console.log("[createInstancia] Success:", { instancia_id: data.instancia?.id, webhook_configured: data.webhook_configured });
       await fetchInstancias();
-      toast.success("Instância criada com sucesso");
+
+      if (data.warning) {
+        toast.warning(`Instância criada com aviso: ${data.warning}`);
+      } else {
+        toast.success("Instância criada com sucesso");
+      }
       
       // Return instancia + qrcode so UI can show QR immediately
-      return { instancia: data.instancia, qrcode: data.qrCodeBase64 || data.qrcode };
+      return { instancia: data.instancia, qrcode: data.qrCodeBase64 || data.qrcode, warning: data.warning };
     } catch (error: any) {
-      console.error("Error creating instancia (full payload):", JSON.stringify(error, null, 2));
-      const msg = error?.message || error?.details || null;
+      console.error("[createInstancia] Error (full):", JSON.stringify(error, null, 2));
       const status = error?.status || error?.statusCode || null;
-      const suffix = status ? ` (HTTP ${status})` : "";
-      toast.error(msg ? `Erro ao criar instância: ${msg}${suffix}` : "Erro interno ao criar instância. Consulte logs.");
+      const msg = error?.message || null;
+
+      // Map specific status codes to clear messages
+      let toastMsg: string;
+      if (status === 401 || status === 403) {
+        toastMsg = "Token Z-API inválido ou sem permissão";
+      } else if (status === 404) {
+        toastMsg = "Endpoint Z-API incorreto (verifique /instances e tipo web/mobile)";
+      } else if (status === 500) {
+        toastMsg = msg || "Falha interna. Consulte logs.";
+      } else if (msg) {
+        toastMsg = msg;
+      } else {
+        toastMsg = "Erro interno ao criar instância. Consulte logs.";
+      }
+
+      toast.error(toastMsg);
       return null;
     }
   };
