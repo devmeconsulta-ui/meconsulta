@@ -1,7 +1,6 @@
 // Standardized endpoint: POST /api-whatsapp-instances
-// Creates a Z-API instance automatically, configures webhooks, and returns QR code.
-// Uses the integrator endpoint /instances/integrator/on-demand with ZAPI_CLIENT_TOKEN.
-// The client only provides: instanceName, clinica_id, historyWindow (optional).
+// Creates a Z-API instance via Client API, configures webhooks, and returns QR code.
+// Uses ZAPI_CLIENT_TOKEN with standard client endpoints (NOT integrator).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -13,6 +12,10 @@ const corsHeaders = {
 const ZAPI_BASE = "https://api.z-api.io";
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  // GUARD: block any integrator endpoint usage
+  if (/integrator/i.test(url)) {
+    throw new Error("Endpoint integrator não permitido. Use client API.");
+  }
   for (let i = 0; i < retries; i++) {
     try {
       return await fetch(url, options);
@@ -60,7 +63,6 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, message: "ZAPI_CLIENT_TOKEN não configurado. Adicione nas secrets do projeto.", statusCode: 500 }, 500);
     }
 
-    // --- Parse body ---
     let body: any;
     try {
       body = await req.json();
@@ -83,13 +85,13 @@ Deno.serve(async (req) => {
 
     console.log(`[api-whatsapp-instances] Creating: ${instanceName} for clinic: ${clinicaId}`);
 
-    // --- 1. Create instance on Z-API (integrator on-demand) ---
+    // --- 1. Create instance on Z-API (Client API) ---
     const webhookUrl = `${SUPABASE_URL}/functions/v1/zapi-webhook?provider=zapi&company=${clinicaId}`;
 
     let createData: any;
     try {
       const createResp = await fetchWithRetry(
-        `${ZAPI_BASE}/instances/integrator/on-demand`,
+        `${ZAPI_BASE}/instances/create`,
         {
           method: "POST",
           headers: authHeaders,
@@ -190,7 +192,7 @@ Deno.serve(async (req) => {
     // --- 3. Get QR Code ---
     let qrData: any = null;
     try {
-      await new Promise(r => setTimeout(r, 2000)); // Wait for instance to boot
+      await new Promise(r => setTimeout(r, 2000));
       const qrResp = await fetchWithRetry(
         `${ZAPI_BASE}/instances/${zapiInstanceId}/token/${zapiToken}/qr-code/image`,
         { method: "GET", headers: authHeaders },
