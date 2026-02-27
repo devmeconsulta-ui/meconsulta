@@ -109,6 +109,16 @@ export default function OmniFilas() {
   const instanciaIds = instancias.map((i: any) => i.id);
   const syncProgressMap = useSyncProgress(instanciaIds);
 
+  // Auto-refresh health status on page load
+  useEffect(() => {
+    if (instancias.length === 0) return;
+    // Check all instances in parallel
+    instancias.forEach((inst) => {
+      checkConnectionStatus(inst.id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instancias.length]);
+
   // Auto-check connection status when QR modal is open
   useEffect(() => {
     if (!qrCodeData?.instanciaId) return;

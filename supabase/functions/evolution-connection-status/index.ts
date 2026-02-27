@@ -54,13 +54,49 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Fetch last_webhook_received_at and last_message_sent_at from DB
+    const [lastWebhookRes, lastSentRes] = await Promise.all([
+      supabase
+        .from("whatsapp_logs")
+        .select("created_at")
+        .eq("instancia_id", instancia_id)
+        .eq("acao", "webhook_received")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("omni_mensagens")
+        .select("created_at")
+        .eq("instancia_id", instancia_id)
+        .eq("direcao", "saida")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const last_webhook_received_at = lastWebhookRes.data?.created_at || null;
+    const last_message_sent_at = lastSentRes.data?.created_at || null;
+
+    // If no Z-API credentials, return cached status
     if (!ZAPI_CLIENT_TOKEN || !instancia.zapi_instance_id || !instancia.zapi_token) {
       return new Response(
-        JSON.stringify({ success: true, status: instancia.status, numero_whatsapp: instancia.numero_whatsapp, from_cache: true }),
+        JSON.stringify({
+          success: true,
+          provider: instancia.provider || "zapi",
+          instance_id: instancia.id,
+          status: instancia.status,
+          numero_whatsapp: instancia.numero_whatsapp,
+          qr_available: false,
+          webhooks_configured: instancia.webhooks_configured ?? false,
+          last_webhook_received_at,
+          last_message_sent_at,
+          from_cache: true,
+        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    // Query Z-API for real status
     try {
       const statusResponse = await fetchWithRetry(
         `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/status`,
@@ -68,8 +104,8 @@ Deno.serve(async (req) => {
         3, 800
       );
       const statusData = await statusResponse.json();
-      
-      let dbStatus = "disconnected";
+
+      let dbStatus: string = "disconnected";
       const connected = statusData.connected || statusData.status === "connected" || statusData.status === "CONNECTED";
       if (connected) dbStatus = "connected";
       else if (statusData.status === "connecting") dbStatus = "connecting";
@@ -79,6 +115,23 @@ Deno.serve(async (req) => {
         phoneNumber = statusData.phone.replace(/\D/g, "");
       }
 
+      // Check if QR code is available (only when not connected)
+      let qrAvailable = false;
+      if (dbStatus !== "connected") {
+        try {
+          const qrResp = await fetchWithRetry(
+            `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/qr-code`,
+            { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN } },
+            1, 500
+          );
+          const qrData = await qrResp.json();
+          qrAvailable = !!(qrData?.value || qrData?.base64);
+        } catch {
+          // QR check is non-blocking
+        }
+      }
+
+      // Update DB if status changed
       const wasDisconnected = instancia.status !== "connected";
       if (dbStatus !== instancia.status || phoneNumber !== instancia.numero_whatsapp) {
         await supabase
@@ -87,13 +140,11 @@ Deno.serve(async (req) => {
           .eq("id", instancia_id);
       }
 
-      // Auto-trigger history import when transitioning to connected (with 12h cooldown)
+      // Auto-trigger history import when transitioning to connected (12h cooldown)
       if (dbStatus === "connected" && wasDisconnected) {
         const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
         const lastImport = instancia.last_history_import_at;
-        const shouldImport = !lastImport || lastImport < twelveHoursAgo;
-
-        if (shouldImport) {
+        if (!lastImport || lastImport < twelveHoursAgo) {
           try {
             const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
             if (SUPABASE_ANON_KEY) {
@@ -109,29 +160,50 @@ Deno.serve(async (req) => {
                   "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
                 },
                 body: JSON.stringify({ instancia_id, action: "start", days_back: 30 }),
-              }).catch(err => console.warn("[ConnectionStatus] Sync trigger error:", err));
-              console.log(`[ConnectionStatus] Triggered history import for instance ${instancia_id}`);
+              }).catch(err => console.warn("[Health] Sync trigger error:", err));
+              console.log(`[Health] Triggered history import for ${instancia_id}`);
             }
           } catch (syncErr) {
-            console.warn("[ConnectionStatus] Sync trigger error:", syncErr);
+            console.warn("[Health] Sync trigger error:", syncErr);
           }
-        } else {
-          console.log(`[ConnectionStatus] Skipping import - last import at ${lastImport} (within 12h)`);
         }
       }
 
       return new Response(
-        JSON.stringify({ success: true, status: dbStatus, numero_whatsapp: phoneNumber }),
+        JSON.stringify({
+          success: true,
+          provider: instancia.provider || "zapi",
+          instance_id: instancia.id,
+          status: dbStatus,
+          numero_whatsapp: phoneNumber,
+          qr_available: qrAvailable,
+          webhooks_configured: instancia.webhooks_configured ?? false,
+          last_webhook_received_at,
+          last_message_sent_at,
+        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } catch (err) {
+      // Z-API unreachable — return cached + error status
       return new Response(
-        JSON.stringify({ success: true, status: instancia.status, numero_whatsapp: instancia.numero_whatsapp, from_cache: true }),
+        JSON.stringify({
+          success: true,
+          provider: instancia.provider || "zapi",
+          instance_id: instancia.id,
+          status: "error",
+          numero_whatsapp: instancia.numero_whatsapp,
+          qr_available: false,
+          webhooks_configured: instancia.webhooks_configured ?? false,
+          last_webhook_received_at,
+          last_message_sent_at,
+          from_cache: true,
+          error: "Z-API indisponível",
+        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
   } catch (error: unknown) {
-    console.error("Error checking connection status:", error);
+    console.error("Error in health check:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({ error: "Erro interno", details: message }),
