@@ -51,6 +51,8 @@ import { useOmniFilas, OmniFila } from "@/hooks/useOmniFilas";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useSyncProgress } from "@/hooks/useSyncProgress";
+import { Progress } from "@/components/ui/progress";
 
 interface ClinicaContext {
   clinicaData: { id: string; nome_fantasia: string } | null;
@@ -102,6 +104,10 @@ export default function OmniFilas() {
   };
 
   const [checkingConnection, setCheckingConnection] = useState(false);
+
+  // Sync progress polling
+  const instanciaIds = instancias.map((i: any) => i.id);
+  const syncProgressMap = useSyncProgress(instanciaIds);
 
   // Auto-check connection status when QR modal is open
   useEffect(() => {
@@ -605,6 +611,35 @@ export default function OmniFilas() {
                         📱 {instancia.numero_whatsapp}
                       </p>
                     )}
+
+                    {/* Sync progress indicator */}
+                    {(() => {
+                      const sp = syncProgressMap[instancia.id];
+                      const job = sp?.job;
+                      if (!job || job.status === "done" && !job.last_error) return null;
+                      const isActive = job.status === "queued" || job.status === "running";
+                      const chatsTotal = job.progress_chats_total || 0;
+                      const chatsDone = job.progress_chats_done || 0;
+                      const msgsDone = job.progress_messages_done || 0;
+                      const pct = chatsTotal > 0 ? Math.round((chatsDone / chatsTotal) * 100) : 0;
+                      return (
+                        <div className="mb-3 space-y-1">
+                          {isActive && <Progress value={pct} className="h-1.5" />}
+                          <p className="text-xs text-muted-foreground">
+                            {isActive ? (
+                              <>
+                                <Loader2 className="h-3 w-3 inline animate-spin mr-1" />
+                                Sincronizando histórico: {chatsDone}/{chatsTotal} conversas • {msgsDone} mensagens
+                              </>
+                            ) : job.status === "error" ? (
+                              <span className="text-destructive">Erro na sincronização: {job.last_error}</span>
+                            ) : job.status === "done" && job.last_error ? (
+                              <span className="text-destructive">Sincronização finalizada com erro: {job.last_error}</span>
+                            ) : null}
+                          </p>
+                        </div>
+                      );
+                    })()}
 
                     {instancia.status !== "connected" && (
                       <div className="mb-3">
