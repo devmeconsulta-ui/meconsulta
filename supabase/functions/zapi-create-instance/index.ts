@@ -47,10 +47,18 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // === PRE-FLIGHT CHECKLIST ===
     if (!ZAPI_CLIENT_TOKEN) {
       return new Response(
-        JSON.stringify({ error: "Z-API Client Token não configurado. Configure o secret ZAPI_CLIENT_TOKEN." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ ok: false, message: "Configuração Z-API ausente: defina ZAPI_CLIENT_TOKEN nas secrets do projeto." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!ZAPI_BASE || ZAPI_BASE.trim() === "") {
+      return new Response(
+        JSON.stringify({ ok: false, message: "Configuração Z-API ausente: ZAPI_BASE_URL não definida." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -58,7 +66,7 @@ Deno.serve(async (req) => {
 
     if (!clinica_id || !nome) {
       return new Response(
-        JSON.stringify({ error: "clinica_id e nome são obrigatórios" }),
+        JSON.stringify({ ok: false, message: "clinica_id e nome são obrigatórios" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -84,11 +92,26 @@ Deno.serve(async (req) => {
       createData = await createResponse.json();
 
       if (!createResponse.ok) {
-        console.error("[Z-API] Create error:", createData);
+        console.error("[Z-API] Create error:", createData, "status:", createResponse.status);
         await logError(supabase, clinica_id, null, "zapi_create_instance", { response: createData, status: createResponse.status });
+
+        // Specific HTTP status messages
+        if (createResponse.status === 401 || createResponse.status === 403) {
+          return new Response(
+            JSON.stringify({ ok: false, message: "Token Z-API inválido ou sem permissão (401/403)" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (createResponse.status === 404) {
+          return new Response(
+            JSON.stringify({ ok: false, message: "Endpoint Z-API não encontrado (404). Verifique o path e o tipo de instância (web/mobile)." }),
+            { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
         return new Response(
-          JSON.stringify({ error: "Erro ao criar instância na Z-API. Tente novamente em alguns minutos.", details: createData }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ ok: false, message: `Erro Z-API (HTTP ${createResponse.status}): ${createData?.message || createData?.error || JSON.stringify(createData)}` }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     } catch (err) {
@@ -96,7 +119,7 @@ Deno.serve(async (req) => {
       console.error("[Z-API] Create failed:", message);
       await logError(supabase, clinica_id, null, "zapi_create_instance", { error: message });
       return new Response(
-        JSON.stringify({ error: "Z-API indisponível. Verifique sua conexão e tente novamente." }),
+        JSON.stringify({ ok: false, message: `Z-API indisponível: ${message}` }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

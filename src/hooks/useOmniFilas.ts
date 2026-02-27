@@ -192,8 +192,13 @@ export function useOmniFilas(clinicaId: string | null) {
       }
 
       const data = response.data;
+      // Handle { ok: false, message: "..." } from pre-flight checks
+      if (data?.ok === false) {
+        console.error("Backend pre-flight error:", JSON.stringify(data, null, 2));
+        throw { message: data.message || "Erro de configuração no backend" };
+      }
       if (!data?.success) {
-        const errMsg = data?.error || data?.details || "Resposta inesperada do servidor";
+        const errMsg = data?.error || data?.details || data?.message || "Resposta inesperada do servidor";
         console.error("Backend error (full payload):", JSON.stringify(data, null, 2));
         throw { message: errMsg, status: data?.status };
       }
