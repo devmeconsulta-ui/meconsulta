@@ -130,8 +130,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, message: "Resposta inválida da Z-API (sem credenciais). Contate o suporte.", statusCode: 500 }, 500);
     }
 
-    // --- 2. Configure webhooks ---
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/zapi-webhook`;
+    // --- 2. Configure webhooks (ao enviar, ao receber, ao conectar, ao desconectar, presença, status) ---
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/zapi-webhook?provider=zapi&company=${clinicaId}`;
     let webhookOk = false;
     let webhookError: string | null = null;
 
@@ -252,6 +252,7 @@ Deno.serve(async (req) => {
       qrCodeBase64: qrData?.value || qrData || null,
       status: "connecting",
       webhook_configured: webhookOk,
+      ...(webhookOk ? {} : { warning: "Webhooks pendentes. Reconecte ou reconfigure manualmente." }),
     });
   } catch (error: unknown) {
     console.error("[api-whatsapp-instances] Unhandled:", error);
