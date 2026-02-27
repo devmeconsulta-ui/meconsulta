@@ -3107,6 +3107,10 @@ export type Database = {
           encaminhada: boolean
           erro_descricao: string | null
           id: string
+          media_mime: string | null
+          media_original_url: string | null
+          media_size: number | null
+          media_status: string | null
           quoted_message_id: string | null
           status: string | null
           tipo: string
@@ -3127,6 +3131,10 @@ export type Database = {
           encaminhada?: boolean
           erro_descricao?: string | null
           id?: string
+          media_mime?: string | null
+          media_original_url?: string | null
+          media_size?: number | null
+          media_status?: string | null
           quoted_message_id?: string | null
           status?: string | null
           tipo?: string
@@ -3147,6 +3155,10 @@ export type Database = {
           encaminhada?: boolean
           erro_descricao?: string | null
           id?: string
+          media_mime?: string | null
+          media_original_url?: string | null
+          media_size?: number | null
+          media_status?: string | null
           quoted_message_id?: string | null
           status?: string | null
           tipo?: string

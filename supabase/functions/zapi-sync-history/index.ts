@@ -75,7 +75,7 @@ async function startHistoryImport(
   return { job_id: newJob.id, skipped: false };
 }
 
-// ── Normalize Z-API message into our internal format ──
+// ── Normalize Z-API message into our internal format (with lazy media) ──
 function normalizeMessage(msg: any, atendimento_id: string, contato_id: string): any | null {
   const msgId = msg.messageId || msg.id?.id || msg.id;
   if (!msgId) return null;
@@ -84,6 +84,8 @@ function normalizeMessage(msg: any, atendimento_id: string, contato_id: string):
   let tipo = "texto";
   let conteudo = "";
   let media_url: string | null = null;
+  let media_mime: string | null = null;
+  let arquivo_nome: string | null = null;
 
   if (msg.text?.message) {
     conteudo = msg.text.message;
@@ -91,21 +93,28 @@ function normalizeMessage(msg: any, atendimento_id: string, contato_id: string):
     tipo = "imagem";
     conteudo = msg.image.caption || "[Imagem]";
     media_url = msg.image.imageUrl || msg.image.url || null;
+    media_mime = msg.image.mimetype || "image/jpeg";
   } else if (msg.audio) {
     tipo = "audio";
     conteudo = "[Áudio]";
     media_url = msg.audio.audioUrl || msg.audio.url || null;
+    media_mime = msg.audio.mimetype || "audio/ogg";
   } else if (msg.video) {
     tipo = "video";
     conteudo = msg.video.caption || "[Vídeo]";
     media_url = msg.video.videoUrl || msg.video.url || null;
+    media_mime = msg.video.mimetype || "video/mp4";
   } else if (msg.document) {
     tipo = "documento";
     conteudo = msg.document.fileName || "[Documento]";
+    arquivo_nome = msg.document.fileName || null;
     media_url = msg.document.documentUrl || msg.document.url || null;
+    media_mime = msg.document.mimetype || "application/octet-stream";
   } else if (msg.sticker) {
     tipo = "sticker";
     conteudo = "[Sticker]";
+    media_url = msg.sticker.stickerUrl || msg.sticker.url || null;
+    media_mime = msg.sticker.mimetype || "image/webp";
   } else if (msg.location) {
     tipo = "localizacao";
     conteudo = `[Localização: ${msg.location.latitude},${msg.location.longitude}]`;
@@ -115,7 +124,6 @@ function normalizeMessage(msg: any, atendimento_id: string, contato_id: string):
     return null;
   }
 
-  // Parse timestamp: Z-API uses seconds-based timestamp
   let createdAt: string;
   if (msg.timestamp) {
     createdAt = new Date(msg.timestamp * 1000).toISOString();
@@ -124,6 +132,8 @@ function normalizeMessage(msg: any, atendimento_id: string, contato_id: string):
   } else {
     createdAt = new Date().toISOString();
   }
+
+  const hasMedia = !!media_url;
 
   return {
     atendimento_id,
@@ -134,7 +144,11 @@ function normalizeMessage(msg: any, atendimento_id: string, contato_id: string):
     whatsapp_message_id: msgId,
     status: "entregue",
     created_at: createdAt,
-    media_url,
+    // Media fields: save metadata, mark as pending for lazy download
+    media_original_url: media_url,
+    media_status: hasMedia ? "pending" : null,
+    media_mime,
+    arquivo_nome,
   };
 }
 
@@ -299,8 +313,7 @@ async function runHistoryImport(
               hitCutoff = true;
               break;
             }
-            // Remove media_url before insert (not in omni_mensagens schema)
-            delete n.media_url;
+            // Media fields are now saved as metadata (media_original_url, media_status, media_mime)
             normalized.push(n);
           }
 

@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.zapi-adapter]
 verify_jwt = false
+
+[functions.omni-media-download]
+verify_jwt = false
