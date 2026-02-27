@@ -3046,6 +3046,8 @@ export type Database = {
           status: string
           updated_at: string
           webhook_url: string | null
+          webhooks_configured: boolean
+          webhooks_configured_at: string | null
           zapi_instance_id: string | null
           zapi_token: string | null
         }
@@ -3064,6 +3066,8 @@ export type Database = {
           status?: string
           updated_at?: string
           webhook_url?: string | null
+          webhooks_configured?: boolean
+          webhooks_configured_at?: string | null
           zapi_instance_id?: string | null
           zapi_token?: string | null
         }
@@ -3082,6 +3086,8 @@ export type Database = {
           status?: string
           updated_at?: string
           webhook_url?: string | null
+          webhooks_configured?: boolean
+          webhooks_configured_at?: string | null
           zapi_instance_id?: string | null
           zapi_token?: string | null
         }

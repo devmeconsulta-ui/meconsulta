@@ -611,9 +611,17 @@ export default function OmniFilas() {
                     </div>
 
                     {instancia.numero_whatsapp && (
-                      <p className="text-sm text-muted-foreground mb-3">
+                      <p className="text-sm text-muted-foreground mb-2">
                         📱 {instancia.numero_whatsapp}
                       </p>
+                    )}
+
+                    {/* Webhook status warning */}
+                    {!(instancia as any).webhooks_configured && (
+                      <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 px-2 py-1.5 rounded mb-3">
+                        <Settings className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>Webhooks pendentes — mensagens podem não ser recebidas</span>
+                      </div>
                     )}
 
                     {/* Sync progress indicator */}
