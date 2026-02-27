@@ -3038,6 +3038,7 @@ export type Database = {
           created_at: string
           evolution_instance_name: string | null
           id: string
+          last_history_import_at: string | null
           nome: string
           numero_whatsapp: string | null
           provider: string
@@ -3055,6 +3056,7 @@ export type Database = {
           created_at?: string
           evolution_instance_name?: string | null
           id?: string
+          last_history_import_at?: string | null
           nome: string
           numero_whatsapp?: string | null
           provider?: string
@@ -3072,6 +3074,7 @@ export type Database = {
           created_at?: string
           evolution_instance_name?: string | null
           id?: string
+          last_history_import_at?: string | null
           nome?: string
           numero_whatsapp?: string | null
           provider?: string

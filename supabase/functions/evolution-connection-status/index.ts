@@ -90,23 +90,37 @@ Deno.serve(async (req) => {
             .eq("id", instancia_id);
         }
 
-        // Auto-trigger sync when transitioning to connected
+        // Auto-trigger history import when transitioning to connected (with 12h cooldown)
         if (dbStatus === "connected" && wasDisconnected) {
-          try {
-            const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
-            if (SUPABASE_ANON_KEY) {
-              fetch(`${SUPABASE_URL}/functions/v1/zapi-sync-history`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-                },
-                body: JSON.stringify({ instancia_id }),
-              }).catch(err => console.warn("[ConnectionStatus] Sync trigger error:", err));
-              console.log(`[ConnectionStatus] Triggered sync for instance ${instancia_id}`);
+          const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+          const lastImport = instancia.last_history_import_at;
+          const shouldImport = !lastImport || lastImport < twelveHoursAgo;
+
+          if (shouldImport) {
+            try {
+              const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+              if (SUPABASE_ANON_KEY) {
+                // Mark import timestamp immediately to prevent duplicate triggers
+                await supabase
+                  .from("omni_instancias")
+                  .update({ last_history_import_at: new Date().toISOString() })
+                  .eq("id", instancia_id);
+
+                fetch(`${SUPABASE_URL}/functions/v1/zapi-sync-history`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+                  },
+                  body: JSON.stringify({ instancia_id, action: "start", days_back: 30 }),
+                }).catch(err => console.warn("[ConnectionStatus] Sync trigger error:", err));
+                console.log(`[ConnectionStatus] Triggered history import for instance ${instancia_id}`);
+              }
+            } catch (syncErr) {
+              console.warn("[ConnectionStatus] Sync trigger error:", syncErr);
             }
-          } catch (syncErr) {
-            console.warn("[ConnectionStatus] Sync trigger error:", syncErr);
+          } else {
+            console.log(`[ConnectionStatus] Skipping import - last import at ${lastImport} (within 12h)`);
           }
         }
 
