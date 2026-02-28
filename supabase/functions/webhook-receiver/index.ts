@@ -108,8 +108,27 @@ Deno.serve(async (req) => {
     }
 
     // ─── MessageStatusCallback ───
-    if (body.event === "MessageStatusCallback" || body.status) {
-      const messageId = body.id?.id || body.messageId || body.ids?.[0]?.id;
+    const hasMessagePayload = Boolean(
+      body.messageId ||
+      body.id?.id ||
+      body.text ||
+      body.body ||
+      body.message ||
+      body.image ||
+      body.video ||
+      body.audio ||
+      body.document ||
+      body.sticker
+    );
+
+    const isStatusCallback =
+      body.event === "MessageStatusCallback" ||
+      body.type === "MessageStatusCallback" ||
+      (Array.isArray(body.ids) && body.ids.length > 0 && typeof body.status === "string" && !hasMessagePayload);
+
+    if (isStatusCallback) {
+      const firstId = body.ids?.[0];
+      const messageId = body.id?.id || body.messageId || (typeof firstId === "string" ? firstId : firstId?.id);
       const rawStatus = body.status || body.type;
       if (messageId && rawStatus) {
         // Map Z-API status values to our internal status
@@ -122,7 +141,7 @@ Deno.serve(async (req) => {
           "FAILED": "erro",
           "ERROR": "erro",
         };
-        const mappedStatus = statusMap[rawStatus.toUpperCase()] || rawStatus;
+        const mappedStatus = statusMap[String(rawStatus).toUpperCase()] || rawStatus;
         // Update message status in omni_mensagens (column is 'status')
         await serviceClient.from("omni_mensagens")
           .update({ status: mappedStatus })
