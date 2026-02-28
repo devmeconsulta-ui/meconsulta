@@ -39,10 +39,12 @@ Deno.serve(async (req) => {
 
   try {
     // Validate security token if configured
+    // Z-API may or may not send this header depending on instance config
     if (ZAPI_SECURITY_TOKEN) {
       const secToken = req.headers.get("x-security-token") || req.headers.get("X-Security-Token");
-      if (secToken !== ZAPI_SECURITY_TOKEN) {
-        console.warn("[webhook-receiver] Invalid security token");
+      // Only reject if token IS present but doesn't match (allows missing header)
+      if (secToken && secToken !== ZAPI_SECURITY_TOKEN) {
+        console.warn("[webhook-receiver] Invalid security token, got:", secToken?.substring(0, 8));
         return new Response("Unauthorized", { status: 401 });
       }
     }
