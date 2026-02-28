@@ -47,11 +47,8 @@ Deno.serve(async (req) => {
       .select(`
         id, whatsapp_message_id, atendimento_id,
         atendimento:omni_atendimentos!atendimento_id(
-          id, clinica_id, fila_id,
-          contato:omni_contatos!contato_id(telefone),
-          fila:omni_filas!fila_id(
-            instancia:omni_instancias!instancia_id(id, status, zapi_instance_id, zapi_token)
-          )
+          id, clinica_id,
+          contato:omni_contatos!contato_id(telefone)
         )
       `)
       .eq("id", mensagem_id)
@@ -64,44 +61,36 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Try to delete on WhatsApp via Z-API
+    // Try to delete on WhatsApp via Z-API using managed_instances
     if (mensagem.whatsapp_message_id && ZAPI_CLIENT_TOKEN) {
       const atendimento = mensagem.atendimento as any;
-      let instancia = atendimento?.fila?.instancia;
+      const clinicaId = atendimento?.clinica_id;
 
-      if (!instancia) {
-        const { data: instanciaFallback } = await supabase
-          .from("omni_instancias")
-          .select("id, status, zapi_instance_id, zapi_token")
-          .eq("clinica_id", atendimento.clinica_id)
-          .eq("status", "connected")
+      if (clinicaId) {
+        // Find connected managed instance for this clinic
+        const { data: mi } = await supabase
+          .from("managed_instances")
+          .select("external_instance_id, external_token, status")
+          .eq("clinica_id", clinicaId)
+          .eq("status", "online")
           .limit(1)
           .maybeSingle();
-        instancia = instanciaFallback;
-      }
 
-      if (instancia?.status === "connected" && instancia.zapi_instance_id && instancia.zapi_token) {
-        const telefone = atendimento.contato?.telefone?.replace(/\D/g, "") || "";
-        const telefoneNormalizado = telefone.length <= 11 ? `55${telefone}` : telefone;
+        if (mi?.external_instance_id && mi?.external_token) {
+          const telefone = atendimento.contato?.telefone?.replace(/\D/g, "") || "";
+          const telefoneNormalizado = telefone.length <= 11 ? `55${telefone}` : telefone;
 
-        try {
-          const response = await fetchWithRetry(
-            `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/delete-message`,
-            {
+          try {
+            const url = `${ZAPI_BASE}/instances/${mi.external_instance_id}/token/${mi.external_token}/messages?messageId=${encodeURIComponent(mensagem.whatsapp_message_id)}&phone=${telefoneNormalizado}&owner=true`;
+            const response = await fetchWithRetry(url, {
               method: "DELETE",
               headers: { "Content-Type": "application/json", "Client-Token": ZAPI_CLIENT_TOKEN },
-              body: JSON.stringify({
-                messageId: mensagem.whatsapp_message_id,
-                phone: telefoneNormalizado,
-                owner: true,
-              }),
-            },
-            3, 800
-          );
-          const result = await response.json();
-          console.log("Z-API delete response:", result);
-        } catch (err) {
-          console.error("Error deleting on WhatsApp:", err);
+            }, 3, 800);
+            const result = await response.json();
+            console.log("Z-API delete response:", result);
+          } catch (err) {
+            console.error("Error deleting on WhatsApp:", err);
+          }
         }
       }
     }

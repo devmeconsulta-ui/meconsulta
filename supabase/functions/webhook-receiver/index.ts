@@ -98,12 +98,24 @@ Deno.serve(async (req) => {
     // ─── MessageStatusCallback ───
     if (body.event === "MessageStatusCallback" || body.status) {
       const messageId = body.id?.id || body.messageId || body.ids?.[0]?.id;
-      const status = body.status || body.type;
-      if (messageId && status) {
-        // Update message status in omni_mensagens
+      const rawStatus = body.status || body.type;
+      if (messageId && rawStatus) {
+        // Map Z-API status values to our internal status
+        const statusMap: Record<string, string> = {
+          "SENT": "enviada",
+          "RECEIVED": "entregue",
+          "DELIVERED": "entregue",
+          "READ": "lida",
+          "PLAYED": "lida",
+          "FAILED": "erro",
+          "ERROR": "erro",
+        };
+        const mappedStatus = statusMap[rawStatus.toUpperCase()] || rawStatus;
+        // Update message status in omni_mensagens (column is 'status')
         await serviceClient.from("omni_mensagens")
-          .update({ status_entrega: status })
+          .update({ status: mappedStatus })
           .eq("whatsapp_message_id", messageId);
+        console.log(`[webhook-receiver] Status update: ${messageId} -> ${mappedStatus} (raw: ${rawStatus})`);
       }
       return new Response(JSON.stringify({ ok: true, event: "status" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
