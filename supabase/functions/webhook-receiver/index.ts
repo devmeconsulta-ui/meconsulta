@@ -63,12 +63,22 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     console.log("[webhook-receiver] Event:", JSON.stringify(body).substring(0, 500));
 
-    // Get managed instance
-    const { data: mi } = await serviceClient
+    // Get managed instance — try by id first, then by omni_instancia_id
+    let { data: mi } = await serviceClient
       .from("managed_instances")
       .select("*, clinica_id")
       .eq("id", instanceId)
-      .single();
+      .maybeSingle();
+
+    if (!mi) {
+      // Fallback: instance_id might be an omni_instancias.id
+      const { data: miFallback } = await serviceClient
+        .from("managed_instances")
+        .select("*, clinica_id")
+        .eq("omni_instancia_id", instanceId)
+        .maybeSingle();
+      mi = miFallback;
+    }
 
     if (!mi) {
       console.warn("[webhook-receiver] Instance not found:", instanceId);
