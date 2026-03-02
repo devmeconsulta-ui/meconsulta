@@ -253,7 +253,6 @@ Deno.serve(async (req) => {
         whatsapp_message_id: messageId,
         arquivo_url: media_url,
         arquivo_tipo: media_type,
-        remetente_nome: senderName,
       });
 
     if (msgErr) {
