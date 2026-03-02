@@ -232,10 +232,21 @@ export function useOmniFilas(clinicaId: string | null) {
       });
 
       if (response.error) throw response.error;
-      return { ...response.data, qrcode: normalizeQrCodeValue(response.data?.qrcode) };
-    } catch (error) {
+
+      const data = response.data;
+      if (!data?.ok) {
+        throw new Error(data?.message || "Não foi possível gerar o QR Code");
+      }
+
+      const qrcode = normalizeQrCodeValue(data?.qrcode);
+      if (!qrcode) {
+        throw new Error("QR Code indisponível para esta instância no momento");
+      }
+
+      return { ...data, qrcode };
+    } catch (error: any) {
       console.error("Error connecting instancia:", error);
-      toast.error("Erro ao conectar instância");
+      toast.error(error?.message || "Erro ao conectar instância");
       return null;
     }
   };
