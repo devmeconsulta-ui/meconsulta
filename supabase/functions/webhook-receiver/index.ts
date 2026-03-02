@@ -250,7 +250,6 @@ Deno.serve(async (req) => {
         conteudo: message,
         tipo: content_type,
         direcao: "entrada",
-        canal: "whatsapp",
         whatsapp_message_id: messageId,
         arquivo_url: media_url,
         arquivo_tipo: media_type,
