@@ -281,6 +281,9 @@ export function useOmniFilas(clinicaId: string | null) {
       });
 
       if (response.error) throw response.error;
+      if (response.data?.ok === false) {
+        throw new Error(response.data?.message || "Falha ao verificar status da instância");
+      }
 
       await fetchInstancias();
       return response.data;
