@@ -233,7 +233,15 @@ Deno.serve(async (req) => {
       );
       const data = await resp.json().catch(() => ({}));
 
-      const connected = data?.connected === true;
+      if (!resp.ok) {
+        return json({ ok: false, message: "Falha ao consultar status na Z-API", status_code: resp.status, raw: data }, 502);
+      }
+
+      const rawStatus = String(data?.status || "").toLowerCase();
+      const connected =
+        data?.connected === true ||
+        rawStatus === "connected" ||
+        rawStatus === "open";
       const phoneNumber = data?.smartphoneConnected || data?.phoneConnected || data?.phone || null;
       const newStatus = connected ? "connected" : "disconnected";
 

@@ -141,6 +141,7 @@ export default function OmniFilas() {
   };
 
   const [checkingConnection, setCheckingConnection] = useState(false);
+  const [refreshingStatusId, setRefreshingStatusId] = useState<string | null>(null);
 
   // Sync progress polling
   const instanciaIds = instancias.map((i: any) => i.id);
@@ -273,8 +274,23 @@ export default function OmniFilas() {
   };
 
   const handleCheckStatus = async (instanciaId: string) => {
-    await checkConnectionStatus(instanciaId);
-    setQrCodeData(null);
+    setRefreshingStatusId(instanciaId);
+    const status = await checkConnectionStatus(instanciaId);
+
+    if (!status) {
+      toast.error("Não foi possível atualizar o status da instância");
+      setRefreshingStatusId(null);
+      return;
+    }
+
+    if (status.connected === true) {
+      toast.success("Instância conectada");
+      setQrCodeData(null);
+    } else {
+      toast.info("Instância ainda desconectada");
+    }
+
+    setRefreshingStatusId(null);
   };
 
   if (loading) {
@@ -792,8 +808,13 @@ export default function OmniFilas() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleCheckStatus(instancia.id)}
+                        disabled={refreshingStatusId === instancia.id}
                       >
-                        <RefreshCw className="h-4 w-4" />
+                        {refreshingStatusId === instancia.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
