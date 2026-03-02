@@ -215,7 +215,15 @@ Deno.serve(async (req) => {
         (typeof data?.qrCode === "string" && data.qrCode) ||
         (typeof data === "string" ? data : null);
 
-      return json({ ok: resp.ok, qrcode: qrCode, raw: resp.ok ? undefined : data }, resp.ok ? 200 : 502);
+      if (!resp.ok) {
+        return json({ ok: false, message: "Falha ao obter QR Code na Z-API", status_code: resp.status, raw: data }, 502);
+      }
+
+      if (!qrCode) {
+        return json({ ok: false, message: "QR Code não disponível agora (instância pode já estar conectada)" }, 409);
+      }
+
+      return json({ ok: true, qrcode: qrCode });
     }
 
     // ─── get_status ───

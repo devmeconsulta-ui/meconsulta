@@ -270,7 +270,10 @@ export default function OmniFilas() {
 
     if (result?.qrcode) {
       setQrCodeData({ instanciaId, qrcode: result.qrcode });
+      return;
     }
+
+    await checkConnectionStatus(instanciaId);
   };
 
   const handleCheckStatus = async (instanciaId: string) => {
