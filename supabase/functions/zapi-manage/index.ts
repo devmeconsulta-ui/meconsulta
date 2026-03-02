@@ -208,7 +208,14 @@ Deno.serve(async (req) => {
         3, 2000,
       );
       const data = await resp.json().catch(() => ({}));
-      return json({ ok: resp.ok, qrcode: data?.value || data });
+      const qrCode =
+        (typeof data?.value === "string" && data.value) ||
+        (typeof data?.base64 === "string" && data.base64) ||
+        (typeof data?.qrcode === "string" && data.qrcode) ||
+        (typeof data?.qrCode === "string" && data.qrCode) ||
+        (typeof data === "string" ? data : null);
+
+      return json({ ok: resp.ok, qrcode: qrCode, raw: resp.ok ? undefined : data }, resp.ok ? 200 : 502);
     }
 
     // ─── get_status ───

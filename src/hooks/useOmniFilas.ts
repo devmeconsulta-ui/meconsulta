@@ -45,6 +45,17 @@ export interface OmniFila {
   instancia?: OmniInstancia;
 }
 
+function normalizeQrCodeValue(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value;
+  if (value && typeof value === "object") {
+    const data = value as Record<string, unknown>;
+    const candidates = [data.value, data.base64, data.qrcode, data.qrCode];
+    const firstString = candidates.find((item) => typeof item === "string" && item.trim());
+    return (firstString as string) || null;
+  }
+  return null;
+}
+
 export function useOmniFilas(clinicaId: string | null) {
   const [filas, setFilas] = useState<OmniFila[]>([]);
   const [instancias, setInstancias] = useState<OmniInstancia[]>([]);
@@ -206,7 +217,7 @@ export function useOmniFilas(clinicaId: string | null) {
         toast.success("Instância criada com sucesso!");
       }
 
-      return { instancia: data.instancia, qrcode: data.qrCodeBase64, warning: data.warning };
+      return { instancia: data.instancia, qrcode: normalizeQrCodeValue(data.qrCodeBase64), warning: data.warning };
     } catch (error: any) {
       console.error("[createInstancia] Error:", error);
       toast.error(error?.message || "Erro ao criar instância");
@@ -221,7 +232,7 @@ export function useOmniFilas(clinicaId: string | null) {
       });
 
       if (response.error) throw response.error;
-      return response.data;
+      return { ...response.data, qrcode: normalizeQrCodeValue(response.data?.qrcode) };
     } catch (error) {
       console.error("Error connecting instancia:", error);
       toast.error("Erro ao conectar instância");
