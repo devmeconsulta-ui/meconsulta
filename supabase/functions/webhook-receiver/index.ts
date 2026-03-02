@@ -21,12 +21,12 @@ function normalizePhone(phone: string): string {
 }
 
 function mapContentType(msg: any): { content_type: string; message: string; media_url: string | null; media_type: string | null } {
-  if (msg.image) return { content_type: "image", message: msg.image.caption || "", media_url: msg.image.imageUrl || msg.image.url, media_type: "image" };
+  if (msg.image) return { content_type: "imagem", message: msg.image.caption || "", media_url: msg.image.imageUrl || msg.image.url, media_type: "image" };
   if (msg.video) return { content_type: "video", message: msg.video.caption || "", media_url: msg.video.videoUrl || msg.video.url, media_type: "video" };
   if (msg.audio) return { content_type: "audio", message: "", media_url: msg.audio.audioUrl || msg.audio.url, media_type: "audio" };
-  if (msg.document) return { content_type: "document", message: msg.document.caption || msg.document.fileName || "", media_url: msg.document.documentUrl || msg.document.url, media_type: "document" };
+  if (msg.document) return { content_type: "documento", message: msg.document.caption || msg.document.fileName || "", media_url: msg.document.documentUrl || msg.document.url, media_type: "document" };
   if (msg.sticker) return { content_type: "sticker", message: "", media_url: msg.sticker.stickerUrl || msg.sticker.url, media_type: "sticker" };
-  return { content_type: "text", message: msg.text?.message || msg.body || msg.message || "", media_url: null, media_type: null };
+  return { content_type: "texto", message: msg.text?.message || msg.body || msg.message || "", media_url: null, media_type: null };
 }
 
 Deno.serve(async (req) => {
