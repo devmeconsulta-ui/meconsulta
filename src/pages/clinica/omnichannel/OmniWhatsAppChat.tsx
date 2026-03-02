@@ -805,6 +805,7 @@ export default function OmniWhatsAppChat() {
     if (!trimmedMessage || !selectedAtendimento) return;
 
     const agenteId = getAgenteId();
+    const assinaturaNome = signatureEnabled ? currentUser?.nome || null : null;
     const isEditing = !!editingMessage;
     const editedMsgId = editingMessage?.id;
 
@@ -831,7 +832,7 @@ export default function OmniWhatsAppChat() {
         atendimento_id: selectedAtendimento.id,
         contato_id: null,
         agente_id: agenteId,
-        agente_nome: signatureEnabled ? currentUser?.nome || null : null,
+        agente_nome: assinaturaNome,
         tipo: "texto",
         direcao: "saida",
         conteudo: trimmedMessage,
@@ -849,7 +850,7 @@ export default function OmniWhatsAppChat() {
       inputRef.current?.focus();
 
       // Fire and forget - send in background without waiting
-      enviarMensagem(agenteId, "texto", trimmedMessage);
+      enviarMensagem(agenteId, "texto", trimmedMessage, undefined, undefined, undefined, assinaturaNome);
     }
   }, [messageInput, selectedAtendimento, getAgenteId, currentUser?.nome, enviarMensagem, editarMensagem, signatureEnabled, handleTypingStop, editingMessage]);
 
@@ -948,7 +949,7 @@ export default function OmniWhatsAppChat() {
       setOptimisticMessages(prev => [...prev, optimisticMsg]);
 
       // Fire and forget - send in background without waiting
-      enviarMensagem(agenteId, "audio", undefined, publicUrl, fileName, mimeType);
+      enviarMensagem(agenteId, "audio", undefined, publicUrl, fileName, mimeType, signatureEnabled ? currentUser?.nome || null : null);
     } catch (error: any) {
       console.error("[AudioUpload] Unexpected error:", error);
       
@@ -1015,7 +1016,7 @@ export default function OmniWhatsAppChat() {
       };
 
       setOptimisticMessages(prev => [...prev, optimisticMsg]);
-      enviarMensagem(agenteId, tipo, undefined, publicUrl, file.name, file.type);
+      enviarMensagem(agenteId, tipo, undefined, publicUrl, file.name, file.type, signatureEnabled ? currentUser?.nome || null : null);
       toast.success("Arquivo enviado!");
     } catch (error: any) {
       console.error("Error uploading file:", error);

@@ -25,6 +25,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
 interface SendMessageRequest {
   atendimento_id: string;
   agente_id?: string | null;
+  assinatura_nome?: string | null;
   tipo: "texto" | "imagem" | "audio" | "video" | "documento";
   conteudo?: string;
   arquivo_url?: string;
@@ -42,6 +43,7 @@ async function sendViaZAPI(
   conteudo: string | undefined,
   arquivo_url: string | undefined,
   arquivo_nome: string | undefined,
+  assinaturaNome?: string | null,
 ): Promise<{ ok: boolean; data: any; messageId?: string }> {
   const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
   if (!ZAPI_CLIENT_TOKEN || !instancia.zapi_instance_id || !instancia.zapi_token) {
@@ -54,17 +56,22 @@ async function sendViaZAPI(
     "Client-Token": ZAPI_CLIENT_TOKEN,
   };
 
+  const plainContent = (conteudo || "").trim();
+  const signedContent = assinaturaNome
+    ? (plainContent ? `*${assinaturaNome}*\n${plainContent}` : `*${assinaturaNome}*`)
+    : plainContent;
+
   let endpoint: string;
   let body: any;
 
   switch (tipo) {
     case "texto":
       endpoint = `${zapiBase}/send-text`;
-      body = { phone: telefoneNormalizado, message: conteudo };
+      body = { phone: telefoneNormalizado, message: signedContent };
       break;
     case "imagem":
       endpoint = `${zapiBase}/send-image`;
-      body = { phone: telefoneNormalizado, image: arquivo_url, caption: conteudo };
+      body = { phone: telefoneNormalizado, image: arquivo_url, caption: signedContent || undefined };
       break;
     case "audio":
       endpoint = `${zapiBase}/send-audio`;
@@ -72,15 +79,15 @@ async function sendViaZAPI(
       break;
     case "video":
       endpoint = `${zapiBase}/send-video`;
-      body = { phone: telefoneNormalizado, video: arquivo_url, caption: conteudo };
+      body = { phone: telefoneNormalizado, video: arquivo_url, caption: signedContent || undefined };
       break;
     case "documento":
       endpoint = `${zapiBase}/send-document-url`;
-      body = { phone: telefoneNormalizado, document: arquivo_url, fileName: arquivo_nome };
+      body = { phone: telefoneNormalizado, document: arquivo_url, fileName: arquivo_nome, caption: signedContent || undefined };
       break;
     default:
       endpoint = `${zapiBase}/send-text`;
-      body = { phone: telefoneNormalizado, message: conteudo };
+      body = { phone: telefoneNormalizado, message: signedContent };
   }
 
   const response = await fetchWithRetry(endpoint, {
@@ -107,7 +114,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const body: SendMessageRequest = await req.json();
-    const { atendimento_id, agente_id, tipo, conteudo, arquivo_url, arquivo_nome, arquivo_tipo, encaminhada } = body;
+    const { atendimento_id, agente_id, assinatura_nome, tipo, conteudo, arquivo_url, arquivo_nome, arquivo_tipo, encaminhada } = body;
 
     if (!atendimento_id) {
       return new Response(
@@ -174,7 +181,7 @@ Deno.serve(async (req) => {
       telefoneNormalizado = `55${telefoneNormalizado}`;
     }
 
-    const result = await sendViaZAPI(instancia, telefoneNormalizado, tipo, conteudo, arquivo_url, arquivo_nome);
+    const result = await sendViaZAPI(instancia, telefoneNormalizado, tipo, conteudo, arquivo_url, arquivo_nome, assinatura_nome);
 
     console.log(`[${Date.now() - startTime}ms] Z-API response received`);
 
@@ -202,25 +209,44 @@ Deno.serve(async (req) => {
 
     const messageId = result.messageId;
 
-    // Background: save message, update atendimento, pause AI
+    let validAgenteId = agente_id || null;
+    if (validAgenteId) {
+      const { data: agenteExists } = await supabase
+        .from("usuarios_clinica")
+        .select("id")
+        .eq("id", validAgenteId)
+        .maybeSingle();
+      if (!agenteExists) validAgenteId = null;
+    }
+
+    // Persist outgoing message before returning to avoid status callback race conditions
+    const { error: persistError } = await supabase.from("omni_mensagens").insert({
+      atendimento_id,
+      agente_id: validAgenteId,
+      contato_id: contato.id,
+      tipo,
+      direcao: "saida",
+      conteudo,
+      arquivo_url,
+      arquivo_nome,
+      arquivo_tipo,
+      whatsapp_message_id: messageId,
+      status: "enviada",
+      encaminhada: encaminhada || false,
+    });
+
+    if (persistError && persistError.code !== "23505") {
+      console.error("Error persisting outgoing message:", persistError);
+    }
+
+    // Background: update atendimento + pause AI
     EdgeRuntime.waitUntil((async () => {
       try {
-        let validAgenteId = agente_id || null;
-        if (validAgenteId) {
-          const { data: agenteExists } = await supabase.from("usuarios_clinica").select("id").eq("id", validAgenteId).maybeSingle();
-          if (!agenteExists) validAgenteId = null;
-        }
-
-        await supabase.from("omni_mensagens").insert({
-          atendimento_id, agente_id: validAgenteId, contato_id: contato.id,
-          tipo, direcao: "saida", conteudo, arquivo_url, arquivo_nome, arquivo_tipo,
-          whatsapp_message_id: messageId, status: "enviada", encaminhada: encaminhada || false,
-        });
-
-        if (!atendimento.data_primeira_resposta && agente_id) {
+        if (!atendimento.data_primeira_resposta && validAgenteId) {
           await supabase.from("omni_atendimentos").update({
             data_primeira_resposta: new Date().toISOString(),
-            agente_id, status: "em_atendimento",
+            agente_id: validAgenteId,
+            status: "em_atendimento",
             tempo_primeira_resposta: Math.floor((Date.now() - new Date(atendimento.data_abertura).getTime()) / 1000),
           }).eq("id", atendimento_id);
         }
