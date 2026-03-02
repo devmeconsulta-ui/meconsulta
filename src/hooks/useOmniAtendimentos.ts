@@ -509,7 +509,8 @@ export function useOmniMensagens(atendimentoId: string | null) {
     conteudo?: string,
     arquivoUrl?: string,
     arquivoNome?: string,
-    arquivoTipo?: string
+    arquivoTipo?: string,
+    assinaturaNome?: string | null,
   ): void => {
     if (!atendimentoId) {
       toast.error("Atendimento não selecionado");
@@ -521,6 +522,7 @@ export function useOmniMensagens(atendimentoId: string | null) {
       body: {
         atendimento_id: atendimentoId,
         agente_id: agenteId,
+        assinatura_nome: assinaturaNome ?? null,
         tipo,
         conteudo,
         arquivo_url: arquivoUrl,

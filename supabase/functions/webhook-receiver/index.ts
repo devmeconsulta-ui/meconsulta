@@ -109,8 +109,6 @@ Deno.serve(async (req) => {
 
     // ─── MessageStatusCallback ───
     const hasMessagePayload = Boolean(
-      body.messageId ||
-      body.id?.id ||
       body.text ||
       body.body ||
       body.message ||
@@ -142,13 +140,70 @@ Deno.serve(async (req) => {
           "ERROR": "erro",
         };
         const mappedStatus = statusMap[String(rawStatus).toUpperCase()] || rawStatus;
-        // Update message status in omni_mensagens (column is 'status')
-        await serviceClient.from("omni_mensagens")
+
+        const { data: updatedRows, error: statusUpdateError } = await serviceClient
+          .from("omni_mensagens")
           .update({ status: mappedStatus })
-          .eq("whatsapp_message_id", messageId);
+          .eq("whatsapp_message_id", messageId)
+          .eq("direcao", "saida")
+          .select("id");
+
+        // Fallback for race condition: callback can arrive before outgoing message row is persisted
+        if (!statusUpdateError && (updatedRows?.length || 0) === 0) {
+          const rawStatusPhone = body.phone || body.chatId?.replace("@c.us", "").replace("@s.whatsapp.net", "") || "";
+          if (rawStatusPhone) {
+            const statusPhone = normalizePhone(rawStatusPhone);
+
+            const { data: contatoStatus } = await serviceClient
+              .from("omni_contatos")
+              .select("id")
+              .eq("clinica_id", mi.clinica_id)
+              .eq("telefone", statusPhone)
+              .maybeSingle();
+
+            if (contatoStatus) {
+              const { data: atendimentoStatus } = await serviceClient
+                .from("omni_atendimentos")
+                .select("id")
+                .eq("clinica_id", mi.clinica_id)
+                .eq("contato_id", contatoStatus.id)
+                .in("status", ["aguardando", "em_atendimento"])
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              if (atendimentoStatus) {
+                const { data: pendingOutgoing } = await serviceClient
+                  .from("omni_mensagens")
+                  .select("id")
+                  .eq("atendimento_id", atendimentoStatus.id)
+                  .eq("direcao", "saida")
+                  .is("whatsapp_message_id", null)
+                  .order("created_at", { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+
+                if (pendingOutgoing) {
+                  await serviceClient
+                    .from("omni_mensagens")
+                    .update({ whatsapp_message_id: messageId, status: mappedStatus })
+                    .eq("id", pendingOutgoing.id);
+                }
+              }
+            }
+          }
+        }
+
         console.log(`[webhook-receiver] Status update: ${messageId} -> ${mappedStatus} (raw: ${rawStatus})`);
       }
       return new Response(JSON.stringify({ ok: true, event: "status" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const isDeliveryCallback = body.event === "DeliveryCallback" || body.type === "DeliveryCallback";
+    if (isDeliveryCallback) {
+      return new Response(JSON.stringify({ ok: true, event: "ignored_delivery_callback" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ─── ReceivedCallback (incoming message) ───
