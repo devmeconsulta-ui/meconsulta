@@ -56,27 +56,17 @@ Deno.serve(async (req) => {
     }
 
     // Fetch last_webhook_received_at and last_message_sent_at from DB
-    const [lastWebhookRes, lastSentRes] = await Promise.all([
-      supabase
-        .from("whatsapp_logs")
-        .select("created_at")
-        .eq("instancia_id", instancia_id)
-        .eq("acao", "webhook_received")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("omni_mensagens")
-        .select("created_at")
-        .eq("instancia_id", instancia_id)
-        .eq("direcao", "saida")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
+    const lastWebhookRes = await supabase
+      .from("whatsapp_logs")
+      .select("created_at")
+      .eq("instancia_id", instancia_id)
+      .eq("acao", "webhook_received")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     const last_webhook_received_at = lastWebhookRes.data?.created_at || null;
-    const last_message_sent_at = lastSentRes.data?.created_at || null;
+    const last_message_sent_at = null;
 
     // If no Z-API credentials, return cached status
     if (!ZAPI_CLIENT_TOKEN || !instancia.zapi_instance_id || !instancia.zapi_token) {

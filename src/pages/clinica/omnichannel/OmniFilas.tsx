@@ -163,14 +163,13 @@ export default function OmniFilas() {
     const checkConnection = async () => {
       setCheckingConnection(true);
       try {
-        const { data, error } = await supabase.functions.invoke("evolution-connection-status", {
-          body: { instancia_id: qrCodeData.instanciaId },
+        const { data, error } = await supabase.functions.invoke("zapi-manage", {
+          body: { action: "get_status", instancia_id: qrCodeData.instanciaId },
         });
 
-        if (!error && (data?.status === "connected")) {
+        if (!error && data?.connected === true) {
           toast.success("WhatsApp conectado com sucesso!");
           setQrCodeData(null);
-          // Refresh instances
           await checkConnectionStatus(qrCodeData.instanciaId);
         }
       } catch (err) {
