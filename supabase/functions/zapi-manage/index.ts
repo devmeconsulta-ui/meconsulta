@@ -326,7 +326,7 @@ Deno.serve(async (req) => {
 
       const resp = await fetchZapi(
         `${ZAPI_BASE}/instances/${inst.zapi_instance_id}/token/${inst.zapi_token}/disconnect`,
-        { method: "DELETE", headers: clientHeaders(globalToken) },
+        { method: "GET", headers: clientHeaders(globalToken) },
       );
       const data = await resp.json().catch(() => ({}));
 
