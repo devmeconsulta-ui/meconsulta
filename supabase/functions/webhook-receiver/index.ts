@@ -152,6 +152,13 @@ Deno.serve(async (req) => {
     }
 
     // ─── ReceivedCallback (incoming message) ───
+    // Ignore non-message events (e.g. presence callbacks)
+    if (!hasMessagePayload) {
+      return new Response(JSON.stringify({ ok: true, event: "ignored_non_message_event" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const isFromMe = body.fromMe === true;
     const isStatusReply = body.isStatusReply === true;
 
@@ -182,16 +189,20 @@ Deno.serve(async (req) => {
       .single();
 
     if (!contato) {
-      const { data: newContato } = await serviceClient
+      const { data: newContato, error: contatoErr } = await serviceClient
         .from("omni_contatos")
         .insert({
           clinica_id: mi.clinica_id,
           telefone: phone,
           nome: senderName || phone,
-          canal: "whatsapp",
         })
         .select("id")
         .single();
+
+      if (contatoErr) {
+        console.error("[webhook-receiver] Error creating contact:", contatoErr);
+      }
+
       contato = newContato;
     }
 
