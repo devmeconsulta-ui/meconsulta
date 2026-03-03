@@ -277,6 +277,13 @@ export default function ClinicaConsultas() {
 
   const filteredConsultas = useMemo(() => {
     if (!consultas) return [];
+
+    // Detectar horários com múltiplas consultas (mesmo médico + mesmo horário)
+    const horarioCount = new Map<string, number>();
+    consultas.forEach((c: any) => {
+      const key = `${c.medico_id}_${c.data_hora}`;
+      horarioCount.set(key, (horarioCount.get(key) || 0) + 1);
+    });
     
     const filtered = consultas.filter((c: any) => {
       const matchSearch = 
@@ -290,18 +297,24 @@ export default function ClinicaConsultas() {
 
       const matchOrigem = origemFilter === "todos" || c.origem === origemFilter;
 
-      const matchOrdemChegada = !ordemChegadaFilter || c.slot?.tipo_slot === "ordem_chegada";
+      // Filtro ordem de chegada: mostra consultas com tipo_slot ordem_chegada OU que compartilham horário com outras
+      const isOrdemChegada = c.slot?.tipo_slot === "ordem_chegada";
+      const key = `${c.medico_id}_${c.data_hora}`;
+      const hasMultipleAtSameTime = (horarioCount.get(key) || 0) > 1;
+      const matchOrdemChegada = !ordemChegadaFilter || isOrdemChegada || hasMultipleAtSameTime;
 
       return matchSearch && matchMedico && matchStatus && matchOrigem && matchOrdemChegada;
     });
 
-    // Se filtro de ordem de chegada ativo, ordena por ordem_chegada
+    // Se filtro de ordem de chegada ativo, agrupa por horário e ordena por ordem_chegada dentro de cada grupo
     if (ordemChegadaFilter) {
       return filtered.sort((a: any, b: any) => {
+        const dateA = new Date(a.data_hora).getTime();
+        const dateB = new Date(b.data_hora).getTime();
+        if (dateA !== dateB) return dateA - dateB;
         const ordemA = a.slot?.ordem_chegada ?? 9999;
         const ordemB = b.slot?.ordem_chegada ?? 9999;
-        if (ordemA !== ordemB) return ordemA - ordemB;
-        return new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime();
+        return ordemA - ordemB;
       });
     }
 
@@ -321,7 +334,12 @@ export default function ClinicaConsultas() {
         return dateB - dateA;
       }
       
-      return dateA - dateB;
+      if (dateA !== dateB) return dateA - dateB;
+
+      // Mesmo horário: ordena por ordem_chegada
+      const ordemA = a.slot?.ordem_chegada ?? 9999;
+      const ordemB = b.slot?.ordem_chegada ?? 9999;
+      return ordemA - ordemB;
     });
   }, [consultas, search, medicoFilter, statusFilter, origemFilter, ordemChegadaFilter]);
 
