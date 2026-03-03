@@ -41,7 +41,7 @@ import {
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit, Timer, CalendarIcon, RotateCcw } from "lucide-react";
+import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit, Timer, CalendarIcon, RotateCcw, Users } from "lucide-react";
 import { format, subDays, parseISO, differenceInMinutes, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ConsultaDetalhesModal } from "@/components/clinica/ConsultaDetalhesModal";
@@ -117,6 +117,7 @@ export default function ClinicaConsultas() {
   const [medicoFilter, setMedicoFilter] = useState("todos");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [origemFilter, setOrigemFilter] = useState("todos");
+  const [ordemChegadaFilter, setOrdemChegadaFilter] = useState(false);
   
   // Custom date range
   const [customDateStart, setCustomDateStart] = useState<Date | undefined>(undefined);
@@ -236,10 +237,12 @@ export default function ClinicaConsultas() {
           observacoes_paciente,
           tipo_atendimento,
           convenio_id,
+          agenda_slot_id,
           medico:medicos!consultas_medico_id_fkey(nome, especialidade),
           paciente:pacientes(nome, cpf, telefone),
           local:locais_atendimento(nome_local, clinica_id),
-          convenio:convenios(id, nome)
+          convenio:convenios(id, nome),
+          slot:agenda_slots!consultas_agenda_slot_id_fkey(tipo_slot, ordem_chegada, hora_chegada)
         `)
         .in("medico_id", medicoIds)
         .gte("data_hora", dateRange.start.toISOString())
@@ -287,32 +290,40 @@ export default function ClinicaConsultas() {
 
       const matchOrigem = origemFilter === "todos" || c.origem === origemFilter;
 
-      return matchSearch && matchMedico && matchStatus && matchOrigem;
+      const matchOrdemChegada = !ordemChegadaFilter || c.slot?.tipo_slot === "ordem_chegada";
+
+      return matchSearch && matchMedico && matchStatus && matchOrigem && matchOrdemChegada;
     });
 
-    // Ordenar por prioridade de status e depois por data (primeiro horário para o último)
+    // Se filtro de ordem de chegada ativo, ordena por ordem_chegada
+    if (ordemChegadaFilter) {
+      return filtered.sort((a: any, b: any) => {
+        const ordemA = a.slot?.ordem_chegada ?? 9999;
+        const ordemB = b.slot?.ordem_chegada ?? 9999;
+        if (ordemA !== ordemB) return ordemA - ordemB;
+        return new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime();
+      });
+    }
+
+    // Ordenar por prioridade de status e depois por data
     return filtered.sort((a: any, b: any) => {
       const priorityA = statusPriority[a.status_consulta] ?? 99;
       const priorityB = statusPriority[b.status_consulta] ?? 99;
       
-      // Se status diferente, ordena por prioridade
       if (priorityA !== priorityB) {
         return priorityA - priorityB;
       }
       
-      // Se mesmo status, ordena por data (primeiro horário para o último)
       const dateA = new Date(a.data_hora).getTime();
       const dateB = new Date(b.data_hora).getTime();
       
-      // Para status finalizados (concluída, não compareceu, cancelada), ordena do mais recente
       if (priorityA >= 6) {
         return dateB - dateA;
       }
       
-      // Para status ativos, ordena do primeiro horário para o último
       return dateA - dateB;
     });
-  }, [consultas, search, medicoFilter, statusFilter, origemFilter]);
+  }, [consultas, search, medicoFilter, statusFilter, origemFilter, ordemChegadaFilter]);
 
   // Count pending and cancelled consultations
   const pendingCount = useMemo(() => {
@@ -525,6 +536,20 @@ export default function ClinicaConsultas() {
 
       {/* Filters and Actions */}
       <div className="flex flex-wrap items-center gap-2">
+        <Button 
+          variant={ordemChegadaFilter ? "default" : "outline"} 
+          className="gap-2"
+          onClick={() => setOrdemChegadaFilter(!ordemChegadaFilter)}
+        >
+          <Users className="w-4 h-4" />
+          Ordem de Chegada
+          {ordemChegadaFilter && (
+            <Badge variant="secondary" className="ml-1 bg-primary-foreground text-primary text-xs px-1.5">
+              ON
+            </Badge>
+          )}
+        </Button>
+
         <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="flex-1">
           <CollapsibleTrigger asChild>
             <Button variant="outline" className="gap-2 w-full sm:w-auto">
@@ -698,6 +723,13 @@ export default function ClinicaConsultas() {
                               </>
                             )}
                           </Badge>
+                          {consulta.slot?.tipo_slot === "ordem_chegada" && (
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-200 gap-1">
+                              <Users className="w-3 h-3" />
+                              Ordem de Chegada
+                              {consulta.slot?.ordem_chegada != null && ` #${consulta.slot.ordem_chegada}`}
+                            </Badge>
+                          )}
                           {consulta.tipo_atendimento === "convenio" && consulta.convenio?.nome && (
                             <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">
                               {consulta.convenio.nome}
