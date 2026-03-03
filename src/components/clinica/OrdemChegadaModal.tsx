@@ -121,7 +121,7 @@ export function OrdemChegadaModal({
         .eq("local_id", localId)
         .gte("data_hora", inicioDia)
         .lte("data_hora", fimDia)
-        .in("status_consulta", ["confirmada", "aguardando_confirmacao", "em_atendimento", "aguardando", "atendendo", "concluida", "atendida_medico"])
+        .in("status_consulta", ["agendada", "confirmada", "aguardando_confirmacao", "em_atendimento", "aguardando", "atendendo", "concluida", "atendida_medico"])
         .order("data_hora", { ascending: true });
 
       if (consultasError) throw consultasError;
