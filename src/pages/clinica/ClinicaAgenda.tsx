@@ -1895,6 +1895,16 @@ export default function ClinicaAgenda() {
         onSuccess={fetchData}
       />
 
+      {/* Modal Detalhes do Paciente */}
+      <PacienteDetalhesModal
+        open={pacienteDetalhesOpen}
+        onOpenChange={setPacienteDetalhesOpen}
+        paciente={pacienteDetalhes}
+        consultaCount={pacienteConsultaCount}
+        isInterno={false}
+        onUpdate={fetchData}
+      />
+
       {/* Alert Dialog para confirmar exclusão em massa */}
       <AlertDialog open={!!bulkDeleteDay} onOpenChange={(open) => !open && setBulkDeleteDay(null)}>
         <AlertDialogContent>
