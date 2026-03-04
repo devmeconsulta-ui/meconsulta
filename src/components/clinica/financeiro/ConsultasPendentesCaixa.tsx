@@ -59,8 +59,10 @@ export function ConsultasPendentesCaixa({
   const handleSincronizar = async () => {
     if (!consultaSelecionada) return;
     
+    // Usa a forma de pagamento real registrada na consulta, ou a selecionada manualmente
+    const formaReal = consultaSelecionada.formas_pagamento?.[0]?.tipo || formaPagamento;
     setSincronizando(true);
-    const result = await onSincronizar(consultaSelecionada, formaPagamento);
+    const result = await onSincronizar(consultaSelecionada, formaReal);
     setSincronizando(false);
     
     if (result?.error) {
