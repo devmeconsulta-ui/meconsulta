@@ -175,6 +175,12 @@ export function ConsultasPendentesCaixa({
                             className="h-7 px-2 border-amber-300 text-amber-700 hover:bg-amber-100"
                             onClick={() => {
                               setConsultaSelecionada(consulta);
+                              // Pre-seleciona a forma de pagamento real da consulta
+                              if (consulta.formas_pagamento?.[0]?.tipo) {
+                                setFormaPagamento(consulta.formas_pagamento[0].tipo);
+                              } else {
+                                setFormaPagamento("pix");
+                              }
                               setShowSincronizarModal(true);
                             }}
                           >
