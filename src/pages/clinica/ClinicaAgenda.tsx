@@ -90,6 +90,7 @@ import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
 import { ListaEsperaModal } from "@/components/clinica/ListaEsperaModal";
 import { EncaixeModal } from "@/components/clinica/EncaixeModal";
 import { OrdemChegadaModal } from "@/components/clinica/OrdemChegadaModal";
+import { PacienteDetalhesModal } from "@/components/clinica/PacienteDetalhesModal";
 import { cn } from "@/lib/utils";
 
 interface ClinicaContext {
