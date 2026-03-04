@@ -39,7 +39,7 @@ import {
 type PeriodFilter = "7d" | "30d" | "60d" | "90d";
 type StatusFilter = "todos" | "confirmada" | "aguardando_pagamento" | "concluida";
 
-const COLORS = ["#3b82f6", "#22c55e", "#eab308", "#ef4444"];
+const COLORS = ["#8b5cf6", "#3b82f6", "#22c55e", "#eab308", "#ef4444"];
 
 const statusColors: Record<string, string> = {
   confirmada: "bg-green-100 text-green-800",
