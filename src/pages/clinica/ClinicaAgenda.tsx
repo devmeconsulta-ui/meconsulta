@@ -775,9 +775,20 @@ export default function ClinicaAgenda() {
             isOrdemChegada ? (
               <div className="mt-1 space-y-0.5">
                 {slot.consultas!.map((c, i) => (
-                  <div key={c.id} className="flex items-center gap-1">
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-1 cursor-pointer hover:bg-white/10 rounded px-0.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (c.paciente_id) {
+                        handleOpenPacienteDetalhes(c.paciente_id);
+                      } else {
+                        handleEditConsulta(c.id);
+                      }
+                    }}
+                  >
                     <Users className="w-2.5 h-2.5 text-white/70 shrink-0" />
-                    <span className="truncate text-white/90 text-[10px]">
+                    <span className="truncate text-white/90 text-[10px] underline decoration-white/40">
                       {i + 1}. {c.nome_paciente_consulta || c.pacientes?.nome || "Paciente"}
                     </span>
                   </div>
