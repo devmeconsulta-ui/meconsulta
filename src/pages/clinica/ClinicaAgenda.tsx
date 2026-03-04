@@ -505,7 +505,6 @@ export default function ClinicaAgenda() {
   }
 
   async function handleEditConsulta(consultaId: string) {
-    // Buscar dados completos da consulta - usar sintaxe explícita para foreign key
     const { data, error } = await supabase
       .from("consultas")
       .select(`
@@ -531,6 +530,28 @@ export default function ClinicaAgenda() {
 
     setSelectedConsulta(data);
     setEditarModalOpen(true);
+  }
+
+  async function handleOpenPacienteDetalhes(pacienteId: string) {
+    const { data: paciente } = await supabase
+      .from("pacientes")
+      .select("*")
+      .eq("id", pacienteId)
+      .maybeSingle();
+
+    if (!paciente) {
+      toast.error("Paciente não encontrado");
+      return;
+    }
+
+    const { count } = await supabase
+      .from("consultas")
+      .select("*", { count: "exact", head: true })
+      .eq("paciente_id", pacienteId);
+
+    setPacienteDetalhes(paciente);
+    setPacienteConsultaCount(count || 0);
+    setPacienteDetalhesOpen(true);
   }
 
   async function handleToggleSlotBlock(slot: Slot, e: React.MouseEvent) {
