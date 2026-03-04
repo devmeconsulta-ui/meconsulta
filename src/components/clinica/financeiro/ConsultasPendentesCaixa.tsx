@@ -30,6 +30,7 @@ interface ConsultaPendente {
   origem: string;
   medico?: { nome: string } | null;
   paciente?: { nome: string } | null;
+  formas_pagamento?: { tipo: string; valor: number }[] | null;
 }
 
 interface ConsultasPendentesCaixaProps {
