@@ -161,6 +161,7 @@ export function ConsultasPendentesCaixa({
                             <p className="text-xs text-muted-foreground">
                               {consulta.medico?.nome ? `Dr(a). ${consulta.medico.nome}` : ""}
                               {consulta.origem === "online" ? " • Online" : " • Interno"}
+                              {consulta.formas_pagamento?.[0]?.tipo ? ` • ${consulta.formas_pagamento[0].tipo.charAt(0).toUpperCase() + consulta.formas_pagamento[0].tipo.slice(1)}` : ""}
                             </p>
                           </div>
                         </div>
