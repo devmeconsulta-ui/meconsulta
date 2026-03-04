@@ -66,6 +66,7 @@ export function useCaixaClinica(clinicaId: string | undefined) {
         valor_consulta,
         nome_paciente_consulta,
         origem,
+        formas_pagamento,
         medico:medicos!consultas_medico_id_fkey(nome),
         paciente:pacientes!consultas_paciente_id_fkey(nome)
       `)
