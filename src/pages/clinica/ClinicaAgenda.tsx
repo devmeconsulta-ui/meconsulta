@@ -808,11 +808,7 @@ export default function ClinicaAgenda() {
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      if (c.paciente_id) {
-                        handleOpenPacienteDetalhes(c.paciente_id);
-                      } else {
-                        handleEditConsulta(c.id);
-                      }
+                      handleEditConsulta(c.id);
                     }}
                   >
                     <Users className="w-2.5 h-2.5 text-white/70 shrink-0" />
