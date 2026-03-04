@@ -19,6 +19,7 @@ interface ConsultaNaoSincronizada {
   origem: string;
   medico?: { nome: string } | null;
   paciente?: { nome: string } | null;
+  formas_pagamento?: { tipo: string; valor: number }[] | null;
 }
 
 interface CaixaState {
@@ -65,6 +66,7 @@ export function useCaixaClinica(clinicaId: string | undefined) {
         valor_consulta,
         nome_paciente_consulta,
         origem,
+        formas_pagamento,
         medico:medicos!consultas_medico_id_fkey(nome),
         paciente:pacientes!consultas_paciente_id_fkey(nome)
       `)
@@ -81,7 +83,7 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     }
 
     const { data } = await query;
-    return data || [];
+    return (data as ConsultaNaoSincronizada[] | null) || [];
   }, [clinicaId]);
 
   const fetchCaixaStatus = useCallback(async () => {
@@ -364,11 +366,13 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     return { data: movimentoData, error: null };
   };
 
-  // Sincronizar todas as consultas pendentes de uma vez
-  const sincronizarTodas = async (formaPagamento: string) => {
+  // Sincronizar todas as consultas pendentes usando a forma de pagamento real de cada uma
+  const sincronizarTodas = async (formaPagamentoFallback: string) => {
     const resultados = [];
     for (const consulta of state.consultasPendentes) {
-      const resultado = await sincronizarConsulta(consulta, formaPagamento);
+      // Usa a forma de pagamento registrada na consulta, ou o fallback
+      const formaReal = consulta.formas_pagamento?.[0]?.tipo || formaPagamentoFallback;
+      const resultado = await sincronizarConsulta(consulta, formaReal);
       resultados.push(resultado);
     }
     return resultados;

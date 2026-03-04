@@ -30,6 +30,7 @@ interface ConsultaPendente {
   origem: string;
   medico?: { nome: string } | null;
   paciente?: { nome: string } | null;
+  formas_pagamento?: { tipo: string; valor: number }[] | null;
 }
 
 interface ConsultasPendentesCaixaProps {
@@ -58,8 +59,10 @@ export function ConsultasPendentesCaixa({
   const handleSincronizar = async () => {
     if (!consultaSelecionada) return;
     
+    // Usa a forma de pagamento real registrada na consulta, ou a selecionada manualmente
+    const formaReal = consultaSelecionada.formas_pagamento?.[0]?.tipo || formaPagamento;
     setSincronizando(true);
-    const result = await onSincronizar(consultaSelecionada, formaPagamento);
+    const result = await onSincronizar(consultaSelecionada, formaReal);
     setSincronizando(false);
     
     if (result?.error) {
@@ -158,6 +161,7 @@ export function ConsultasPendentesCaixa({
                             <p className="text-xs text-muted-foreground">
                               {consulta.medico?.nome ? `Dr(a). ${consulta.medico.nome}` : ""}
                               {consulta.origem === "online" ? " • Online" : " • Interno"}
+                              {consulta.formas_pagamento?.[0]?.tipo ? ` • ${consulta.formas_pagamento[0].tipo.charAt(0).toUpperCase() + consulta.formas_pagamento[0].tipo.slice(1)}` : ""}
                             </p>
                           </div>
                         </div>
@@ -171,6 +175,12 @@ export function ConsultasPendentesCaixa({
                             className="h-7 px-2 border-amber-300 text-amber-700 hover:bg-amber-100"
                             onClick={() => {
                               setConsultaSelecionada(consulta);
+                              // Pre-seleciona a forma de pagamento real da consulta
+                              if (consulta.formas_pagamento?.[0]?.tipo) {
+                                setFormaPagamento(consulta.formas_pagamento[0].tipo);
+                              } else {
+                                setFormaPagamento("pix");
+                              }
                               setShowSincronizarModal(true);
                             }}
                           >
@@ -314,9 +324,9 @@ export function ConsultasPendentesCaixa({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Forma de Pagamento (para todas)</Label>
-              <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+              <div className="space-y-2">
+                <Label>Forma de Pagamento (para consultas sem forma registrada)</Label>
+                <Select value={formaPagamento} onValueChange={setFormaPagamento}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -347,9 +357,9 @@ export function ConsultasPendentesCaixa({
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                * Se cada consulta foi paga de forma diferente, sincronize uma a uma
-              </p>
+                <p className="text-xs text-muted-foreground">
+                  * Consultas com forma de pagamento registrada usarão a forma real (PIX, Dinheiro, etc.)
+                </p>
             </div>
           </div>
           
