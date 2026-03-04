@@ -42,17 +42,23 @@ type StatusFilter = "todos" | "confirmada" | "aguardando_pagamento" | "concluida
 const COLORS = ["#8b5cf6", "#3b82f6", "#22c55e", "#eab308", "#ef4444"];
 
 const statusColors: Record<string, string> = {
+  agendada: "bg-purple-100 text-purple-800",
   confirmada: "bg-green-100 text-green-800",
   concluida: "bg-blue-100 text-blue-800",
+  atendida_medico: "bg-blue-100 text-blue-800",
   cancelada: "bg-red-100 text-red-800",
   aguardando_pagamento: "bg-yellow-100 text-yellow-800",
+  aguardando_confirmacao: "bg-yellow-100 text-yellow-800",
 };
 
 const statusLabels: Record<string, string> = {
+  agendada: "Agendada",
   confirmada: "Confirmada",
   concluida: "Concluída",
+  atendida_medico: "Atendida",
   cancelada: "Cancelada",
   aguardando_pagamento: "Aguardando",
+  aguardando_confirmacao: "Aguardando",
 };
 
 const pagamentoColors: Record<string, string> = {
