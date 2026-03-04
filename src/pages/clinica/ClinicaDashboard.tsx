@@ -309,10 +309,11 @@ export default function ClinicaDashboard() {
 
       if (error) throw error;
       
-      // Filtrar consultas que pertencem à clínica (por clinica_id direto ou pelo local)
+      // Filtrar consultas que pertencem à clínica (por clinica_id direto, pelo local, ou sem clinica_id mas do médico vinculado)
       let filteredData = (data || []).filter((c: any) => 
         c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id
+        c.local?.clinica_id === clinicaData.id ||
+        (!c.clinica_id && filterMedicoIds.includes(c.medico_id))
       );
 
       // Apply status filter
