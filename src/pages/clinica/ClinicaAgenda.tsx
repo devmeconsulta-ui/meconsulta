@@ -90,6 +90,7 @@ import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
 import { ListaEsperaModal } from "@/components/clinica/ListaEsperaModal";
 import { EncaixeModal } from "@/components/clinica/EncaixeModal";
 import { OrdemChegadaModal } from "@/components/clinica/OrdemChegadaModal";
+import { PacienteDetalhesModal } from "@/components/clinica/PacienteDetalhesModal";
 import { cn } from "@/lib/utils";
 
 interface ClinicaContext {
@@ -164,6 +165,9 @@ export default function ClinicaAgenda() {
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
   const [bulkDeleteDay, setBulkDeleteDay] = useState<Date | null>(null);
+  const [pacienteDetalhes, setPacienteDetalhes] = useState<any>(null);
+  const [pacienteDetalhesOpen, setPacienteDetalhesOpen] = useState(false);
+  const [pacienteConsultaCount, setPacienteConsultaCount] = useState(0);
 
   // Gerar Slots form state
   const [gerarForm, setGerarForm] = useState({
@@ -501,7 +505,6 @@ export default function ClinicaAgenda() {
   }
 
   async function handleEditConsulta(consultaId: string) {
-    // Buscar dados completos da consulta - usar sintaxe explícita para foreign key
     const { data, error } = await supabase
       .from("consultas")
       .select(`
@@ -527,6 +530,28 @@ export default function ClinicaAgenda() {
 
     setSelectedConsulta(data);
     setEditarModalOpen(true);
+  }
+
+  async function handleOpenPacienteDetalhes(pacienteId: string) {
+    const { data: paciente } = await supabase
+      .from("pacientes")
+      .select("*")
+      .eq("id", pacienteId)
+      .maybeSingle();
+
+    if (!paciente) {
+      toast.error("Paciente não encontrado");
+      return;
+    }
+
+    const { count } = await supabase
+      .from("consultas")
+      .select("*", { count: "exact", head: true })
+      .eq("paciente_id", pacienteId);
+
+    setPacienteDetalhes(paciente);
+    setPacienteConsultaCount(count || 0);
+    setPacienteDetalhesOpen(true);
   }
 
   async function handleToggleSlotBlock(slot: Slot, e: React.MouseEvent) {
@@ -771,9 +796,20 @@ export default function ClinicaAgenda() {
             isOrdemChegada ? (
               <div className="mt-1 space-y-0.5">
                 {slot.consultas!.map((c, i) => (
-                  <div key={c.id} className="flex items-center gap-1">
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-1 cursor-pointer hover:bg-white/10 rounded px-0.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (c.paciente_id) {
+                        handleOpenPacienteDetalhes(c.paciente_id);
+                      } else {
+                        handleEditConsulta(c.id);
+                      }
+                    }}
+                  >
                     <Users className="w-2.5 h-2.5 text-white/70 shrink-0" />
-                    <span className="truncate text-white/90 text-[10px]">
+                    <span className="truncate text-white/90 text-[10px] underline decoration-white/40">
                       {i + 1}. {c.nome_paciente_consulta || c.pacientes?.nome || "Paciente"}
                     </span>
                   </div>
@@ -1878,6 +1914,16 @@ export default function ClinicaAgenda() {
         medicos={medicosCompletos}
         locais={locais}
         onSuccess={fetchData}
+      />
+
+      {/* Modal Detalhes do Paciente */}
+      <PacienteDetalhesModal
+        open={pacienteDetalhesOpen}
+        onOpenChange={setPacienteDetalhesOpen}
+        paciente={pacienteDetalhes}
+        consultaCount={pacienteConsultaCount}
+        isInterno={false}
+        onUpdate={fetchData}
       />
 
       {/* Alert Dialog para confirmar exclusão em massa */}
