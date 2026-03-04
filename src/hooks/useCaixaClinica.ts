@@ -366,11 +366,13 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     return { data: movimentoData, error: null };
   };
 
-  // Sincronizar todas as consultas pendentes de uma vez
-  const sincronizarTodas = async (formaPagamento: string) => {
+  // Sincronizar todas as consultas pendentes usando a forma de pagamento real de cada uma
+  const sincronizarTodas = async (formaPagamentoFallback: string) => {
     const resultados = [];
     for (const consulta of state.consultasPendentes) {
-      const resultado = await sincronizarConsulta(consulta, formaPagamento);
+      // Usa a forma de pagamento registrada na consulta, ou o fallback
+      const formaReal = consulta.formas_pagamento?.[0]?.tipo || formaPagamentoFallback;
+      const resultado = await sincronizarConsulta(consulta, formaReal);
       resultados.push(resultado);
     }
     return resultados;
