@@ -324,9 +324,9 @@ export function ConsultasPendentesCaixa({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Forma de Pagamento (para todas)</Label>
-              <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+              <div className="space-y-2">
+                <Label>Forma de Pagamento (para consultas sem forma registrada)</Label>
+                <Select value={formaPagamento} onValueChange={setFormaPagamento}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
