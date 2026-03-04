@@ -357,9 +357,9 @@ export function ConsultasPendentesCaixa({
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                * Se cada consulta foi paga de forma diferente, sincronize uma a uma
-              </p>
+                <p className="text-xs text-muted-foreground">
+                  * Consultas com forma de pagamento registrada usarão a forma real (PIX, Dinheiro, etc.)
+                </p>
             </div>
           </div>
           
