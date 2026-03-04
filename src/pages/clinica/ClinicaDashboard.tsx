@@ -233,9 +233,10 @@ export default function ClinicaDashboard() {
         consultasPorDia[date] = (consultasPorDia[date] || 0) + 1;
       });
 
+      const agendadas = consultas.filter((c) => c.status_consulta === "agendada").length;
       const confirmadas = consultas.filter((c) => c.status_consulta === "confirmada").length;
-      const aguardando = consultas.filter((c) => c.status_consulta === "aguardando_pagamento").length;
-      const concluidas = consultas.filter((c) => c.status_consulta === "concluida").length;
+      const aguardando = consultas.filter((c) => c.status_consulta === "aguardando_pagamento" || c.status_consulta === "aguardando_confirmacao").length;
+      const concluidas = consultas.filter((c) => c.status_consulta === "concluida" || c.status_consulta === "atendida_medico").length;
       const canceladas = consultas.filter((c) => c.status_consulta === "cancelada").length;
 
       return {
@@ -254,6 +255,7 @@ export default function ClinicaDashboard() {
           .map(([date, count]) => ({ date, count }))
           .slice(-15),
         consultasPorStatus: [
+          { name: "Agendadas", value: agendadas },
           { name: "Confirmadas", value: confirmadas },
           { name: "Concluídas", value: concluidas },
           { name: "Aguardando", value: aguardando },
