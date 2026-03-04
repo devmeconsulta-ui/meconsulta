@@ -83,7 +83,7 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     }
 
     const { data } = await query;
-    return data || [];
+    return (data as ConsultaNaoSincronizada[] | null) || [];
   }, [clinicaId]);
 
   const fetchCaixaStatus = useCallback(async () => {
