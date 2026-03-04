@@ -165,6 +165,9 @@ export default function ClinicaAgenda() {
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
   const [bulkDeleteDay, setBulkDeleteDay] = useState<Date | null>(null);
+  const [pacienteDetalhes, setPacienteDetalhes] = useState<any>(null);
+  const [pacienteDetalhesOpen, setPacienteDetalhesOpen] = useState(false);
+  const [pacienteConsultaCount, setPacienteConsultaCount] = useState(0);
 
   // Gerar Slots form state
   const [gerarForm, setGerarForm] = useState({
