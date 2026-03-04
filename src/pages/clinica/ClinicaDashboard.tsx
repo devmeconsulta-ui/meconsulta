@@ -39,20 +39,26 @@ import {
 type PeriodFilter = "7d" | "30d" | "60d" | "90d";
 type StatusFilter = "todos" | "confirmada" | "aguardando_pagamento" | "concluida";
 
-const COLORS = ["#3b82f6", "#22c55e", "#eab308", "#ef4444"];
+const COLORS = ["#8b5cf6", "#3b82f6", "#22c55e", "#eab308", "#ef4444"];
 
 const statusColors: Record<string, string> = {
+  agendada: "bg-purple-100 text-purple-800",
   confirmada: "bg-green-100 text-green-800",
   concluida: "bg-blue-100 text-blue-800",
+  atendida_medico: "bg-blue-100 text-blue-800",
   cancelada: "bg-red-100 text-red-800",
   aguardando_pagamento: "bg-yellow-100 text-yellow-800",
+  aguardando_confirmacao: "bg-yellow-100 text-yellow-800",
 };
 
 const statusLabels: Record<string, string> = {
+  agendada: "Agendada",
   confirmada: "Confirmada",
   concluida: "Concluída",
+  atendida_medico: "Atendida",
   cancelada: "Cancelada",
   aguardando_pagamento: "Aguardando",
+  aguardando_confirmacao: "Aguardando",
 };
 
 const pagamentoColors: Record<string, string> = {
@@ -179,10 +185,11 @@ export default function ClinicaDashboard() {
         .gte("data_hora", dateRange.start.toISOString())
         .lte("data_hora", dateRange.end.toISOString());
 
-      // Filtrar para consultas que pertencem à clínica (por clinica_id direto ou pelo local)
+      // Filtrar para consultas que pertencem à clínica (por clinica_id direto, pelo local, ou sem clinica_id mas do médico vinculado)
       const consultas = (consultasData || []).filter((c: any) => 
         c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id
+        c.local?.clinica_id === clinicaData.id ||
+        (!c.clinica_id && filterMedicoIds.includes(c.medico_id))
       );
 
       // Faturamento ONLINE (pago)
@@ -232,9 +239,10 @@ export default function ClinicaDashboard() {
         consultasPorDia[date] = (consultasPorDia[date] || 0) + 1;
       });
 
+      const agendadas = consultas.filter((c) => c.status_consulta === "agendada").length;
       const confirmadas = consultas.filter((c) => c.status_consulta === "confirmada").length;
-      const aguardando = consultas.filter((c) => c.status_consulta === "aguardando_pagamento").length;
-      const concluidas = consultas.filter((c) => c.status_consulta === "concluida").length;
+      const aguardando = consultas.filter((c) => c.status_consulta === "aguardando_pagamento" || c.status_consulta === "aguardando_confirmacao").length;
+      const concluidas = consultas.filter((c) => c.status_consulta === "concluida" || c.status_consulta === "atendida_medico").length;
       const canceladas = consultas.filter((c) => c.status_consulta === "cancelada").length;
 
       return {
@@ -253,6 +261,7 @@ export default function ClinicaDashboard() {
           .map(([date, count]) => ({ date, count }))
           .slice(-15),
         consultasPorStatus: [
+          { name: "Agendadas", value: agendadas },
           { name: "Confirmadas", value: confirmadas },
           { name: "Concluídas", value: concluidas },
           { name: "Aguardando", value: aguardando },
@@ -306,10 +315,11 @@ export default function ClinicaDashboard() {
 
       if (error) throw error;
       
-      // Filtrar consultas que pertencem à clínica (por clinica_id direto ou pelo local)
+      // Filtrar consultas que pertencem à clínica (por clinica_id direto, pelo local, ou sem clinica_id mas do médico vinculado)
       let filteredData = (data || []).filter((c: any) => 
         c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id
+        c.local?.clinica_id === clinicaData.id ||
+        (!c.clinica_id && filterMedicoIds.includes(c.medico_id))
       );
 
       // Apply status filter
@@ -367,10 +377,11 @@ export default function ClinicaDashboard() {
 
       if (error) throw error;
       
-      // Filtrar consultas que pertencem à clínica (por clinica_id direto ou pelo local)
+      // Filtrar consultas que pertencem à clínica (por clinica_id direto, pelo local, ou sem clinica_id mas do médico vinculado)
       return (data || []).filter((c: any) => 
         c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id
+        c.local?.clinica_id === clinicaData.id ||
+        (!c.clinica_id && filterMedicoIds.includes(c.medico_id))
       );
     },
     enabled: !!clinicaData?.id,
