@@ -302,7 +302,7 @@ export default function ClinicaFinanceiro() {
   }
 
   async function fetchConsultas() {
-    // Busca médicos vinculados
+    // Busca médicos vinculados (para dropdown de filtros)
     const { data: vinculosData } = await supabase
       .from("clinicas_medicos")
       .select("medico_id, medicos(id, nome)")
@@ -312,71 +312,37 @@ export default function ClinicaFinanceiro() {
     const medicosVinculados = vinculosData?.map((v: any) => v.medicos).filter(Boolean) || [];
     setMedicos(medicosVinculados);
 
-    if (medicosVinculados.length === 0) {
-      setConsultas([]);
-      return;
-    }
-
-    const medicoIds = medicosVinculados.map((m: any) => m.id);
-
     const { data: locaisData } = await supabase
       .from("locais_atendimento")
       .select("id, nome_local")
       .eq("clinica_id", clinicaData.id)
       .eq("ativo", true);
 
-    // Deduplicate locations by nome_local to avoid duplicates in dropdown
     const locaisUnicos = locaisData?.reduce((acc: { id: string; nome_local: string }[], curr) => {
       if (!acc.find(l => l.nome_local === curr.nome_local)) {
         acc.push(curr);
       }
       return acc;
     }, []) || [];
-
     setLocais(locaisUnicos);
 
-    // Buscar consultas dos médicos vinculados à clínica
-    // Usamos OR para pegar: consultas com clinica_id da clínica OU consultas dos médicos vinculados em locais da clínica
-    const localIds = locaisData?.map(l => l.id) || [];
-    
-    let query = supabase
+    // Query direta por clinica_id (fonte principal)
+    const { data, error } = await supabase
       .from("consultas")
       .select(`
-        id,
-        data_hora,
-        valor_consulta,
-        valor_medico,
-        valor_plataforma,
-        status_consulta,
-        status_pagamento,
-        origem,
-        medico_id,
-        local_id,
-        clinica_id,
-        paciente_id,
-        tipo_atendimento,
-        convenio_id,
-        formas_pagamento,
-        nome_paciente_consulta,
-        finalizado_medico,
+        id, data_hora, valor_consulta, valor_medico, valor_plataforma,
+        status_consulta, status_pagamento, origem, medico_id, local_id,
+        clinica_id, paciente_id, tipo_atendimento, convenio_id, formas_pagamento,
+        nome_paciente_consulta, finalizado_medico,
         paciente:pacientes!consultas_paciente_id_fkey(nome),
         medico:medicos!consultas_medico_id_fkey(nome, especialidade),
         local:locais_atendimento!consultas_local_id_fkey(nome_local),
         convenio:convenios!consultas_convenio_id_fkey(nome)
       `)
-      .in("medico_id", medicoIds)
+      .eq("clinica_id", clinicaData.id)
       .gte("data_hora", dateRange.start.toISOString())
       .lte("data_hora", dateRange.end.toISOString())
       .order("data_hora", { ascending: false });
-
-    // Filtrar para pegar consultas que pertencem à clínica (por clinica_id ou por local da clínica)
-    if (localIds.length > 0) {
-      query = query.or(`clinica_id.eq.${clinicaData.id},local_id.in.(${localIds.join(",")})`);
-    } else {
-      query = query.eq("clinica_id", clinicaData.id);
-    }
-
-    const { data, error } = await query;
 
     if (!error) {
       setConsultas(data || []);
