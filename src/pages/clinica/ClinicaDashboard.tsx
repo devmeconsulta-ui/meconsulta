@@ -192,18 +192,22 @@ export default function ClinicaDashboard() {
         (!c.clinica_id && filterMedicoIds.includes(c.medico_id))
       );
 
+      // Todas as consultas pagas
+      const consultasPagas = consultas.filter((c) => c.status_pagamento === "pago");
+
+      // Faturamento TOTAL (todas as pagas, independente da origem)
+      const faturamentoTotal = consultasPagas
+        .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
+
       // Faturamento ONLINE (pago)
-      const faturamentoOnline = consultas
-        .filter((c) => c.status_pagamento === "pago" && c.origem === "online")
+      const faturamentoOnline = consultasPagas
+        .filter((c) => c.origem === "online")
         .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
 
       // Faturamento INTERNO (pago)
-      const faturamentoInterno = consultas
-        .filter((c) => c.status_pagamento === "pago" && c.origem === "interna")
+      const faturamentoInterno = consultasPagas
+        .filter((c) => c.origem === "interna" || (!c.origem || (c.origem !== "online")))
         .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
-
-      // Total faturado (online + interno)
-      const faturamentoTotal = faturamentoOnline + faturamentoInterno;
 
       // Concluídas com pagamento pendente (atendidas mas não pagas)
       const concluidasPendentes = consultas
