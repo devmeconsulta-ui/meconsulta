@@ -552,7 +552,7 @@ export default function ClinicaDashboard() {
               <div>
                 <p className="text-sm font-medium text-green-700 dark:text-green-300">Total Faturado (Pago)</p>
                 <p className="text-2xl font-bold text-green-900 dark:text-green-100">{formatCurrency(stats?.faturamento || 0)}</p>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1">Online + Interno</p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">{stats?.consultasPagas || 0} consulta(s) paga(s)</p>
               </div>
               <CheckCircle className="h-10 w-10 text-green-500" />
             </div>
