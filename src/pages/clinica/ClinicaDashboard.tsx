@@ -128,6 +128,8 @@ export default function ClinicaDashboard() {
     future.setDate(future.getDate() + 90);
     
     switch (periodFilter) {
+      case "hoje":
+        return { start: startOfDay(now), end: endOfDay(now) };
       case "7d":
         return { start: subDays(now, 7), end: future };
       case "30d":
@@ -136,10 +138,15 @@ export default function ClinicaDashboard() {
         return { start: subDays(now, 60), end: future };
       case "90d":
         return { start: subDays(now, 90), end: future };
+      case "personalizado":
+        return {
+          start: customDateStart ? startOfDay(parseISO(customDateStart)) : subDays(now, 30),
+          end: customDateEnd ? endOfDay(parseISO(customDateEnd)) : future,
+        };
       default:
         return { start: subDays(now, 30), end: future };
     }
-  }, [periodFilter]);
+  }, [periodFilter, customDateStart, customDateEnd]);
 
   const { data: medicos } = useQuery({
     queryKey: ["clinica-medicos-list", clinicaData?.id],
