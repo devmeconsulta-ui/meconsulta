@@ -277,9 +277,9 @@ export default function ClinicaDashboard() {
         consultasAmanha,
         consultasPorDia: Object.entries(consultasPorDia)
           .map(([date, count]) => ({ date, count }))
-          .sort(([a], [b]) => {
-            const [dA, mA] = a.split("/").map(Number);
-            const [dB, mB] = b.split("/").map(Number);
+          .sort((a, b) => {
+            const [dA, mA] = a.date.split("/").map(Number);
+            const [dB, mB] = b.date.split("/").map(Number);
             return mA !== mB ? mA - mB : dA - dB;
           })
           .slice(-15),
