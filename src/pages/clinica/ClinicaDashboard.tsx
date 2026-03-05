@@ -98,7 +98,6 @@ export default function ClinicaDashboard() {
   const [customDateEnd, setCustomDateEnd] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState({ temp: 28, condition: "Ensolarado" });
-  const [weather, setWeather] = useState({ temp: 28, condition: "Ensolarado" });
 
   // Update time every minute
   useEffect(() => {
