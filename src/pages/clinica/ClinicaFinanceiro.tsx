@@ -1607,12 +1607,14 @@ export default function ClinicaFinanceiro() {
 
   const getPeriodLabel = () => {
     switch (periodFilter) {
+      case "hoje": return "Hoje";
       case "7d": return "Últimos 7 dias";
       case "30d": return "Últimos 30 dias";
       case "60d": return "Últimos 60 dias";
       case "90d": return "Últimos 90 dias";
       case "180d": return "Últimos 180 dias";
       case "365d": return "Último ano";
+      case "personalizado": return "Personalizado";
       default: return "Últimos 30 dias";
     }
   };
