@@ -175,7 +175,7 @@ interface MedicoRepasseConfig {
   medico?: { nome: string };
 }
 
-type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d";
+type PeriodFilter = "hoje" | "7d" | "30d" | "60d" | "90d" | "180d" | "365d" | "personalizado";
 
 const COLORS = ["#22c55e", "#3b82f6", "#eab308", "#ef4444", "#8b5cf6", "#ec4899"];
 
