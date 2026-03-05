@@ -497,16 +497,41 @@ export default function ClinicaDashboard() {
         </Select>
 
         <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="hoje">Hoje</SelectItem>
             <SelectItem value="7d">7 dias</SelectItem>
             <SelectItem value="30d">30 dias</SelectItem>
             <SelectItem value="60d">60 dias</SelectItem>
             <SelectItem value="90d">90 dias</SelectItem>
+            <SelectItem value="personalizado">Personalizado</SelectItem>
           </SelectContent>
         </Select>
+
+        {periodFilter === "personalizado" && (
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-muted-foreground">De</Label>
+              <Input
+                type="date"
+                value={customDateStart}
+                onChange={(e) => setCustomDateStart(e.target.value)}
+                className="w-[150px] h-9"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-muted-foreground">Até</Label>
+              <Input
+                type="date"
+                value={customDateEnd}
+                onChange={(e) => setCustomDateEnd(e.target.value)}
+                className="w-[150px] h-9"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Quick Stats - Today & Tomorrow */}
