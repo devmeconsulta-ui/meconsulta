@@ -1631,19 +1631,46 @@ export default function ClinicaFinanceiro() {
           <p className="text-muted-foreground text-sm">Gestão completa de receitas, despesas e caixa - {getPeriodLabel()}</p>
         </div>
 
-        <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">Últimos 7 dias</SelectItem>
-            <SelectItem value="30d">Últimos 30 dias</SelectItem>
-            <SelectItem value="60d">Últimos 60 dias</SelectItem>
-            <SelectItem value="90d">Últimos 90 dias</SelectItem>
-            <SelectItem value="180d">Últimos 180 dias</SelectItem>
-            <SelectItem value="365d">Último ano</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-end gap-2">
+          <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="hoje">Hoje</SelectItem>
+              <SelectItem value="7d">Últimos 7 dias</SelectItem>
+              <SelectItem value="30d">Últimos 30 dias</SelectItem>
+              <SelectItem value="60d">Últimos 60 dias</SelectItem>
+              <SelectItem value="90d">Últimos 90 dias</SelectItem>
+              <SelectItem value="180d">Últimos 180 dias</SelectItem>
+              <SelectItem value="365d">Último ano</SelectItem>
+              <SelectItem value="personalizado">Personalizado</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {periodFilter === "personalizado" && (
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs text-muted-foreground">De</Label>
+                <Input
+                  type="date"
+                  value={customDateStart}
+                  onChange={(e) => setCustomDateStart(e.target.value)}
+                  className="w-[150px] h-9"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs text-muted-foreground">Até</Label>
+                <Input
+                  type="date"
+                  value={customDateEnd}
+                  onChange={(e) => setCustomDateEnd(e.target.value)}
+                  className="w-[150px] h-9"
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tabs - acima dos cards principais */}
