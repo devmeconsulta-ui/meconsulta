@@ -8,6 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -22,7 +24,7 @@ import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock, Sun, Cloud
 import { maskPhone, maskCPF } from "@/lib/maskUtils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, parseISO, isToday, isTomorrow, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, parseISO, isToday, isTomorrow, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   BarChart,
@@ -36,7 +38,7 @@ import {
   Cell,
 } from "recharts";
 
-type PeriodFilter = "7d" | "30d" | "60d" | "90d";
+type PeriodFilter = "hoje" | "7d" | "30d" | "60d" | "90d" | "personalizado";
 type StatusFilter = "todos" | "confirmada" | "aguardando_pagamento" | "concluida";
 
 const COLORS = ["#8b5cf6", "#3b82f6", "#22c55e", "#eab308", "#ef4444"];
@@ -92,6 +94,8 @@ export default function ClinicaDashboard() {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
   const [medicoFilter, setMedicoFilter] = useState("todos");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
+  const [customDateStart, setCustomDateStart] = useState("");
+  const [customDateEnd, setCustomDateEnd] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState({ temp: 28, condition: "Ensolarado" });
 
@@ -119,6 +123,8 @@ export default function ClinicaDashboard() {
     future.setDate(future.getDate() + 90);
     
     switch (periodFilter) {
+      case "hoje":
+        return { start: startOfDay(now), end: endOfDay(now) };
       case "7d":
         return { start: subDays(now, 7), end: future };
       case "30d":
@@ -127,10 +133,15 @@ export default function ClinicaDashboard() {
         return { start: subDays(now, 60), end: future };
       case "90d":
         return { start: subDays(now, 90), end: future };
+      case "personalizado":
+        return {
+          start: customDateStart ? startOfDay(parseISO(customDateStart)) : subDays(now, 30),
+          end: customDateEnd ? endOfDay(parseISO(customDateEnd)) : future,
+        };
       default:
         return { start: subDays(now, 30), end: future };
     }
-  }, [periodFilter]);
+  }, [periodFilter, customDateStart, customDateEnd]);
 
   const { data: medicos } = useQuery({
     queryKey: ["clinica-medicos-list", clinicaData?.id],
@@ -481,16 +492,41 @@ export default function ClinicaDashboard() {
         </Select>
 
         <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="hoje">Hoje</SelectItem>
             <SelectItem value="7d">7 dias</SelectItem>
             <SelectItem value="30d">30 dias</SelectItem>
             <SelectItem value="60d">60 dias</SelectItem>
             <SelectItem value="90d">90 dias</SelectItem>
+            <SelectItem value="personalizado">Personalizado</SelectItem>
           </SelectContent>
         </Select>
+
+        {periodFilter === "personalizado" && (
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-muted-foreground">De</Label>
+              <Input
+                type="date"
+                value={customDateStart}
+                onChange={(e) => setCustomDateStart(e.target.value)}
+                className="w-[150px] h-9"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-muted-foreground">Até</Label>
+              <Input
+                type="date"
+                value={customDateEnd}
+                onChange={(e) => setCustomDateEnd(e.target.value)}
+                className="w-[150px] h-9"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Quick Stats - Today & Tomorrow */}
