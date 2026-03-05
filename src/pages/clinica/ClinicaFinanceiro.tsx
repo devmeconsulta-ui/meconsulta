@@ -175,7 +175,7 @@ interface MedicoRepasseConfig {
   medico?: { nome: string };
 }
 
-type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d";
+type PeriodFilter = "hoje" | "7d" | "30d" | "60d" | "90d" | "180d" | "365d" | "personalizado";
 
 const COLORS = ["#22c55e", "#3b82f6", "#eab308", "#ef4444", "#8b5cf6", "#ec4899"];
 
@@ -204,6 +204,8 @@ export default function ClinicaFinanceiro() {
   const [formaPagamentoFilter, setFormaPagamentoFilter] = useState("todos");
   const [searchPaciente, setSearchPaciente] = useState("");
   const [medicoComboboxOpen, setMedicoComboboxOpen] = useState(false);
+  const [customDateStart, setCustomDateStart] = useState("");
+  const [customDateEnd, setCustomDateEnd] = useState("");
   
   // Filtros customizados para aba Origem
   const [origemDateStart, setOrigemDateStart] = useState<Date | undefined>(subDays(new Date(), 30));
@@ -251,26 +253,33 @@ export default function ClinicaFinanceiro() {
 
   const dateRange = useMemo(() => {
     const now = new Date();
-    const future = new Date();
-    future.setDate(future.getDate() + 90);
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     
     switch (periodFilter) {
+      case "hoje":
+        return { start: startOfToday, end: endOfToday };
       case "7d":
-        return { start: subDays(now, 7), end: future };
+        return { start: subDays(startOfToday, 7), end: endOfToday };
       case "30d":
-        return { start: subDays(now, 30), end: future };
+        return { start: subDays(startOfToday, 30), end: endOfToday };
       case "60d":
-        return { start: subDays(now, 60), end: future };
+        return { start: subDays(startOfToday, 60), end: endOfToday };
       case "90d":
-        return { start: subDays(now, 90), end: future };
+        return { start: subDays(startOfToday, 90), end: endOfToday };
       case "180d":
-        return { start: subDays(now, 180), end: future };
+        return { start: subDays(startOfToday, 180), end: endOfToday };
       case "365d":
-        return { start: subDays(now, 365), end: future };
+        return { start: subDays(startOfToday, 365), end: endOfToday };
+      case "personalizado":
+        return {
+          start: customDateStart ? new Date(customDateStart + "T00:00:00") : subDays(startOfToday, 30),
+          end: customDateEnd ? new Date(customDateEnd + "T23:59:59") : endOfToday,
+        };
       default:
-        return { start: subDays(now, 30), end: future };
+        return { start: subDays(startOfToday, 30), end: endOfToday };
     }
-  }, [periodFilter]);
+  }, [periodFilter, customDateStart, customDateEnd]);
 
   useEffect(() => {
     if (clinicaData?.id) {
@@ -293,7 +302,7 @@ export default function ClinicaFinanceiro() {
   }
 
   async function fetchConsultas() {
-    // Busca médicos vinculados
+    // Busca médicos vinculados (para dropdown de filtros)
     const { data: vinculosData } = await supabase
       .from("clinicas_medicos")
       .select("medico_id, medicos(id, nome)")
@@ -303,71 +312,37 @@ export default function ClinicaFinanceiro() {
     const medicosVinculados = vinculosData?.map((v: any) => v.medicos).filter(Boolean) || [];
     setMedicos(medicosVinculados);
 
-    if (medicosVinculados.length === 0) {
-      setConsultas([]);
-      return;
-    }
-
-    const medicoIds = medicosVinculados.map((m: any) => m.id);
-
     const { data: locaisData } = await supabase
       .from("locais_atendimento")
       .select("id, nome_local")
       .eq("clinica_id", clinicaData.id)
       .eq("ativo", true);
 
-    // Deduplicate locations by nome_local to avoid duplicates in dropdown
     const locaisUnicos = locaisData?.reduce((acc: { id: string; nome_local: string }[], curr) => {
       if (!acc.find(l => l.nome_local === curr.nome_local)) {
         acc.push(curr);
       }
       return acc;
     }, []) || [];
-
     setLocais(locaisUnicos);
 
-    // Buscar consultas dos médicos vinculados à clínica
-    // Usamos OR para pegar: consultas com clinica_id da clínica OU consultas dos médicos vinculados em locais da clínica
-    const localIds = locaisData?.map(l => l.id) || [];
-    
-    let query = supabase
+    // Query direta por clinica_id (fonte principal)
+    const { data, error } = await supabase
       .from("consultas")
       .select(`
-        id,
-        data_hora,
-        valor_consulta,
-        valor_medico,
-        valor_plataforma,
-        status_consulta,
-        status_pagamento,
-        origem,
-        medico_id,
-        local_id,
-        clinica_id,
-        paciente_id,
-        tipo_atendimento,
-        convenio_id,
-        formas_pagamento,
-        nome_paciente_consulta,
-        finalizado_medico,
+        id, data_hora, valor_consulta, valor_medico, valor_plataforma,
+        status_consulta, status_pagamento, origem, medico_id, local_id,
+        clinica_id, paciente_id, tipo_atendimento, convenio_id, formas_pagamento,
+        nome_paciente_consulta, finalizado_medico,
         paciente:pacientes!consultas_paciente_id_fkey(nome),
         medico:medicos!consultas_medico_id_fkey(nome, especialidade),
         local:locais_atendimento!consultas_local_id_fkey(nome_local),
         convenio:convenios!consultas_convenio_id_fkey(nome)
       `)
-      .in("medico_id", medicoIds)
+      .eq("clinica_id", clinicaData.id)
       .gte("data_hora", dateRange.start.toISOString())
       .lte("data_hora", dateRange.end.toISOString())
       .order("data_hora", { ascending: false });
-
-    // Filtrar para pegar consultas que pertencem à clínica (por clinica_id ou por local da clínica)
-    if (localIds.length > 0) {
-      query = query.or(`clinica_id.eq.${clinicaData.id},local_id.in.(${localIds.join(",")})`);
-    } else {
-      query = query.eq("clinica_id", clinicaData.id);
-    }
-
-    const { data, error } = await query;
 
     if (!error) {
       setConsultas(data || []);
@@ -1598,12 +1573,14 @@ export default function ClinicaFinanceiro() {
 
   const getPeriodLabel = () => {
     switch (periodFilter) {
+      case "hoje": return "Hoje";
       case "7d": return "Últimos 7 dias";
       case "30d": return "Últimos 30 dias";
       case "60d": return "Últimos 60 dias";
       case "90d": return "Últimos 90 dias";
       case "180d": return "Últimos 180 dias";
       case "365d": return "Último ano";
+      case "personalizado": return "Personalizado";
       default: return "Últimos 30 dias";
     }
   };
@@ -1620,19 +1597,46 @@ export default function ClinicaFinanceiro() {
           <p className="text-muted-foreground text-sm">Gestão completa de receitas, despesas e caixa - {getPeriodLabel()}</p>
         </div>
 
-        <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">Últimos 7 dias</SelectItem>
-            <SelectItem value="30d">Últimos 30 dias</SelectItem>
-            <SelectItem value="60d">Últimos 60 dias</SelectItem>
-            <SelectItem value="90d">Últimos 90 dias</SelectItem>
-            <SelectItem value="180d">Últimos 180 dias</SelectItem>
-            <SelectItem value="365d">Último ano</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-end gap-2">
+          <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="hoje">Hoje</SelectItem>
+              <SelectItem value="7d">Últimos 7 dias</SelectItem>
+              <SelectItem value="30d">Últimos 30 dias</SelectItem>
+              <SelectItem value="60d">Últimos 60 dias</SelectItem>
+              <SelectItem value="90d">Últimos 90 dias</SelectItem>
+              <SelectItem value="180d">Últimos 180 dias</SelectItem>
+              <SelectItem value="365d">Último ano</SelectItem>
+              <SelectItem value="personalizado">Personalizado</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {periodFilter === "personalizado" && (
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs text-muted-foreground">De</Label>
+                <Input
+                  type="date"
+                  value={customDateStart}
+                  onChange={(e) => setCustomDateStart(e.target.value)}
+                  className="w-[150px] h-9"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs text-muted-foreground">Até</Label>
+                <Input
+                  type="date"
+                  value={customDateEnd}
+                  onChange={(e) => setCustomDateEnd(e.target.value)}
+                  className="w-[150px] h-9"
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tabs - acima dos cards principais */}
