@@ -119,27 +119,25 @@ export default function ClinicaDashboard() {
 
   const dateRange = useMemo(() => {
     const now = new Date();
-    const future = new Date();
-    future.setDate(future.getDate() + 90);
     
     switch (periodFilter) {
       case "hoje":
         return { start: startOfDay(now), end: endOfDay(now) };
       case "7d":
-        return { start: subDays(now, 7), end: future };
+        return { start: startOfDay(subDays(now, 7)), end: endOfDay(now) };
       case "30d":
-        return { start: subDays(now, 30), end: future };
+        return { start: startOfDay(subDays(now, 30)), end: endOfDay(now) };
       case "60d":
-        return { start: subDays(now, 60), end: future };
+        return { start: startOfDay(subDays(now, 60)), end: endOfDay(now) };
       case "90d":
-        return { start: subDays(now, 90), end: future };
+        return { start: startOfDay(subDays(now, 90)), end: endOfDay(now) };
       case "personalizado":
         return {
-          start: customDateStart ? startOfDay(parseISO(customDateStart)) : subDays(now, 30),
-          end: customDateEnd ? endOfDay(parseISO(customDateEnd)) : future,
+          start: customDateStart ? startOfDay(parseISO(customDateStart)) : startOfDay(subDays(now, 30)),
+          end: customDateEnd ? endOfDay(parseISO(customDateEnd)) : endOfDay(now),
         };
       default:
-        return { start: subDays(now, 30), end: future };
+        return { start: startOfDay(subDays(now, 30)), end: endOfDay(now) };
     }
   }, [periodFilter, customDateStart, customDateEnd]);
 
