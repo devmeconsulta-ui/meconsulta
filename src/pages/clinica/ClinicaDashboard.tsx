@@ -22,7 +22,7 @@ import { Stethoscope, Users, Calendar, TrendingUp, DollarSign, Clock, Sun, Cloud
 import { maskPhone, maskCPF } from "@/lib/maskUtils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, parseISO, isToday, isTomorrow, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, parseISO, isToday, isTomorrow, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   BarChart,
