@@ -253,26 +253,33 @@ export default function ClinicaFinanceiro() {
 
   const dateRange = useMemo(() => {
     const now = new Date();
-    const future = new Date();
-    future.setDate(future.getDate() + 90);
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     
     switch (periodFilter) {
+      case "hoje":
+        return { start: startOfToday, end: endOfToday };
       case "7d":
-        return { start: subDays(now, 7), end: future };
+        return { start: subDays(startOfToday, 7), end: endOfToday };
       case "30d":
-        return { start: subDays(now, 30), end: future };
+        return { start: subDays(startOfToday, 30), end: endOfToday };
       case "60d":
-        return { start: subDays(now, 60), end: future };
+        return { start: subDays(startOfToday, 60), end: endOfToday };
       case "90d":
-        return { start: subDays(now, 90), end: future };
+        return { start: subDays(startOfToday, 90), end: endOfToday };
       case "180d":
-        return { start: subDays(now, 180), end: future };
+        return { start: subDays(startOfToday, 180), end: endOfToday };
       case "365d":
-        return { start: subDays(now, 365), end: future };
+        return { start: subDays(startOfToday, 365), end: endOfToday };
+      case "personalizado":
+        return {
+          start: customDateStart ? new Date(customDateStart + "T00:00:00") : subDays(startOfToday, 30),
+          end: customDateEnd ? new Date(customDateEnd + "T23:59:59") : endOfToday,
+        };
       default:
-        return { start: subDays(now, 30), end: future };
+        return { start: subDays(startOfToday, 30), end: endOfToday };
     }
-  }, [periodFilter]);
+  }, [periodFilter, customDateStart, customDateEnd]);
 
   useEffect(() => {
     if (clinicaData?.id) {
