@@ -98,7 +98,10 @@ export default function ClinicaDashboard() {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
   const [medicoFilter, setMedicoFilter] = useState("todos");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
+  const [customDateStart, setCustomDateStart] = useState("");
+  const [customDateEnd, setCustomDateEnd] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [weather, setWeather] = useState({ temp: 28, condition: "Ensolarado" });
   const [weather, setWeather] = useState({ temp: 28, condition: "Ensolarado" });
 
   // Update time every minute
