@@ -42,7 +42,7 @@ import {
   Cell,
 } from "recharts";
 
-type PeriodFilter = "7d" | "30d" | "60d" | "90d";
+type PeriodFilter = "hoje" | "7d" | "30d" | "60d" | "90d" | "personalizado";
 type StatusFilter = "todos" | "confirmada" | "aguardando_pagamento" | "concluida";
 
 const COLORS = ["#8b5cf6", "#3b82f6", "#22c55e", "#eab308", "#ef4444"];
