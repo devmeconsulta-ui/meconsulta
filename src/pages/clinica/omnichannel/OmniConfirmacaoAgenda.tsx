@@ -143,10 +143,23 @@ export default function OmniConfirmacaoAgenda() {
     to: undefined,
   });
 
+  const AVISO_ORDEM_CHEGADA = `\n\n⚠️ *ATENÇÃO:* O atendimento será realizado por *ordem de chegada* no local. Quanto mais cedo você chegar, mais cedo será atendido(a).`;
+
   // Carregar automaticamente consultas de amanhã ao montar
   useEffect(() => {
     setFilterPeriodo("amanha");
   }, []);
+
+  // Inserir/remover aviso de ordem de chegada na mensagem
+  useEffect(() => {
+    if (incluirOrdemChegada) {
+      if (!mensagemTemplate.includes("ordem de chegada")) {
+        setMensagemTemplate((prev) => prev.trimEnd() + AVISO_ORDEM_CHEGADA);
+      }
+    } else {
+      setMensagemTemplate((prev) => prev.replace(AVISO_ORDEM_CHEGADA, ""));
+    }
+  }, [incluirOrdemChegada]);
 
   // Filtrar consultas disponíveis
   const consultasFiltradas = useMemo(() => {
