@@ -337,51 +337,31 @@ export default function ClinicaDashboard() {
     queryFn: async () => {
       if (!clinicaData?.id) return [];
 
-      const { data: vinculos } = await supabase
-        .from("clinicas_medicos")
-        .select("medico_id")
-        .eq("clinica_id", clinicaData.id)
-        .eq("ativo", true);
-
-      const medicoIds = vinculos?.map((v) => v.medico_id) || [];
-      if (medicoIds.length === 0) return [];
-
-      const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
-
       const todayStart = startOfDay(new Date()).toISOString();
       const todayEnd = endOfDay(new Date()).toISOString();
 
-      // Buscar consultas pelos médicos vinculados (sem filtro por clinica_id para incluir consultas com clinica_id NULL)
-      const { data, error } = await supabase
+      let query = supabase
         .from("consultas")
         .select(`
-          id,
-          data_hora,
-          status_consulta,
-          status_pagamento,
-          valor_consulta,
-          origem,
-          motivo_consulta,
-          nome_paciente_consulta,
-          clinica_id,
+          id, data_hora, status_consulta, status_pagamento, valor_consulta, origem,
+          motivo_consulta, nome_paciente_consulta, clinica_id,
           paciente:pacientes(id, nome, telefone),
           medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
           local:locais_atendimento(nome_local, clinica_id)
         `)
-        .in("medico_id", filterMedicoIds)
+        .eq("clinica_id", clinicaData.id)
         .gte("data_hora", todayStart)
         .lte("data_hora", todayEnd)
         .neq("status_consulta", "cancelada")
         .order("data_hora", { ascending: true });
 
+      if (medicoFilter !== "todos") {
+        query = query.eq("medico_id", medicoFilter);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
-      
-      // Filtrar consultas que pertencem à clínica (por clinica_id direto, pelo local, ou sem clinica_id mas do médico vinculado)
-      return (data || []).filter((c: any) => 
-        c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id ||
-        (!c.clinica_id && filterMedicoIds.includes(c.medico_id))
-      );
+      return data || [];
     },
     enabled: !!clinicaData?.id,
   });
