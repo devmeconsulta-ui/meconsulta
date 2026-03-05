@@ -119,27 +119,25 @@ export default function ClinicaDashboard() {
 
   const dateRange = useMemo(() => {
     const now = new Date();
-    const future = new Date();
-    future.setDate(future.getDate() + 90);
     
     switch (periodFilter) {
       case "hoje":
         return { start: startOfDay(now), end: endOfDay(now) };
       case "7d":
-        return { start: subDays(now, 7), end: future };
+        return { start: startOfDay(subDays(now, 7)), end: endOfDay(now) };
       case "30d":
-        return { start: subDays(now, 30), end: future };
+        return { start: startOfDay(subDays(now, 30)), end: endOfDay(now) };
       case "60d":
-        return { start: subDays(now, 60), end: future };
+        return { start: startOfDay(subDays(now, 60)), end: endOfDay(now) };
       case "90d":
-        return { start: subDays(now, 90), end: future };
+        return { start: startOfDay(subDays(now, 90)), end: endOfDay(now) };
       case "personalizado":
         return {
-          start: customDateStart ? startOfDay(parseISO(customDateStart)) : subDays(now, 30),
-          end: customDateEnd ? endOfDay(parseISO(customDateEnd)) : future,
+          start: customDateStart ? startOfDay(parseISO(customDateStart)) : startOfDay(subDays(now, 30)),
+          end: customDateEnd ? endOfDay(parseISO(customDateEnd)) : endOfDay(now),
         };
       default:
-        return { start: subDays(now, 30), end: future };
+        return { start: startOfDay(subDays(now, 30)), end: endOfDay(now) };
     }
   }, [periodFilter, customDateStart, customDateEnd]);
 
@@ -173,71 +171,74 @@ export default function ClinicaDashboard() {
       const medicoIds = vinculos?.map((v) => v.medico_id) || [];
       if (medicoIds.length === 0) {
         return { 
-          medicos: 0, 
-          consultas: 0, 
-          pacientes: 0, 
-          faturamento: 0, 
-          pendente: 0, 
-          consultasHoje: 0,
-          consultasAmanha: 0,
-          consultasPorDia: [], 
-          consultasPorStatus: [] 
+          medicos: 0, consultas: 0, pacientes: 0, faturamento: 0, 
+          pendente: 0, consultasHoje: 0, consultasAmanha: 0,
+          consultasPorDia: [], consultasPorStatus: [],
+          faturamentoOnline: 0, faturamentoInterno: 0,
+          concluidasPendentes: 0, concluidasPendentesQtd: 0,
+          consultasPagas: 0,
         };
       }
 
       const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
       const medicosCount = medicoFilter === "todos" ? medicoIds.length : 1;
 
-      // Buscar consultas pelos médicos vinculados (inclui consultas com clinica_id NULL)
-      const { data: consultasData } = await supabase
+      // Query 1: Consultas by clinica_id directly (main source)
+      let queryByClinica = supabase
         .from("consultas")
-        .select("id, data_hora, valor_consulta, status_pagamento, status_consulta, origem, paciente_id, medico_id, clinica_id, local:locais_atendimento(clinica_id)")
-        .in("medico_id", filterMedicoIds)
+        .select("id, data_hora, valor_consulta, status_pagamento, status_consulta, origem, paciente_id, medico_id, clinica_id")
+        .eq("clinica_id", clinicaData.id)
         .gte("data_hora", dateRange.start.toISOString())
         .lte("data_hora", dateRange.end.toISOString());
 
-      // Filtrar para consultas que pertencem à clínica (por clinica_id direto, pelo local, ou sem clinica_id mas do médico vinculado)
-      const consultas = (consultasData || []).filter((c: any) => 
-        c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id ||
-        (!c.clinica_id && filterMedicoIds.includes(c.medico_id))
-      );
+      if (medicoFilter !== "todos") {
+        queryByClinica = queryByClinica.eq("medico_id", medicoFilter);
+      }
 
-      // Todas as consultas pagas
+      const { data: consultasByClinica } = await queryByClinica;
+
+      // Query 2: Consultas sem clinica_id mas com medico vinculado (fallback)
+      const { data: consultasByMedico } = await supabase
+        .from("consultas")
+        .select("id, data_hora, valor_consulta, status_pagamento, status_consulta, origem, paciente_id, medico_id, clinica_id")
+        .in("medico_id", filterMedicoIds)
+        .is("clinica_id", null)
+        .gte("data_hora", dateRange.start.toISOString())
+        .lte("data_hora", dateRange.end.toISOString());
+
+      // Merge sem duplicatas
+      const allConsultasMap = new Map<string, any>();
+      (consultasByClinica || []).forEach((c: any) => allConsultasMap.set(c.id, c));
+      (consultasByMedico || []).forEach((c: any) => {
+        if (!allConsultasMap.has(c.id)) allConsultasMap.set(c.id, c);
+      });
+      const consultas = Array.from(allConsultasMap.values());
+
+      // === FINANCEIRO ===
       const consultasPagas = consultas.filter((c) => c.status_pagamento === "pago");
+      const faturamentoTotal = consultasPagas.reduce((sum, c) => sum + (Number(c.valor_consulta) || 0), 0);
 
-      // Faturamento TOTAL (todas as pagas, independente da origem)
-      const faturamentoTotal = consultasPagas
-        .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
-
-      // Faturamento ONLINE (pago)
       const faturamentoOnline = consultasPagas
         .filter((c) => c.origem === "online")
-        .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
+        .reduce((sum, c) => sum + (Number(c.valor_consulta) || 0), 0);
 
-      // Faturamento INTERNO (pago)
       const faturamentoInterno = consultasPagas
-        .filter((c) => c.origem === "interna" || (!c.origem || (c.origem !== "online")))
-        .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
+        .filter((c) => c.origem !== "online")
+        .reduce((sum, c) => sum + (Number(c.valor_consulta) || 0), 0);
 
-      // Concluídas com pagamento pendente (atendidas mas não pagas)
-      const concluidasPendentes = consultas
-        .filter((c) => c.status_consulta === "concluida" && c.status_pagamento === "pendente")
-        .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
+      const concluidasSemPgto = consultas.filter(
+        (c) => (c.status_consulta === "concluida" || c.status_consulta === "atendida_medico") && c.status_pagamento !== "pago" && c.status_pagamento !== "cancelado"
+      );
+      const concluidasPendentes = concluidasSemPgto.reduce((sum, c) => sum + (Number(c.valor_consulta) || 0), 0);
+      const concluidasPendentesQtd = concluidasSemPgto.length;
 
-      const concluidasPendentesQtd = consultas
-        .filter((c) => c.status_consulta === "concluida" && c.status_pagamento === "pendente")
-        .length;
-
-      // Pendente (excluindo canceladas e concluídas que já têm card próprio)
       const pendente = consultas
         .filter((c) => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada")
-        .reduce((sum, c) => sum + (c.valor_consulta || 0), 0);
+        .reduce((sum, c) => sum + (Number(c.valor_consulta) || 0), 0);
 
       const uniquePacientes = new Set(consultas.filter((c) => c.paciente_id).map((c) => c.paciente_id));
 
-      // Consultas hoje e amanhã
-      const today = new Date();
+      // === CONSULTAS HOJE E AMANHÃ (sempre calculados, independente do filtro) ===
       const consultasHoje = consultas.filter((c) => {
         const date = parseISO(c.data_hora);
         return isToday(date) && c.status_consulta !== "cancelada";
@@ -248,6 +249,7 @@ export default function ClinicaDashboard() {
         return isTomorrow(date) && c.status_consulta !== "cancelada";
       }).length;
 
+      // === GRÁFICOS ===
       const consultasPorDia: { [key: string]: number } = {};
       consultas.forEach((c) => {
         const date = format(parseISO(c.data_hora), "dd/MM");
@@ -270,10 +272,16 @@ export default function ClinicaDashboard() {
         pendente,
         concluidasPendentes,
         concluidasPendentesQtd,
+        consultasPagas: consultasPagas.length,
         consultasHoje,
         consultasAmanha,
         consultasPorDia: Object.entries(consultasPorDia)
           .map(([date, count]) => ({ date, count }))
+          .sort((a, b) => {
+            const [dA, mA] = a.date.split("/").map(Number);
+            const [dB, mB] = b.date.split("/").map(Number);
+            return mA !== mB ? mA - mB : dA - dB;
+          })
           .slice(-15),
         consultasPorStatus: [
           { name: "Agendadas", value: agendadas },
@@ -293,56 +301,32 @@ export default function ClinicaDashboard() {
     queryFn: async () => {
       if (!clinicaData?.id) return [];
 
-      const { data: vinculos } = await supabase
-        .from("clinicas_medicos")
-        .select("medico_id")
-        .eq("clinica_id", clinicaData.id)
-        .eq("ativo", true);
-
-      const medicoIds = vinculos?.map((v) => v.medico_id) || [];
-      if (medicoIds.length === 0) return [];
-
-      const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
-
-      // Buscar consultas pelos médicos vinculados (sem filtro por clinica_id para incluir consultas com clinica_id NULL)
-      const { data, error } = await supabase
+      let query = supabase
         .from("consultas")
         .select(`
-          id,
-          data_hora,
-          status_consulta,
-          status_pagamento,
-          valor_consulta,
-          valor_medico,
-          origem,
-          motivo_consulta,
-          sintomas,
-          nome_paciente_consulta,
-          clinica_id,
+          id, data_hora, status_consulta, status_pagamento, valor_consulta, valor_medico,
+          origem, motivo_consulta, sintomas, nome_paciente_consulta, clinica_id,
           paciente:pacientes(id, nome, telefone, cpf),
           medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
           local:locais_atendimento(nome_local, cidade, clinica_id)
         `)
-        .in("medico_id", filterMedicoIds)
+        .eq("clinica_id", clinicaData.id)
         .gte("data_hora", new Date().toISOString())
         .neq("status_consulta", "cancelada")
-        .order("data_hora", { ascending: true });
+        .order("data_hora", { ascending: true })
+        .limit(15);
 
-      if (error) throw error;
-      
-      // Filtrar consultas que pertencem à clínica (por clinica_id direto, pelo local, ou sem clinica_id mas do médico vinculado)
-      let filteredData = (data || []).filter((c: any) => 
-        c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id ||
-        (!c.clinica_id && filterMedicoIds.includes(c.medico_id))
-      );
-
-      // Apply status filter
-      if (statusFilter !== "todos") {
-        filteredData = filteredData.filter((c: any) => c.status_consulta === statusFilter);
+      if (medicoFilter !== "todos") {
+        query = query.eq("medico_id", medicoFilter);
       }
 
-      return filteredData.slice(0, 10);
+      if (statusFilter !== "todos") {
+        query = query.eq("status_consulta", statusFilter);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []).slice(0, 10);
     },
     enabled: !!clinicaData?.id,
   });
@@ -353,51 +337,31 @@ export default function ClinicaDashboard() {
     queryFn: async () => {
       if (!clinicaData?.id) return [];
 
-      const { data: vinculos } = await supabase
-        .from("clinicas_medicos")
-        .select("medico_id")
-        .eq("clinica_id", clinicaData.id)
-        .eq("ativo", true);
-
-      const medicoIds = vinculos?.map((v) => v.medico_id) || [];
-      if (medicoIds.length === 0) return [];
-
-      const filterMedicoIds = medicoFilter === "todos" ? medicoIds : [medicoFilter];
-
       const todayStart = startOfDay(new Date()).toISOString();
       const todayEnd = endOfDay(new Date()).toISOString();
 
-      // Buscar consultas pelos médicos vinculados (sem filtro por clinica_id para incluir consultas com clinica_id NULL)
-      const { data, error } = await supabase
+      let query = supabase
         .from("consultas")
         .select(`
-          id,
-          data_hora,
-          status_consulta,
-          status_pagamento,
-          valor_consulta,
-          origem,
-          motivo_consulta,
-          nome_paciente_consulta,
-          clinica_id,
+          id, data_hora, status_consulta, status_pagamento, valor_consulta, origem,
+          motivo_consulta, nome_paciente_consulta, clinica_id,
           paciente:pacientes(id, nome, telefone),
           medico:medicos!consultas_medico_id_fkey(id, nome, especialidade),
           local:locais_atendimento(nome_local, clinica_id)
         `)
-        .in("medico_id", filterMedicoIds)
+        .eq("clinica_id", clinicaData.id)
         .gte("data_hora", todayStart)
         .lte("data_hora", todayEnd)
         .neq("status_consulta", "cancelada")
         .order("data_hora", { ascending: true });
 
+      if (medicoFilter !== "todos") {
+        query = query.eq("medico_id", medicoFilter);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
-      
-      // Filtrar consultas que pertencem à clínica (por clinica_id direto, pelo local, ou sem clinica_id mas do médico vinculado)
-      return (data || []).filter((c: any) => 
-        c.clinica_id === clinicaData.id || 
-        c.local?.clinica_id === clinicaData.id ||
-        (!c.clinica_id && filterMedicoIds.includes(c.medico_id))
-      );
+      return data || [];
     },
     enabled: !!clinicaData?.id,
   });
@@ -588,7 +552,7 @@ export default function ClinicaDashboard() {
               <div>
                 <p className="text-sm font-medium text-green-700 dark:text-green-300">Total Faturado (Pago)</p>
                 <p className="text-2xl font-bold text-green-900 dark:text-green-100">{formatCurrency(stats?.faturamento || 0)}</p>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1">Online + Interno</p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">{stats?.consultasPagas || 0} consulta(s) paga(s)</p>
               </div>
               <CheckCircle className="h-10 w-10 text-green-500" />
             </div>
