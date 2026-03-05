@@ -204,6 +204,8 @@ export default function ClinicaFinanceiro() {
   const [formaPagamentoFilter, setFormaPagamentoFilter] = useState("todos");
   const [searchPaciente, setSearchPaciente] = useState("");
   const [medicoComboboxOpen, setMedicoComboboxOpen] = useState(false);
+  const [customDateStart, setCustomDateStart] = useState("");
+  const [customDateEnd, setCustomDateEnd] = useState("");
   
   // Filtros customizados para aba Origem
   const [origemDateStart, setOrigemDateStart] = useState<Date | undefined>(subDays(new Date(), 30));
