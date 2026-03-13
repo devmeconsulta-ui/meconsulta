@@ -388,6 +388,11 @@ export default function ClinicaRelatorios() {
     const all = filteredConsultas;
     const online = consultasOnline;
 
+    const totalValorMedico = all.reduce((sum, c) => sum + Number(c.valor_medico), 0);
+    const totalValorClinica = all.reduce((sum, c) => sum + (c.valorClinica || 0), 0);
+    const totalProcedimentos = all.reduce((sum, c) => sum + (c.totalProcedimentos || 0), 0);
+    const consultasComProc = all.filter((c) => (c.totalProcedimentos || 0) > 0).length;
+
     return {
       totalConsultas: all.length,
       consultasOnline: online.length,
@@ -399,6 +404,10 @@ export default function ClinicaRelatorios() {
       receitaPaga: online.filter((c) => c.status_pagamento === "pago").reduce((sum, c) => sum + Number(c.valor_consulta), 0),
       receitaPendente: online.filter((c) => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada").reduce((sum, c) => sum + Number(c.valor_consulta), 0),
       ticketMedio: online.length > 0 ? online.reduce((sum, c) => sum + Number(c.valor_consulta), 0) / online.length : 0,
+      totalValorMedico,
+      totalValorClinica,
+      totalProcedimentos,
+      consultasComProc,
     };
   }, [filteredConsultas, consultasOnline]);
 
