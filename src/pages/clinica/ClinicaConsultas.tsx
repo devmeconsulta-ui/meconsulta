@@ -439,12 +439,10 @@ export default function ClinicaConsultas() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="hoje">Hoje</SelectItem>
-              <SelectItem value="7d">Últimos 7 dias</SelectItem>
-              <SelectItem value="30d">Últimos 30 dias</SelectItem>
-              <SelectItem value="60d">Últimos 60 dias</SelectItem>
-              <SelectItem value="90d">Últimos 90 dias</SelectItem>
-              <SelectItem value="180d">Últimos 180 dias</SelectItem>
-              <SelectItem value="365d">Último ano</SelectItem>
+              <SelectItem value="ultimos7">Últimos 7 dias</SelectItem>
+              <SelectItem value="proximos7">Próximos 7 dias</SelectItem>
+              <SelectItem value="ultimos15">Últimos 15 dias</SelectItem>
+              <SelectItem value="proximos15">Próximos 15 dias</SelectItem>
               <SelectItem value="custom">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
