@@ -1235,6 +1235,58 @@ export default function ClinicaFinanceiro() {
     fetchMedicoRepasseConfigs();
   };
 
+  const handleSaveProcedimentoRepasse = async () => {
+    if (!formProcedimentoRepasse.medico_id) {
+      toast.error("Selecione um médico");
+      return;
+    }
+    if (!formProcedimentoRepasse.nome_procedimento.trim()) {
+      toast.error("Informe o nome do procedimento");
+      return;
+    }
+
+    const payload = {
+      clinica_id: clinicaData.id,
+      medico_id: formProcedimentoRepasse.medico_id,
+      nome_procedimento: formProcedimentoRepasse.nome_procedimento.trim(),
+      tipo_repasse: formProcedimentoRepasse.tipo_repasse,
+      percentual_repasse: parseFloat(formProcedimentoRepasse.percentual_repasse) || 70,
+      valor_fixo_repasse: formProcedimentoRepasse.valor_fixo_repasse ? parseFloat(formProcedimentoRepasse.valor_fixo_repasse) : null,
+    };
+
+    if (editingItem) {
+      const { error } = await supabase
+        .from("procedimento_repasse_config")
+        .update(payload)
+        .eq("id", editingItem.id);
+
+      if (error) {
+        toast.error("Erro ao atualizar");
+        return;
+      }
+      toast.success("Configuração atualizada");
+    } else {
+      const { error } = await supabase
+        .from("procedimento_repasse_config")
+        .insert(payload);
+
+      if (error) {
+        if (error.code === "23505") {
+          toast.error("Já existe configuração para este procedimento/médico");
+        } else {
+          toast.error("Erro ao criar");
+        }
+        return;
+      }
+      toast.success("Configuração criada");
+    }
+
+    setShowProcedimentoRepasseModal(false);
+    setEditingItem(null);
+    setFormProcedimentoRepasse({ medico_id: "", nome_procedimento: "", tipo_repasse: "percentual", percentual_repasse: "70", valor_fixo_repasse: "" });
+    fetchProcedimentoRepasseConfigs();
+  };
+
   const handleMarkAsPaid = async (type: "pagar" | "receber", id: string) => {
     const table = type === "pagar" ? "contas_pagar" : "contas_receber";
     const dateField = type === "pagar" ? "data_pagamento" : "data_recebimento";
@@ -1252,7 +1304,7 @@ export default function ClinicaFinanceiro() {
     type === "pagar" ? fetchContasPagar() : fetchContasReceber();
   };
 
-  const handleDeleteItem = async (table: "centros_custo" | "contas_pagar" | "contas_receber" | "medico_repasse_config", id: string) => {
+  const handleDeleteItem = async (table: "centros_custo" | "contas_pagar" | "contas_receber" | "medico_repasse_config" | "procedimento_repasse_config", id: string) => {
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) {
       toast.error("Erro ao excluir");
