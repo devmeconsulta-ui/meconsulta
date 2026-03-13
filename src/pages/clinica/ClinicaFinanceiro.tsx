@@ -234,6 +234,7 @@ export default function ClinicaFinanceiro() {
   const [showContaPagarModal, setShowContaPagarModal] = useState(false);
   const [showContaReceberModal, setShowContaReceberModal] = useState(false);
   const [showRepasseConfigModal, setShowRepasseConfigModal] = useState(false);
+  const [showProcedimentoRepasseModal, setShowProcedimentoRepasseModal] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
 
   // Form states
