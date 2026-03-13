@@ -1110,12 +1110,12 @@ export default function ClinicaRelatorios() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-green-500/10 shrink-0">
-                <DollarSign className="w-6 h-6 text-green-500" />
+              <div className="p-3 rounded-xl bg-primary/10 shrink-0">
+                <DollarSign className="w-6 h-6 text-primary" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm text-muted-foreground">Receita Paga</p>
-                <p className="text-xl font-bold text-green-500 truncate">{formatCurrency(metrics.receitaPaga)}</p>
+                <p className="text-xl font-bold text-primary truncate">{formatCurrency(metrics.receitaPaga)}</p>
               </div>
             </div>
           </CardContent>
@@ -1124,12 +1124,56 @@ export default function ClinicaRelatorios() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-yellow-500/10 shrink-0">
-                <Clock className="w-6 h-6 text-yellow-500" />
+              <div className="p-3 rounded-xl bg-muted shrink-0">
+                <Clock className="w-6 h-6 text-muted-foreground" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm text-muted-foreground">Receita Pendente</p>
-                <p className="text-xl font-bold text-yellow-500 truncate">{formatCurrency(metrics.receitaPendente)}</p>
+                <p className="text-xl font-bold truncate">{formatCurrency(metrics.receitaPendente)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-primary/10 shrink-0">
+                <Stethoscope className="w-6 h-6 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">Valor Médicos</p>
+                <p className="text-xl font-bold truncate">{formatCurrency(metrics.totalValorMedico)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-accent shrink-0">
+                <Building2 className="w-6 h-6 text-accent-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">Valor Clínica</p>
+                <p className="text-xl font-bold truncate">{formatCurrency(metrics.totalValorClinica)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-primary/10 shrink-0">
+                <Users className="w-6 h-6 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">Total Consultas</p>
+                <p className="text-xl font-bold truncate">{metrics.totalConsultas}</p>
               </div>
             </div>
           </CardContent>
