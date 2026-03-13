@@ -1184,11 +1184,11 @@ export default function ClinicaRelatorios() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-xl bg-primary/10 shrink-0">
-                <Users className="w-6 h-6 text-primary" />
+                <TrendingUp className="w-6 h-6 text-primary" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm text-muted-foreground">Total Consultas</p>
-                <p className="text-xl font-bold truncate">{metrics.totalConsultas}</p>
+                <p className="text-sm text-muted-foreground">Ticket Médio</p>
+                <p className="text-xl font-bold truncate">{formatCurrency(metrics.ticketMedio)}</p>
               </div>
             </div>
           </CardContent>
@@ -1197,12 +1197,26 @@ export default function ClinicaRelatorios() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-primary/10 shrink-0">
-                <TrendingUp className="w-6 h-6 text-primary" />
+              <div className="p-3 rounded-xl bg-accent shrink-0">
+                <FileText className="w-6 h-6 text-accent-foreground" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm text-muted-foreground">Ticket Médio</p>
-                <p className="text-xl font-bold truncate">{formatCurrency(metrics.ticketMedio)}</p>
+                <p className="text-sm text-muted-foreground">Total Procedimentos</p>
+                <p className="text-xl font-bold truncate">{formatCurrency(metrics.totalProcedimentos)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-muted shrink-0">
+                <Stethoscope className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">C/ Procedimentos</p>
+                <p className="text-xl font-bold truncate">{metrics.consultasComProc}</p>
               </div>
             </div>
           </CardContent>
