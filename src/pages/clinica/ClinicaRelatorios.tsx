@@ -87,12 +87,36 @@ interface Consulta {
   clinica_id: string | null;
   tipo_atendimento: string | null;
   convenio_id: string | null;
+  formas_pagamento: any;
   paciente: { nome: string; cpf?: string } | null;
   medico: { nome: string; especialidade: string; crm?: string } | null;
   local: { nome_local: string; cidade?: string; estado?: string } | null;
   convenio: { nome: string } | null;
   nome_paciente_consulta: string | null;
   created_at: string;
+  // Enriched fields
+  procedimentos?: { nome_procedimento: string; valor: number }[];
+  totalProcedimentos?: number;
+  valorClinica?: number;
+  repasseConsultaConfig?: { tipo: string; percentual: number; fixo: number | null };
+  repasseProcedimentoConfigs?: { nome: string; tipo: string; percentual: number; fixo: number | null }[];
+}
+
+interface RepasseConfig {
+  id: string;
+  medico_id: string;
+  tipo_repasse: string;
+  percentual_repasse: number;
+  valor_fixo_repasse: number | null;
+}
+
+interface ProcRepasseConfig {
+  id: string;
+  medico_id: string;
+  nome_procedimento: string;
+  tipo_repasse: string;
+  percentual_repasse: number;
+  valor_fixo_repasse: number | null;
 }
 
 type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d" | "mes_atual" | "mes_anterior" | "personalizado";
