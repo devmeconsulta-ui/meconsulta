@@ -607,7 +607,7 @@ export default function OmniWhatsAppChat() {
   }, [clinicaId]);
 
   // Debounced refetch to prevent rapid successive fetches
-  const refetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedFetchAtendimentos = useCallback(() => {
     if (refetchTimeoutRef.current) {
       clearTimeout(refetchTimeoutRef.current);

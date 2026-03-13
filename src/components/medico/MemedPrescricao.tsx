@@ -164,7 +164,7 @@ export default function MemedPrescricao({
 
     let attempts = 0;
     const maxAttempts = 20; // 10 seconds max
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
     const checkMemed = () => {
       attempts++;
