@@ -3663,6 +3663,66 @@ export default function ClinicaFinanceiro() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Procedimento Repasse Config Modal */}
+      <Dialog open={showProcedimentoRepasseModal} onOpenChange={setShowProcedimentoRepasseModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Editar" : "Nova"} Configuração de Repasse por Procedimento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Médico *</Label>
+              <Select value={formProcedimentoRepasse.medico_id} onValueChange={(v) => setFormProcedimentoRepasse({ ...formProcedimentoRepasse, medico_id: v })} disabled={!!editingItem}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {medicos.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>Dr(a). {m.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Nome do Procedimento *</Label>
+              <Input 
+                placeholder="Ex: Limpeza de pele, Botox, Peeling..." 
+                value={formProcedimentoRepasse.nome_procedimento} 
+                onChange={(e) => setFormProcedimentoRepasse({ ...formProcedimentoRepasse, nome_procedimento: e.target.value })} 
+                disabled={!!editingItem}
+              />
+            </div>
+            <div>
+              <Label>Tipo de Repasse</Label>
+              <Select value={formProcedimentoRepasse.tipo_repasse} onValueChange={(v) => setFormProcedimentoRepasse({ ...formProcedimentoRepasse, tipo_repasse: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentual">Percentual (%)</SelectItem>
+                  <SelectItem value="fixo">Valor Fixo (R$)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {formProcedimentoRepasse.tipo_repasse === "percentual" ? (
+              <div>
+                <Label>Percentual de Repasse (%)</Label>
+                <Input type="number" step="0.01" value={formProcedimentoRepasse.percentual_repasse} onChange={(e) => setFormProcedimentoRepasse({ ...formProcedimentoRepasse, percentual_repasse: e.target.value })} />
+              </div>
+            ) : (
+              <div>
+                <Label>Valor Fixo por Procedimento (R$)</Label>
+                <Input type="number" step="0.01" value={formProcedimentoRepasse.valor_fixo_repasse} onChange={(e) => setFormProcedimentoRepasse({ ...formProcedimentoRepasse, valor_fixo_repasse: e.target.value })} />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowProcedimentoRepasseModal(false)}>Cancelar</Button>
+            <Button onClick={handleSaveProcedimentoRepasse}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
