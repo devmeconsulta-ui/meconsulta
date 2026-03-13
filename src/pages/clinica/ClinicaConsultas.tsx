@@ -98,7 +98,7 @@ function TempoEspera({ dataHora }: { dataHora: string }) {
   );
 }
 
-type PeriodFilter = "hoje" | "ultimos7" | "proximos7" | "ultimos15" | "proximos15" | "custom";
+type PeriodFilter = "hoje" | "ultimos7" | "proximos7" | "ultimos15" | "proximos15" | "ultimos30" | "proximos30" | "ultimos60" | "ultimos90" | "custom";
 
 export default function ClinicaConsultas() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
@@ -142,6 +142,14 @@ export default function ClinicaConsultas() {
         return { start: startOfDay(subDays(now, 15)), end: endOfDay(now) };
       case "proximos15":
         return { start: startOfDay(now), end: endOfDay(addDays(now, 15)) };
+      case "ultimos30":
+        return { start: startOfDay(subDays(now, 30)), end: endOfDay(now) };
+      case "proximos30":
+        return { start: startOfDay(now), end: endOfDay(addDays(now, 30)) };
+      case "ultimos60":
+        return { start: startOfDay(subDays(now, 60)), end: endOfDay(now) };
+      case "ultimos90":
+        return { start: startOfDay(subDays(now, 90)), end: endOfDay(now) };
       default:
         return { start: startOfDay(now), end: endOfDay(now) };
     }
@@ -174,6 +182,10 @@ export default function ClinicaConsultas() {
       "proximos7": "Próximos 7 dias",
       "ultimos15": "Últimos 15 dias",
       "proximos15": "Próximos 15 dias",
+      "ultimos30": "Últimos 30 dias",
+      "proximos30": "Próximos 30 dias",
+      "ultimos60": "Últimos 60 dias",
+      "ultimos90": "Últimos 90 dias",
     };
     return labels[periodFilter] || "Hoje";
   };
@@ -271,10 +283,11 @@ export default function ClinicaConsultas() {
     if (!consultas) return [];
     
     const filtered = consultas.filter((c: any) => {
-      const matchSearch = 
-        c.medico?.nome?.toLowerCase().includes(search.toLowerCase()) ||
-        c.paciente?.nome?.toLowerCase().includes(search.toLowerCase()) ||
-        c.nome_paciente_consulta?.toLowerCase().includes(search.toLowerCase());
+      const searchLower = search.toLowerCase().trim();
+      const matchSearch = !searchLower || 
+        (c.medico?.nome?.toLowerCase().includes(searchLower) ?? false) ||
+        (c.paciente?.nome?.toLowerCase().includes(searchLower) ?? false) ||
+        (c.nome_paciente_consulta?.toLowerCase().includes(searchLower) ?? false);
 
       const matchMedico = medicoFilter === "todos" || c.medico_id === medicoFilter;
 
@@ -443,6 +456,10 @@ export default function ClinicaConsultas() {
               <SelectItem value="proximos7">Próximos 7 dias</SelectItem>
               <SelectItem value="ultimos15">Últimos 15 dias</SelectItem>
               <SelectItem value="proximos15">Próximos 15 dias</SelectItem>
+              <SelectItem value="ultimos30">Últimos 30 dias</SelectItem>
+              <SelectItem value="proximos30">Próximos 30 dias</SelectItem>
+              <SelectItem value="ultimos60">Últimos 60 dias</SelectItem>
+              <SelectItem value="ultimos90">Últimos 90 dias</SelectItem>
               <SelectItem value="custom">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
