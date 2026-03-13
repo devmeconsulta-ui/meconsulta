@@ -63,6 +63,7 @@ import {
   BarChart3,
   PieChart as PieChartIcon,
   X,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
@@ -87,12 +88,36 @@ interface Consulta {
   clinica_id: string | null;
   tipo_atendimento: string | null;
   convenio_id: string | null;
+  formas_pagamento: any;
   paciente: { nome: string; cpf?: string } | null;
   medico: { nome: string; especialidade: string; crm?: string } | null;
   local: { nome_local: string; cidade?: string; estado?: string } | null;
   convenio: { nome: string } | null;
   nome_paciente_consulta: string | null;
   created_at: string;
+  // Enriched fields
+  procedimentos?: { nome_procedimento: string; valor: number }[];
+  totalProcedimentos?: number;
+  valorClinica?: number;
+  repasseConsultaConfig?: { tipo: string; percentual: number; fixo: number | null };
+  repasseProcedimentoConfigs?: { nome: string; tipo: string; percentual: number; fixo: number | null }[];
+}
+
+interface RepasseConfig {
+  id: string;
+  medico_id: string;
+  tipo_repasse: string;
+  percentual_repasse: number;
+  valor_fixo_repasse: number | null;
+}
+
+interface ProcRepasseConfig {
+  id: string;
+  medico_id: string;
+  nome_procedimento: string;
+  tipo_repasse: string;
+  percentual_repasse: number;
+  valor_fixo_repasse: number | null;
 }
 
 type PeriodFilter = "7d" | "30d" | "60d" | "90d" | "180d" | "365d" | "mes_atual" | "mes_anterior" | "personalizado";
@@ -199,9 +224,38 @@ export default function ClinicaRelatorios() {
     enabled: !!clinicaData?.id,
   });
 
+  // Fetch repasse configs
+  const { data: repasseConfigs } = useQuery({
+    queryKey: ["clinica-repasse-configs", clinicaData?.id],
+    queryFn: async () => {
+      if (!clinicaData?.id) return [];
+      const { data } = await supabase
+        .from("medico_repasse_config")
+        .select("*")
+        .eq("clinica_id", clinicaData.id)
+        .eq("ativo", true);
+      return (data || []) as RepasseConfig[];
+    },
+    enabled: !!clinicaData?.id,
+  });
+
+  // Fetch procedure repasse configs
+  const { data: procRepasseConfigs } = useQuery({
+    queryKey: ["clinica-proc-repasse-configs", clinicaData?.id],
+    queryFn: async () => {
+      if (!clinicaData?.id) return [];
+      const { data } = await supabase
+        .from("procedimento_repasse_config")
+        .select("*")
+        .eq("clinica_id", clinicaData.id);
+      return (data || []) as ProcRepasseConfig[];
+    },
+    enabled: !!clinicaData?.id,
+  });
+
   // Fetch consultas
   const { data: consultas, isLoading } = useQuery({
-    queryKey: ["clinica-consultas-relatorios", clinicaData?.id, calculatedDateRange],
+    queryKey: ["clinica-consultas-relatorios", clinicaData?.id, calculatedDateRange, repasseConfigs, procRepasseConfigs],
     queryFn: async () => {
       if (!clinicaData?.id || !medicos?.length) return [];
       const medicoIds = medicos.map((m: any) => m.id);
@@ -222,6 +276,7 @@ export default function ClinicaRelatorios() {
           clinica_id,
           tipo_atendimento,
           convenio_id,
+          formas_pagamento,
           nome_paciente_consulta,
           created_at,
           paciente:pacientes!consultas_paciente_id_fkey(nome, cpf),
@@ -236,7 +291,52 @@ export default function ClinicaRelatorios() {
         .order("data_hora", { ascending: false });
 
       if (error) throw error;
-      return (data || []) as Consulta[];
+
+      const consultaIds = (data || []).map((c: any) => c.id);
+      
+      // Fetch procedures for all consultations
+      let procedimentosMap: Record<string, { nome_procedimento: string; valor: number }[]> = {};
+      if (consultaIds.length > 0) {
+        const { data: procs } = await supabase
+          .from("consulta_procedimentos")
+          .select("consulta_id, nome_procedimento, valor")
+          .in("consulta_id", consultaIds);
+        (procs || []).forEach((p: any) => {
+          if (!procedimentosMap[p.consulta_id]) procedimentosMap[p.consulta_id] = [];
+          procedimentosMap[p.consulta_id].push({ nome_procedimento: p.nome_procedimento, valor: Number(p.valor) });
+        });
+      }
+
+      // Enrich consultations
+      return (data || []).map((c: any) => {
+        const procs = procedimentosMap[c.id] || [];
+        const totalProcedimentos = procs.reduce((sum: number, p: any) => sum + p.valor, 0);
+        const valorClinica = Number(c.valor_consulta) - Number(c.valor_medico);
+
+        // Repasse config for this doctor
+        const rc = (repasseConfigs || []).find((r) => r.medico_id === c.medico_id);
+        const repasseConsultaConfig = rc
+          ? { tipo: rc.tipo_repasse, percentual: Number(rc.percentual_repasse), fixo: rc.valor_fixo_repasse ? Number(rc.valor_fixo_repasse) : null }
+          : { tipo: "percentual", percentual: 70, fixo: null };
+
+        // Procedure repasse configs for this doctor
+        const prcList = (procRepasseConfigs || []).filter((p) => p.medico_id === c.medico_id);
+        const repasseProcedimentoConfigs = prcList.map((p) => ({
+          nome: p.nome_procedimento,
+          tipo: p.tipo_repasse,
+          percentual: Number(p.percentual_repasse),
+          fixo: p.valor_fixo_repasse ? Number(p.valor_fixo_repasse) : null,
+        }));
+
+        return {
+          ...c,
+          procedimentos: procs,
+          totalProcedimentos,
+          valorClinica,
+          repasseConsultaConfig,
+          repasseProcedimentoConfigs,
+        } as Consulta;
+      });
     },
     enabled: !!clinicaData?.id && !!medicos?.length,
   });
@@ -289,6 +389,11 @@ export default function ClinicaRelatorios() {
     const all = filteredConsultas;
     const online = consultasOnline;
 
+    const totalValorMedico = all.reduce((sum, c) => sum + Number(c.valor_medico), 0);
+    const totalValorClinica = all.reduce((sum, c) => sum + (c.valorClinica || 0), 0);
+    const totalProcedimentos = all.reduce((sum, c) => sum + (c.totalProcedimentos || 0), 0);
+    const consultasComProc = all.filter((c) => (c.totalProcedimentos || 0) > 0).length;
+
     return {
       totalConsultas: all.length,
       consultasOnline: online.length,
@@ -300,6 +405,10 @@ export default function ClinicaRelatorios() {
       receitaPaga: online.filter((c) => c.status_pagamento === "pago").reduce((sum, c) => sum + Number(c.valor_consulta), 0),
       receitaPendente: online.filter((c) => c.status_pagamento === "pendente" && c.status_consulta !== "cancelada").reduce((sum, c) => sum + Number(c.valor_consulta), 0),
       ticketMedio: online.length > 0 ? online.reduce((sum, c) => sum + Number(c.valor_consulta), 0) / online.length : 0,
+      totalValorMedico,
+      totalValorClinica,
+      totalProcedimentos,
+      consultasComProc,
     };
   }, [filteredConsultas, consultasOnline]);
 
@@ -480,24 +589,43 @@ export default function ClinicaRelatorios() {
 
     try {
       // Prepare data
-      const data = filteredConsultas.map((c) => ({
-        "Data/Hora": format(parseISO(c.data_hora), "dd/MM/yyyy HH:mm"),
-        "Médico": c.medico?.nome || "N/A",
-        "Especialidade": c.medico?.especialidade || "N/A",
-        "CRM": c.medico?.crm || "N/A",
-        "Paciente": getPatientName(c),
-        "CPF Paciente": c.paciente?.cpf || "N/A",
-        "Local": c.local?.nome_local || "N/A",
-        "Cidade": c.local?.cidade || "N/A",
-        "Estado": c.local?.estado || "N/A",
-        "Origem": c.origem === "online" ? "Online" : "Interna",
-        "Status Consulta": c.status_consulta,
-        "Status Pagamento": c.status_pagamento,
-        "Valor Consulta": c.valor_consulta,
-        "Valor Médico": c.valor_medico,
-        "Valor Plataforma": c.valor_plataforma,
-        "Data Criação": format(parseISO(c.created_at), "dd/MM/yyyy HH:mm"),
-      }));
+      const data = filteredConsultas.map((c) => {
+        const repasseConsultaLabel = c.repasseConsultaConfig
+          ? c.repasseConsultaConfig.tipo === "fixo"
+            ? `Fixo ${formatCurrency(c.repasseConsultaConfig.fixo || 0)}`
+            : `${c.repasseConsultaConfig.percentual}%`
+          : "70%";
+
+        const procNames = (c.procedimentos || []).map((p) => p.nome_procedimento).join(", ");
+        const procRepasseLabel = (c.repasseProcedimentoConfigs || [])
+          .map((p) => `${p.nome}: ${p.tipo === "fixo" ? formatCurrency(p.fixo || 0) : `${p.percentual}%`}`)
+          .join("; ") || "—";
+
+        return {
+          "Data/Hora": format(parseISO(c.data_hora), "dd/MM/yyyy HH:mm"),
+          "Médico": c.medico?.nome || "N/A",
+          "Especialidade": c.medico?.especialidade || "N/A",
+          "CRM": c.medico?.crm || "N/A",
+          "Paciente": getPatientName(c),
+          "CPF Paciente": c.paciente?.cpf || "N/A",
+          "Local": c.local?.nome_local || "N/A",
+          "Cidade": c.local?.cidade || "N/A",
+          "Estado": c.local?.estado || "N/A",
+          "Origem": c.origem === "online" ? "Online" : "Interna",
+          "Forma Pagamento": c.formas_pagamento ? (Array.isArray(c.formas_pagamento) ? c.formas_pagamento.map((f: any) => f.forma || f).join(", ") : String(c.formas_pagamento)) : "—",
+          "Status Consulta": c.status_consulta,
+          "Status Pagamento": c.status_pagamento,
+          "Valor Total": Number(c.valor_consulta),
+          "Valor Médico": Number(c.valor_medico),
+          "Valor Clínica": c.valorClinica || 0,
+          "Valor Plataforma": Number(c.valor_plataforma),
+          "Procedimentos": procNames || "—",
+          "Valor Procedimentos": c.totalProcedimentos || 0,
+          "Repasse Consulta": repasseConsultaLabel,
+          "Repasse Procedimentos": procRepasseLabel,
+          "Data Criação": format(parseISO(c.created_at), "dd/MM/yyyy HH:mm"),
+        };
+      });
 
       // Create summary sheet
       const resumo = [
@@ -511,6 +639,10 @@ export default function ClinicaRelatorios() {
         { "Métrica": "Receita Paga", "Valor": formatCurrency(metrics.receitaPaga) },
         { "Métrica": "Receita Pendente", "Valor": formatCurrency(metrics.receitaPendente) },
         { "Métrica": "Ticket Médio", "Valor": formatCurrency(metrics.ticketMedio) },
+        { "Métrica": "Total Valor Médicos", "Valor": formatCurrency(metrics.totalValorMedico) },
+        { "Métrica": "Total Valor Clínica", "Valor": formatCurrency(metrics.totalValorClinica) },
+        { "Métrica": "Total Procedimentos", "Valor": formatCurrency(metrics.totalProcedimentos) },
+        { "Métrica": "Consultas com Procedimentos", "Valor": metrics.consultasComProc },
       ];
 
       // Create by doctor sheet
@@ -596,6 +728,10 @@ export default function ClinicaRelatorios() {
         ["Receita Paga:", formatCurrency(metrics.receitaPaga)],
         ["Receita Pendente:", formatCurrency(metrics.receitaPendente)],
         ["Ticket Médio:", formatCurrency(metrics.ticketMedio)],
+        ["Total Valor Médicos:", formatCurrency(metrics.totalValorMedico)],
+        ["Total Valor Clínica:", formatCurrency(metrics.totalValorClinica)],
+        ["Total Procedimentos:", formatCurrency(metrics.totalProcedimentos)],
+        ["Consultas c/ Procedimentos:", metrics.consultasComProc.toString()],
       ];
 
       summaryData.forEach(([label, value]) => {
@@ -648,27 +784,57 @@ export default function ClinicaRelatorios() {
       doc.text("Últimas Consultas", 14, yPos);
       yPos += 10;
 
-      doc.setFontSize(8);
+      doc.setFontSize(7);
       doc.setFont("helvetica", "bold");
       doc.text("Data", 14, yPos);
-      doc.text("Médico", 40, yPos);
-      doc.text("Paciente", 85, yPos);
-      doc.text("Valor", 130, yPos);
-      doc.text("Status", 160, yPos);
+      doc.text("Médico", 36, yPos);
+      doc.text("Paciente", 68, yPos);
+      doc.text("V.Total", 100, yPos);
+      doc.text("V.Médico", 122, yPos);
+      doc.text("V.Clínica", 144, yPos);
+      doc.text("Proced.", 166, yPos);
+      doc.text("Status", 186, yPos);
       yPos += 5;
 
       doc.setFont("helvetica", "normal");
-      filteredConsultas.slice(0, 20).forEach((c) => {
+      doc.setFontSize(7);
+      filteredConsultas.slice(0, 30).forEach((c) => {
         if (yPos > 280) {
           doc.addPage();
           yPos = 20;
         }
         doc.text(format(parseISO(c.data_hora), "dd/MM/yy HH:mm"), 14, yPos);
-        doc.text((c.medico?.nome || "N/A").substring(0, 20), 40, yPos);
-        doc.text(getPatientName(c).substring(0, 20), 85, yPos);
-        doc.text(formatCurrency(c.valor_consulta), 130, yPos);
-        doc.text(c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Cancelado" : "Pendente", 160, yPos);
-        yPos += 5;
+        doc.text((c.medico?.nome || "N/A").substring(0, 16), 36, yPos);
+        doc.text(getPatientName(c).substring(0, 16), 68, yPos);
+        doc.text(formatCurrency(c.valor_consulta), 100, yPos);
+        doc.text(formatCurrency(c.valor_medico), 122, yPos);
+        doc.text(formatCurrency(c.valorClinica || 0), 144, yPos);
+        doc.text(c.totalProcedimentos ? formatCurrency(c.totalProcedimentos) : "—", 166, yPos);
+        doc.text(c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Canc." : "Pend.", 186, yPos);
+        yPos += 4;
+
+        // Print procedures details if any
+        if (c.procedimentos && c.procedimentos.length > 0) {
+          doc.setFontSize(6);
+          c.procedimentos.forEach((p) => {
+            if (yPos > 280) { doc.addPage(); yPos = 20; }
+            const procRepasse = (c.repasseProcedimentoConfigs || []).find((r) => r.nome === p.nome_procedimento);
+            const repasseInfo = procRepasse ? (procRepasse.tipo === "fixo" ? `Fixo ${formatCurrency(procRepasse.fixo || 0)}` : `${procRepasse.percentual}%`) : "—";
+            doc.text(`  → ${p.nome_procedimento}: ${formatCurrency(p.valor)} (Repasse: ${repasseInfo})`, 36, yPos);
+            yPos += 3.5;
+          });
+          doc.setFontSize(7);
+        }
+
+        // Print repasse info
+        if (c.repasseConsultaConfig) {
+          doc.setFontSize(6);
+          if (yPos > 280) { doc.addPage(); yPos = 20; }
+          const rcLabel = c.repasseConsultaConfig.tipo === "fixo" ? `Fixo ${formatCurrency(c.repasseConsultaConfig.fixo || 0)}` : `${c.repasseConsultaConfig.percentual}%`;
+          doc.text(`  Repasse consulta: ${rcLabel}`, 36, yPos);
+          yPos += 4;
+          doc.setFontSize(7);
+        }
       });
 
       // Footer
@@ -945,12 +1111,12 @@ export default function ClinicaRelatorios() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-green-500/10 shrink-0">
-                <DollarSign className="w-6 h-6 text-green-500" />
+              <div className="p-3 rounded-xl bg-primary/10 shrink-0">
+                <DollarSign className="w-6 h-6 text-primary" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm text-muted-foreground">Receita Paga</p>
-                <p className="text-xl font-bold text-green-500 truncate">{formatCurrency(metrics.receitaPaga)}</p>
+                <p className="text-xl font-bold text-primary truncate">{formatCurrency(metrics.receitaPaga)}</p>
               </div>
             </div>
           </CardContent>
@@ -959,17 +1125,47 @@ export default function ClinicaRelatorios() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-yellow-500/10 shrink-0">
-                <Clock className="w-6 h-6 text-yellow-500" />
+              <div className="p-3 rounded-xl bg-muted shrink-0">
+                <Clock className="w-6 h-6 text-muted-foreground" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm text-muted-foreground">Receita Pendente</p>
-                <p className="text-xl font-bold text-yellow-500 truncate">{formatCurrency(metrics.receitaPendente)}</p>
+                <p className="text-xl font-bold truncate">{formatCurrency(metrics.receitaPendente)}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-primary/10 shrink-0">
+                <Stethoscope className="w-6 h-6 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">Valor Médicos</p>
+                <p className="text-xl font-bold truncate">{formatCurrency(metrics.totalValorMedico)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-accent shrink-0">
+                <Building2 className="w-6 h-6 text-accent-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">Valor Clínica</p>
+                <p className="text-xl font-bold truncate">{formatCurrency(metrics.totalValorClinica)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -993,6 +1189,34 @@ export default function ClinicaRelatorios() {
               <div className="min-w-0">
                 <p className="text-sm text-muted-foreground">Ticket Médio</p>
                 <p className="text-xl font-bold truncate">{formatCurrency(metrics.ticketMedio)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-accent shrink-0">
+                <FileText className="w-6 h-6 text-accent-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">Total Procedimentos</p>
+                <p className="text-xl font-bold truncate">{formatCurrency(metrics.totalProcedimentos)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-muted shrink-0">
+                <Stethoscope className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">C/ Procedimentos</p>
+                <p className="text-xl font-bold truncate">{metrics.consultasComProc}</p>
               </div>
             </div>
           </CardContent>
@@ -1253,7 +1477,7 @@ export default function ClinicaRelatorios() {
       <Card>
         <CardHeader>
           <CardTitle>Consultas do Período ({filteredConsultas.length})</CardTitle>
-          <CardDescription>Visualize os detalhes de cada consulta</CardDescription>
+          <CardDescription>Detalhes completos: valores, procedimentos e repasses</CardDescription>
         </CardHeader>
         <CardContent>
           {filteredConsultas.length === 0 ? (
@@ -1268,56 +1492,86 @@ export default function ClinicaRelatorios() {
                     <TableHead>Data</TableHead>
                     <TableHead>Médico</TableHead>
                     <TableHead>Paciente</TableHead>
-                    <TableHead>Local</TableHead>
                     <TableHead>Origem</TableHead>
-                    <TableHead>Valor</TableHead>
+                    <TableHead className="text-right">V. Total</TableHead>
+                    <TableHead className="text-right">V. Médico</TableHead>
+                    <TableHead className="text-right">V. Clínica</TableHead>
+                    <TableHead className="text-right">Procedimentos</TableHead>
+                    <TableHead>Repasse Consulta</TableHead>
+                    <TableHead>Repasse Proced.</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredConsultas.slice(0, 50).map((consulta) => (
-                    <TableRow key={consulta.id}>
-                      <TableCell className="whitespace-nowrap">
-                        {format(parseISO(consulta.data_hora), "dd/MM/yyyy HH:mm")}
-                      </TableCell>
-                      <TableCell>Dr(a). {consulta.medico?.nome || "N/A"}</TableCell>
-                      <TableCell>{getPatientName(consulta)}</TableCell>
-                      <TableCell>{consulta.local?.nome_local || "-"}</TableCell>
-                      <TableCell>
-                              <div className="flex flex-col gap-1">
-                                <Badge variant={consulta.origem === "online" ? "default" : "secondary"}>
-                                  {consulta.origem === "online" ? "Online" : "Interna"}
+                  {filteredConsultas.slice(0, 50).map((consulta) => {
+                    const rcLabel = consulta.repasseConsultaConfig
+                      ? consulta.repasseConsultaConfig.tipo === "fixo"
+                        ? `Fixo ${formatCurrency(consulta.repasseConsultaConfig.fixo || 0)}`
+                        : `${consulta.repasseConsultaConfig.percentual}%`
+                      : "70%";
+                    const procLabels = (consulta.repasseProcedimentoConfigs || [])
+                      .map((p) => `${p.nome}: ${p.tipo === "fixo" ? formatCurrency(p.fixo || 0) : `${p.percentual}%`}`)
+                      .join("; ");
+
+                    return (
+                      <TableRow key={consulta.id}>
+                        <TableCell className="whitespace-nowrap text-xs">
+                          {format(parseISO(consulta.data_hora), "dd/MM/yy HH:mm")}
+                        </TableCell>
+                        <TableCell className="text-xs">Dr(a). {consulta.medico?.nome || "N/A"}</TableCell>
+                        <TableCell className="text-xs">{getPatientName(consulta)}</TableCell>
+                        <TableCell>
+                          <Badge variant={consulta.origem === "online" ? "default" : "secondary"} className="text-xs">
+                            {consulta.origem === "online" ? "Online" : "Interna"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right text-xs font-medium">{formatCurrency(consulta.valor_consulta)}</TableCell>
+                        <TableCell className="text-right text-xs">{formatCurrency(consulta.valor_medico)}</TableCell>
+                        <TableCell className="text-right text-xs">{formatCurrency(consulta.valorClinica || 0)}</TableCell>
+                        <TableCell className="text-right text-xs">
+                          {consulta.totalProcedimentos ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-medium">{formatCurrency(consulta.totalProcedimentos)}</span>
+                              {consulta.procedimentos?.map((p, i) => (
+                                <span key={i} className="text-muted-foreground text-[10px]">{p.nome_procedimento}: {formatCurrency(p.valor)}</span>
+                              ))}
+                            </div>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Badge variant="outline" className="text-xs">{rcLabel}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {procLabels ? (
+                            <div className="flex flex-col gap-0.5">
+                              {(consulta.repasseProcedimentoConfigs || []).map((p, i) => (
+                                <Badge key={i} variant="outline" className="text-[10px] whitespace-nowrap">
+                                  {p.nome}: {p.tipo === "fixo" ? formatCurrency(p.fixo || 0) : `${p.percentual}%`}
                                 </Badge>
-                                {consulta.tipo_atendimento === "convenio" && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {consulta.convenio?.nome || "Convênio"}
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>{formatCurrency(consulta.valor_consulta)}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            consulta.status_pagamento === "pago"
-                              ? "default"
+                              ))}
+                            </div>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              consulta.status_pagamento === "pago"
+                                ? "default"
+                                : consulta.status_consulta === "cancelada"
+                                ? "destructive"
+                                : "secondary"
+                            }
+                          >
+                            {consulta.status_pagamento === "pago"
+                              ? "Pago"
                               : consulta.status_consulta === "cancelada"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                          className={cn(
-                            consulta.status_pagamento === "pago" && "bg-green-500 hover:bg-green-600"
-                          )}
-                        >
-                          {consulta.status_pagamento === "pago"
-                            ? "Pago"
-                            : consulta.status_consulta === "cancelada"
-                            ? "Cancelada"
-                            : "Pendente"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                              ? "Cancelada"
+                              : "Pendente"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
               {filteredConsultas.length > 50 && (
