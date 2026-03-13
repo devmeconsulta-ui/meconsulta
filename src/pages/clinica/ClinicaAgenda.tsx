@@ -150,6 +150,7 @@ export default function ClinicaAgenda() {
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("semana");
+  const clinicaId = clinicaData?.id || currentUser?.clinicaId || null;
   
   // Filters
   const [filterMedico, setFilterMedico] = useState("todos");
