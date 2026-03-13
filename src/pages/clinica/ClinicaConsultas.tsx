@@ -98,7 +98,7 @@ function TempoEspera({ dataHora }: { dataHora: string }) {
   );
 }
 
-type PeriodFilter = "hoje" | "ultimos7" | "proximos7" | "ultimos15" | "proximos15" | "custom";
+type PeriodFilter = "hoje" | "ultimos7" | "proximos7" | "ultimos15" | "proximos15" | "ultimos30" | "proximos30" | "ultimos60" | "ultimos90" | "custom";
 
 export default function ClinicaConsultas() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
