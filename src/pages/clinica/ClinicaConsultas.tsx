@@ -182,6 +182,10 @@ export default function ClinicaConsultas() {
       "proximos7": "Próximos 7 dias",
       "ultimos15": "Últimos 15 dias",
       "proximos15": "Próximos 15 dias",
+      "ultimos30": "Últimos 30 dias",
+      "proximos30": "Próximos 30 dias",
+      "ultimos60": "Últimos 60 dias",
+      "ultimos90": "Últimos 90 dias",
     };
     return labels[periodFilter] || "Hoje";
   };
