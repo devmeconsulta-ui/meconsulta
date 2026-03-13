@@ -142,6 +142,14 @@ export default function ClinicaConsultas() {
         return { start: startOfDay(subDays(now, 15)), end: endOfDay(now) };
       case "proximos15":
         return { start: startOfDay(now), end: endOfDay(addDays(now, 15)) };
+      case "ultimos30":
+        return { start: startOfDay(subDays(now, 30)), end: endOfDay(now) };
+      case "proximos30":
+        return { start: startOfDay(now), end: endOfDay(addDays(now, 30)) };
+      case "ultimos60":
+        return { start: startOfDay(subDays(now, 60)), end: endOfDay(now) };
+      case "ultimos90":
+        return { start: startOfDay(subDays(now, 90)), end: endOfDay(now) };
       default:
         return { start: startOfDay(now), end: endOfDay(now) };
     }
