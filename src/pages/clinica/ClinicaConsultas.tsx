@@ -283,10 +283,11 @@ export default function ClinicaConsultas() {
     if (!consultas) return [];
     
     const filtered = consultas.filter((c: any) => {
-      const matchSearch = 
-        c.medico?.nome?.toLowerCase().includes(search.toLowerCase()) ||
-        c.paciente?.nome?.toLowerCase().includes(search.toLowerCase()) ||
-        c.nome_paciente_consulta?.toLowerCase().includes(search.toLowerCase());
+      const searchLower = search.toLowerCase().trim();
+      const matchSearch = !searchLower || 
+        (c.medico?.nome?.toLowerCase().includes(searchLower) ?? false) ||
+        (c.paciente?.nome?.toLowerCase().includes(searchLower) ?? false) ||
+        (c.nome_paciente_consulta?.toLowerCase().includes(searchLower) ?? false);
 
       const matchMedico = medicoFilter === "todos" || c.medico_id === medicoFilter;
 
