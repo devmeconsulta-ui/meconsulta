@@ -306,8 +306,8 @@ export default function ClinicaAgenda() {
     setGerarForm(prev => ({ ...prev, localId: "" }));
   }
 
-  async function fetchData() {
-    setLoading(true);
+  async function fetchData(silent = false) {
+    if (!silent) setLoading(true);
 
     // Busca médicos vinculados
     const { data: vinculosData } = await supabase
