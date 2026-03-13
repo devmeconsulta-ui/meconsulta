@@ -588,24 +588,43 @@ export default function ClinicaRelatorios() {
 
     try {
       // Prepare data
-      const data = filteredConsultas.map((c) => ({
-        "Data/Hora": format(parseISO(c.data_hora), "dd/MM/yyyy HH:mm"),
-        "Médico": c.medico?.nome || "N/A",
-        "Especialidade": c.medico?.especialidade || "N/A",
-        "CRM": c.medico?.crm || "N/A",
-        "Paciente": getPatientName(c),
-        "CPF Paciente": c.paciente?.cpf || "N/A",
-        "Local": c.local?.nome_local || "N/A",
-        "Cidade": c.local?.cidade || "N/A",
-        "Estado": c.local?.estado || "N/A",
-        "Origem": c.origem === "online" ? "Online" : "Interna",
-        "Status Consulta": c.status_consulta,
-        "Status Pagamento": c.status_pagamento,
-        "Valor Consulta": c.valor_consulta,
-        "Valor Médico": c.valor_medico,
-        "Valor Plataforma": c.valor_plataforma,
-        "Data Criação": format(parseISO(c.created_at), "dd/MM/yyyy HH:mm"),
-      }));
+      const data = filteredConsultas.map((c) => {
+        const repasseConsultaLabel = c.repasseConsultaConfig
+          ? c.repasseConsultaConfig.tipo === "fixo"
+            ? `Fixo ${formatCurrency(c.repasseConsultaConfig.fixo || 0)}`
+            : `${c.repasseConsultaConfig.percentual}%`
+          : "70%";
+
+        const procNames = (c.procedimentos || []).map((p) => p.nome_procedimento).join(", ");
+        const procRepasseLabel = (c.repasseProcedimentoConfigs || [])
+          .map((p) => `${p.nome}: ${p.tipo === "fixo" ? formatCurrency(p.fixo || 0) : `${p.percentual}%`}`)
+          .join("; ") || "—";
+
+        return {
+          "Data/Hora": format(parseISO(c.data_hora), "dd/MM/yyyy HH:mm"),
+          "Médico": c.medico?.nome || "N/A",
+          "Especialidade": c.medico?.especialidade || "N/A",
+          "CRM": c.medico?.crm || "N/A",
+          "Paciente": getPatientName(c),
+          "CPF Paciente": c.paciente?.cpf || "N/A",
+          "Local": c.local?.nome_local || "N/A",
+          "Cidade": c.local?.cidade || "N/A",
+          "Estado": c.local?.estado || "N/A",
+          "Origem": c.origem === "online" ? "Online" : "Interna",
+          "Forma Pagamento": c.formas_pagamento ? (Array.isArray(c.formas_pagamento) ? c.formas_pagamento.map((f: any) => f.forma || f).join(", ") : String(c.formas_pagamento)) : "—",
+          "Status Consulta": c.status_consulta,
+          "Status Pagamento": c.status_pagamento,
+          "Valor Total": Number(c.valor_consulta),
+          "Valor Médico": Number(c.valor_medico),
+          "Valor Clínica": c.valorClinica || 0,
+          "Valor Plataforma": Number(c.valor_plataforma),
+          "Procedimentos": procNames || "—",
+          "Valor Procedimentos": c.totalProcedimentos || 0,
+          "Repasse Consulta": repasseConsultaLabel,
+          "Repasse Procedimentos": procRepasseLabel,
+          "Data Criação": format(parseISO(c.created_at), "dd/MM/yyyy HH:mm"),
+        };
+      });
 
       // Create summary sheet
       const resumo = [
@@ -619,6 +638,10 @@ export default function ClinicaRelatorios() {
         { "Métrica": "Receita Paga", "Valor": formatCurrency(metrics.receitaPaga) },
         { "Métrica": "Receita Pendente", "Valor": formatCurrency(metrics.receitaPendente) },
         { "Métrica": "Ticket Médio", "Valor": formatCurrency(metrics.ticketMedio) },
+        { "Métrica": "Total Valor Médicos", "Valor": formatCurrency(metrics.totalValorMedico) },
+        { "Métrica": "Total Valor Clínica", "Valor": formatCurrency(metrics.totalValorClinica) },
+        { "Métrica": "Total Procedimentos", "Valor": formatCurrency(metrics.totalProcedimentos) },
+        { "Métrica": "Consultas com Procedimentos", "Valor": metrics.consultasComProc },
       ];
 
       // Create by doctor sheet
