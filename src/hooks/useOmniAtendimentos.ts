@@ -145,7 +145,7 @@ export function useOmniAtendimentos(clinicaId: string | null, options: UseOmniAt
   }, [clinicaId, statusKey, agenteKey, filaKey]);
 
   // Debounced refetch to prevent rapid successive fetches from realtime
-  const refetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedFetch = useCallback(() => {
     if (refetchTimeoutRef.current) {
       clearTimeout(refetchTimeoutRef.current);

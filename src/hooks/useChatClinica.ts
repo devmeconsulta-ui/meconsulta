@@ -124,7 +124,7 @@ export function useChatClinica({ clinicaId }: UseChatClinicaProps) {
   const [usersTyping, setUsersTyping] = useState<TypingUser[]>([]);
   const [participantesConversa, setParticipantesConversa] = useState<ChatParticipante[]>([]);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Buscar conversas da clínica
   const fetchConversas = useCallback(async () => {
