@@ -223,9 +223,38 @@ export default function ClinicaRelatorios() {
     enabled: !!clinicaData?.id,
   });
 
+  // Fetch repasse configs
+  const { data: repasseConfigs } = useQuery({
+    queryKey: ["clinica-repasse-configs", clinicaData?.id],
+    queryFn: async () => {
+      if (!clinicaData?.id) return [];
+      const { data } = await supabase
+        .from("medico_repasse_config")
+        .select("*")
+        .eq("clinica_id", clinicaData.id)
+        .eq("ativo", true);
+      return (data || []) as RepasseConfig[];
+    },
+    enabled: !!clinicaData?.id,
+  });
+
+  // Fetch procedure repasse configs
+  const { data: procRepasseConfigs } = useQuery({
+    queryKey: ["clinica-proc-repasse-configs", clinicaData?.id],
+    queryFn: async () => {
+      if (!clinicaData?.id) return [];
+      const { data } = await supabase
+        .from("procedimento_repasse_config")
+        .select("*")
+        .eq("clinica_id", clinicaData.id);
+      return (data || []) as ProcRepasseConfig[];
+    },
+    enabled: !!clinicaData?.id,
+  });
+
   // Fetch consultas
   const { data: consultas, isLoading } = useQuery({
-    queryKey: ["clinica-consultas-relatorios", clinicaData?.id, calculatedDateRange],
+    queryKey: ["clinica-consultas-relatorios", clinicaData?.id, calculatedDateRange, repasseConfigs, procRepasseConfigs],
     queryFn: async () => {
       if (!clinicaData?.id || !medicos?.length) return [];
       const medicoIds = medicos.map((m: any) => m.id);
@@ -246,6 +275,7 @@ export default function ClinicaRelatorios() {
           clinica_id,
           tipo_atendimento,
           convenio_id,
+          formas_pagamento,
           nome_paciente_consulta,
           created_at,
           paciente:pacientes!consultas_paciente_id_fkey(nome, cpf),
@@ -260,7 +290,52 @@ export default function ClinicaRelatorios() {
         .order("data_hora", { ascending: false });
 
       if (error) throw error;
-      return (data || []) as Consulta[];
+
+      const consultaIds = (data || []).map((c: any) => c.id);
+      
+      // Fetch procedures for all consultations
+      let procedimentosMap: Record<string, { nome_procedimento: string; valor: number }[]> = {};
+      if (consultaIds.length > 0) {
+        const { data: procs } = await supabase
+          .from("consulta_procedimentos")
+          .select("consulta_id, nome_procedimento, valor")
+          .in("consulta_id", consultaIds);
+        (procs || []).forEach((p: any) => {
+          if (!procedimentosMap[p.consulta_id]) procedimentosMap[p.consulta_id] = [];
+          procedimentosMap[p.consulta_id].push({ nome_procedimento: p.nome_procedimento, valor: Number(p.valor) });
+        });
+      }
+
+      // Enrich consultations
+      return (data || []).map((c: any) => {
+        const procs = procedimentosMap[c.id] || [];
+        const totalProcedimentos = procs.reduce((sum: number, p: any) => sum + p.valor, 0);
+        const valorClinica = Number(c.valor_consulta) - Number(c.valor_medico);
+
+        // Repasse config for this doctor
+        const rc = (repasseConfigs || []).find((r) => r.medico_id === c.medico_id);
+        const repasseConsultaConfig = rc
+          ? { tipo: rc.tipo_repasse, percentual: Number(rc.percentual_repasse), fixo: rc.valor_fixo_repasse ? Number(rc.valor_fixo_repasse) : null }
+          : { tipo: "percentual", percentual: 70, fixo: null };
+
+        // Procedure repasse configs for this doctor
+        const prcList = (procRepasseConfigs || []).filter((p) => p.medico_id === c.medico_id);
+        const repasseProcedimentoConfigs = prcList.map((p) => ({
+          nome: p.nome_procedimento,
+          tipo: p.tipo_repasse,
+          percentual: Number(p.percentual_repasse),
+          fixo: p.valor_fixo_repasse ? Number(p.valor_fixo_repasse) : null,
+        }));
+
+        return {
+          ...c,
+          procedimentos: procs,
+          totalProcedimentos,
+          valorClinica,
+          repasseConsultaConfig,
+          repasseProcedimentoConfigs,
+        } as Consulta;
+      });
     },
     enabled: !!clinicaData?.id && !!medicos?.length,
   });
