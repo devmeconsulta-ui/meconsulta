@@ -42,7 +42,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit, Timer, CalendarIcon, RotateCcw, Users } from "lucide-react";
-import { format, subDays, parseISO, differenceInMinutes, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, addDays, parseISO, differenceInMinutes, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ConsultaDetalhesModal } from "@/components/clinica/ConsultaDetalhesModal";
 import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
@@ -98,7 +98,7 @@ function TempoEspera({ dataHora }: { dataHora: string }) {
   );
 }
 
-type PeriodFilter = "hoje" | "7d" | "30d" | "60d" | "90d" | "180d" | "365d" | "custom";
+type PeriodFilter = "hoje" | "ultimos7" | "proximos7" | "ultimos15" | "proximos15" | "custom";
 
 export default function ClinicaConsultas() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
@@ -126,8 +126,6 @@ export default function ClinicaConsultas() {
 
   const dateRange = useMemo(() => {
     const now = new Date();
-    const future = new Date();
-    future.setDate(future.getDate() + 90);
     
     if (periodFilter === "custom" && customDateStart && customDateEnd) {
       return { start: startOfDay(customDateStart), end: endOfDay(customDateEnd) };
@@ -136,18 +134,14 @@ export default function ClinicaConsultas() {
     switch (periodFilter) {
       case "hoje":
         return { start: startOfDay(now), end: endOfDay(now) };
-      case "7d":
-        return { start: subDays(now, 7), end: future };
-      case "30d":
-        return { start: subDays(now, 30), end: future };
-      case "60d":
-        return { start: subDays(now, 60), end: future };
-      case "90d":
-        return { start: subDays(now, 90), end: future };
-      case "180d":
-        return { start: subDays(now, 180), end: future };
-      case "365d":
-        return { start: subDays(now, 365), end: future };
+      case "ultimos7":
+        return { start: startOfDay(subDays(now, 7)), end: endOfDay(now) };
+      case "proximos7":
+        return { start: startOfDay(now), end: endOfDay(addDays(now, 7)) };
+      case "ultimos15":
+        return { start: startOfDay(subDays(now, 15)), end: endOfDay(now) };
+      case "proximos15":
+        return { start: startOfDay(now), end: endOfDay(addDays(now, 15)) };
       default:
         return { start: startOfDay(now), end: endOfDay(now) };
     }
@@ -176,12 +170,10 @@ export default function ClinicaConsultas() {
     }
     const labels: Record<string, string> = {
       "hoje": "Hoje",
-      "7d": "Últimos 7 dias",
-      "30d": "Últimos 30 dias",
-      "60d": "Últimos 60 dias",
-      "90d": "Últimos 90 dias",
-      "180d": "Últimos 180 dias",
-      "365d": "Último ano",
+      "ultimos7": "Últimos 7 dias",
+      "proximos7": "Próximos 7 dias",
+      "ultimos15": "Últimos 15 dias",
+      "proximos15": "Próximos 15 dias",
     };
     return labels[periodFilter] || "Hoje";
   };
@@ -447,12 +439,10 @@ export default function ClinicaConsultas() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="hoje">Hoje</SelectItem>
-              <SelectItem value="7d">Últimos 7 dias</SelectItem>
-              <SelectItem value="30d">Últimos 30 dias</SelectItem>
-              <SelectItem value="60d">Últimos 60 dias</SelectItem>
-              <SelectItem value="90d">Últimos 90 dias</SelectItem>
-              <SelectItem value="180d">Últimos 180 dias</SelectItem>
-              <SelectItem value="365d">Último ano</SelectItem>
+              <SelectItem value="ultimos7">Últimos 7 dias</SelectItem>
+              <SelectItem value="proximos7">Próximos 7 dias</SelectItem>
+              <SelectItem value="ultimos15">Últimos 15 dias</SelectItem>
+              <SelectItem value="proximos15">Próximos 15 dias</SelectItem>
               <SelectItem value="custom">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
