@@ -265,7 +265,7 @@ export default function ClinicaAgenda() {
         supabase.removeChannel(slotsChannel);
       };
     }
-  }, [clinicaData, currentDate, viewMode]);
+  }, [clinicaData?.id, currentDate, viewMode]);
 
   // Fetch locais when medicoId changes in form
   useEffect(() => {
