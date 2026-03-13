@@ -222,8 +222,16 @@ export default function ClinicaAgenda() {
     if (clinicaData?.id) {
       fetchData();
 
+      // Debounce para evitar múltiplas chamadas em sequência do realtime
+      let realtimeTimeout: ReturnType<typeof setTimeout> | null = null;
+      const debouncedRefresh = () => {
+        if (realtimeTimeout) clearTimeout(realtimeTimeout);
+        realtimeTimeout = setTimeout(() => {
+          fetchData(true); // silent = true, sem loading spinner
+        }, 500);
+      };
+
       // ========== REALTIME SUBSCRIPTION ==========
-      // Atualiza a agenda automaticamente quando consultas são criadas/modificadas
       const consultasChannel = supabase
         .channel('agenda-consultas-realtime')
         .on(
@@ -234,10 +242,7 @@ export default function ClinicaAgenda() {
             table: 'consultas',
             filter: `clinica_id=eq.${clinicaData.id}`,
           },
-          (payload) => {
-            console.log('[Agenda] Consulta changed, refreshing...', payload.eventType);
-            fetchData();
-          }
+          () => debouncedRefresh()
         )
         .subscribe();
 
@@ -250,14 +255,12 @@ export default function ClinicaAgenda() {
             schema: 'public',
             table: 'agenda_slots',
           },
-          (payload) => {
-            console.log('[Agenda] Slot changed, refreshing...', payload.eventType);
-            fetchData();
-          }
+          () => debouncedRefresh()
         )
         .subscribe();
 
       return () => {
+        if (realtimeTimeout) clearTimeout(realtimeTimeout);
         supabase.removeChannel(consultasChannel);
         supabase.removeChannel(slotsChannel);
       };
