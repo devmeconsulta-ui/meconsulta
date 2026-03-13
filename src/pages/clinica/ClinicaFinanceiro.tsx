@@ -175,6 +175,17 @@ interface MedicoRepasseConfig {
   medico?: { nome: string };
 }
 
+interface ProcedimentoRepasseConfig {
+  id: string;
+  clinica_id: string;
+  medico_id: string;
+  nome_procedimento: string;
+  tipo_repasse: string;
+  percentual_repasse: number;
+  valor_fixo_repasse: number | null;
+  medico?: { nome: string };
+}
+
 type PeriodFilter = "hoje" | "7d" | "30d" | "60d" | "90d" | "180d" | "365d" | "personalizado";
 
 const COLORS = ["#22c55e", "#3b82f6", "#eab308", "#ef4444", "#8b5cf6", "#ec4899"];
