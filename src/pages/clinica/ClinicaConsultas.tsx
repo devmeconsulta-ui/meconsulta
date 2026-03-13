@@ -98,7 +98,7 @@ function TempoEspera({ dataHora }: { dataHora: string }) {
   );
 }
 
-type PeriodFilter = "hoje" | "7d" | "30d" | "60d" | "90d" | "180d" | "365d" | "custom";
+type PeriodFilter = "hoje" | "ultimos7" | "proximos7" | "ultimos15" | "proximos15" | "custom";
 
 export default function ClinicaConsultas() {
   const { clinicaData } = useOutletContext<{ clinicaData: any }>();
@@ -126,8 +126,6 @@ export default function ClinicaConsultas() {
 
   const dateRange = useMemo(() => {
     const now = new Date();
-    const future = new Date();
-    future.setDate(future.getDate() + 90);
     
     if (periodFilter === "custom" && customDateStart && customDateEnd) {
       return { start: startOfDay(customDateStart), end: endOfDay(customDateEnd) };
@@ -136,18 +134,14 @@ export default function ClinicaConsultas() {
     switch (periodFilter) {
       case "hoje":
         return { start: startOfDay(now), end: endOfDay(now) };
-      case "7d":
-        return { start: subDays(now, 7), end: future };
-      case "30d":
-        return { start: subDays(now, 30), end: future };
-      case "60d":
-        return { start: subDays(now, 60), end: future };
-      case "90d":
-        return { start: subDays(now, 90), end: future };
-      case "180d":
-        return { start: subDays(now, 180), end: future };
-      case "365d":
-        return { start: subDays(now, 365), end: future };
+      case "ultimos7":
+        return { start: startOfDay(subDays(now, 7)), end: endOfDay(now) };
+      case "proximos7":
+        return { start: startOfDay(now), end: endOfDay(addDays(now, 7)) };
+      case "ultimos15":
+        return { start: startOfDay(subDays(now, 15)), end: endOfDay(now) };
+      case "proximos15":
+        return { start: startOfDay(now), end: endOfDay(addDays(now, 15)) };
       default:
         return { start: startOfDay(now), end: endOfDay(now) };
     }
@@ -176,12 +170,10 @@ export default function ClinicaConsultas() {
     }
     const labels: Record<string, string> = {
       "hoje": "Hoje",
-      "7d": "Últimos 7 dias",
-      "30d": "Últimos 30 dias",
-      "60d": "Últimos 60 dias",
-      "90d": "Últimos 90 dias",
-      "180d": "Últimos 180 dias",
-      "365d": "Último ano",
+      "ultimos7": "Últimos 7 dias",
+      "proximos7": "Próximos 7 dias",
+      "ultimos15": "Últimos 15 dias",
+      "proximos15": "Próximos 15 dias",
     };
     return labels[periodFilter] || "Hoje";
   };
