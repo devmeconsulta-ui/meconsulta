@@ -3452,6 +3452,60 @@ export default function ClinicaFinanceiro() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Configuração de Repasse por Procedimento */}
+            <Card className="card-shadow">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Repasse por Procedimento
+                  </CardTitle>
+                  <CardDescription>Configure % ou valor fixo por tipo de procedimento</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => { setEditingItem(null); setFormProcedimentoRepasse({ medico_id: "", nome_procedimento: "", tipo_repasse: "percentual", percentual_repasse: "70", valor_fixo_repasse: "" }); setShowProcedimentoRepasseModal(true); }}>
+                  <Plus className="h-4 w-4 mr-1" /> Novo
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {procedimentoRepasseConfigs.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">Nenhuma configuração de procedimento</div>
+                ) : (
+                  <div className="space-y-2">
+                    {procedimentoRepasseConfigs.map((config) => (
+                      <div key={config.id} className="flex justify-between items-center p-3 rounded-lg border">
+                        <div>
+                          <p className="font-medium">{config.nome_procedimento}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Dr(a). {config.medico?.nome || "N/A"} — {config.tipo_repasse === "percentual" 
+                              ? `${config.percentual_repasse}%`
+                              : `R$ ${config.valor_fixo_repasse}`}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            setEditingItem(config);
+                            setFormProcedimentoRepasse({
+                              medico_id: config.medico_id,
+                              nome_procedimento: config.nome_procedimento,
+                              tipo_repasse: config.tipo_repasse,
+                              percentual_repasse: String(config.percentual_repasse),
+                              valor_fixo_repasse: config.valor_fixo_repasse ? String(config.valor_fixo_repasse) : "",
+                            });
+                            setShowProcedimentoRepasseModal(true);
+                          }}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDeleteItem("procedimento_repasse_config", config.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>
