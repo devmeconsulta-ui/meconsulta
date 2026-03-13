@@ -42,7 +42,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, Calendar, Filter, ChevronDown, Globe, Building2, Eye, Trash2, Loader2, Edit, Timer, CalendarIcon, RotateCcw, Users } from "lucide-react";
-import { format, subDays, parseISO, differenceInMinutes, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, addDays, parseISO, differenceInMinutes, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ConsultaDetalhesModal } from "@/components/clinica/ConsultaDetalhesModal";
 import { EditarConsultaModal } from "@/components/shared/EditarConsultaModal";
