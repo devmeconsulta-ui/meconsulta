@@ -221,53 +221,57 @@ export default function ClinicaAgenda() {
   }
 
   useEffect(() => {
-    if (clinicaData?.id) {
-      fetchData();
-
-      // Debounce para evitar múltiplas chamadas em sequência do realtime
-      let realtimeTimeout: ReturnType<typeof setTimeout> | null = null;
-      const debouncedRefresh = () => {
-        if (realtimeTimeout) clearTimeout(realtimeTimeout);
-        realtimeTimeout = setTimeout(() => {
-          fetchData(true); // silent = true, sem loading spinner
-        }, 500);
-      };
-
-      // ========== REALTIME SUBSCRIPTION ==========
-      const consultasChannel = supabase
-        .channel('agenda-consultas-realtime')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'consultas',
-            filter: `clinica_id=eq.${clinicaData.id}`,
-          },
-          () => debouncedRefresh()
-        )
-        .subscribe();
-
-      const slotsChannel = supabase
-        .channel('agenda-slots-realtime')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'agenda_slots',
-          },
-          () => debouncedRefresh()
-        )
-        .subscribe();
-
-      return () => {
-        if (realtimeTimeout) clearTimeout(realtimeTimeout);
-        supabase.removeChannel(consultasChannel);
-        supabase.removeChannel(slotsChannel);
-      };
+    if (!clinicaId) {
+      setSlots([]);
+      setLoading(false);
+      return;
     }
-  }, [clinicaData?.id, currentDate, viewMode]);
+
+    fetchData();
+
+    // Debounce para evitar múltiplas chamadas em sequência do realtime
+    let realtimeTimeout: ReturnType<typeof setTimeout> | null = null;
+    const debouncedRefresh = () => {
+      if (realtimeTimeout) clearTimeout(realtimeTimeout);
+      realtimeTimeout = setTimeout(() => {
+        fetchData(true); // silent = true, sem loading spinner
+      }, 500);
+    };
+
+    // ========== REALTIME SUBSCRIPTION ==========
+    const consultasChannel = supabase
+      .channel('agenda-consultas-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'consultas',
+          filter: `clinica_id=eq.${clinicaId}`,
+        },
+        () => debouncedRefresh()
+      )
+      .subscribe();
+
+    const slotsChannel = supabase
+      .channel('agenda-slots-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agenda_slots',
+        },
+        () => debouncedRefresh()
+      )
+      .subscribe();
+
+    return () => {
+      if (realtimeTimeout) clearTimeout(realtimeTimeout);
+      supabase.removeChannel(consultasChannel);
+      supabase.removeChannel(slotsChannel);
+    };
+  }, [clinicaId, currentDate, viewMode]);
 
   // Fetch locais when medicoId changes in form
   useEffect(() => {
@@ -277,6 +281,12 @@ export default function ClinicaAgenda() {
   }, [gerarForm.medicoId]);
 
   async function fetchLocaisForMedico(medicoId: string) {
+    if (!clinicaId) {
+      setLocais([]);
+      setGerarForm(prev => ({ ...prev, localId: "" }));
+      return;
+    }
+
     // Busca locais vinculados ao médico via tabela de junção locais_medicos
     const { data: vinculos } = await supabase
       .from("locais_medicos")
@@ -293,7 +303,7 @@ export default function ClinicaAgenda() {
       .from("locais_atendimento")
       .select("id, nome_local, tipo_atendimento")
       .eq("medico_id", medicoId)
-      .eq("clinica_id", clinicaData.id)
+      .eq("clinica_id", clinicaId)
       .eq("ativo", true);
 
     // Merge sem duplicatas
@@ -309,102 +319,127 @@ export default function ClinicaAgenda() {
   }
 
   async function fetchData(silent = false) {
+    if (!clinicaId) {
+      setSlots([]);
+      setMedicos([]);
+      setMedicosCompletos([]);
+      setLocais([]);
+      setUsuariosClinica([]);
+      setLoading(false);
+      return;
+    }
+
     if (!silent) setLoading(true);
 
-    // Busca médicos vinculados
-    const { data: vinculosData } = await supabase
-      .from("clinicas_medicos")
-      .select("medico_id, medicos(id, nome, valor_consulta, percentual_repasse, especialidade)")
-      .eq("clinica_id", clinicaData.id)
-      .eq("ativo", true);
+    try {
+      // Busca médicos vinculados
+      const { data: vinculosData, error: vinculosError } = await supabase
+        .from("clinicas_medicos")
+        .select("medico_id, medicos(id, nome, valor_consulta, percentual_repasse, especialidade)")
+        .eq("clinica_id", clinicaId)
+        .eq("ativo", true);
 
-    const medicosVinculados = vinculosData?.map((v: any) => v.medicos).filter(Boolean) || [];
-    setMedicos(medicosVinculados.map((m: any) => ({ id: m.id, nome: m.nome })));
-    setMedicosCompletos(medicosVinculados);
+      if (vinculosError) throw vinculosError;
 
-    if (medicosVinculados.length === 0) {
-      setSlots([]);
-      setLoading(false);
-      return;
-    }
+      const medicosVinculados = vinculosData?.map((v: any) => v.medicos).filter(Boolean) || [];
+      setMedicos(medicosVinculados.map((m: any) => ({ id: m.id, nome: m.nome })));
+      setMedicosCompletos(medicosVinculados);
 
-    const medicoIds = medicosVinculados.map((m: any) => m.id);
-    const { start, end } = getDateRange();
+      if (medicosVinculados.length === 0) {
+        setSlots([]);
+        return;
+      }
 
-    // Busca apenas locais desta clínica
-    const { data: locaisData } = await supabase
-      .from("locais_atendimento")
-      .select("id, nome_local, tipo_atendimento, medico_id")
-      .eq("clinica_id", clinicaData.id)
-      .eq("ativo", true);
-    
-    setLocais(locaisData || []);
+      const { start, end } = getDateRange();
 
-    // Busca usuarios_clinica desta clínica
-    const { data: usuariosData } = await supabase
-      .from("usuarios_clinica")
-      .select("id, nome, papel")
-      .eq("clinica_id", clinicaData.id)
-      .eq("ativo", true);
-    
-    setUsuariosClinica(usuariosData || []);
+      // Busca apenas locais desta clínica
+      const { data: locaisData, error: locaisError } = await supabase
+        .from("locais_atendimento")
+        .select("id, nome_local, tipo_atendimento, medico_id")
+        .eq("clinica_id", clinicaId)
+        .eq("ativo", true);
 
-    // Busca slots apenas dos locais desta clínica
-    if (!locaisData || locaisData.length === 0) {
-      setSlots([]);
-      setLoading(false);
-      return;
-    }
+      if (locaisError) throw locaisError;
 
-    const localIds = locaisData.map(l => l.id);
+      setLocais(locaisData || []);
 
-    const { data: slotsData } = await supabase
-      .from("agenda_slots")
-      .select(`
-        *,
-        locais_atendimento(nome_local, tipo_atendimento),
-        medicos(nome)
-      `)
-      .in("local_id", localIds)
-      .gte("data_hora", start.toISOString())
-      .lte("data_hora", end.toISOString())
-      .order("data_hora", { ascending: true });
+      // Busca usuarios_clinica desta clínica
+      const { data: usuariosData, error: usuariosError } = await supabase
+        .from("usuarios_clinica")
+        .select("id, nome, papel")
+        .eq("clinica_id", clinicaId)
+        .eq("ativo", true);
 
-    // Busca consultas associadas aos slots
-    if (slotsData && slotsData.length > 0) {
-      const slotIds = slotsData.map((s) => s.id);
-      const { data: consultasData } = await supabase
-        .from("consultas")
+      if (usuariosError) throw usuariosError;
+
+      setUsuariosClinica(usuariosData || []);
+
+      // Busca slots apenas dos locais desta clínica
+      if (!locaisData || locaisData.length === 0) {
+        setSlots([]);
+        return;
+      }
+
+      const localIds = locaisData.map(l => l.id);
+
+      const { data: slotsData, error: slotsError } = await supabase
+        .from("agenda_slots")
         .select(`
-          id,
-          nome_paciente_consulta,
-          origem,
-          status_consulta,
-          agenda_slot_id,
-          paciente_id,
-          data_hora,
-          tipo_servico,
-          valor_consulta,
-          pacientes(nome)
+          *,
+          locais_atendimento(nome_local, tipo_atendimento),
+          medicos(nome)
         `)
-        .in("agenda_slot_id", slotIds)
-        .neq("status_consulta", "cancelada");
+        .in("local_id", localIds)
+        .gte("data_hora", start.toISOString())
+        .lte("data_hora", end.toISOString())
+        .order("data_hora", { ascending: true });
 
-      const slotsWithConsultas = slotsData.map((slot) => ({
-        ...slot,
-        consultas: consultasData?.filter((c) => c.agenda_slot_id === slot.id).map(c => ({
-          ...c,
-          // Retorno só aparece quando marcado manualmente no agendamento
-          isRetorno: c.tipo_servico === "retorno" && c.valor_consulta === 0
-        })) || [],
-      }));
+      if (slotsError) throw slotsError;
 
-      setSlots(slotsWithConsultas);
-    } else {
-      setSlots(slotsData || []);
+      // Busca consultas associadas aos slots
+      if (slotsData && slotsData.length > 0) {
+        const slotIds = slotsData.map((s) => s.id);
+        const { data: consultasData, error: consultasError } = await supabase
+          .from("consultas")
+          .select(`
+            id,
+            nome_paciente_consulta,
+            origem,
+            status_consulta,
+            agenda_slot_id,
+            paciente_id,
+            data_hora,
+            tipo_servico,
+            valor_consulta,
+            pacientes(nome)
+          `)
+          .in("agenda_slot_id", slotIds)
+          .neq("status_consulta", "cancelada");
+
+        if (consultasError) throw consultasError;
+
+        const slotsWithConsultas = slotsData.map((slot) => ({
+          ...slot,
+          consultas: consultasData?.filter((c) => c.agenda_slot_id === slot.id).map(c => ({
+            ...c,
+            // Retorno só aparece quando marcado manualmente no agendamento
+            isRetorno: c.tipo_servico === "retorno" && c.valor_consulta === 0
+          })) || [],
+        }));
+
+        setSlots(slotsWithConsultas);
+      } else {
+        setSlots(slotsData || []);
+      }
+    } catch (error) {
+      console.error("[ClinicaAgenda] fetchData error:", error);
+      if (!silent) {
+        toast.error("Erro ao carregar agenda");
+      }
+      setSlots([]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   function handlePrev() {
