@@ -727,6 +727,10 @@ export default function ClinicaRelatorios() {
         ["Receita Paga:", formatCurrency(metrics.receitaPaga)],
         ["Receita Pendente:", formatCurrency(metrics.receitaPendente)],
         ["Ticket Médio:", formatCurrency(metrics.ticketMedio)],
+        ["Total Valor Médicos:", formatCurrency(metrics.totalValorMedico)],
+        ["Total Valor Clínica:", formatCurrency(metrics.totalValorClinica)],
+        ["Total Procedimentos:", formatCurrency(metrics.totalProcedimentos)],
+        ["Consultas c/ Procedimentos:", metrics.consultasComProc.toString()],
       ];
 
       summaryData.forEach(([label, value]) => {
