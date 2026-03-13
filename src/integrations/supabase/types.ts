@@ -3746,6 +3746,60 @@ export type Database = {
           },
         ]
       }
+      procedimento_repasse_config: {
+        Row: {
+          ativo: boolean | null
+          clinica_id: string
+          created_at: string | null
+          id: string
+          medico_id: string
+          nome_procedimento: string
+          percentual_repasse: number | null
+          tipo_repasse: string | null
+          updated_at: string | null
+          valor_fixo_repasse: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          clinica_id: string
+          created_at?: string | null
+          id?: string
+          medico_id: string
+          nome_procedimento: string
+          percentual_repasse?: number | null
+          tipo_repasse?: string | null
+          updated_at?: string | null
+          valor_fixo_repasse?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          clinica_id?: string
+          created_at?: string | null
+          id?: string
+          medico_id?: string
+          nome_procedimento?: string
+          percentual_repasse?: number | null
+          tipo_repasse?: string | null
+          updated_at?: string | null
+          valor_fixo_repasse?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procedimento_repasse_config_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedimento_repasse_config_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       repasses_itens: {
         Row: {
           consulta_id: string
