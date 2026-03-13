@@ -455,6 +455,10 @@ export default function ClinicaConsultas() {
               <SelectItem value="proximos7">Próximos 7 dias</SelectItem>
               <SelectItem value="ultimos15">Últimos 15 dias</SelectItem>
               <SelectItem value="proximos15">Próximos 15 dias</SelectItem>
+              <SelectItem value="ultimos30">Últimos 30 dias</SelectItem>
+              <SelectItem value="proximos30">Próximos 30 dias</SelectItem>
+              <SelectItem value="ultimos60">Últimos 60 dias</SelectItem>
+              <SelectItem value="ultimos90">Últimos 90 dias</SelectItem>
               <SelectItem value="custom">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
