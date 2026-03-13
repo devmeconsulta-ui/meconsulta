@@ -435,7 +435,17 @@ export default function ClinicaFinanceiro() {
     setMedicoRepasseConfigs(data || []);
   }
 
-  async function fetchConvenios() {
+  async function fetchProcedimentoRepasseConfigs() {
+    const { data } = await supabase
+      .from("procedimento_repasse_config")
+      .select(`*, medico:medicos(nome)`)
+      .eq("clinica_id", clinicaData.id)
+      .eq("ativo", true)
+      .order("nome_procedimento");
+
+    setProcedimentoRepasseConfigs(data || []);
+  }
+
     const { data } = await supabase
       .from("convenios")
       .select("id, nome")
