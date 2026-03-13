@@ -129,16 +129,39 @@ Deno.serve(async (req) => {
     const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
     console.log(`Webhook request from IP: ${clientIp}`);
 
-    const payload: AsaasWebhookPayload = await req.json();
-    
+    const rawBody = await req.text();
     console.log("=== ASAAS WEBHOOK RECEIVED ===");
-    console.log("Event:", payload.event);
+    console.log("Raw body keys:", Object.keys(JSON.parse(rawBody)).join(', '));
+    
+    let payload: AsaasWebhookPayload;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (parseErr) {
+      console.error("Failed to parse webhook body:", rawBody.substring(0, 500));
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid JSON" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const event = payload.event;
+    console.log("Event:", event);
+    
     // SECURITY: Log only payment ID and status, not full payload with sensitive data
     if (payload.payment) {
       console.log(`Payment ID: ${payload.payment.id}, Status: ${payload.payment.status}, ExternalRef: ${payload.payment.externalReference || 'N/A'}`);
     }
 
-    const { event, payment, transfer } = payload;
+    if (!event) {
+      console.error("Webhook received without event field. Body keys:", Object.keys(payload).join(', '));
+      console.error("Full payload for debug:", JSON.stringify(payload).substring(0, 1000));
+      return new Response(
+        JSON.stringify({ success: true, message: "No event field - logged for debug" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { payment, transfer } = payload;
 
     // Handle transfer events
     if (event.startsWith("TRANSFER_")) {
