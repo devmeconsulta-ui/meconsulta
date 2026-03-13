@@ -260,6 +260,13 @@ export default function ClinicaFinanceiro() {
     percentual_repasse: "70",
     valor_fixo_repasse: "",
   });
+  const [formProcedimentoRepasse, setFormProcedimentoRepasse] = useState({
+    medico_id: "",
+    nome_procedimento: "",
+    tipo_repasse: "percentual",
+    percentual_repasse: "70",
+    valor_fixo_repasse: "",
+  });
 
   // Hook para histórico de caixa
   const historicoData = useHistoricoCaixa(clinicaData?.id);
