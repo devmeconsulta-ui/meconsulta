@@ -1477,7 +1477,7 @@ export default function ClinicaRelatorios() {
       <Card>
         <CardHeader>
           <CardTitle>Consultas do Período ({filteredConsultas.length})</CardTitle>
-          <CardDescription>Visualize os detalhes de cada consulta</CardDescription>
+          <CardDescription>Detalhes completos: valores, procedimentos e repasses</CardDescription>
         </CardHeader>
         <CardContent>
           {filteredConsultas.length === 0 ? (
@@ -1492,56 +1492,86 @@ export default function ClinicaRelatorios() {
                     <TableHead>Data</TableHead>
                     <TableHead>Médico</TableHead>
                     <TableHead>Paciente</TableHead>
-                    <TableHead>Local</TableHead>
                     <TableHead>Origem</TableHead>
-                    <TableHead>Valor</TableHead>
+                    <TableHead className="text-right">V. Total</TableHead>
+                    <TableHead className="text-right">V. Médico</TableHead>
+                    <TableHead className="text-right">V. Clínica</TableHead>
+                    <TableHead className="text-right">Procedimentos</TableHead>
+                    <TableHead>Repasse Consulta</TableHead>
+                    <TableHead>Repasse Proced.</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredConsultas.slice(0, 50).map((consulta) => (
-                    <TableRow key={consulta.id}>
-                      <TableCell className="whitespace-nowrap">
-                        {format(parseISO(consulta.data_hora), "dd/MM/yyyy HH:mm")}
-                      </TableCell>
-                      <TableCell>Dr(a). {consulta.medico?.nome || "N/A"}</TableCell>
-                      <TableCell>{getPatientName(consulta)}</TableCell>
-                      <TableCell>{consulta.local?.nome_local || "-"}</TableCell>
-                      <TableCell>
-                              <div className="flex flex-col gap-1">
-                                <Badge variant={consulta.origem === "online" ? "default" : "secondary"}>
-                                  {consulta.origem === "online" ? "Online" : "Interna"}
+                  {filteredConsultas.slice(0, 50).map((consulta) => {
+                    const rcLabel = consulta.repasseConsultaConfig
+                      ? consulta.repasseConsultaConfig.tipo === "fixo"
+                        ? `Fixo ${formatCurrency(consulta.repasseConsultaConfig.fixo || 0)}`
+                        : `${consulta.repasseConsultaConfig.percentual}%`
+                      : "70%";
+                    const procLabels = (consulta.repasseProcedimentoConfigs || [])
+                      .map((p) => `${p.nome}: ${p.tipo === "fixo" ? formatCurrency(p.fixo || 0) : `${p.percentual}%`}`)
+                      .join("; ");
+
+                    return (
+                      <TableRow key={consulta.id}>
+                        <TableCell className="whitespace-nowrap text-xs">
+                          {format(parseISO(consulta.data_hora), "dd/MM/yy HH:mm")}
+                        </TableCell>
+                        <TableCell className="text-xs">Dr(a). {consulta.medico?.nome || "N/A"}</TableCell>
+                        <TableCell className="text-xs">{getPatientName(consulta)}</TableCell>
+                        <TableCell>
+                          <Badge variant={consulta.origem === "online" ? "default" : "secondary"} className="text-xs">
+                            {consulta.origem === "online" ? "Online" : "Interna"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right text-xs font-medium">{formatCurrency(consulta.valor_consulta)}</TableCell>
+                        <TableCell className="text-right text-xs">{formatCurrency(consulta.valor_medico)}</TableCell>
+                        <TableCell className="text-right text-xs">{formatCurrency(consulta.valorClinica || 0)}</TableCell>
+                        <TableCell className="text-right text-xs">
+                          {consulta.totalProcedimentos ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-medium">{formatCurrency(consulta.totalProcedimentos)}</span>
+                              {consulta.procedimentos?.map((p, i) => (
+                                <span key={i} className="text-muted-foreground text-[10px]">{p.nome_procedimento}: {formatCurrency(p.valor)}</span>
+                              ))}
+                            </div>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Badge variant="outline" className="text-xs">{rcLabel}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {procLabels ? (
+                            <div className="flex flex-col gap-0.5">
+                              {(consulta.repasseProcedimentoConfigs || []).map((p, i) => (
+                                <Badge key={i} variant="outline" className="text-[10px] whitespace-nowrap">
+                                  {p.nome}: {p.tipo === "fixo" ? formatCurrency(p.fixo || 0) : `${p.percentual}%`}
                                 </Badge>
-                                {consulta.tipo_atendimento === "convenio" && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {consulta.convenio?.nome || "Convênio"}
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>{formatCurrency(consulta.valor_consulta)}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            consulta.status_pagamento === "pago"
-                              ? "default"
+                              ))}
+                            </div>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              consulta.status_pagamento === "pago"
+                                ? "default"
+                                : consulta.status_consulta === "cancelada"
+                                ? "destructive"
+                                : "secondary"
+                            }
+                          >
+                            {consulta.status_pagamento === "pago"
+                              ? "Pago"
                               : consulta.status_consulta === "cancelada"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                          className={cn(
-                            consulta.status_pagamento === "pago" && "bg-green-500 hover:bg-green-600"
-                          )}
-                        >
-                          {consulta.status_pagamento === "pago"
-                            ? "Pago"
-                            : consulta.status_consulta === "cancelada"
-                            ? "Cancelada"
-                            : "Pendente"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                              ? "Cancelada"
+                              : "Pendente"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
               {filteredConsultas.length > 50 && (
