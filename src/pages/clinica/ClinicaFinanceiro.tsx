@@ -202,6 +202,7 @@ export default function ClinicaFinanceiro() {
   const [contasPagar, setContasPagar] = useState<ContaPagar[]>([]);
   const [contasReceber, setContasReceber] = useState<ContaReceber[]>([]);
   const [medicoRepasseConfigs, setMedicoRepasseConfigs] = useState<MedicoRepasseConfig[]>([]);
+  const [procedimentoRepasseConfigs, setProcedimentoRepasseConfigs] = useState<ProcedimentoRepasseConfig[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filtros
