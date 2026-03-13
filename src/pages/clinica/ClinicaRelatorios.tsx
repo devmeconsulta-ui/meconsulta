@@ -63,6 +63,7 @@ import {
   BarChart3,
   PieChart as PieChartIcon,
   X,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
