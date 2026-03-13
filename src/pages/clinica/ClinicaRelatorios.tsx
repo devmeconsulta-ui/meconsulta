@@ -783,27 +783,57 @@ export default function ClinicaRelatorios() {
       doc.text("Últimas Consultas", 14, yPos);
       yPos += 10;
 
-      doc.setFontSize(8);
+      doc.setFontSize(7);
       doc.setFont("helvetica", "bold");
       doc.text("Data", 14, yPos);
-      doc.text("Médico", 40, yPos);
-      doc.text("Paciente", 85, yPos);
-      doc.text("Valor", 130, yPos);
-      doc.text("Status", 160, yPos);
+      doc.text("Médico", 36, yPos);
+      doc.text("Paciente", 68, yPos);
+      doc.text("V.Total", 100, yPos);
+      doc.text("V.Médico", 122, yPos);
+      doc.text("V.Clínica", 144, yPos);
+      doc.text("Proced.", 166, yPos);
+      doc.text("Status", 186, yPos);
       yPos += 5;
 
       doc.setFont("helvetica", "normal");
-      filteredConsultas.slice(0, 20).forEach((c) => {
+      doc.setFontSize(7);
+      filteredConsultas.slice(0, 30).forEach((c) => {
         if (yPos > 280) {
           doc.addPage();
           yPos = 20;
         }
         doc.text(format(parseISO(c.data_hora), "dd/MM/yy HH:mm"), 14, yPos);
-        doc.text((c.medico?.nome || "N/A").substring(0, 20), 40, yPos);
-        doc.text(getPatientName(c).substring(0, 20), 85, yPos);
-        doc.text(formatCurrency(c.valor_consulta), 130, yPos);
-        doc.text(c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Cancelado" : "Pendente", 160, yPos);
-        yPos += 5;
+        doc.text((c.medico?.nome || "N/A").substring(0, 16), 36, yPos);
+        doc.text(getPatientName(c).substring(0, 16), 68, yPos);
+        doc.text(formatCurrency(c.valor_consulta), 100, yPos);
+        doc.text(formatCurrency(c.valor_medico), 122, yPos);
+        doc.text(formatCurrency(c.valorClinica || 0), 144, yPos);
+        doc.text(c.totalProcedimentos ? formatCurrency(c.totalProcedimentos) : "—", 166, yPos);
+        doc.text(c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Canc." : "Pend.", 186, yPos);
+        yPos += 4;
+
+        // Print procedures details if any
+        if (c.procedimentos && c.procedimentos.length > 0) {
+          doc.setFontSize(6);
+          c.procedimentos.forEach((p) => {
+            if (yPos > 280) { doc.addPage(); yPos = 20; }
+            const procRepasse = (c.repasseProcedimentoConfigs || []).find((r) => r.nome === p.nome_procedimento);
+            const repasseInfo = procRepasse ? (procRepasse.tipo === "fixo" ? `Fixo ${formatCurrency(procRepasse.fixo || 0)}` : `${procRepasse.percentual}%`) : "—";
+            doc.text(`  → ${p.nome_procedimento}: ${formatCurrency(p.valor)} (Repasse: ${repasseInfo})`, 36, yPos);
+            yPos += 3.5;
+          });
+          doc.setFontSize(7);
+        }
+
+        // Print repasse info
+        if (c.repasseConsultaConfig) {
+          doc.setFontSize(6);
+          if (yPos > 280) { doc.addPage(); yPos = 20; }
+          const rcLabel = c.repasseConsultaConfig.tipo === "fixo" ? `Fixo ${formatCurrency(c.repasseConsultaConfig.fixo || 0)}` : `${c.repasseConsultaConfig.percentual}%`;
+          doc.text(`  Repasse consulta: ${rcLabel}`, 36, yPos);
+          yPos += 4;
+          doc.setFontSize(7);
+        }
       });
 
       // Footer
