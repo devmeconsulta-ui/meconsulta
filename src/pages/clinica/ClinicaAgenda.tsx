@@ -95,6 +95,7 @@ import { cn } from "@/lib/utils";
 
 interface ClinicaContext {
   clinicaData: any;
+  currentUser?: { clinicaId?: string | null };
 }
 
 interface Local {
