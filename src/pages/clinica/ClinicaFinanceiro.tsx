@@ -316,6 +316,7 @@ export default function ClinicaFinanceiro() {
       fetchContasPagar(),
       fetchContasReceber(),
       fetchMedicoRepasseConfigs(),
+      fetchProcedimentoRepasseConfigs(),
       fetchConvenios(),
     ]);
     setLoading(false);
