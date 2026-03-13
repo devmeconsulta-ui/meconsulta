@@ -446,6 +446,7 @@ export default function ClinicaFinanceiro() {
     setProcedimentoRepasseConfigs(data || []);
   }
 
+  async function fetchConvenios() {
     const { data } = await supabase
       .from("convenios")
       .select("id, nome")
