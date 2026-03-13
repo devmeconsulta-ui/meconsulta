@@ -141,7 +141,7 @@ const intervalOptions = [
 ];
 
 export default function ClinicaAgenda() {
-  const { clinicaData } = useOutletContext<ClinicaContext>();
+  const { clinicaData, currentUser } = useOutletContext<ClinicaContext>();
   const [slots, setSlots] = useState<Slot[]>([]);
   const [medicos, setMedicos] = useState<Array<{ id: string; nome: string }>>([]);
   const [medicosCompletos, setMedicosCompletos] = useState<Array<{ id: string; nome: string; valor_consulta: number; percentual_repasse: number; especialidade: string | null }>>([]);
