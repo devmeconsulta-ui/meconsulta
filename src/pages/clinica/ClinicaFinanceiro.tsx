@@ -175,6 +175,17 @@ interface MedicoRepasseConfig {
   medico?: { nome: string };
 }
 
+interface ProcedimentoRepasseConfig {
+  id: string;
+  clinica_id: string;
+  medico_id: string;
+  nome_procedimento: string;
+  tipo_repasse: string;
+  percentual_repasse: number;
+  valor_fixo_repasse: number | null;
+  medico?: { nome: string };
+}
+
 type PeriodFilter = "hoje" | "7d" | "30d" | "60d" | "90d" | "180d" | "365d" | "personalizado";
 
 const COLORS = ["#22c55e", "#3b82f6", "#eab308", "#ef4444", "#8b5cf6", "#ec4899"];
@@ -191,6 +202,7 @@ export default function ClinicaFinanceiro() {
   const [contasPagar, setContasPagar] = useState<ContaPagar[]>([]);
   const [contasReceber, setContasReceber] = useState<ContaReceber[]>([]);
   const [medicoRepasseConfigs, setMedicoRepasseConfigs] = useState<MedicoRepasseConfig[]>([]);
+  const [procedimentoRepasseConfigs, setProcedimentoRepasseConfigs] = useState<ProcedimentoRepasseConfig[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filtros
@@ -222,6 +234,7 @@ export default function ClinicaFinanceiro() {
   const [showContaPagarModal, setShowContaPagarModal] = useState(false);
   const [showContaReceberModal, setShowContaReceberModal] = useState(false);
   const [showRepasseConfigModal, setShowRepasseConfigModal] = useState(false);
+  const [showProcedimentoRepasseModal, setShowProcedimentoRepasseModal] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
 
   // Form states
@@ -243,6 +256,13 @@ export default function ClinicaFinanceiro() {
   });
   const [formRepasseConfig, setFormRepasseConfig] = useState({
     medico_id: "",
+    tipo_repasse: "percentual",
+    percentual_repasse: "70",
+    valor_fixo_repasse: "",
+  });
+  const [formProcedimentoRepasse, setFormProcedimentoRepasse] = useState({
+    medico_id: "",
+    nome_procedimento: "",
     tipo_repasse: "percentual",
     percentual_repasse: "70",
     valor_fixo_repasse: "",
@@ -296,6 +316,7 @@ export default function ClinicaFinanceiro() {
       fetchContasPagar(),
       fetchContasReceber(),
       fetchMedicoRepasseConfigs(),
+      fetchProcedimentoRepasseConfigs(),
       fetchConvenios(),
     ]);
     setLoading(false);
@@ -412,6 +433,17 @@ export default function ClinicaFinanceiro() {
       .eq("ativo", true);
 
     setMedicoRepasseConfigs(data || []);
+  }
+
+  async function fetchProcedimentoRepasseConfigs() {
+    const { data } = await supabase
+      .from("procedimento_repasse_config")
+      .select(`*, medico:medicos(nome)`)
+      .eq("clinica_id", clinicaData.id)
+      .eq("ativo", true)
+      .order("nome_procedimento");
+
+    setProcedimentoRepasseConfigs(data || []);
   }
 
   async function fetchConvenios() {
@@ -1203,6 +1235,58 @@ export default function ClinicaFinanceiro() {
     fetchMedicoRepasseConfigs();
   };
 
+  const handleSaveProcedimentoRepasse = async () => {
+    if (!formProcedimentoRepasse.medico_id) {
+      toast.error("Selecione um médico");
+      return;
+    }
+    if (!formProcedimentoRepasse.nome_procedimento.trim()) {
+      toast.error("Informe o nome do procedimento");
+      return;
+    }
+
+    const payload = {
+      clinica_id: clinicaData.id,
+      medico_id: formProcedimentoRepasse.medico_id,
+      nome_procedimento: formProcedimentoRepasse.nome_procedimento.trim(),
+      tipo_repasse: formProcedimentoRepasse.tipo_repasse,
+      percentual_repasse: parseFloat(formProcedimentoRepasse.percentual_repasse) || 70,
+      valor_fixo_repasse: formProcedimentoRepasse.valor_fixo_repasse ? parseFloat(formProcedimentoRepasse.valor_fixo_repasse) : null,
+    };
+
+    if (editingItem) {
+      const { error } = await supabase
+        .from("procedimento_repasse_config")
+        .update(payload)
+        .eq("id", editingItem.id);
+
+      if (error) {
+        toast.error("Erro ao atualizar");
+        return;
+      }
+      toast.success("Configuração atualizada");
+    } else {
+      const { error } = await supabase
+        .from("procedimento_repasse_config")
+        .insert(payload);
+
+      if (error) {
+        if (error.code === "23505") {
+          toast.error("Já existe configuração para este procedimento/médico");
+        } else {
+          toast.error("Erro ao criar");
+        }
+        return;
+      }
+      toast.success("Configuração criada");
+    }
+
+    setShowProcedimentoRepasseModal(false);
+    setEditingItem(null);
+    setFormProcedimentoRepasse({ medico_id: "", nome_procedimento: "", tipo_repasse: "percentual", percentual_repasse: "70", valor_fixo_repasse: "" });
+    fetchProcedimentoRepasseConfigs();
+  };
+
   const handleMarkAsPaid = async (type: "pagar" | "receber", id: string) => {
     const table = type === "pagar" ? "contas_pagar" : "contas_receber";
     const dateField = type === "pagar" ? "data_pagamento" : "data_recebimento";
@@ -1220,7 +1304,7 @@ export default function ClinicaFinanceiro() {
     type === "pagar" ? fetchContasPagar() : fetchContasReceber();
   };
 
-  const handleDeleteItem = async (table: "centros_custo" | "contas_pagar" | "contas_receber" | "medico_repasse_config", id: string) => {
+  const handleDeleteItem = async (table: "centros_custo" | "contas_pagar" | "contas_receber" | "medico_repasse_config" | "procedimento_repasse_config", id: string) => {
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) {
       toast.error("Erro ao excluir");
@@ -3368,6 +3452,60 @@ export default function ClinicaFinanceiro() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Configuração de Repasse por Procedimento */}
+            <Card className="card-shadow">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Repasse por Procedimento
+                  </CardTitle>
+                  <CardDescription>Configure % ou valor fixo por tipo de procedimento</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => { setEditingItem(null); setFormProcedimentoRepasse({ medico_id: "", nome_procedimento: "", tipo_repasse: "percentual", percentual_repasse: "70", valor_fixo_repasse: "" }); setShowProcedimentoRepasseModal(true); }}>
+                  <Plus className="h-4 w-4 mr-1" /> Novo
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {procedimentoRepasseConfigs.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">Nenhuma configuração de procedimento</div>
+                ) : (
+                  <div className="space-y-2">
+                    {procedimentoRepasseConfigs.map((config) => (
+                      <div key={config.id} className="flex justify-between items-center p-3 rounded-lg border">
+                        <div>
+                          <p className="font-medium">{config.nome_procedimento}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Dr(a). {config.medico?.nome || "N/A"} — {config.tipo_repasse === "percentual" 
+                              ? `${config.percentual_repasse}%`
+                              : `R$ ${config.valor_fixo_repasse}`}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            setEditingItem(config);
+                            setFormProcedimentoRepasse({
+                              medico_id: config.medico_id,
+                              nome_procedimento: config.nome_procedimento,
+                              tipo_repasse: config.tipo_repasse,
+                              percentual_repasse: String(config.percentual_repasse),
+                              valor_fixo_repasse: config.valor_fixo_repasse ? String(config.valor_fixo_repasse) : "",
+                            });
+                            setShowProcedimentoRepasseModal(true);
+                          }}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDeleteItem("procedimento_repasse_config", config.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>
@@ -3522,6 +3660,66 @@ export default function ClinicaFinanceiro() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowRepasseConfigModal(false)}>Cancelar</Button>
             <Button onClick={handleSaveRepasseConfig}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Procedimento Repasse Config Modal */}
+      <Dialog open={showProcedimentoRepasseModal} onOpenChange={setShowProcedimentoRepasseModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Editar" : "Nova"} Configuração de Repasse por Procedimento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Médico *</Label>
+              <Select value={formProcedimentoRepasse.medico_id} onValueChange={(v) => setFormProcedimentoRepasse({ ...formProcedimentoRepasse, medico_id: v })} disabled={!!editingItem}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {medicos.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>Dr(a). {m.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Nome do Procedimento *</Label>
+              <Input 
+                placeholder="Ex: Limpeza de pele, Botox, Peeling..." 
+                value={formProcedimentoRepasse.nome_procedimento} 
+                onChange={(e) => setFormProcedimentoRepasse({ ...formProcedimentoRepasse, nome_procedimento: e.target.value })} 
+                disabled={!!editingItem}
+              />
+            </div>
+            <div>
+              <Label>Tipo de Repasse</Label>
+              <Select value={formProcedimentoRepasse.tipo_repasse} onValueChange={(v) => setFormProcedimentoRepasse({ ...formProcedimentoRepasse, tipo_repasse: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentual">Percentual (%)</SelectItem>
+                  <SelectItem value="fixo">Valor Fixo (R$)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {formProcedimentoRepasse.tipo_repasse === "percentual" ? (
+              <div>
+                <Label>Percentual de Repasse (%)</Label>
+                <Input type="number" step="0.01" value={formProcedimentoRepasse.percentual_repasse} onChange={(e) => setFormProcedimentoRepasse({ ...formProcedimentoRepasse, percentual_repasse: e.target.value })} />
+              </div>
+            ) : (
+              <div>
+                <Label>Valor Fixo por Procedimento (R$)</Label>
+                <Input type="number" step="0.01" value={formProcedimentoRepasse.valor_fixo_repasse} onChange={(e) => setFormProcedimentoRepasse({ ...formProcedimentoRepasse, valor_fixo_repasse: e.target.value })} />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowProcedimentoRepasseModal(false)}>Cancelar</Button>
+            <Button onClick={handleSaveProcedimentoRepasse}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
