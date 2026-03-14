@@ -588,7 +588,7 @@ export default function ClinicaRelatorios() {
     }
 
     try {
-      // Prepare data
+      // Prepare main data sheet with ALL fields
       const data = filteredConsultas.map((c) => {
         const repasseConsultaLabel = c.repasseConsultaConfig
           ? c.repasseConsultaConfig.tipo === "fixo"
@@ -596,79 +596,118 @@ export default function ClinicaRelatorios() {
             : `${c.repasseConsultaConfig.percentual}%`
           : "70%";
 
-        const procNames = (c.procedimentos || []).map((p) => p.nome_procedimento).join(", ");
-        const procRepasseLabel = (c.repasseProcedimentoConfigs || [])
-          .map((p) => `${p.nome}: ${p.tipo === "fixo" ? formatCurrency(p.fixo || 0) : `${p.percentual}%`}`)
-          .join("; ") || "—";
+        const procDetails = (c.procedimentos || []).map((p) => {
+          const procRepasse = (c.repasseProcedimentoConfigs || []).find((r) => r.nome === p.nome_procedimento);
+          const repasseInfo = procRepasse ? (procRepasse.tipo === "fixo" ? `Fixo ${formatCurrency(procRepasse.fixo || 0)}` : `${procRepasse.percentual}%`) : "—";
+          return `${p.nome_procedimento}: ${formatCurrency(p.valor)} (Repasse: ${repasseInfo})`;
+        }).join(" | ");
+
+        const valorConsultaPura = Number(c.valor_consulta) - (c.totalProcedimentos || 0);
 
         return {
           "Data/Hora": format(parseISO(c.data_hora), "dd/MM/yyyy HH:mm"),
           "Médico": c.medico?.nome || "N/A",
-          "Especialidade": c.medico?.especialidade || "N/A",
           "CRM": c.medico?.crm || "N/A",
+          "Especialidade": c.medico?.especialidade || "N/A",
           "Paciente": getPatientName(c),
           "CPF Paciente": c.paciente?.cpf || "N/A",
           "Local": c.local?.nome_local || "N/A",
-          "Cidade": c.local?.cidade || "N/A",
-          "Estado": c.local?.estado || "N/A",
+          "Cidade/UF": c.local ? `${c.local.cidade || ""}/${c.local.estado || ""}` : "N/A",
           "Origem": c.origem === "online" ? "Online" : "Interna",
+          "Tipo Atend.": c.tipo_atendimento === "convenio" ? "Convênio" : "Particular",
+          "Convênio": c.convenio?.nome || "—",
           "Forma Pagamento": c.formas_pagamento ? (Array.isArray(c.formas_pagamento) ? c.formas_pagamento.map((f: any) => f.forma || f).join(", ") : String(c.formas_pagamento)) : "—",
           "Status Consulta": c.status_consulta,
           "Status Pagamento": c.status_pagamento,
           "Valor Total": Number(c.valor_consulta),
+          "Valor Consulta (s/ proc.)": valorConsultaPura > 0 ? valorConsultaPura : Number(c.valor_consulta),
+          "Valor Procedimentos": c.totalProcedimentos || 0,
           "Valor Médico": Number(c.valor_medico),
           "Valor Clínica": c.valorClinica || 0,
           "Valor Plataforma": Number(c.valor_plataforma),
-          "Procedimentos": procNames || "—",
-          "Valor Procedimentos": c.totalProcedimentos || 0,
           "Repasse Consulta": repasseConsultaLabel,
-          "Repasse Procedimentos": procRepasseLabel,
+          "Procedimentos Detalhados": procDetails || "—",
           "Data Criação": format(parseISO(c.created_at), "dd/MM/yyyy HH:mm"),
         };
       });
 
-      // Create summary sheet
+      // Summary sheet
       const resumo = [
+        { "Métrica": "Clínica", "Valor": clinicaData?.nome_fantasia || "" },
+        { "Métrica": "CNPJ", "Valor": clinicaData?.cnpj || "—" },
+        { "Métrica": "Período", "Valor": `${format(calculatedDateRange.start, "dd/MM/yyyy")} a ${format(calculatedDateRange.end, "dd/MM/yyyy")}` },
+        { "Métrica": "Gerado em", "Valor": format(new Date(), "dd/MM/yyyy HH:mm") },
+        { "Métrica": "", "Valor": "" },
         { "Métrica": "Total de Consultas", "Valor": metrics.totalConsultas },
         { "Métrica": "Consultas Online", "Valor": metrics.consultasOnline },
         { "Métrica": "Consultas Internas", "Valor": metrics.consultasInternas },
         { "Métrica": "Consultas Pagas", "Valor": metrics.consultasPagas },
         { "Métrica": "Consultas Pendentes", "Valor": metrics.consultasPendentes },
         { "Métrica": "Consultas Canceladas", "Valor": metrics.consultasCanceladas },
+        { "Métrica": "Consultas c/ Procedimentos", "Valor": metrics.consultasComProc },
+        { "Métrica": "", "Valor": "" },
         { "Métrica": "Receita Total (Online)", "Valor": formatCurrency(metrics.receitaTotal) },
         { "Métrica": "Receita Paga", "Valor": formatCurrency(metrics.receitaPaga) },
         { "Métrica": "Receita Pendente", "Valor": formatCurrency(metrics.receitaPendente) },
         { "Métrica": "Ticket Médio", "Valor": formatCurrency(metrics.ticketMedio) },
+        { "Métrica": "", "Valor": "" },
         { "Métrica": "Total Valor Médicos", "Valor": formatCurrency(metrics.totalValorMedico) },
         { "Métrica": "Total Valor Clínica", "Valor": formatCurrency(metrics.totalValorClinica) },
         { "Métrica": "Total Procedimentos", "Valor": formatCurrency(metrics.totalProcedimentos) },
-        { "Métrica": "Consultas com Procedimentos", "Valor": metrics.consultasComProc },
       ];
 
-      // Create by doctor sheet
-      const porMedico = dadosPorMedico.map((d) => ({
-        "Médico": d.nome,
-        "Especialidade": d.especialidade,
-        "Consultas": d.consultas,
-        "Receita Total": formatCurrency(d.receita),
-        "Receita Paga": formatCurrency(d.pago),
-      }));
+      // Per doctor sheet with repasse details
+      const porMedicoDetalhado = dadosPorMedico.map((d) => {
+        const medico = medicos?.find((m: any) => m.nome === d.nome);
+        const rc = (repasseConfigs || []).find((r) => r.medico_id === medico?.id);
+        const procConfigs = (procRepasseConfigs || []).filter((p) => p.medico_id === medico?.id);
+        
+        const repasseConsLabel = rc
+          ? rc.tipo_repasse === "fixo" ? `Fixo ${formatCurrency(rc.valor_fixo_repasse || 0)}` : `${rc.percentual_repasse}%`
+          : "70% (padrão)";
+        
+        const repasseProcLabel = procConfigs.map((p) => 
+          `${p.nome_procedimento}: ${p.tipo_repasse === "fixo" ? formatCurrency(p.valor_fixo_repasse || 0) : `${p.percentual_repasse}%`}`
+        ).join(" | ") || "—";
 
-      // Create workbook
+        return {
+          "Médico": `Dr(a). ${d.nome}`,
+          "Especialidade": d.especialidade,
+          "Consultas": d.consultas,
+          "Receita Total": d.receita,
+          "Receita Paga": d.pago,
+          "Repasse Consulta": repasseConsLabel,
+          "Repasse Procedimentos": repasseProcLabel,
+        };
+      });
+
+      // Procedures sheet
+      const procedimentosSheet: any[] = [];
+      filteredConsultas.forEach((c) => {
+        (c.procedimentos || []).forEach((p) => {
+          const procRepasse = (c.repasseProcedimentoConfigs || []).find((r) => r.nome === p.nome_procedimento);
+          procedimentosSheet.push({
+            "Data": format(parseISO(c.data_hora), "dd/MM/yyyy HH:mm"),
+            "Médico": c.medico?.nome || "N/A",
+            "Paciente": getPatientName(c),
+            "Procedimento": p.nome_procedimento,
+            "Valor": p.valor,
+            "Tipo Repasse": procRepasse?.tipo || "—",
+            "Percentual": procRepasse?.percentual || "—",
+            "Valor Fixo": procRepasse?.fixo ? formatCurrency(procRepasse.fixo) : "—",
+          });
+        });
+      });
+
       const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumo), "Resumo");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Consultas");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porMedicoDetalhado), "Por Médico");
+      if (procedimentosSheet.length > 0) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(procedimentosSheet), "Procedimentos");
+      }
 
-      const ws1 = XLSX.utils.json_to_sheet(resumo);
-      XLSX.utils.book_append_sheet(wb, ws1, "Resumo");
-
-      const ws2 = XLSX.utils.json_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws2, "Consultas");
-
-      const ws3 = XLSX.utils.json_to_sheet(porMedico);
-      XLSX.utils.book_append_sheet(wb, ws3, "Por Médico");
-
-      // Generate filename
       const filename = `relatorio_financeiro_${clinicaData?.nome_fantasia || "clinica"}_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`;
-
       XLSX.writeFile(wb, filename);
       toast.success("Relatório Excel gerado com sucesso!");
     } catch (error) {
