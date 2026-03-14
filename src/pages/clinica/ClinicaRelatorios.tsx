@@ -716,7 +716,7 @@ export default function ClinicaRelatorios() {
     }
   };
 
-  // Export to PDF - LANDSCAPE
+  // Export to PDF - LANDSCAPE orientation for full financial detail
   const exportToPDF = () => {
     if (!filteredConsultas.length) {
       toast.error("Não há dados para exportar");
@@ -724,7 +724,8 @@ export default function ClinicaRelatorios() {
     }
 
     try {
-      const doc = new jsPDF({ orientation: "landscape" });
+      // Force landscape: width ~297mm, height ~210mm
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       const pageWidth = doc.internal.pageSize.getWidth(); // ~297mm
       const pageHeight = doc.internal.pageSize.getHeight(); // ~210mm
       const margin = 14;
