@@ -588,7 +588,7 @@ export default function ClinicaRelatorios() {
     }
 
     try {
-      // Prepare data
+      // Prepare main data sheet with ALL fields
       const data = filteredConsultas.map((c) => {
         const repasseConsultaLabel = c.repasseConsultaConfig
           ? c.repasseConsultaConfig.tipo === "fixo"
@@ -596,79 +596,118 @@ export default function ClinicaRelatorios() {
             : `${c.repasseConsultaConfig.percentual}%`
           : "70%";
 
-        const procNames = (c.procedimentos || []).map((p) => p.nome_procedimento).join(", ");
-        const procRepasseLabel = (c.repasseProcedimentoConfigs || [])
-          .map((p) => `${p.nome}: ${p.tipo === "fixo" ? formatCurrency(p.fixo || 0) : `${p.percentual}%`}`)
-          .join("; ") || "—";
+        const procDetails = (c.procedimentos || []).map((p) => {
+          const procRepasse = (c.repasseProcedimentoConfigs || []).find((r) => r.nome === p.nome_procedimento);
+          const repasseInfo = procRepasse ? (procRepasse.tipo === "fixo" ? `Fixo ${formatCurrency(procRepasse.fixo || 0)}` : `${procRepasse.percentual}%`) : "—";
+          return `${p.nome_procedimento}: ${formatCurrency(p.valor)} (Repasse: ${repasseInfo})`;
+        }).join(" | ");
+
+        const valorConsultaPura = Number(c.valor_consulta) - (c.totalProcedimentos || 0);
 
         return {
           "Data/Hora": format(parseISO(c.data_hora), "dd/MM/yyyy HH:mm"),
           "Médico": c.medico?.nome || "N/A",
-          "Especialidade": c.medico?.especialidade || "N/A",
           "CRM": c.medico?.crm || "N/A",
+          "Especialidade": c.medico?.especialidade || "N/A",
           "Paciente": getPatientName(c),
           "CPF Paciente": c.paciente?.cpf || "N/A",
           "Local": c.local?.nome_local || "N/A",
-          "Cidade": c.local?.cidade || "N/A",
-          "Estado": c.local?.estado || "N/A",
+          "Cidade/UF": c.local ? `${c.local.cidade || ""}/${c.local.estado || ""}` : "N/A",
           "Origem": c.origem === "online" ? "Online" : "Interna",
+          "Tipo Atend.": c.tipo_atendimento === "convenio" ? "Convênio" : "Particular",
+          "Convênio": c.convenio?.nome || "—",
           "Forma Pagamento": c.formas_pagamento ? (Array.isArray(c.formas_pagamento) ? c.formas_pagamento.map((f: any) => f.forma || f).join(", ") : String(c.formas_pagamento)) : "—",
           "Status Consulta": c.status_consulta,
           "Status Pagamento": c.status_pagamento,
           "Valor Total": Number(c.valor_consulta),
+          "Valor Consulta (s/ proc.)": valorConsultaPura > 0 ? valorConsultaPura : Number(c.valor_consulta),
+          "Valor Procedimentos": c.totalProcedimentos || 0,
           "Valor Médico": Number(c.valor_medico),
           "Valor Clínica": c.valorClinica || 0,
           "Valor Plataforma": Number(c.valor_plataforma),
-          "Procedimentos": procNames || "—",
-          "Valor Procedimentos": c.totalProcedimentos || 0,
           "Repasse Consulta": repasseConsultaLabel,
-          "Repasse Procedimentos": procRepasseLabel,
+          "Procedimentos Detalhados": procDetails || "—",
           "Data Criação": format(parseISO(c.created_at), "dd/MM/yyyy HH:mm"),
         };
       });
 
-      // Create summary sheet
+      // Summary sheet
       const resumo = [
+        { "Métrica": "Clínica", "Valor": clinicaData?.nome_fantasia || "" },
+        { "Métrica": "CNPJ", "Valor": clinicaData?.cnpj || "—" },
+        { "Métrica": "Período", "Valor": `${format(calculatedDateRange.start, "dd/MM/yyyy")} a ${format(calculatedDateRange.end, "dd/MM/yyyy")}` },
+        { "Métrica": "Gerado em", "Valor": format(new Date(), "dd/MM/yyyy HH:mm") },
+        { "Métrica": "", "Valor": "" },
         { "Métrica": "Total de Consultas", "Valor": metrics.totalConsultas },
         { "Métrica": "Consultas Online", "Valor": metrics.consultasOnline },
         { "Métrica": "Consultas Internas", "Valor": metrics.consultasInternas },
         { "Métrica": "Consultas Pagas", "Valor": metrics.consultasPagas },
         { "Métrica": "Consultas Pendentes", "Valor": metrics.consultasPendentes },
         { "Métrica": "Consultas Canceladas", "Valor": metrics.consultasCanceladas },
+        { "Métrica": "Consultas c/ Procedimentos", "Valor": metrics.consultasComProc },
+        { "Métrica": "", "Valor": "" },
         { "Métrica": "Receita Total (Online)", "Valor": formatCurrency(metrics.receitaTotal) },
         { "Métrica": "Receita Paga", "Valor": formatCurrency(metrics.receitaPaga) },
         { "Métrica": "Receita Pendente", "Valor": formatCurrency(metrics.receitaPendente) },
         { "Métrica": "Ticket Médio", "Valor": formatCurrency(metrics.ticketMedio) },
+        { "Métrica": "", "Valor": "" },
         { "Métrica": "Total Valor Médicos", "Valor": formatCurrency(metrics.totalValorMedico) },
         { "Métrica": "Total Valor Clínica", "Valor": formatCurrency(metrics.totalValorClinica) },
         { "Métrica": "Total Procedimentos", "Valor": formatCurrency(metrics.totalProcedimentos) },
-        { "Métrica": "Consultas com Procedimentos", "Valor": metrics.consultasComProc },
       ];
 
-      // Create by doctor sheet
-      const porMedico = dadosPorMedico.map((d) => ({
-        "Médico": d.nome,
-        "Especialidade": d.especialidade,
-        "Consultas": d.consultas,
-        "Receita Total": formatCurrency(d.receita),
-        "Receita Paga": formatCurrency(d.pago),
-      }));
+      // Per doctor sheet with repasse details
+      const porMedicoDetalhado = dadosPorMedico.map((d) => {
+        const medico = medicos?.find((m: any) => m.nome === d.nome);
+        const rc = (repasseConfigs || []).find((r) => r.medico_id === medico?.id);
+        const procConfigs = (procRepasseConfigs || []).filter((p) => p.medico_id === medico?.id);
+        
+        const repasseConsLabel = rc
+          ? rc.tipo_repasse === "fixo" ? `Fixo ${formatCurrency(rc.valor_fixo_repasse || 0)}` : `${rc.percentual_repasse}%`
+          : "70% (padrão)";
+        
+        const repasseProcLabel = procConfigs.map((p) => 
+          `${p.nome_procedimento}: ${p.tipo_repasse === "fixo" ? formatCurrency(p.valor_fixo_repasse || 0) : `${p.percentual_repasse}%`}`
+        ).join(" | ") || "—";
 
-      // Create workbook
+        return {
+          "Médico": `Dr(a). ${d.nome}`,
+          "Especialidade": d.especialidade,
+          "Consultas": d.consultas,
+          "Receita Total": d.receita,
+          "Receita Paga": d.pago,
+          "Repasse Consulta": repasseConsLabel,
+          "Repasse Procedimentos": repasseProcLabel,
+        };
+      });
+
+      // Procedures sheet
+      const procedimentosSheet: any[] = [];
+      filteredConsultas.forEach((c) => {
+        (c.procedimentos || []).forEach((p) => {
+          const procRepasse = (c.repasseProcedimentoConfigs || []).find((r) => r.nome === p.nome_procedimento);
+          procedimentosSheet.push({
+            "Data": format(parseISO(c.data_hora), "dd/MM/yyyy HH:mm"),
+            "Médico": c.medico?.nome || "N/A",
+            "Paciente": getPatientName(c),
+            "Procedimento": p.nome_procedimento,
+            "Valor": p.valor,
+            "Tipo Repasse": procRepasse?.tipo || "—",
+            "Percentual": procRepasse?.percentual || "—",
+            "Valor Fixo": procRepasse?.fixo ? formatCurrency(procRepasse.fixo) : "—",
+          });
+        });
+      });
+
       const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumo), "Resumo");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Consultas");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porMedicoDetalhado), "Por Médico");
+      if (procedimentosSheet.length > 0) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(procedimentosSheet), "Procedimentos");
+      }
 
-      const ws1 = XLSX.utils.json_to_sheet(resumo);
-      XLSX.utils.book_append_sheet(wb, ws1, "Resumo");
-
-      const ws2 = XLSX.utils.json_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws2, "Consultas");
-
-      const ws3 = XLSX.utils.json_to_sheet(porMedico);
-      XLSX.utils.book_append_sheet(wb, ws3, "Por Médico");
-
-      // Generate filename
       const filename = `relatorio_financeiro_${clinicaData?.nome_fantasia || "clinica"}_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`;
-
       XLSX.writeFile(wb, filename);
       toast.success("Relatório Excel gerado com sucesso!");
     } catch (error) {
@@ -677,7 +716,7 @@ export default function ClinicaRelatorios() {
     }
   };
 
-  // Export to PDF
+  // Export to PDF - LANDSCAPE
   const exportToPDF = () => {
     if (!filteredConsultas.length) {
       toast.error("Não há dados para exportar");
@@ -685,45 +724,73 @@ export default function ClinicaRelatorios() {
     }
 
     try {
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      let yPos = 20;
+      const doc = new jsPDF({ orientation: "landscape" });
+      const pageWidth = doc.internal.pageSize.getWidth(); // ~297mm
+      const pageHeight = doc.internal.pageSize.getHeight(); // ~210mm
+      const margin = 14;
+      let yPos = 18;
 
-      // Header
-      doc.setFontSize(20);
+      // ========== HEADER ==========
+      doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
-      doc.text("Relatório Financeiro", pageWidth / 2, yPos, { align: "center" });
-      yPos += 8;
+      doc.text("Relatório Financeiro Detalhado", pageWidth / 2, yPos, { align: "center" });
+      yPos += 7;
 
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
       doc.text(clinicaData?.nome_fantasia || "Clínica", pageWidth / 2, yPos, { align: "center" });
-      yPos += 6;
+      yPos += 5;
 
-      doc.setFontSize(10);
+      if (clinicaData?.cnpj) {
+        doc.setFontSize(9);
+        doc.text(`CNPJ: ${clinicaData.cnpj}`, pageWidth / 2, yPos, { align: "center" });
+        yPos += 5;
+      }
+
+      doc.setFontSize(9);
       doc.text(`Período: ${format(calculatedDateRange.start, "dd/MM/yyyy")} a ${format(calculatedDateRange.end, "dd/MM/yyyy")}`, pageWidth / 2, yPos, { align: "center" });
-      yPos += 10;
-
-      doc.setFontSize(10);
+      yPos += 5;
       doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, pageWidth / 2, yPos, { align: "center" });
-      yPos += 15;
+      yPos += 5;
 
-      // Summary section
-      doc.setFontSize(14);
+      // Médico filter info in header
+      if (medicoFilter !== "todos") {
+        const medicoSel = medicos?.find((m: any) => m.id === medicoFilter);
+        if (medicoSel) {
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.text(`Médico: Dr(a). ${medicoSel.nome} — ${medicoSel.especialidade || ""}`, pageWidth / 2, yPos, { align: "center" });
+          yPos += 5;
+        }
+      }
+
+      // Line separator
+      doc.setDrawColor(180);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 8;
+
+      // ========== RESUMO GERAL (2 columns) ==========
+      doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
-      doc.text("Resumo Geral", 14, yPos);
-      yPos += 10;
+      doc.text("Resumo Geral", margin, yPos);
+      yPos += 8;
 
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
+      const col1X = margin;
+      const col2X = pageWidth / 2 + 10;
 
-      const summaryData = [
+      const summaryCol1 = [
         ["Total de Consultas:", metrics.totalConsultas.toString()],
         ["Consultas Online:", metrics.consultasOnline.toString()],
         ["Consultas Internas:", metrics.consultasInternas.toString()],
         ["Consultas Pagas:", metrics.consultasPagas.toString()],
         ["Consultas Pendentes:", metrics.consultasPendentes.toString()],
         ["Consultas Canceladas:", metrics.consultasCanceladas.toString()],
+        ["Consultas c/ Procedimentos:", metrics.consultasComProc.toString()],
+      ];
+
+      const summaryCol2 = [
         ["Receita Total (Online):", formatCurrency(metrics.receitaTotal)],
         ["Receita Paga:", formatCurrency(metrics.receitaPaga)],
         ["Receita Pendente:", formatCurrency(metrics.receitaPendente)],
@@ -731,118 +798,153 @@ export default function ClinicaRelatorios() {
         ["Total Valor Médicos:", formatCurrency(metrics.totalValorMedico)],
         ["Total Valor Clínica:", formatCurrency(metrics.totalValorClinica)],
         ["Total Procedimentos:", formatCurrency(metrics.totalProcedimentos)],
-        ["Consultas c/ Procedimentos:", metrics.consultasComProc.toString()],
       ];
 
-      summaryData.forEach(([label, value]) => {
-        doc.text(label, 14, yPos);
-        doc.text(value, 80, yPos);
-        yPos += 6;
+      const startY = yPos;
+      summaryCol1.forEach(([label, value]) => {
+        doc.text(label, col1X, yPos);
+        doc.text(value, col1X + 60, yPos);
+        yPos += 5;
       });
+      yPos = startY;
+      summaryCol2.forEach(([label, value]) => {
+        doc.text(label, col2X, yPos);
+        doc.text(value, col2X + 60, yPos);
+        yPos += 5;
+      });
+      yPos = startY + summaryCol1.length * 5 + 8;
 
-      yPos += 10;
-
-      // By Doctor section
+      // ========== POR MÉDICO ==========
       if (dadosPorMedico.length > 0) {
-        doc.setFontSize(14);
+        doc.setFontSize(13);
         doc.setFont("helvetica", "bold");
-        doc.text("Faturamento por Médico", 14, yPos);
-        yPos += 10;
+        doc.text("Faturamento por Médico", margin, yPos);
+        yPos += 7;
 
-        doc.setFontSize(9);
+        // Header row
+        doc.setFontSize(8);
         doc.setFont("helvetica", "bold");
-        doc.text("Médico", 14, yPos);
-        doc.text("Especialidade", 70, yPos);
-        doc.text("Consultas", 120, yPos);
-        doc.text("Receita", 150, yPos);
-        yPos += 6;
-
-        doc.setFont("helvetica", "normal");
-        dadosPorMedico.slice(0, 10).forEach((d) => {
-          if (yPos > 270) {
-            doc.addPage();
-            yPos = 20;
-          }
-          doc.text(d.nome.substring(0, 30), 14, yPos);
-          doc.text((d.especialidade || "-").substring(0, 25), 70, yPos);
-          doc.text(d.consultas.toString(), 120, yPos);
-          doc.text(formatCurrency(d.receita), 150, yPos);
-          yPos += 6;
-        });
-      }
-
-      yPos += 10;
-
-      // Recent consultations
-      if (yPos > 200) {
-        doc.addPage();
-        yPos = 20;
-      }
-
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text("Últimas Consultas", 14, yPos);
-      yPos += 10;
-
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "bold");
-      doc.text("Data", 14, yPos);
-      doc.text("Médico", 36, yPos);
-      doc.text("Paciente", 68, yPos);
-      doc.text("V.Total", 100, yPos);
-      doc.text("V.Médico", 122, yPos);
-      doc.text("V.Clínica", 144, yPos);
-      doc.text("Proced.", 166, yPos);
-      doc.text("Status", 186, yPos);
-      yPos += 5;
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      filteredConsultas.slice(0, 30).forEach((c) => {
-        if (yPos > 280) {
-          doc.addPage();
-          yPos = 20;
-        }
-        doc.text(format(parseISO(c.data_hora), "dd/MM/yy HH:mm"), 14, yPos);
-        doc.text((c.medico?.nome || "N/A").substring(0, 16), 36, yPos);
-        doc.text(getPatientName(c).substring(0, 16), 68, yPos);
-        doc.text(formatCurrency(c.valor_consulta), 100, yPos);
-        doc.text(formatCurrency(c.valor_medico), 122, yPos);
-        doc.text(formatCurrency(c.valorClinica || 0), 144, yPos);
-        doc.text(c.totalProcedimentos ? formatCurrency(c.totalProcedimentos) : "—", 166, yPos);
-        doc.text(c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Canc." : "Pend.", 186, yPos);
+        const mCols = [margin, 65, 120, 145, 175, 210, 245];
+        doc.text("Médico", mCols[0], yPos);
+        doc.text("Especialidade", mCols[1], yPos);
+        doc.text("Consultas", mCols[2], yPos);
+        doc.text("Receita Total", mCols[3], yPos);
+        doc.text("Receita Paga", mCols[4], yPos);
+        doc.text("Repasse Consulta", mCols[5], yPos);
+        doc.text("Repasse Proced.", mCols[6], yPos);
+        yPos += 1;
+        doc.setDrawColor(200);
+        doc.line(margin, yPos, pageWidth - margin, yPos);
         yPos += 4;
 
-        // Print procedures details if any
+        doc.setFont("helvetica", "normal");
+        dadosPorMedico.forEach((d) => {
+          if (yPos > pageHeight - 20) { doc.addPage(); yPos = 18; }
+          const medico = medicos?.find((m: any) => m.nome === d.nome);
+          const rc = (repasseConfigs || []).find((r) => r.medico_id === medico?.id);
+          const repasseLabel = rc
+            ? rc.tipo_repasse === "fixo" ? `Fixo ${formatCurrency(rc.valor_fixo_repasse || 0)}` : `${rc.percentual_repasse}%`
+            : "70%";
+          const procConfigs = (procRepasseConfigs || []).filter((p) => p.medico_id === medico?.id);
+          const procLabel = procConfigs.length > 0
+            ? procConfigs.map((p) => `${p.nome_procedimento}: ${p.tipo_repasse === "fixo" ? formatCurrency(p.valor_fixo_repasse || 0) : `${p.percentual_repasse}%`}`).join("; ")
+            : "—";
+
+          doc.text(`Dr(a). ${d.nome}`.substring(0, 28), mCols[0], yPos);
+          doc.text((d.especialidade || "—").substring(0, 25), mCols[1], yPos);
+          doc.text(d.consultas.toString(), mCols[2], yPos);
+          doc.text(formatCurrency(d.receita), mCols[3], yPos);
+          doc.text(formatCurrency(d.pago), mCols[4], yPos);
+          doc.text(repasseLabel, mCols[5], yPos);
+          doc.text(procLabel.substring(0, 30), mCols[6], yPos);
+          yPos += 5;
+        });
+
+        yPos += 6;
+      }
+
+      // ========== CONSULTAS DETALHADAS ==========
+      doc.addPage();
+      yPos = 18;
+
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Consultas Detalhadas (${filteredConsultas.length})`, margin, yPos);
+      yPos += 8;
+
+      // Table header columns for landscape
+      const cols = [margin, 38, 72, 106, 128, 150, 170, 190, 210, 235, 260];
+      const colHeaders = ["Data", "Médico", "Paciente", "Origem", "V.Total", "V.Médico", "V.Clínica", "V.Proced.", "Rep.Cons.", "Rep.Proced.", "Status"];
+
+      const printTableHeader = () => {
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        colHeaders.forEach((h, i) => doc.text(h, cols[i], yPos));
+        yPos += 1;
+        doc.setDrawColor(200);
+        doc.line(margin, yPos, pageWidth - margin, yPos);
+        yPos += 3;
+        doc.setFont("helvetica", "normal");
+      };
+
+      printTableHeader();
+
+      doc.setFontSize(7);
+      filteredConsultas.forEach((c) => {
+        if (yPos > pageHeight - 18) {
+          doc.addPage();
+          yPos = 18;
+          printTableHeader();
+        }
+
+        const rcLabel = c.repasseConsultaConfig
+          ? c.repasseConsultaConfig.tipo === "fixo"
+            ? `Fixo ${formatCurrency(c.repasseConsultaConfig.fixo || 0)}`
+            : `${c.repasseConsultaConfig.percentual}%`
+          : "70%";
+        
+        const statusLabel = c.status_pagamento === "pago" ? "Pago" : c.status_consulta === "cancelada" ? "Canc." : "Pend.";
+
+        doc.text(format(parseISO(c.data_hora), "dd/MM/yy HH:mm"), cols[0], yPos);
+        doc.text((c.medico?.nome || "N/A").substring(0, 18), cols[1], yPos);
+        doc.text(getPatientName(c).substring(0, 18), cols[2], yPos);
+        doc.text(c.origem === "online" ? "Online" : "Interna", cols[3], yPos);
+        doc.text(formatCurrency(c.valor_consulta), cols[4], yPos);
+        doc.text(formatCurrency(c.valor_medico), cols[5], yPos);
+        doc.text(formatCurrency(c.valorClinica || 0), cols[6], yPos);
+        doc.text(c.totalProcedimentos ? formatCurrency(c.totalProcedimentos) : "—", cols[7], yPos);
+        doc.text(rcLabel, cols[8], yPos);
+        
+        const firstProcRepasse = (c.repasseProcedimentoConfigs || [])[0];
+        doc.text(firstProcRepasse 
+          ? `${firstProcRepasse.nome.substring(0, 8)}: ${firstProcRepasse.tipo === "fixo" ? formatCurrency(firstProcRepasse.fixo || 0) : `${firstProcRepasse.percentual}%`}`
+          : "—", cols[9], yPos);
+        
+        doc.text(statusLabel, cols[10], yPos);
+        yPos += 4;
+
+        // Print procedures details
         if (c.procedimentos && c.procedimentos.length > 0) {
           doc.setFontSize(6);
           c.procedimentos.forEach((p) => {
-            if (yPos > 280) { doc.addPage(); yPos = 20; }
+            if (yPos > pageHeight - 15) { doc.addPage(); yPos = 18; printTableHeader(); }
             const procRepasse = (c.repasseProcedimentoConfigs || []).find((r) => r.nome === p.nome_procedimento);
             const repasseInfo = procRepasse ? (procRepasse.tipo === "fixo" ? `Fixo ${formatCurrency(procRepasse.fixo || 0)}` : `${procRepasse.percentual}%`) : "—";
-            doc.text(`  → ${p.nome_procedimento}: ${formatCurrency(p.valor)} (Repasse: ${repasseInfo})`, 36, yPos);
+            doc.text(`  → ${p.nome_procedimento}: ${formatCurrency(p.valor)} (Repasse: ${repasseInfo})`, cols[1], yPos);
             yPos += 3.5;
           });
           doc.setFontSize(7);
         }
-
-        // Print repasse info
-        if (c.repasseConsultaConfig) {
-          doc.setFontSize(6);
-          if (yPos > 280) { doc.addPage(); yPos = 20; }
-          const rcLabel = c.repasseConsultaConfig.tipo === "fixo" ? `Fixo ${formatCurrency(c.repasseConsultaConfig.fixo || 0)}` : `${c.repasseConsultaConfig.percentual}%`;
-          doc.text(`  Repasse consulta: ${rcLabel}`, 36, yPos);
-          yPos += 4;
-          doc.setFontSize(7);
-        }
       });
 
-      // Footer
+      // Footer with page numbers
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        doc.setFontSize(8);
-        doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, 290, { align: "center" });
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "normal");
+        doc.text(`${clinicaData?.nome_fantasia || ""} — Relatório Financeiro`, margin, pageHeight - 8);
+        doc.text(`Página ${i} de ${pageCount}`, pageWidth - margin, pageHeight - 8, { align: "right" });
       }
 
       const filename = `relatorio_financeiro_${clinicaData?.nome_fantasia || "clinica"}_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`;
