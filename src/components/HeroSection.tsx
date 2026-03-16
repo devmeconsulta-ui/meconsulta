@@ -61,9 +61,7 @@ const HeroSection = () => {
   // Dynamic states and cities from database
   const [availableStates, setAvailableStates] = useState<{ sigla: string; nome: string }[]>([]);
   const [availableCities, setAvailableCities] = useState<string[]>([]);
-  
-  // Sorted specialties alphabetically
-  const sortedSpecialties = [...specialties].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const [availableSpecialties, setAvailableSpecialties] = useState<string[]>([]);
   
   // Sempre mostrar apenas médicos com agenda disponível
   const medicosFiltrados = medicos.filter(m => m.slots_disponiveis && m.slots_disponiveis > 0);
