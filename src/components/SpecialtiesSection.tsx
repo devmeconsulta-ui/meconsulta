@@ -37,12 +37,11 @@ const SpecialtiesSection = () => {
   }
   
   const nextSlide = useCallback(() => {
-    setCurrentIndex((prev) => {
-      if (prev >= medicos.length - 1) {
-        return 0;
-      }
-      return prev + 1;
-    });
+    setCurrentIndex((prev) => (prev >= medicos.length - 1 ? 0 : prev + 1));
+  }, [medicos.length]);
+
+  const prevSlide = useCallback(() => {
+    setCurrentIndex((prev) => (prev <= 0 ? medicos.length - 1 : prev - 1));
   }, [medicos.length]);
 
   useEffect(() => {
