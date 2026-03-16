@@ -17,6 +17,7 @@ interface Medico {
   foto_url: string | null;
   crm: string | null;
   valor_consulta: number;
+  telefone_whatsapp: string | null;
   locais_atendimento: {
     cidade: string | null;
     estado: string | null;
