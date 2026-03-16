@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { User } from "lucide-react";
+import { User, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Medico {
   id: string;
