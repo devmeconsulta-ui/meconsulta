@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Star, MapPin, Calendar, ChevronRight, User, Loader2 } from "lucide-react";
+import { Star, MapPin, Calendar, ChevronRight, User, Loader2, MessageCircle } from "lucide-react";
 import { specialties } from "@/data/brazilData";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
