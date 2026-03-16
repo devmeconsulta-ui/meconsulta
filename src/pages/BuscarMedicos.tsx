@@ -116,6 +116,7 @@ const BuscarMedicos = () => {
           foto_url,
           crm,
           valor_consulta,
+          telefone_whatsapp,
           locais_atendimento (
             cidade,
             estado
