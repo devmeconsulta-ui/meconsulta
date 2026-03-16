@@ -89,12 +89,22 @@ const HeroSection = () => {
         
         if (locationsRes.error) throw locationsRes.error;
         
-        // Process specialties from active doctors
-        const uniqueSpecialties = [...new Set(
-          (specialtiesRes.data || [])
-            .map(m => m.especialidade?.trim())
-            .filter(Boolean) as string[]
-        )].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+        // Process specialties from active doctors - normalize to Title Case and deduplicate
+        const toTitleCase = (str: string) => 
+          str.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase());
+        
+        const specialtiesMap = new Map<string, string>();
+        (specialtiesRes.data || []).forEach(m => {
+          const raw = m.especialidade?.trim();
+          if (raw) {
+            const key = raw.toLowerCase();
+            if (!specialtiesMap.has(key)) {
+              specialtiesMap.set(key, toTitleCase(raw));
+            }
+          }
+        });
+        const uniqueSpecialties = [...specialtiesMap.values()]
+          .sort((a, b) => a.localeCompare(b, 'pt-BR'));
         setAvailableSpecialties(uniqueSpecialties);
         
         const data = locationsRes.data;
