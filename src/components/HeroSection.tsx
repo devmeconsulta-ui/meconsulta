@@ -26,7 +26,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import doctorImage from "@/assets/dra-page.png";
 import seloImage from "@/assets/selo.png";
 import heroBg from "@/assets/hero-background.png";
-import { specialties } from "@/data/brazilData";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
