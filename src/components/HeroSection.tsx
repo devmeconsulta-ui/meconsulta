@@ -369,7 +369,7 @@ const HeroSection = () => {
                         <SelectValue placeholder="Especialidade" />
                       </SelectTrigger>
                       <SelectContent className="max-h-60">
-                        {sortedSpecialties.map((specialty) => (
+                        {availableSpecialties.map((specialty) => (
                           <SelectItem key={specialty} value={specialty.toLowerCase()}>
                             {specialty}
                           </SelectItem>
