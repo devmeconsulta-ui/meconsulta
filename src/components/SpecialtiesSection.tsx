@@ -89,46 +89,66 @@ const SpecialtiesSection = () => {
       </div>
 
       <div className="relative px-4">
-        <div 
-          className="flex gap-4 transition-transform duration-700 ease-out"
-          style={{ 
-            transform: `translateX(-${currentIndex * (100 / 4)}%)`
-          }}
+        {/* Left Arrow */}
+        <button
+          onClick={prevSlide}
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-card shadow-lg border border-border rounded-full p-2 hover:bg-accent transition-colors"
+          aria-label="Anterior"
         >
-          {medicos.map((medico, index) => {
-            const href = `/medico/${medico.id}`;
-            
-            return (
-              <Link 
-                key={`${medico.id}-${index}`}
-                to={href}
-                className="flex-shrink-0 w-[280px] sm:w-[300px] cursor-pointer"
-              >
-                <div className="bg-card rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group">
-                  <div className="aspect-square overflow-hidden bg-muted">
-                    {medico.foto_url ? (
-                      <img 
-                        src={medico.foto_url} 
-                        alt={medico.nome}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <User className="w-24 h-24 text-muted-foreground" />
-                      </div>
-                    )}
+          <ChevronLeft className="h-6 w-6 text-foreground" />
+        </button>
+
+        {/* Right Arrow */}
+        <button
+          onClick={nextSlide}
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-card shadow-lg border border-border rounded-full p-2 hover:bg-accent transition-colors"
+          aria-label="Próximo"
+        >
+          <ChevronRight className="h-6 w-6 text-foreground" />
+        </button>
+
+        <div className="overflow-hidden mx-8">
+          <div 
+            className="flex gap-4 transition-transform duration-700 ease-out"
+            style={{ 
+              transform: `translateX(-${currentIndex * (100 / 4)}%)`
+            }}
+          >
+            {medicos.map((medico, index) => {
+              const href = `/medico/${medico.id}`;
+              
+              return (
+                <Link 
+                  key={`${medico.id}-${index}`}
+                  to={href}
+                  className="flex-shrink-0 w-[280px] sm:w-[300px] cursor-pointer"
+                >
+                  <div className="bg-card rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 group">
+                    <div className="aspect-square overflow-hidden bg-muted">
+                      {medico.foto_url ? (
+                        <img 
+                          src={medico.foto_url} 
+                          alt={medico.nome}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <User className="w-24 h-24 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4 text-center">
+                      <h3 className="font-semibold text-foreground mb-1">{medico.nome}</h3>
+                      <p className="text-sm text-primary font-medium mb-3">{medico.especialidade || "Especialista"}</p>
+                      <span className="block w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium py-2 px-4 rounded-lg transition-colors">
+                        Marcar Consulta
+                      </span>
+                    </div>
                   </div>
-                  <div className="p-4 text-center">
-                    <h3 className="font-semibold text-foreground mb-1">{medico.nome}</h3>
-                    <p className="text-sm text-primary font-medium mb-3">{medico.especialidade || "Especialista"}</p>
-                    <span className="block w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium py-2 px-4 rounded-lg transition-colors">
-                      Marcar Consulta
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </div>
 
