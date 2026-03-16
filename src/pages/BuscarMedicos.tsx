@@ -337,10 +337,17 @@ const BuscarMedicos = () => {
                         )}
 
                         {/* Next Available */}
-                        <div className="flex items-center justify-center md:justify-start gap-1 text-sm text-primary">
-                          <Calendar className="w-4 h-4" />
-                          <span>{formatNextSlot(medico.proximo_slot)}</span>
-                        </div>
+                        {medico.slots_disponiveis && medico.slots_disponiveis > 0 ? (
+                          <div className="flex items-center justify-center md:justify-start gap-1 text-sm text-primary">
+                            <Calendar className="w-4 h-4" />
+                            <span>{formatNextSlot(medico.proximo_slot)}</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center md:justify-start gap-1 text-sm text-muted-foreground">
+                            <Calendar className="w-4 h-4" />
+                            <span>Sem horários disponíveis no momento</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Price & CTA */}
@@ -351,10 +358,26 @@ const BuscarMedicos = () => {
                             R$ {medico.valor_consulta.toFixed(2).replace(".", ",")}
                           </p>
                         </div>
-                        <Button className="w-full md:w-auto gap-2">
-                          Ver Perfil
-                          <ChevronRight className="w-4 h-4" />
-                        </Button>
+                        {medico.slots_disponiveis && medico.slots_disponiveis > 0 ? (
+                          <Button className="w-full md:w-auto gap-2">
+                            Ver Perfil
+                            <ChevronRight className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            className="w-full md:w-auto gap-2 border-[hsl(var(--whatsapp))] text-[hsl(var(--whatsapp))] hover:bg-[hsl(var(--whatsapp))]/10"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const phone = medico.telefone_whatsapp?.replace(/\D/g, '') || '';
+                              const msg = encodeURIComponent(`Olá! Gostaria de solicitar disponibilidade de agenda com ${medico.nome}. Vi o perfil na MeConsulta.`);
+                              window.open(`https://wa.me/55${phone}?text=${msg}`, '_blank');
+                            }}
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            Solicitar Agenda
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
