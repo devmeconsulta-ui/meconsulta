@@ -77,16 +77,27 @@ const HeroSection = () => {
     "SP": "São Paulo", "SE": "Sergipe", "TO": "Tocantins"
   };
 
-  // Fetch available states and cities from database
+  // Fetch available states, cities and specialties from database
   useEffect(() => {
-    const fetchLocations = async () => {
+    const fetchLocationsAndSpecialties = async () => {
       try {
-        const { data, error } = await supabase
-          .from("locais_atendimento")
-          .select("estado, cidade")
-          .eq("ativo", true);
+        // Fetch locations and specialties in parallel
+        const [locationsRes, specialtiesRes] = await Promise.all([
+          supabase.from("locais_atendimento").select("estado, cidade").eq("ativo", true),
+          supabase.from("medicos").select("especialidade").eq("ativo", true).not("especialidade", "is", null)
+        ]);
         
-        if (error) throw error;
+        if (locationsRes.error) throw locationsRes.error;
+        
+        // Process specialties from active doctors
+        const uniqueSpecialties = [...new Set(
+          (specialtiesRes.data || [])
+            .map(m => m.especialidade?.trim())
+            .filter(Boolean) as string[]
+        )].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+        setAvailableSpecialties(uniqueSpecialties);
+        
+        const data = locationsRes.data;
         
         // Normalize and get unique states
         const normalizedStates = data?.map(l => normalizeStateAbbreviation(l.estado)).filter(Boolean) || [];
@@ -104,24 +115,20 @@ const HeroSection = () => {
           if (normalizedState && l.cidade) {
             const cityNormalized = l.cidade.trim();
             if (!citiesByStateMap[normalizedState]) citiesByStateMap[normalizedState] = [];
-            // Avoid duplicates (case-insensitive)
             if (!citiesByStateMap[normalizedState].some(c => c.toLowerCase() === cityNormalized.toLowerCase())) {
               citiesByStateMap[normalizedState].push(cityNormalized);
             }
           }
         });
         
-        // Store in state for use when selecting
         (window as any).__citiesByStateFromDB = citiesByStateMap;
-        
-        // Now that we have the data, request geolocation
         requestGeolocation(citiesByStateMap);
       } catch (err) {
         console.error("Error fetching locations:", err);
       }
     };
     
-    fetchLocations();
+    fetchLocationsAndSpecialties();
   }, []);
 
   // Update cities when state changes
