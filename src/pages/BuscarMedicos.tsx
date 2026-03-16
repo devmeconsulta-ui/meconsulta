@@ -175,7 +175,6 @@ const BuscarMedicos = () => {
           slots_disponiveis: slotsMap[m.id]?.count || 0,
           proximo_slot: slotsMap[m.id]?.next || null
         }))
-        .filter(m => m.slots_disponiveis > 0)
         .sort((a, b) => b.slots_disponiveis - a.slots_disponiveis);
 
       setMedicos(medicosComSlots);
