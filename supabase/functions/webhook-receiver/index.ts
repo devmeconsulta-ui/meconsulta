@@ -268,9 +268,9 @@ Deno.serve(async (req) => {
 
       contato = newContato;
     } else {
-      // Update photo and name if missing
+      // Always update photo when available (URLs expire), update name if missing
       const updates: Record<string, string> = {};
-      if (!contato.foto_url && senderPhoto) updates.foto_url = senderPhoto;
+      if (senderPhoto) updates.foto_url = senderPhoto;
       if ((!contato.nome || contato.nome === phone) && senderName) updates.nome = senderName;
       if (Object.keys(updates).length > 0) {
         await serviceClient.from("omni_contatos").update(updates).eq("id", contato.id);

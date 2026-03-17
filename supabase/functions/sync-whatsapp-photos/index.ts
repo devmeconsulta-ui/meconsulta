@@ -7,6 +7,12 @@ const corsHeaders = {
 
 const ZAPI_BASE = "https://api.z-api.io";
 
+function extractValidPhotoUrl(data: any): string | null {
+  const url = data.link || data.profilePictureUrl || data.imgUrl || data.url || data.picture || null;
+  if (!url || url === "null" || url === "undefined" || !url.startsWith("http")) return null;
+  return url;
+}
+
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     try {
@@ -65,7 +71,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`Using Z-API instance: ${instancia.id}`);
+    console.log(`[sync-v3] Using Z-API instance: ${instancia.id}, zapi_id: ${instancia.zapi_instance_id}`);
 
     // ── Sync omni_contatos photos first ──
     const { data: contatosSemFoto } = await supabase
@@ -91,19 +97,21 @@ Deno.serve(async (req: Request) => {
           const timeoutId = setTimeout(() => controller.abort(), 5000);
           try {
             const response = await fetchWithRetry(
-              `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
+              `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture?phone=${telefone}`,
               { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN }, signal: controller.signal },
               2, 800
             );
             clearTimeout(timeoutId);
             if (response.ok) {
               const data = await response.json();
-              const profilePictureUrl = data.link || data.profilePictureUrl || data.imgUrl || null;
+              const profilePictureUrl = extractValidPhotoUrl(data);
               if (profilePictureUrl) {
                 await supabase.from("omni_contatos").update({ foto_url: profilePictureUrl }).eq("id", contato.id);
                 contatosUpdated++;
                 console.log(`Photo updated for contato ${contato.nome}`);
               }
+            } else {
+              console.log(`Z-API response ${response.status} for ${contato.nome}`);
             }
           } catch (e) {
             clearTimeout(timeoutId);
@@ -138,14 +146,14 @@ Deno.serve(async (req: Request) => {
           const timeoutId = setTimeout(() => controller.abort(), 5000);
           try {
             const response = await fetchWithRetry(
-              `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
+              `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture?phone=${telefone}`,
               { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN }, signal: controller.signal },
               2, 800
             );
             clearTimeout(timeoutId);
             if (response.ok) {
               const data = await response.json();
-              const profilePictureUrl = data.link || data.profilePictureUrl || data.imgUrl || null;
+              const profilePictureUrl = extractValidPhotoUrl(data);
               if (profilePictureUrl) {
                 await supabase.from("medicos").update({ foto_url: profilePictureUrl }).eq("id", medico.id);
                 medicosUpdated++;
@@ -197,14 +205,14 @@ Deno.serve(async (req: Request) => {
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         try {
           const response = await fetchWithRetry(
-            `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
+            `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture?phone=${telefone}`,
             { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN }, signal: controller.signal },
             2, 800
           );
           clearTimeout(timeoutId);
           if (response.ok) {
             const data = await response.json();
-            const profilePictureUrl = data.link || data.profilePictureUrl || data.imgUrl || null;
+            const profilePictureUrl = extractValidPhotoUrl(data);
             if (profilePictureUrl) {
               await supabase.from("pacientes").update({ foto_url: profilePictureUrl }).eq("id", paciente.id);
               updated++;
