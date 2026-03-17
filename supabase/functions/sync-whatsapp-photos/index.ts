@@ -115,6 +115,53 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ── Sync medicos photos ──
+    const { data: medicosSemFoto } = await supabase
+      .from("medicos")
+      .select("id, telefone_whatsapp, nome")
+      .is("foto_url", null)
+      .not("telefone_whatsapp", "is", null)
+      .neq("telefone_whatsapp", "")
+      .eq("ativo", true)
+      .limit(20);
+
+    let medicosUpdated = 0;
+    if (medicosSemFoto && medicosSemFoto.length > 0) {
+      console.log(`Processing ${medicosSemFoto.length} medicos without photos`);
+      for (const medico of medicosSemFoto) {
+        try {
+          let telefone = medico.telefone_whatsapp.replace(/\D/g, "");
+          if (!telefone || telefone.length < 10) continue;
+          if (!telefone.startsWith("55")) telefone = "55" + telefone;
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          try {
+            const response = await fetchWithRetry(
+              `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
+              { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN }, signal: controller.signal },
+              2, 800
+            );
+            clearTimeout(timeoutId);
+            if (response.ok) {
+              const data = await response.json();
+              const profilePictureUrl = data.link || data.profilePictureUrl || data.imgUrl || null;
+              if (profilePictureUrl) {
+                await supabase.from("medicos").update({ foto_url: profilePictureUrl }).eq("id", medico.id);
+                medicosUpdated++;
+                console.log(`Photo updated for medico ${medico.nome}`);
+              }
+            }
+          } catch (e) {
+            clearTimeout(timeoutId);
+          }
+          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (e: any) {
+          console.log(`Erro foto medico ${medico.nome}:`, e.message || e);
+        }
+      }
+    }
+
     // ── Sync pacientes photos ──
     // Fetch patients without photos
     const { data: pacientes } = await supabase
@@ -127,7 +174,7 @@ Deno.serve(async (req: Request) => {
 
     if (!pacientes || pacientes.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, contatos_updated: contatosUpdated, pacientes_updated: 0, message: "Nenhum paciente sem foto encontrado" }),
+        JSON.stringify({ success: true, contatos_updated: contatosUpdated, medicos_updated: medicosUpdated, pacientes_updated: 0, message: "Nenhum paciente sem foto encontrado" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -211,10 +258,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log(`Done: pacientes=${updated}, contatos=${contatosUpdated}, errors=${errors}`);
+    console.log(`Done: medicos=${medicosUpdated}, pacientes=${updated}, contatos=${contatosUpdated}, errors=${errors}`);
 
     return new Response(
-      JSON.stringify({ success: true, pacientes_updated: updated, contatos_updated: contatosUpdated, total_processed: pacientes.length, errors }),
+      JSON.stringify({ success: true, medicos_updated: medicosUpdated, pacientes_updated: updated, contatos_updated: contatosUpdated, total_processed: (pacientes?.length || 0), errors }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
