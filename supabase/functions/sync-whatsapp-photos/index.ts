@@ -211,10 +211,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log(`Done: ${updated} updated, ${errors} errors`);
+    console.log(`Done: pacientes=${updated}, contatos=${contatosUpdated}, errors=${errors}`);
 
     return new Response(
-      JSON.stringify({ success: true, pacientes_updated: updated, total_processed: pacientes.length, errors }),
+      JSON.stringify({ success: true, pacientes_updated: updated, contatos_updated: contatosUpdated, total_processed: pacientes.length, errors }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
