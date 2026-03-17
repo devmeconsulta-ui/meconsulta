@@ -181,6 +181,15 @@ Deno.serve(async (req) => {
       telefoneNormalizado = `55${telefoneNormalizado}`;
     }
 
+    // Validate phone is not empty or too short
+    if (!telefoneNormalizado || telefoneNormalizado.length < 10) {
+      console.error(`Invalid phone number for contact: "${contato.telefone}" -> "${telefoneNormalizado}"`);
+      return new Response(
+        JSON.stringify({ error: "Número de telefone inválido para este contato" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const result = await sendViaZAPI(instancia, telefoneNormalizado, tipo, conteudo, arquivo_url, arquivo_nome, assinatura_nome);
 
     console.log(`[${Date.now() - startTime}ms] Z-API response received`);

@@ -239,7 +239,7 @@ Deno.serve(async (req) => {
     // Find or create contact
     let { data: contato } = await serviceClient
       .from("omni_contatos")
-      .select("id")
+      .select("id, foto_url, nome")
       .eq("clinica_id", mi.clinica_id)
       .eq("telefone", phone)
       .single();
@@ -251,8 +251,9 @@ Deno.serve(async (req) => {
           clinica_id: mi.clinica_id,
           telefone: phone,
           nome: senderName || phone,
+          foto_url: senderPhoto || null,
         })
-        .select("id")
+        .select("id, foto_url, nome")
         .single();
 
       if (contatoErr) {
@@ -260,6 +261,14 @@ Deno.serve(async (req) => {
       }
 
       contato = newContato;
+    } else {
+      // Update photo and name if missing
+      const updates: Record<string, string> = {};
+      if (!contato.foto_url && senderPhoto) updates.foto_url = senderPhoto;
+      if ((!contato.nome || contato.nome === phone) && senderName) updates.nome = senderName;
+      if (Object.keys(updates).length > 0) {
+        await serviceClient.from("omni_contatos").update(updates).eq("id", contato.id);
+      }
     }
 
     if (!contato) {
