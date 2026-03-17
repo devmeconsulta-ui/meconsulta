@@ -366,7 +366,7 @@ const BuscarMedicos = () => {
                         ) : (
                           <Button
                             variant="outline"
-                            className="w-full md:w-auto gap-2 border-[hsl(var(--whatsapp))] text-[hsl(var(--whatsapp))] hover:bg-[hsl(var(--whatsapp))]/10"
+                            className="w-full md:w-auto gap-2 border-[hsl(var(--green-whatsapp))] text-[hsl(var(--green-whatsapp))] hover:bg-[hsl(var(--green-whatsapp))]/10"
                             onClick={(e) => {
                               e.preventDefault();
                               const phone = medico.telefone_whatsapp?.replace(/\D/g, '') || '';
