@@ -232,6 +232,7 @@ Deno.serve(async (req) => {
     const messageId = body.messageId || body.id?.id || crypto.randomUUID();
     const { content_type, message, media_url, media_type } = mapContentType(body);
     const senderName = body.senderName || body.pushName || body.notifyName || null;
+    const senderPhoto = body.photo || body.senderPhoto || body.profilePicture || body.imgUrl || null;
 
     console.log(`[webhook-receiver] Incoming from ${phone}: ${content_type} - ${message?.substring(0, 50)}`);
 
