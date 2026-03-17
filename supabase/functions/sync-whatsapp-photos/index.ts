@@ -212,7 +212,7 @@ Deno.serve(async (req: Request) => {
           clearTimeout(timeoutId);
           if (response.ok) {
             const data = await response.json();
-            const profilePictureUrl = data.link || data.profilePictureUrl || data.imgUrl || null;
+            const profilePictureUrl = extractValidPhotoUrl(data);
             if (profilePictureUrl) {
               await supabase.from("pacientes").update({ foto_url: profilePictureUrl }).eq("id", paciente.id);
               updated++;
