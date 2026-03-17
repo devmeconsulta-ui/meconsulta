@@ -172,7 +172,7 @@ const SpecialtiesSection = () => {
                       ) : (
                         <span
                           onClick={(e) => handleSolicitarAgenda(e, medico)}
-                          className="flex items-center justify-center gap-2 w-full border border-[hsl(var(--whatsapp))] text-[hsl(var(--whatsapp))] hover:bg-[hsl(var(--whatsapp))]/10 text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+                          className="flex items-center justify-center gap-2 w-full border border-[hsl(var(--green-whatsapp))] text-[hsl(var(--green-whatsapp))] hover:bg-[hsl(var(--green-whatsapp))]/10 text-sm font-medium py-2 px-4 rounded-lg transition-colors"
                         >
                           <MessageCircle className="w-4 h-4" />
                           Solicitar Agenda
