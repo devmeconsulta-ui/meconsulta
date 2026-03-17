@@ -229,16 +229,23 @@ Deno.serve(async (req) => {
     }
 
     const phone = normalizePhone(rawPhone);
+    // Validate normalized phone has enough digits
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10) {
+      console.warn("[webhook-receiver] Invalid phone number, skipping:", rawPhone, "->", phone);
+      return new Response(JSON.stringify({ ok: true, event: "invalid_phone" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     const messageId = body.messageId || body.id?.id || crypto.randomUUID();
     const { content_type, message, media_url, media_type } = mapContentType(body);
     const senderName = body.senderName || body.pushName || body.notifyName || null;
+    const senderPhoto = body.photo || body.senderPhoto || body.profilePicture || body.imgUrl || null;
 
     console.log(`[webhook-receiver] Incoming from ${phone}: ${content_type} - ${message?.substring(0, 50)}`);
 
     // Find or create contact
     let { data: contato } = await serviceClient
       .from("omni_contatos")
-      .select("id")
+      .select("id, foto_url, nome")
       .eq("clinica_id", mi.clinica_id)
       .eq("telefone", phone)
       .single();
@@ -250,8 +257,9 @@ Deno.serve(async (req) => {
           clinica_id: mi.clinica_id,
           telefone: phone,
           nome: senderName || phone,
+          foto_url: senderPhoto || null,
         })
-        .select("id")
+        .select("id, foto_url, nome")
         .single();
 
       if (contatoErr) {
@@ -259,6 +267,14 @@ Deno.serve(async (req) => {
       }
 
       contato = newContato;
+    } else {
+      // Update photo and name if missing
+      const updates: Record<string, string> = {};
+      if (!contato.foto_url && senderPhoto) updates.foto_url = senderPhoto;
+      if ((!contato.nome || contato.nome === phone) && senderName) updates.nome = senderName;
+      if (Object.keys(updates).length > 0) {
+        await serviceClient.from("omni_contatos").update(updates).eq("id", contato.id);
+      }
     }
 
     if (!contato) {

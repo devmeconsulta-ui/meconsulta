@@ -67,6 +67,55 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Using Z-API instance: ${instancia.id}`);
 
+    // ── Sync omni_contatos photos first ──
+    const { data: contatosSemFoto } = await supabase
+      .from("omni_contatos")
+      .select("id, telefone, nome")
+      .eq("clinica_id", clinica_id)
+      .is("foto_url", null)
+      .not("telefone", "is", null)
+      .neq("telefone", "")
+      .neq("telefone", "+")
+      .limit(20);
+
+    let contatosUpdated = 0;
+    if (contatosSemFoto && contatosSemFoto.length > 0) {
+      console.log(`Processing ${contatosSemFoto.length} contatos without photos`);
+      for (const contato of contatosSemFoto) {
+        try {
+          let telefone = contato.telefone.replace(/\D/g, "");
+          if (!telefone || telefone.length < 10) continue;
+          if (!telefone.startsWith("55")) telefone = "55" + telefone;
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          try {
+            const response = await fetchWithRetry(
+              `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
+              { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN }, signal: controller.signal },
+              2, 800
+            );
+            clearTimeout(timeoutId);
+            if (response.ok) {
+              const data = await response.json();
+              const profilePictureUrl = data.link || data.profilePictureUrl || data.imgUrl || null;
+              if (profilePictureUrl) {
+                await supabase.from("omni_contatos").update({ foto_url: profilePictureUrl }).eq("id", contato.id);
+                contatosUpdated++;
+                console.log(`Photo updated for contato ${contato.nome}`);
+              }
+            }
+          } catch (e) {
+            clearTimeout(timeoutId);
+          }
+          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (e: any) {
+          console.log(`Erro foto contato ${contato.nome}:`, e.message || e);
+        }
+      }
+    }
+
+    // ── Sync pacientes photos ──
     // Fetch patients without photos
     const { data: pacientes } = await supabase
       .from("pacientes")
@@ -78,7 +127,7 @@ Deno.serve(async (req: Request) => {
 
     if (!pacientes || pacientes.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, updated: 0, message: "Nenhum paciente sem foto encontrado" }),
+        JSON.stringify({ success: true, contatos_updated: contatosUpdated, pacientes_updated: 0, message: "Nenhum paciente sem foto encontrado" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -162,10 +211,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log(`Done: ${updated} updated, ${errors} errors`);
+    console.log(`Done: pacientes=${updated}, contatos=${contatosUpdated}, errors=${errors}`);
 
     return new Response(
-      JSON.stringify({ success: true, pacientes_updated: updated, total_processed: pacientes.length, errors }),
+      JSON.stringify({ success: true, pacientes_updated: updated, contatos_updated: contatosUpdated, total_processed: pacientes.length, errors }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
