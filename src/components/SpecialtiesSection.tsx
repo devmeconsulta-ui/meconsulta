@@ -1,13 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { User, ChevronLeft, ChevronRight } from "lucide-react";
+import { User, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
 
 interface Medico {
   id: string;
   nome: string;
   especialidade: string | null;
   foto_url: string | null;
+  telefone_whatsapp: string | null;
+  slots_disponiveis: number;
 }
 
 const SpecialtiesSection = () => {
@@ -22,7 +24,7 @@ const SpecialtiesSection = () => {
   async function fetchMedicos() {
     const { data, error } = await supabase
       .from("medicos")
-      .select("id, nome, especialidade, foto_url")
+      .select("id, nome, especialidade, foto_url, telefone_whatsapp")
       .eq("ativo", true)
       .eq("aparecer_home", true)
       .limit(20);
@@ -30,9 +32,24 @@ const SpecialtiesSection = () => {
     if (error) {
       console.error("Error fetching medicos:", error);
       setMedicos([]);
-    } else {
-      setMedicos(data || []);
+      setLoading(false);
+      return;
     }
+
+    const now = new Date().toISOString();
+    const medicosComSlots = await Promise.all(
+      (data || []).map(async (m) => {
+        const { count } = await supabase
+          .from("agenda_slots")
+          .select("id", { count: "exact", head: true })
+          .eq("medico_id", m.id)
+          .eq("disponivel", true)
+          .gte("data_hora", now);
+        return { ...m, slots_disponiveis: count || 0 };
+      })
+    );
+
+    setMedicos(medicosComSlots);
     setLoading(false);
   }
   
@@ -49,6 +66,16 @@ const SpecialtiesSection = () => {
     const interval = setInterval(nextSlide, 3000);
     return () => clearInterval(interval);
   }, [nextSlide, medicos.length]);
+
+  const handleSolicitarAgenda = (e: React.MouseEvent, medico: Medico) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const phone = medico.telefone_whatsapp?.replace(/\D/g, '') || '';
+    const msg = encodeURIComponent(
+      `Olá! Gostaria de solicitar disponibilidade de agenda com ${medico.nome}. Vi o perfil na MeConsulta.`
+    );
+    window.open(`https://wa.me/55${phone}?text=${msg}`, '_blank');
+  };
 
   if (loading) {
     return (
@@ -70,7 +97,6 @@ const SpecialtiesSection = () => {
     );
   }
 
-  // Se não houver médicos com aparecer_home = true, não mostra a seção
   if (medicos.length === 0) {
     return null;
   }
@@ -89,7 +115,6 @@ const SpecialtiesSection = () => {
       </div>
 
       <div className="relative px-4">
-        {/* Left Arrow */}
         <button
           onClick={prevSlide}
           className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-card shadow-lg border border-border rounded-full p-2 hover:bg-accent transition-colors"
@@ -98,7 +123,6 @@ const SpecialtiesSection = () => {
           <ChevronLeft className="h-6 w-6 text-foreground" />
         </button>
 
-        {/* Right Arrow */}
         <button
           onClick={nextSlide}
           className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-card shadow-lg border border-border rounded-full p-2 hover:bg-accent transition-colors"
@@ -115,6 +139,7 @@ const SpecialtiesSection = () => {
             }}
           >
             {medicos.map((medico, index) => {
+              const temAgenda = medico.slots_disponiveis > 0;
               const href = `/medico/${medico.id}`;
               
               return (
@@ -140,9 +165,19 @@ const SpecialtiesSection = () => {
                     <div className="p-4 text-center">
                       <h3 className="font-semibold text-foreground mb-1">{medico.nome}</h3>
                       <p className="text-sm text-primary font-medium mb-3">{medico.especialidade || "Especialista"}</p>
-                      <span className="block w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium py-2 px-4 rounded-lg transition-colors">
-                        Marcar Consulta
-                      </span>
+                      {temAgenda ? (
+                        <span className="block w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium py-2 px-4 rounded-lg transition-colors">
+                          Marcar Consulta
+                        </span>
+                      ) : (
+                        <span
+                          onClick={(e) => handleSolicitarAgenda(e, medico)}
+                          className="flex items-center justify-center gap-2 w-full border border-[hsl(var(--whatsapp))] text-[hsl(var(--whatsapp))] hover:bg-[hsl(var(--whatsapp))]/10 text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          Solicitar Agenda
+                        </span>
+                      )}
                     </div>
                   </div>
                 </Link>
