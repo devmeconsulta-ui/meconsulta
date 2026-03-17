@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
           const timeoutId = setTimeout(() => controller.abort(), 5000);
           try {
             const response = await fetchWithRetry(
-              `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
+              `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture?phone=${telefone}`,
               { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN }, signal: controller.signal },
               2, 800
             );
