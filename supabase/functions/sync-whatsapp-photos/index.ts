@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`Using Z-API instance: ${instancia.id}`);
+    console.log(`[sync-v3] Using Z-API instance: ${instancia.id}, zapi_id: ${instancia.zapi_instance_id}`);
 
     // ── Sync omni_contatos photos first ──
     const { data: contatosSemFoto } = await supabase
