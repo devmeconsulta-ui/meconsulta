@@ -7,6 +7,12 @@ const corsHeaders = {
 
 const ZAPI_BASE = "https://api.z-api.io";
 
+function extractValidPhotoUrl(data: any): string | null {
+  const url = data.link || data.profilePictureUrl || data.imgUrl || data.url || data.picture || null;
+  if (!url || url === "null" || url === "undefined" || !url.startsWith("http")) return null;
+  return url;
+}
+
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     try {
