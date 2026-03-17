@@ -229,6 +229,12 @@ Deno.serve(async (req) => {
     }
 
     const phone = normalizePhone(rawPhone);
+    // Validate normalized phone has enough digits
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10) {
+      console.warn("[webhook-receiver] Invalid phone number, skipping:", rawPhone, "->", phone);
+      return new Response(JSON.stringify({ ok: true, event: "invalid_phone" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     const messageId = body.messageId || body.id?.id || crypto.randomUUID();
     const { content_type, message, media_url, media_type } = mapContentType(body);
     const senderName = body.senderName || body.pushName || body.notifyName || null;
