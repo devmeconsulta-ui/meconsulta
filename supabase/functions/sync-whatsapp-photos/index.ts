@@ -98,12 +98,15 @@ Deno.serve(async (req: Request) => {
             clearTimeout(timeoutId);
             if (response.ok) {
               const data = await response.json();
-              const profilePictureUrl = data.link || data.profilePictureUrl || data.imgUrl || null;
+              console.log(`Z-API response for ${contato.nome}:`, JSON.stringify(data).substring(0, 200));
+              const profilePictureUrl = data.link || data.profilePictureUrl || data.imgUrl || data.url || data.picture || null;
               if (profilePictureUrl) {
                 await supabase.from("omni_contatos").update({ foto_url: profilePictureUrl }).eq("id", contato.id);
                 contatosUpdated++;
                 console.log(`Photo updated for contato ${contato.nome}`);
               }
+            } else {
+              console.log(`Z-API response ${response.status} for ${contato.nome}`);
             }
           } catch (e) {
             clearTimeout(timeoutId);
