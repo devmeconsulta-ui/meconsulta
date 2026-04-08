@@ -878,7 +878,7 @@ export default function PrescricoesTab({
       </Tabs>
 
       {/* Modal de visualização */}
-      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen} modal={false}>
         <DialogContent className="max-w-2xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">

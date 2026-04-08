@@ -610,7 +610,7 @@ export default function ConsultaDetalhesModal({
             </TabsContent>
 
             {/* Modal de Detalhes da Anamnese */}
-            <Dialog open={isAnamneseModalOpen} onOpenChange={setIsAnamneseModalOpen}>
+            <Dialog open={isAnamneseModalOpen} onOpenChange={setIsAnamneseModalOpen} modal={false}>
               <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-primary">
