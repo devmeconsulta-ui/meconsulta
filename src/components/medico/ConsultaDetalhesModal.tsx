@@ -106,6 +106,11 @@ export default function ConsultaDetalhesModal({
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Anamnese>>({});
   
+  // Prontuário Livre
+  const [prontuarioLivre, setProntuarioLivre] = useState("");
+  const [prontuarioLivreId, setProntuarioLivreId] = useState<string | null>(null);
+  const [savingProntuario, setSavingProntuario] = useState(false);
+
   const [novaAnamnese, setNovaAnamnese] = useState({
     queixa_principal: "",
     historia_doenca_atual: "",
