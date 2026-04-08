@@ -164,7 +164,66 @@ export default function ConsultaDetalhesModal({
       .order("created_at", { ascending: false });
 
     setAnamneses(anamnesesData || []);
+
+    // Fetch prontuário livre for this consultation
+    // @ts-ignore
+    const { data: prontuarioData } = await supabase
+      .from("prontuario_livre")
+      .select("id, conteudo")
+      .eq("consulta_id", consulta.id)
+      .maybeSingle();
+
+    if (prontuarioData) {
+      setProntuarioLivre(prontuarioData.conteudo || "");
+      setProntuarioLivreId(prontuarioData.id);
+    } else {
+      setProntuarioLivre("");
+      setProntuarioLivreId(null);
+    }
+
     setLoading(false);
+  }
+
+  async function handleSaveProntuarioLivre() {
+    if (!currentUser?.medicoId || !pacienteId) {
+      toast.error("Erro ao identificar médico ou paciente");
+      return;
+    }
+    setSavingProntuario(true);
+
+    if (prontuarioLivreId) {
+      // @ts-ignore
+      const { error } = await supabase
+        .from("prontuario_livre")
+        .update({ conteudo: prontuarioLivre })
+        .eq("id", prontuarioLivreId);
+
+      if (error) {
+        toast.error("Erro ao salvar prontuário");
+      } else {
+        toast.success("Prontuário salvo com sucesso");
+      }
+    } else {
+      // @ts-ignore
+      const { data, error } = await supabase
+        .from("prontuario_livre")
+        .insert({
+          consulta_id: consulta.id,
+          medico_id: currentUser.medicoId,
+          paciente_id: pacienteId,
+          conteudo: prontuarioLivre,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        toast.error("Erro ao salvar prontuário");
+      } else {
+        setProntuarioLivreId(data.id);
+        toast.success("Prontuário salvo com sucesso");
+      }
+    }
+    setSavingProntuario(false);
   }
 
   async function handleUpdateAnamnese() {
