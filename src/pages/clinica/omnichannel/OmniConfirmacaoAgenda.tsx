@@ -55,6 +55,7 @@ import {
   CalendarDays,
   Timer,
   Users,
+  Zap,
 } from "lucide-react";
 import { format, addDays, isToday, isTomorrow, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
