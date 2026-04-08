@@ -206,10 +206,17 @@ export default function PrescricoesTab({
       }
     }
 
-    // Abrir PDF para impressão
+    // Abrir PDF para impressão usando link ao invés de window.open (evita popup blocker)
     const pdfBlob = doc.output("blob");
     const pdfUrl = URL.createObjectURL(pdfBlob);
-    window.open(pdfUrl, "_blank");
+    const link = document.createElement("a");
+    link.href = pdfUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(pdfUrl), 5000);
   }
 
   async function handleSaveExame() {
@@ -451,10 +458,17 @@ export default function PrescricoesTab({
       }
     }
 
-    // Abrir PDF para impressão
+    // Abrir PDF para impressão usando link ao invés de window.open (evita popup blocker)
     const pdfBlob = doc.output("blob");
     const pdfUrl = URL.createObjectURL(pdfBlob);
-    window.open(pdfUrl, "_blank");
+    const link = document.createElement("a");
+    link.href = pdfUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(pdfUrl), 5000);
   }
 
   function handleDownloadPDF(documento: PrescricaoDocumento) {
