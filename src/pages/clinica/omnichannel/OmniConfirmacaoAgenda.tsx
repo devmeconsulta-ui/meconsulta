@@ -55,6 +55,7 @@ import {
   CalendarDays,
   Timer,
   Users,
+  Zap,
 } from "lucide-react";
 import { format, addDays, isToday, isTomorrow, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -73,6 +74,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { ConfirmacaoAutomaticaTab } from "@/components/clinica/omnichannel/ConfirmacaoAutomaticaTab";
 
 const MENSAGEM_PADRAO = `Olá {{nome_paciente}}! 👋
 
@@ -608,7 +610,11 @@ export default function OmniConfirmacaoAgenda() {
           <TabsList>
             <TabsTrigger value="enviar" className="gap-2">
               <Send className="h-4 w-4" />
-              Enviar Confirmações
+              Manual
+            </TabsTrigger>
+            <TabsTrigger value="automatico" className="gap-2">
+              <Zap className="h-4 w-4" />
+              Automático
             </TabsTrigger>
             <TabsTrigger value="historico" className="gap-2">
               <History className="h-4 w-4" />
@@ -619,6 +625,11 @@ export default function OmniConfirmacaoAgenda() {
               Gráficos
             </TabsTrigger>
           </TabsList>
+
+          {/* Tab Automático */}
+          <TabsContent value="automatico">
+            <ConfirmacaoAutomaticaTab clinicaId={clinicaId} />
+          </TabsContent>
 
           {/* Tab Enviar */}
           <TabsContent value="enviar" className="space-y-4">

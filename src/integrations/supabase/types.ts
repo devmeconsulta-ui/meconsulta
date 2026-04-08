@@ -859,6 +859,66 @@ export type Database = {
         }
         Relationships: []
       }
+      confirmacao_automatica_config: {
+        Row: {
+          ativo: boolean
+          clinica_id: string
+          created_at: string
+          dias_semana: number[]
+          fila_id: string | null
+          horario_envio: string
+          horas_antes: number
+          id: string
+          incluir_ordem_chegada: boolean
+          intervalo_envio_segundos: number
+          mensagem_template: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          clinica_id: string
+          created_at?: string
+          dias_semana?: number[]
+          fila_id?: string | null
+          horario_envio?: string
+          horas_antes?: number
+          id?: string
+          incluir_ordem_chegada?: boolean
+          intervalo_envio_segundos?: number
+          mensagem_template?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          clinica_id?: string
+          created_at?: string
+          dias_semana?: number[]
+          fila_id?: string | null
+          horario_envio?: string
+          horas_antes?: number
+          id?: string
+          incluir_ordem_chegada?: boolean
+          intervalo_envio_segundos?: number
+          mensagem_template?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "confirmacao_automatica_config_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: true
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "confirmacao_automatica_config_fila_id_fkey"
+            columns: ["fila_id"]
+            isOneToOne: false
+            referencedRelation: "omni_filas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       confirmacoes_agenda: {
         Row: {
           clinica_id: string
