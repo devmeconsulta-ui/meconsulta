@@ -611,7 +611,7 @@ export default function ConsultaDetalhesModal({
 
             {/* Modal de Detalhes da Anamnese */}
             <Dialog open={isAnamneseModalOpen} onOpenChange={setIsAnamneseModalOpen}>
-              <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden">
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden z-[60]">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-primary">
                     <FileText className="w-5 h-5" />
