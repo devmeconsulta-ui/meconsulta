@@ -904,6 +904,42 @@ export default function ConsultaDetalhesModal({
               </Card>
             </TabsContent>
 
+            {/* Tab: Prontuário Livre */}
+            <TabsContent value="prontuario-livre" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    Prontuário Livre
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Escreva livremente suas anotações sobre esta consulta. Este campo é totalmente livre para o médico registrar o que considerar necessário.
+                  </p>
+                  <Textarea
+                    value={prontuarioLivre}
+                    onChange={(e) => setProntuarioLivre(e.target.value)}
+                    placeholder="Escreva aqui suas anotações, observações clínicas, evolução do paciente, plano terapêutico..."
+                    rows={16}
+                    className="text-sm font-mono resize-y min-h-[200px]"
+                  />
+                  <Button
+                    onClick={handleSaveProntuarioLivre}
+                    disabled={savingProntuario}
+                    className="w-full gap-2"
+                  >
+                    {savingProntuario ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    Salvar Prontuário Livre
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             {/* Tab: Prescrições e Pedidos */}
             <TabsContent value="prescricoes">
               {pacienteId ? (
