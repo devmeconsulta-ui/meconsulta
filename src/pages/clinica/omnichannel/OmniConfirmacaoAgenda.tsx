@@ -73,6 +73,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { ConfirmacaoAutomaticaTab } from "@/components/clinica/omnichannel/ConfirmacaoAutomaticaTab";
 
 const MENSAGEM_PADRAO = `Olá {{nome_paciente}}! 👋
 
