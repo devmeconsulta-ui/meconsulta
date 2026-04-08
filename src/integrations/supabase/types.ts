@@ -3860,6 +3860,58 @@ export type Database = {
           },
         ]
       }
+      prontuario_livre: {
+        Row: {
+          consulta_id: string | null
+          conteudo: string
+          created_at: string
+          id: string
+          medico_id: string
+          paciente_id: string
+          updated_at: string
+        }
+        Insert: {
+          consulta_id?: string | null
+          conteudo?: string
+          created_at?: string
+          id?: string
+          medico_id: string
+          paciente_id: string
+          updated_at?: string
+        }
+        Update: {
+          consulta_id?: string | null
+          conteudo?: string
+          created_at?: string
+          id?: string
+          medico_id?: string
+          paciente_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prontuario_livre_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prontuario_livre_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prontuario_livre_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       repasses_itens: {
         Row: {
           consulta_id: string

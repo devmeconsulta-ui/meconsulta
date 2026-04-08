@@ -106,6 +106,11 @@ export default function ConsultaDetalhesModal({
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Anamnese>>({});
   
+  // Prontuário Livre
+  const [prontuarioLivre, setProntuarioLivre] = useState("");
+  const [prontuarioLivreId, setProntuarioLivreId] = useState<string | null>(null);
+  const [savingProntuario, setSavingProntuario] = useState(false);
+
   const [novaAnamnese, setNovaAnamnese] = useState({
     queixa_principal: "",
     historia_doenca_atual: "",
@@ -159,7 +164,66 @@ export default function ConsultaDetalhesModal({
       .order("created_at", { ascending: false });
 
     setAnamneses(anamnesesData || []);
+
+    // Fetch prontuário livre for this consultation
+    // @ts-ignore
+    const { data: prontuarioData } = await supabase
+      .from("prontuario_livre")
+      .select("id, conteudo")
+      .eq("consulta_id", consulta.id)
+      .maybeSingle();
+
+    if (prontuarioData) {
+      setProntuarioLivre(prontuarioData.conteudo || "");
+      setProntuarioLivreId(prontuarioData.id);
+    } else {
+      setProntuarioLivre("");
+      setProntuarioLivreId(null);
+    }
+
     setLoading(false);
+  }
+
+  async function handleSaveProntuarioLivre() {
+    if (!currentUser?.medicoId || !pacienteId) {
+      toast.error("Erro ao identificar médico ou paciente");
+      return;
+    }
+    setSavingProntuario(true);
+
+    if (prontuarioLivreId) {
+      // @ts-ignore
+      const { error } = await supabase
+        .from("prontuario_livre")
+        .update({ conteudo: prontuarioLivre })
+        .eq("id", prontuarioLivreId);
+
+      if (error) {
+        toast.error("Erro ao salvar prontuário");
+      } else {
+        toast.success("Prontuário salvo com sucesso");
+      }
+    } else {
+      // @ts-ignore
+      const { data, error } = await supabase
+        .from("prontuario_livre")
+        .insert({
+          consulta_id: consulta.id,
+          medico_id: currentUser.medicoId,
+          paciente_id: pacienteId,
+          conteudo: prontuarioLivre,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        toast.error("Erro ao salvar prontuário");
+      } else {
+        setProntuarioLivreId(data.id);
+        toast.success("Prontuário salvo com sucesso");
+      }
+    }
+    setSavingProntuario(false);
   }
 
   async function handleUpdateAnamnese() {
@@ -294,8 +358,9 @@ export default function ConsultaDetalhesModal({
           <TabsList className="w-full flex flex-wrap h-auto gap-1 p-1">
             <TabsTrigger value="paciente" className="flex-1 min-w-[80px]">Paciente</TabsTrigger>
             <TabsTrigger value="historico" className="flex-1 min-w-[80px]">Histórico</TabsTrigger>
-            <TabsTrigger value="anamneses" className="flex-1 min-w-[80px]">Anamneses</TabsTrigger>
-            <TabsTrigger value="nova-anamnese" className="flex-1 min-w-[100px]">Nova Anamnese</TabsTrigger>
+            <TabsTrigger value="anamneses" className="flex-1 min-w-[80px]">Prontuário</TabsTrigger>
+            <TabsTrigger value="nova-anamnese" className="flex-1 min-w-[100px]">Novo Prontuário</TabsTrigger>
+            <TabsTrigger value="prontuario-livre" className="flex-1 min-w-[120px]">Prontuário Livre</TabsTrigger>
             <TabsTrigger value="prescricoes" className="flex-1 min-w-[120px]">
               <ClipboardList className="w-4 h-4 mr-1" />
               Prescrições
@@ -834,6 +899,42 @@ export default function ConsultaDetalhesModal({
                       <Save className="w-4 h-4" />
                     )}
                     Salvar Anamnese
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab: Prontuário Livre */}
+            <TabsContent value="prontuario-livre" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    Prontuário Livre
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Escreva livremente suas anotações sobre esta consulta. Este campo é totalmente livre para o médico registrar o que considerar necessário.
+                  </p>
+                  <Textarea
+                    value={prontuarioLivre}
+                    onChange={(e) => setProntuarioLivre(e.target.value)}
+                    placeholder="Escreva aqui suas anotações, observações clínicas, evolução do paciente, plano terapêutico..."
+                    rows={16}
+                    className="text-sm font-mono resize-y min-h-[200px]"
+                  />
+                  <Button
+                    onClick={handleSaveProntuarioLivre}
+                    disabled={savingProntuario}
+                    className="w-full gap-2"
+                  >
+                    {savingProntuario ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    Salvar Prontuário Livre
                   </Button>
                 </CardContent>
               </Card>
