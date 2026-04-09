@@ -1210,6 +1210,15 @@ export default function MedicoAgenda() {
           fetchData();
         }}
       />
+
+      {/* Bulk slot deletion modal */}
+      <ExcluirSlotsModal
+        open={excluirSlotsModalOpen}
+        onOpenChange={setExcluirSlotsModalOpen}
+        locais={locais}
+        medicoId={medicoData.id}
+        onSuccess={fetchData}
+      />
     </div>
   );
 }
