@@ -30,6 +30,7 @@ import {
   LayoutGrid,
   Ban,
   Unlock,
+  Trash2,
 } from "lucide-react";
 import {
   format,
