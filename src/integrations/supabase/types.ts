@@ -2151,6 +2151,7 @@ export type Database = {
           pix_key: string | null
           pix_key_type: string | null
           telefone_whatsapp: string | null
+          tempo_antecedencia_minutos: number
           tipo_conta: string | null
           titular_cpf_cnpj: string | null
           titular_nome: string | null
@@ -2176,6 +2177,7 @@ export type Database = {
           pix_key?: string | null
           pix_key_type?: string | null
           telefone_whatsapp?: string | null
+          tempo_antecedencia_minutos?: number
           tipo_conta?: string | null
           titular_cpf_cnpj?: string | null
           titular_nome?: string | null
@@ -2201,6 +2203,7 @@ export type Database = {
           pix_key?: string | null
           pix_key_type?: string | null
           telefone_whatsapp?: string | null
+          tempo_antecedencia_minutos?: number
           tipo_conta?: string | null
           titular_cpf_cnpj?: string | null
           titular_nome?: string | null

@@ -8,7 +8,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Settings, User, Bell, Shield, Save, MessageCircle } from "lucide-react";
+import { Settings, User, Bell, Shield, Save, MessageCircle, Clock } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatSettings } from "@/hooks/useChatSettings";
 
@@ -28,6 +29,7 @@ export default function MedicoConfiguracoes() {
     especialidade: "",
     crm: "",
     valor_consulta: 0,
+    tempo_antecedencia_minutos: 60,
   });
 
   const [notifications, setNotifications] = useState({
@@ -44,6 +46,7 @@ export default function MedicoConfiguracoes() {
         especialidade: medicoData.especialidade || "",
         crm: medicoData.crm || "",
         valor_consulta: medicoData.valor_consulta || 0,
+        tempo_antecedencia_minutos: medicoData.tempo_antecedencia_minutos ?? 60,
       });
       setLoading(false);
     }
@@ -61,6 +64,7 @@ export default function MedicoConfiguracoes() {
         especialidade: profileData.especialidade,
         crm: profileData.crm,
         valor_consulta: profileData.valor_consulta,
+        tempo_antecedencia_minutos: profileData.tempo_antecedencia_minutos,
       })
       .eq("id", medicoData.id);
 
@@ -157,6 +161,38 @@ export default function MedicoConfiguracoes() {
                         setProfileData({ ...profileData, valor_consulta: Number(e.target.value) })
                       }
                     />
+                  </div>
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-primary" />
+                      Tempo Mínimo de Antecedência (Agendamento Online)
+                    </Label>
+                    <Select
+                      value={String(profileData.tempo_antecedencia_minutos)}
+                      onValueChange={(value) =>
+                        setProfileData({ ...profileData, tempo_antecedencia_minutos: Number(value) })
+                      }
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">Sem restrição</SelectItem>
+                        <SelectItem value="30">30 minutos</SelectItem>
+                        <SelectItem value="60">1 hora</SelectItem>
+                        <SelectItem value="120">2 horas</SelectItem>
+                        <SelectItem value="240">4 horas</SelectItem>
+                        <SelectItem value="360">6 horas</SelectItem>
+                        <SelectItem value="720">12 horas</SelectItem>
+                        <SelectItem value="1440">24 horas</SelectItem>
+                        <SelectItem value="2880">48 horas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Pacientes não poderão agendar consultas com menos de {profileData.tempo_antecedencia_minutos < 60 
+                        ? `${profileData.tempo_antecedencia_minutos} minutos` 
+                        : `${profileData.tempo_antecedencia_minutos / 60} hora(s)`} de antecedência
+                    </p>
                   </div>
                 </div>
 

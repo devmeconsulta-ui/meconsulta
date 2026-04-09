@@ -18,6 +18,7 @@ interface Medico {
   bio: string | null;
   valor_consulta: number;
   formacao: string[] | null;
+  tempo_antecedencia_minutos?: number;
 }
 
 interface Servico {
@@ -78,7 +79,7 @@ const PerfilMedico = () => {
     // Fetch medico
     const { data: medicoData, error: medicoError } = await supabase
       .from("medicos")
-      .select("id, nome, especialidade, crm, foto_url, bio, valor_consulta, formacao")
+      .select("id, nome, especialidade, crm, foto_url, bio, valor_consulta, formacao, tempo_antecedencia_minutos")
       .eq("id", id)
       .eq("ativo", true)
       .maybeSingle();
@@ -132,13 +133,15 @@ const PerfilMedico = () => {
     setLoading(false);
   }
 
-  // Filter slots based on selected local AND exclude past times
+  // Filter slots based on selected local, exclude past times, and apply antecedência
   const now = new Date();
+  const antecedenciaMinutos = (medico as any)?.tempo_antecedencia_minutos ?? 60;
+  const minAllowedTime = new Date(now.getTime() + antecedenciaMinutos * 60 * 1000);
   const filteredSlots = agendaSlots.filter(slot => {
     const slotTime = parseISO(slot.data_hora);
-    const isFuture = !isBefore(slotTime, now);
+    const isAfterMinTime = !isBefore(slotTime, minAllowedTime);
     const matchesLocal = selectedLocal ? slot.local_id === selectedLocal : true;
-    return isFuture && matchesLocal;
+    return isAfterMinTime && matchesLocal;
   });
 
   // Count slots per local
