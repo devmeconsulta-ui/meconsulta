@@ -53,6 +53,7 @@ import {
 import { ptBR } from "date-fns/locale";
 import { AgendaInternaModal } from "@/components/medico/AgendaInternaModal";
 import { GerarSlotsModal } from "@/components/medico/GerarSlotsModal";
+import { ExcluirSlotsModal } from "@/components/medico/ExcluirSlotsModal";
 
 interface MedicoContext {
   medicoData: any;
@@ -110,6 +111,7 @@ export default function MedicoAgenda() {
   const [filterOrigem, setFilterOrigem] = useState("todos");
   const [agendaModalOpen, setAgendaModalOpen] = useState(false);
   const [gerarSlotsModalOpen, setGerarSlotsModalOpen] = useState(false);
+  const [excluirSlotsModalOpen, setExcluirSlotsModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [expandedMonthDay, setExpandedMonthDay] = useState<Date | null>(null);
 
@@ -1025,6 +1027,16 @@ export default function MedicoAgenda() {
             <CalendarRange className="w-4 h-4" />
             <span className="hidden sm:inline">Gerar Horários</span>
             <span className="sm:hidden">Gerar</span>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setExcluirSlotsModalOpen(true)}
+            className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10"
+            disabled={locais.length === 0}
+          >
+            <Trash2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Excluir em Massa</span>
+            <span className="sm:hidden">Excluir</span>
           </Button>
         </div>
       </div>
