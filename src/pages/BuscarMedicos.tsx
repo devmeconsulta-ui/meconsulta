@@ -117,6 +117,7 @@ const BuscarMedicos = () => {
           crm,
           valor_consulta,
           telefone_whatsapp,
+          tempo_antecedencia_minutos,
           locais_atendimento (
             cidade,
             estado
@@ -151,6 +152,12 @@ const BuscarMedicos = () => {
       
       let slotsMap: Record<string, { count: number; next: string | null }> = {};
       
+      // Build a map of antecedência per médico
+      const antecedenciaMap: Record<string, number> = {};
+      filtered.forEach((m: any) => {
+        antecedenciaMap[m.id] = m.tempo_antecedencia_minutos ?? 60;
+      });
+
       if (medicoIds.length > 0) {
         const { data: slotsData } = await supabase
           .from("agenda_slots")
@@ -161,6 +168,11 @@ const BuscarMedicos = () => {
           .order("data_hora", { ascending: true });
 
         slotsData?.forEach(slot => {
+          // Apply antecedência filter per doctor
+          const antecMin = antecedenciaMap[slot.medico_id] ?? 60;
+          const minTime = new Date(now.getTime() + antecMin * 60 * 1000);
+          if (new Date(slot.data_hora) < minTime) return;
+
           if (!slotsMap[slot.medico_id]) {
             slotsMap[slot.medico_id] = { count: 0, next: slot.data_hora };
           }
