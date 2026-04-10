@@ -738,24 +738,125 @@ export default function OmniIA() {
     ));
   };
 
-  // Testar IA
+  // Testar IA - chamada real ao backend
   const handleEnviarMensagemTeste = async () => {
-    if (!chatInput.trim()) return;
+    if (!chatInput.trim() || !selectedAgente || !clinicaId) return;
     
     const userMsg = { role: "user", content: chatInput };
-    setChatMensagens(prev => [...prev, userMsg]);
+    const updatedMessages = [...chatMensagens, userMsg];
+    setChatMensagens(updatedMessages);
     setChatInput("");
     setIsLoading(true);
     
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = { 
-        role: "assistant", 
-        content: `Olá! Sou o ${selectedAgente?.nome || "Assistente"}. ${selectedAgente?.comportamento || "Como posso ajudar você hoje?"}`
+    try {
+      // Build system prompt locally using agent config + trainings
+      const treinamentosTexto = treinamentos
+        .filter(t => t.status === "treinado")
+        .map(t => {
+          if (t.tipo === "documento" && t.conteudo.includes("||")) {
+            return `[Documento: ${t.conteudo.split("||")[0]}]`;
+          }
+          return t.conteudo;
+        })
+        .join("\n\n");
+
+      const estilos: Record<string, string> = {
+        formal: "Use linguagem formal, profissional e cortês.",
+        normal: "Use linguagem amigável e profissional.",
+        descontraida: "Use linguagem leve e descontraída.",
       };
-      setChatMensagens(prev => [...prev, aiResponse]);
+
+      const finalidades: Record<string, string> = {
+        suporte: "Seu objetivo é ajudar com dúvidas e suporte.",
+        vendas: "Seu objetivo é apresentar serviços e agendar consultas.",
+        pessoal: "Você é um assistente pessoal.",
+      };
+
+      let systemPrompt = `Você é ${selectedAgente.nome}`;
+      if (selectedAgente.descricao) systemPrompt += `, ${selectedAgente.descricao}`;
+      systemPrompt += `. Você é um assistente virtual de atendimento.\n\n`;
+      
+      if (selectedAgente.comportamento?.trim()) {
+        systemPrompt += `## INSTRUÇÕES PRIORITÁRIAS:\n${selectedAgente.comportamento}\n\n`;
+      }
+
+      systemPrompt += `## Estilo de comunicação:\n${estilos[selectedAgente.comunicacao] || estilos.normal}\n\n`;
+      systemPrompt += `## Finalidade:\n${finalidades[selectedAgente.finalidade] || finalidades.suporte}\n\n`;
+
+      if (selectedAgente.produto) {
+        systemPrompt += `## Produto/Serviço: ${selectedAgente.produto}\n`;
+        if (selectedAgente.descricao_produto) {
+          systemPrompt += `${selectedAgente.descricao_produto}\n`;
+        }
+        systemPrompt += "\n";
+      }
+
+      if (treinamentosTexto) {
+        systemPrompt += `## Base de conhecimento:\n${treinamentosTexto}\n\n`;
+      }
+
+      if (!selectedAgente.usar_emojis) {
+        systemPrompt += "NÃO use emojis nas respostas.\n";
+      }
+      if (selectedAgente.restringir_temas) {
+        systemPrompt += "Responda APENAS sobre temas relacionados ao produto/serviço. Para outros assuntos, diga educadamente que não pode ajudar.\n";
+      }
+
+      systemPrompt += "\nResponda de forma natural e conversacional. NUNCA repita a mesma resposta. Avance a conversa de forma inteligente.\n";
+
+      // Build message history for the AI call
+      const aiMessages = [
+        { role: "system", content: systemPrompt },
+        ...updatedMessages.slice(-20),
+      ];
+
+      const response = await supabase.functions.invoke("omni-ai-respond-test", {
+        body: { messages: aiMessages, modelo: selectedAgente.modelo },
+      });
+
+      if (response.error) {
+        // Fallback: call the gateway directly via a simpler edge function approach
+        // Try calling with the test endpoint, if it doesn't exist use mock
+        throw new Error(response.error.message);
+      }
+
+      const aiContent = response.data?.content || "Desculpe, não consegui processar sua mensagem.";
+      setChatMensagens(prev => [...prev, { role: "assistant", content: aiContent }]);
+    } catch (error) {
+      console.error("Error testing AI:", error);
+      
+      // Fallback: try direct supabase function call with generic chat function
+      try {
+        const { data: funcData, error: funcError } = await supabase.functions.invoke("chat", {
+          body: { 
+            messages: [
+              { role: "system", content: `Você é ${selectedAgente.nome}, um assistente virtual. ${selectedAgente.comportamento || ""} Responda de forma natural.` },
+              ...chatMensagens.map(m => ({ role: m.role, content: m.content })),
+              userMsg,
+            ]
+          },
+        });
+        
+        if (funcError) throw funcError;
+        
+        // Parse streaming response or direct response
+        if (typeof funcData === "string") {
+          setChatMensagens(prev => [...prev, { role: "assistant", content: funcData }]);
+        } else if (funcData?.choices?.[0]?.message?.content) {
+          setChatMensagens(prev => [...prev, { role: "assistant", content: funcData.choices[0].message.content }]);
+        } else {
+          throw new Error("No valid response");
+        }
+      } catch (fallbackError) {
+        console.error("Fallback also failed:", fallbackError);
+        setChatMensagens(prev => [...prev, { 
+          role: "assistant", 
+          content: "❌ Erro ao conectar com a IA. Verifique se o Lovable AI está configurado no projeto." 
+        }]);
+      }
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   // Salvar configs de inatividade
