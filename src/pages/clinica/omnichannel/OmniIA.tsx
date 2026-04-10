@@ -421,6 +421,83 @@ export default function OmniIA() {
     toast.success(novoStatus ? "Agente ativado!" : "Agente desativado!");
   };
 
+  // Document upload handler
+  const handleDocumentUpload = async (file: File) => {
+    if (!selectedAgente?.id || !clinicaId) {
+      toast.error("Selecione um agente primeiro");
+      return;
+    }
+
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Formato não suportado. Use PDF ou Word (.doc, .docx)");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 10MB.");
+      return;
+    }
+
+    setUploadingDoc(true);
+
+    try {
+      const filePath = `treinamentos/${clinicaId}/${selectedAgente.id}/${Date.now()}_${file.name}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("omni-files")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("omni-files")
+        .getPublicUrl(filePath);
+
+      const conteudo = `${file.name}||${urlData.publicUrl}`;
+
+      const { data, error } = await supabase
+        .from("omni_ia_treinamentos")
+        .insert({
+          agente_id: selectedAgente.id,
+          clinica_id: clinicaId,
+          tipo: "documento" as const,
+          conteudo,
+          status: "pendente",
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTreinamentos(prev => [data as Treinamento, ...prev]);
+      toast.success("Documento enviado! Processando...");
+
+      setTimeout(async () => {
+        await supabase
+          .from("omni_ia_treinamentos")
+          .update({ status: "treinado" })
+          .eq("id", data.id);
+
+        setTreinamentos(prev => prev.map(t =>
+          t.id === data.id ? { ...t, status: "treinado" as const } : t
+        ));
+        toast.success("Documento processado com sucesso!");
+      }, 3000);
+    } catch (err) {
+      console.error("Error uploading document:", err);
+      toast.error("Erro ao enviar documento");
+    } finally {
+      setUploadingDoc(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   // Treinamentos handlers
   const handleAdicionarTreinamento = async (tipo: Treinamento["tipo"], conteudo: string) => {
     if (!conteudo.trim()) {
