@@ -1393,13 +1393,43 @@ export default function OmniIA() {
                         </TabsContent>
 
                         <TabsContent value="documento" className="space-y-4">
-                          <Card className="border-dashed">
+                          <Card 
+                            className={cn("border-dashed transition-colors", dragOver && "border-primary bg-primary/5")}
+                            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                            onDragLeave={() => setDragOver(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setDragOver(false);
+                              const file = e.dataTransfer.files?.[0];
+                              if (file) handleDocumentUpload(file);
+                            }}
+                          >
                             <CardContent className="p-6 text-center">
-                              <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                              <p className="text-muted-foreground mb-4">Arraste um documento PDF ou Word aqui</p>
-                              <Button variant="outline" onClick={() => toast.info("Funcionalidade de upload de documentos em breve!")}>
-                                Selecionar arquivo
-                              </Button>
+                              {uploadingDoc ? (
+                                <div className="flex flex-col items-center gap-3">
+                                  <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                                  <p className="text-muted-foreground">Enviando documento...</p>
+                                </div>
+                              ) : (
+                                <>
+                                  <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                                  <p className="text-muted-foreground mb-4">Arraste um documento PDF ou Word aqui</p>
+                                  <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleDocumentUpload(file);
+                                    }}
+                                  />
+                                  <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                                    Selecionar arquivo
+                                  </Button>
+                                  <p className="text-xs text-muted-foreground mt-2">PDF ou Word, até 10MB</p>
+                                </>
+                              )}
                             </CardContent>
                           </Card>
                           
