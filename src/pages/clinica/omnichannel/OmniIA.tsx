@@ -1439,9 +1439,14 @@ export default function OmniIA() {
                               .map((t) => (
                                 <Card key={t.id}>
                                   <CardContent className="p-4 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <FileText className="w-5 h-5 text-purple-600" />
-                                      <span className="truncate">{t.conteudo}</span>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <FileText className="w-5 h-5 text-purple-600 shrink-0" />
+                                      <span className="truncate">{t.conteudo.includes("||") ? t.conteudo.split("||")[0] : t.conteudo}</span>
+                                      {t.conteudo.includes("||") && (
+                                        <a href={t.conteudo.split("||")[1]} target="_blank" rel="noopener noreferrer">
+                                          <ExternalLink className="w-4 h-4 text-muted-foreground hover:text-primary shrink-0" />
+                                        </a>
+                                      )}
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <Badge className={t.status === "treinado" ? "bg-emerald-500" : ""}>
