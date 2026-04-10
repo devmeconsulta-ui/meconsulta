@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
