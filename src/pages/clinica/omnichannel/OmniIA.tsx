@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
@@ -206,6 +206,9 @@ export default function OmniIA() {
   const [integracaoApiKey, setIntegracaoApiKey] = useState("");
   
   const [deleteAgenteOpen, setDeleteAgenteOpen] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Inatividade config
   const [inativodadeConfigOpen, setInativodadeConfigOpen] = useState(false);
@@ -416,6 +419,83 @@ export default function OmniIA() {
     setSelectedAgente(updated);
     setAgentes(prev => prev.map(a => a.id === updated.id ? updated : a));
     toast.success(novoStatus ? "Agente ativado!" : "Agente desativado!");
+  };
+
+  // Document upload handler
+  const handleDocumentUpload = async (file: File) => {
+    if (!selectedAgente?.id || !clinicaId) {
+      toast.error("Selecione um agente primeiro");
+      return;
+    }
+
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Formato não suportado. Use PDF ou Word (.doc, .docx)");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 10MB.");
+      return;
+    }
+
+    setUploadingDoc(true);
+
+    try {
+      const filePath = `treinamentos/${clinicaId}/${selectedAgente.id}/${Date.now()}_${file.name}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("omni-files")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("omni-files")
+        .getPublicUrl(filePath);
+
+      const conteudo = `${file.name}||${urlData.publicUrl}`;
+
+      const { data, error } = await supabase
+        .from("omni_ia_treinamentos")
+        .insert({
+          agente_id: selectedAgente.id,
+          clinica_id: clinicaId,
+          tipo: "documento" as const,
+          conteudo,
+          status: "pendente",
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTreinamentos(prev => [data as Treinamento, ...prev]);
+      toast.success("Documento enviado! Processando...");
+
+      setTimeout(async () => {
+        await supabase
+          .from("omni_ia_treinamentos")
+          .update({ status: "treinado" })
+          .eq("id", data.id);
+
+        setTreinamentos(prev => prev.map(t =>
+          t.id === data.id ? { ...t, status: "treinado" as const } : t
+        ));
+        toast.success("Documento processado com sucesso!");
+      }, 3000);
+    } catch (err) {
+      console.error("Error uploading document:", err);
+      toast.error("Erro ao enviar documento");
+    } finally {
+      setUploadingDoc(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   // Treinamentos handlers
@@ -1313,13 +1393,43 @@ export default function OmniIA() {
                         </TabsContent>
 
                         <TabsContent value="documento" className="space-y-4">
-                          <Card className="border-dashed">
+                          <Card 
+                            className={cn("border-dashed transition-colors", dragOver && "border-primary bg-primary/5")}
+                            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                            onDragLeave={() => setDragOver(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setDragOver(false);
+                              const file = e.dataTransfer.files?.[0];
+                              if (file) handleDocumentUpload(file);
+                            }}
+                          >
                             <CardContent className="p-6 text-center">
-                              <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                              <p className="text-muted-foreground mb-4">Arraste um documento PDF ou Word aqui</p>
-                              <Button variant="outline" onClick={() => toast.info("Funcionalidade de upload de documentos em breve!")}>
-                                Selecionar arquivo
-                              </Button>
+                              {uploadingDoc ? (
+                                <div className="flex flex-col items-center gap-3">
+                                  <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                                  <p className="text-muted-foreground">Enviando documento...</p>
+                                </div>
+                              ) : (
+                                <>
+                                  <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                                  <p className="text-muted-foreground mb-4">Arraste um documento PDF ou Word aqui</p>
+                                  <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleDocumentUpload(file);
+                                    }}
+                                  />
+                                  <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                                    Selecionar arquivo
+                                  </Button>
+                                  <p className="text-xs text-muted-foreground mt-2">PDF ou Word, até 10MB</p>
+                                </>
+                              )}
                             </CardContent>
                           </Card>
                           
@@ -1329,9 +1439,14 @@ export default function OmniIA() {
                               .map((t) => (
                                 <Card key={t.id}>
                                   <CardContent className="p-4 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <FileText className="w-5 h-5 text-purple-600" />
-                                      <span className="truncate">{t.conteudo}</span>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <FileText className="w-5 h-5 text-purple-600 shrink-0" />
+                                      <span className="truncate">{t.conteudo.includes("||") ? t.conteudo.split("||")[0] : t.conteudo}</span>
+                                      {t.conteudo.includes("||") && (
+                                        <a href={t.conteudo.split("||")[1]} target="_blank" rel="noopener noreferrer">
+                                          <ExternalLink className="w-4 h-4 text-muted-foreground hover:text-primary shrink-0" />
+                                        </a>
+                                      )}
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <Badge className={t.status === "treinado" ? "bg-emerald-500" : ""}>
