@@ -206,6 +206,9 @@ export default function OmniIA() {
   const [integracaoApiKey, setIntegracaoApiKey] = useState("");
   
   const [deleteAgenteOpen, setDeleteAgenteOpen] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Inatividade config
   const [inativodadeConfigOpen, setInativodadeConfigOpen] = useState(false);
