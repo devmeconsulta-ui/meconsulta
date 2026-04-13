@@ -40,6 +40,7 @@ interface Consulta {
   status_consulta: string;
   motivo_consulta: string | null;
   nome_paciente_consulta: string | null;
+  paciente_id?: string | null;
   paciente: {
     id: string;
     nome: string;
