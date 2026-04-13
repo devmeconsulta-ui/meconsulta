@@ -234,7 +234,6 @@ export default function ConsultaDetalhesModal({
       } else {
         setProntuarioLivre("");
         await fetchData(true);
-        onUpdate();
         setActiveTab("prontuarios");
         toast.success("Prontuário salvo com sucesso");
       }
@@ -270,7 +269,6 @@ export default function ConsultaDetalhesModal({
       setIsEditing(false);
       setIsAnamneseModalOpen(false);
       fetchData(true);
-      onUpdate();
     }
 
     setSaving(false);
@@ -336,7 +334,6 @@ export default function ConsultaDetalhesModal({
           setActiveTab("prontuarios");
           toast.success("Prontuário atualizado com sucesso");
           fetchData(true);
-          onUpdate();
         }
       } else {
         // Insert new
@@ -359,7 +356,6 @@ export default function ConsultaDetalhesModal({
           setActiveTab("prontuarios");
           toast.success("Prontuário salvo com sucesso");
           fetchData(true);
-          onUpdate();
         }
       }
     } catch (err) {
@@ -397,7 +393,6 @@ export default function ConsultaDetalhesModal({
       });
       setIsEditingProntuarioLivre(false);
       await fetchData(true);
-      onUpdate();
       toast.success("Prontuário livre atualizado com sucesso");
     }
 
