@@ -124,13 +124,13 @@ export default function ConsultaDetalhesModal({
     observacoes: "",
   });
 
-  const pacienteId = consulta.paciente?.id;
+  const pacienteId = consulta.paciente?.id ?? consulta.paciente_id ?? null;
 
   useEffect(() => {
-    if (open && pacienteId) {
+    if (open && pacienteId && currentUser?.medicoId) {
       fetchData();
     }
-  }, [open, pacienteId]);
+  }, [open, pacienteId, currentUser?.medicoId]);
 
   async function fetchData() {
     if (!pacienteId) return;
@@ -631,7 +631,7 @@ export default function ConsultaDetalhesModal({
               )}
             </TabsContent>
 
-            {/* Modal de Detalhes da Anamnese */}
+            {/* Modal de Detalhes do Prontuário */}
             <Dialog open={isAnamneseModalOpen} onOpenChange={setIsAnamneseModalOpen}>
               <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden z-[60]">
                 <DialogHeader>

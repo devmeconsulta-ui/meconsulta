@@ -137,6 +137,7 @@ interface Consulta {
   finalizado_paciente: boolean | null;
   elegivel_repasse: boolean | null;
   medico_id: string | null;
+  paciente_id: string | null;
   local_id: string | null;
   tipo_atendimento: string | null;
   convenio_id: string | null;
@@ -267,6 +268,7 @@ export default function MedicoConsultas() {
         finalizado_paciente,
         elegivel_repasse,
         medico_id,
+        paciente_id,
         local_id,
         tipo_atendimento,
         convenio_id,
