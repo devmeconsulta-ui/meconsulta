@@ -22,12 +22,12 @@ export interface FechamentoCaixa {
   }[];
 }
 
-export function useHistoricoCaixa(clinicaId: string | undefined) {
+export function useHistoricoCaixa(clinicaId: string | undefined, caixaId?: string | null) {
   const [historico, setHistorico] = useState<FechamentoCaixa[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchHistorico = useCallback(async () => {
-    if (!clinicaId) return;
+    if (!clinicaId || !caixaId) return;
 
     setLoading(true);
     try {
