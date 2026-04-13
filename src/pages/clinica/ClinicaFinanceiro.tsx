@@ -275,6 +275,8 @@ export default function ClinicaFinanceiro() {
     percentual_repasse: "70",
     valor_fixo_repasse: "",
   });
+  // Hook para gerenciar caixa - DEVE ficar ANTES de useHistoricoCaixa
+  const caixa = useCaixaClinica(clinicaData?.id);
 
   // Hook para histórico de caixa
   const historicoData = useHistoricoCaixa(clinicaData?.id, caixa.caixaSelecionadoId);
