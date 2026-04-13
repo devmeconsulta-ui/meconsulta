@@ -39,6 +39,7 @@ export function useHistoricoCaixa(clinicaId: string | undefined, caixaId?: strin
         .from("caixa_operacoes")
         .select("*")
         .eq("clinica_id", clinicaId)
+        .eq("caixa_id", caixaId)
         .eq("tipo", "fechamento")
         .gte("created_at", dataLimite.toISOString())
         .order("created_at", { ascending: false });
@@ -117,7 +118,7 @@ export function useHistoricoCaixa(clinicaId: string | undefined, caixaId?: strin
     } finally {
       setLoading(false);
     }
-  }, [clinicaId]);
+  }, [clinicaId, caixaId]);
 
   useEffect(() => {
     fetchHistorico();
