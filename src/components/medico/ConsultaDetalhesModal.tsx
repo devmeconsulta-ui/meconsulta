@@ -637,7 +637,7 @@ export default function ConsultaDetalhesModal({
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-primary">
                     <FileText className="w-5 h-5" />
-                    Detalhes da Anamnese
+                    Detalhes do Prontuário
                   </DialogTitle>
                 </DialogHeader>
                 
