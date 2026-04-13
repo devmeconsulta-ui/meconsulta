@@ -277,7 +277,7 @@ export default function ClinicaFinanceiro() {
   });
 
   // Hook para histórico de caixa
-  const historicoData = useHistoricoCaixa(clinicaData?.id);
+  const historicoData = useHistoricoCaixa(clinicaData?.id, caixa.caixaSelecionadoId);
 
   const dateRange = useMemo(() => {
     const now = new Date();
