@@ -96,6 +96,7 @@ import { FluxoCaixaChart } from "@/components/clinica/financeiro/FluxoCaixaChart
 import { MetasFinanceirasWidget } from "@/components/clinica/financeiro/MetasFinanceirasWidget";
 import { useCaixaClinica } from "@/hooks/useCaixaClinica";
 import { useHistoricoCaixa } from "@/hooks/useHistoricoCaixa";
+import { MultiCaixaSelector } from "@/components/clinica/financeiro/MultiCaixaSelector";
 
 interface ClinicaContext {
   clinicaData: any;
