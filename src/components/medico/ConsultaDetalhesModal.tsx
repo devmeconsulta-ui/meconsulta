@@ -920,7 +920,7 @@ export default function ConsultaDetalhesModal({
                     ) : (
                       <Save className="w-4 h-4" />
                     )}
-                    Salvar Anamnese
+                    Salvar Prontuário
                   </Button>
                 </CardContent>
               </Card>
