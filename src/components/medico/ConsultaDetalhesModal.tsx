@@ -22,7 +22,8 @@ import {
   X,
   Lock,
   MapPin,
-  ClipboardList
+  ClipboardList,
+  Camera
 } from "lucide-react";
 import { maskCPF } from "@/lib/maskUtils";
 import { format } from "date-fns";
@@ -31,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import PrescricoesTab from "./PrescricoesTab";
+import ProntuarioImagensTab from "./ProntuarioImagensTab";
 
 interface Consulta {
   id: string;
@@ -363,6 +365,10 @@ export default function ConsultaDetalhesModal({
             <TabsTrigger value="anamneses" className="flex-1 min-w-[80px]">Prontuário</TabsTrigger>
             <TabsTrigger value="nova-anamnese" className="flex-1 min-w-[100px]">Novo Prontuário</TabsTrigger>
             <TabsTrigger value="prontuario-livre" className="flex-1 min-w-[120px]">Prontuário Livre</TabsTrigger>
+            <TabsTrigger value="imagens" className="flex-1 min-w-[100px]">
+              <Camera className="w-4 h-4 mr-1" />
+              Imagens
+            </TabsTrigger>
             <TabsTrigger value="prescricoes" className="flex-1 min-w-[120px]">
               <ClipboardList className="w-4 h-4 mr-1" />
               Prescrições
@@ -940,6 +946,22 @@ export default function ConsultaDetalhesModal({
                   </Button>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Tab: Imagens do Prontuário */}
+            <TabsContent value="imagens">
+              {pacienteId ? (
+                <ProntuarioImagensTab
+                  consultaId={consulta.id}
+                  medicoId={currentUser?.medicoId || ""}
+                  pacienteId={pacienteId}
+                />
+              ) : (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Paciente não identificado</p>
+                </div>
+              )}
             </TabsContent>
 
             {/* Tab: Prescrições e Pedidos */}
