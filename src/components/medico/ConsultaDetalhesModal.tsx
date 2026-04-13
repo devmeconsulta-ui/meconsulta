@@ -121,7 +121,6 @@ export default function ConsultaDetalhesModal({
   
   // Prontuário Livre
   const [prontuarioLivre, setProntuarioLivre] = useState("");
-  const [prontuarioLivreId, setProntuarioLivreId] = useState<string | null>(null);
   const [savingProntuario, setSavingProntuario] = useState(false);
   const [selectedProntuarioLivre, setSelectedProntuarioLivre] = useState<ProntuarioLivreItem | null>(null);
   const [isProntuarioLivreModalOpen, setIsProntuarioLivreModalOpen] = useState(false);
@@ -160,7 +159,7 @@ export default function ConsultaDetalhesModal({
     
     setLoading(true);
 
-    const [historicoResponse, anamnesesResponse, prontuariosLivresResponse, prontuarioAtualResponse] = await Promise.all([
+    const [historicoResponse, anamnesesResponse, prontuariosLivresResponse] = await Promise.all([
       supabase
         .from("historico_medico_paciente")
         .select("id, tipo, descricao, detalhes")
@@ -196,27 +195,11 @@ export default function ConsultaDetalhesModal({
         .eq("paciente_id", pacienteId)
         .eq("medico_id", currentUser.medicoId)
         .order("created_at", { ascending: false }),
-      supabase
-        .from("prontuario_livre")
-        .select("id, conteudo")
-        .eq("consulta_id", consulta.id)
-        .eq("medico_id", currentUser.medicoId)
-        .maybeSingle(),
     ]);
 
     setHistorico(historicoResponse.data || []);
     setAnamneses(anamnesesResponse.data || []);
     setProntuariosLivres(prontuariosLivresResponse.data || []);
-
-    const prontuarioData = prontuarioAtualResponse.data;
-
-    if (prontuarioData) {
-      setProntuarioLivre(prontuarioData.conteudo || "");
-      setProntuarioLivreId(prontuarioData.id);
-    } else {
-      setProntuarioLivre("");
-      setProntuarioLivreId(null);
-    }
 
     setLoading(false);
   }
@@ -236,52 +219,24 @@ export default function ConsultaDetalhesModal({
     setSavingProntuario(true);
 
     try {
-      if (prontuarioLivreId) {
-        // @ts-ignore
-        const { error } = await supabase
-          .from("prontuario_livre")
-          .update({ conteudo: prontuarioLivre, updated_at: new Date().toISOString() })
-          .eq("id", prontuarioLivreId);
+      const { error } = await supabase
+        .from("prontuario_livre")
+        .insert({
+          consulta_id: consulta.id,
+          medico_id: currentUser.medicoId,
+          paciente_id: pacienteId,
+          conteudo: prontuarioLivre,
+        });
 
-        if (error) {
-          console.error("Erro update prontuário livre:", error);
-          toast.error("Erro ao salvar prontuário: " + error.message);
-        } else {
-          const savedContent = prontuarioLivre;
-          const savedId = prontuarioLivreId;
-          await fetchData();
-          setProntuarioLivre(savedContent);
-          setProntuarioLivreId(savedId);
-          onUpdate();
-          setActiveTab("prontuarios");
-          toast.success("Prontuário salvo com sucesso");
-        }
+      if (error) {
+        console.error("Erro insert prontuário livre:", error);
+        toast.error("Erro ao salvar prontuário: " + error.message);
       } else {
-        // @ts-ignore
-        const { data, error } = await supabase
-          .from("prontuario_livre")
-          .insert({
-            consulta_id: consulta.id,
-            medico_id: currentUser.medicoId,
-            paciente_id: pacienteId,
-            conteudo: prontuarioLivre,
-          })
-          .select("id")
-          .single();
-
-        if (error) {
-          console.error("Erro insert prontuário livre:", error);
-          toast.error("Erro ao salvar prontuário: " + error.message);
-        } else {
-          setProntuarioLivreId(data.id);
-          const savedContent = prontuarioLivre;
-          await fetchData();
-          setProntuarioLivre(savedContent);
-          setProntuarioLivreId(data.id);
-          onUpdate();
-          setActiveTab("prontuarios");
-          toast.success("Prontuário salvo com sucesso");
-        }
+        setProntuarioLivre("");
+        await fetchData();
+        onUpdate();
+        setActiveTab("prontuarios");
+        toast.success("Prontuário salvo com sucesso");
       }
     } catch (err) {
       console.error("Exceção prontuário livre:", err);
@@ -436,10 +391,6 @@ export default function ConsultaDetalhesModal({
     if (error) {
       toast.error("Erro ao atualizar prontuário livre");
     } else {
-      if (selectedProntuarioLivre.id === prontuarioLivreId) {
-        setProntuarioLivre(editProntuarioLivre);
-      }
-
       setSelectedProntuarioLivre({
         ...selectedProntuarioLivre,
         conteudo: editProntuarioLivre,
