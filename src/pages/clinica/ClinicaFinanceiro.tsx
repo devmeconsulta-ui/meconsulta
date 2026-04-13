@@ -680,22 +680,53 @@ export default function ClinicaFinanceiro() {
       .slice(0, 5);
   }, [filteredConsultas]);
 
-  // Função para calcular o valor de repasse baseado na config
+  // Função para calcular o valor de repasse baseado na config (consulta + procedimentos)
   const calcularRepasseInterno = useCallback((consulta: Consulta) => {
+    // 1. Repasse da consulta em si
     const config = medicoRepasseConfigs.find(c => c.medico_id === consulta.medico_id);
+    let repasseConsulta = 0;
+    
     if (!config) {
-      // Se não há config, usa 70% padrão
-      return consulta.valor_consulta * 0.7;
+      repasseConsulta = consulta.valor_consulta * 0.7;
+    } else if (config.tipo_repasse === "fixo" && config.valor_fixo_repasse) {
+      repasseConsulta = config.valor_fixo_repasse;
+    } else {
+      const percentual = config.percentual_repasse || 70;
+      repasseConsulta = consulta.valor_consulta * (percentual / 100);
     }
     
-    if (config.tipo_repasse === "fixo" && config.valor_fixo_repasse) {
-      return config.valor_fixo_repasse;
+    // 2. Repasse dos procedimentos
+    let repasseProcedimentos = 0;
+    if (consulta.procedimentos && consulta.procedimentos.length > 0) {
+      consulta.procedimentos.forEach(proc => {
+        const procConfig = procedimentoRepasseConfigs.find(
+          cfg => cfg.medico_id === consulta.medico_id && 
+                 cfg.nome_procedimento.toLowerCase().trim() === proc.nome_procedimento.toLowerCase().trim()
+        );
+        
+        if (procConfig) {
+          if (procConfig.tipo_repasse === "fixo" && procConfig.valor_fixo_repasse) {
+            repasseProcedimentos += procConfig.valor_fixo_repasse;
+          } else {
+            repasseProcedimentos += proc.valor * ((procConfig.percentual_repasse || 0) / 100);
+          }
+        } else {
+          // Se não há config específica para o procedimento, aplica a mesma regra da consulta
+          if (!config) {
+            repasseProcedimentos += proc.valor * 0.7;
+          } else if (config.tipo_repasse === "fixo" && config.valor_fixo_repasse) {
+            // Para fixo, não faz sentido aplicar valor fixo da consulta ao procedimento
+            // Aplica percentual padrão
+            repasseProcedimentos += proc.valor * 0.7;
+          } else {
+            repasseProcedimentos += proc.valor * ((config.percentual_repasse || 70) / 100);
+          }
+        }
+      });
     }
     
-    // Percentual
-    const percentual = config.percentual_repasse || 70;
-    return consulta.valor_consulta * (percentual / 100);
-  }, [medicoRepasseConfigs]);
+    return repasseConsulta + repasseProcedimentos;
+  }, [medicoRepasseConfigs, procedimentoRepasseConfigs]);
 
   // Repasses detalhados por médico com separação online/interna
   const repassesPorMedicoDetalhado = useMemo(() => {
