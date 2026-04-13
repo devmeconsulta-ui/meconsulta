@@ -86,6 +86,14 @@ interface Anamnese {
   medico: { nome: string } | null;
 }
 
+interface ProntuarioLivreItem {
+  id: string;
+  created_at: string;
+  conteudo: string;
+  consulta_id: string | null;
+  medico: { nome: string } | null;
+}
+
 interface ConsultaDetalhesModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -102,17 +110,23 @@ export default function ConsultaDetalhesModal({
   const { currentUser } = useAuth();
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [anamneses, setAnamneses] = useState<Anamnese[]>([]);
+  const [prontuariosLivres, setProntuariosLivres] = useState<ProntuarioLivreItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedAnamnese, setSelectedAnamnese] = useState<Anamnese | null>(null);
   const [isAnamneseModalOpen, setIsAnamneseModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Anamnese>>({});
+  const [activeTab, setActiveTab] = useState("paciente");
   
   // Prontuário Livre
   const [prontuarioLivre, setProntuarioLivre] = useState("");
   const [prontuarioLivreId, setProntuarioLivreId] = useState<string | null>(null);
   const [savingProntuario, setSavingProntuario] = useState(false);
+  const [selectedProntuarioLivre, setSelectedProntuarioLivre] = useState<ProntuarioLivreItem | null>(null);
+  const [isProntuarioLivreModalOpen, setIsProntuarioLivreModalOpen] = useState(false);
+  const [isEditingProntuarioLivre, setIsEditingProntuarioLivre] = useState(false);
+  const [editProntuarioLivre, setEditProntuarioLivre] = useState("");
 
   // Novo Prontuário (structured) - track saved ID to allow in-place editing
   const [novaAnamneseId, setNovaAnamneseId] = useState<string | null>(null);
@@ -133,52 +147,68 @@ export default function ConsultaDetalhesModal({
     if (open && pacienteId && currentUser?.medicoId) {
       fetchData();
     }
-  }, [open, pacienteId, currentUser?.medicoId]);
+  }, [open, pacienteId, currentUser?.medicoId, consulta.id]);
+
+  useEffect(() => {
+    if (open) {
+      setActiveTab("paciente");
+    }
+  }, [open]);
 
   async function fetchData() {
-    if (!pacienteId) return;
+    if (!pacienteId || !currentUser?.medicoId) return;
     
     setLoading(true);
-    
-    // Fetch patient medical history
-    const { data: historicoData } = await supabase
-      .from("historico_medico_paciente")
-      .select("id, tipo, descricao, detalhes")
-      .eq("paciente_id", pacienteId)
-      .eq("ativo", true);
 
-    setHistorico(historicoData || []);
+    const [historicoResponse, anamnesesResponse, prontuariosLivresResponse, prontuarioAtualResponse] = await Promise.all([
+      supabase
+        .from("historico_medico_paciente")
+        .select("id, tipo, descricao, detalhes")
+        .eq("paciente_id", pacienteId)
+        .eq("ativo", true),
+      supabase
+        .from("anamneses")
+        .select(`
+          id,
+          created_at,
+          queixa_principal,
+          historia_doenca_atual,
+          antecedentes_pessoais,
+          antecedentes_familiares,
+          exame_fisico,
+          hipotese_diagnostica,
+          conduta,
+          observacoes,
+          medico:medicos(nome)
+        `)
+        .eq("paciente_id", pacienteId)
+        .eq("medico_id", currentUser.medicoId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("prontuario_livre")
+        .select(`
+          id,
+          created_at,
+          conteudo,
+          consulta_id,
+          medico:medicos(nome)
+        `)
+        .eq("paciente_id", pacienteId)
+        .eq("medico_id", currentUser.medicoId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("prontuario_livre")
+        .select("id, conteudo")
+        .eq("consulta_id", consulta.id)
+        .eq("medico_id", currentUser.medicoId)
+        .maybeSingle(),
+    ]);
 
-    // Fetch previous anamneses for this patient - ONLY from the logged-in doctor
-    const { data: anamnesesData } = await supabase
-      .from("anamneses")
-      .select(`
-        id,
-        created_at,
-        queixa_principal,
-        historia_doenca_atual,
-        antecedentes_pessoais,
-        antecedentes_familiares,
-        exame_fisico,
-        hipotese_diagnostica,
-        conduta,
-        observacoes,
-        medico:medicos(nome)
-      `)
-      .eq("paciente_id", pacienteId)
-      .eq("medico_id", currentUser?.medicoId)
-      .order("created_at", { ascending: false });
+    setHistorico(historicoResponse.data || []);
+    setAnamneses(anamnesesResponse.data || []);
+    setProntuariosLivres(prontuariosLivresResponse.data || []);
 
-    setAnamneses(anamnesesData || []);
-
-    // Fetch prontuário livre for this consultation - ONLY from the logged-in doctor
-    // @ts-ignore
-    const { data: prontuarioData } = await supabase
-      .from("prontuario_livre")
-      .select("id, conteudo")
-      .eq("consulta_id", consulta.id)
-      .eq("medico_id", currentUser?.medicoId)
-      .maybeSingle();
+    const prontuarioData = prontuarioAtualResponse.data;
 
     if (prontuarioData) {
       setProntuarioLivre(prontuarioData.conteudo || "");
@@ -217,6 +247,9 @@ export default function ConsultaDetalhesModal({
           console.error("Erro update prontuário livre:", error);
           toast.error("Erro ao salvar prontuário: " + error.message);
         } else {
+          await fetchData();
+          onUpdate();
+          setActiveTab("prontuarios");
           toast.success("Prontuário salvo com sucesso");
         }
       } else {
@@ -237,6 +270,9 @@ export default function ConsultaDetalhesModal({
           toast.error("Erro ao salvar prontuário: " + error.message);
         } else {
           setProntuarioLivreId(data.id);
+          await fetchData();
+          onUpdate();
+          setActiveTab("prontuarios");
           toast.success("Prontuário salvo com sucesso");
         }
       }
@@ -284,6 +320,13 @@ export default function ConsultaDetalhesModal({
     setIsAnamneseModalOpen(true);
   }
 
+  function openProntuarioLivreDetails(prontuario: ProntuarioLivreItem) {
+    setSelectedProntuarioLivre(prontuario);
+    setEditProntuarioLivre(prontuario.conteudo || "");
+    setIsEditingProntuarioLivre(false);
+    setIsProntuarioLivreModalOpen(true);
+  }
+
   function startEditing() {
     if (!selectedAnamnese) return;
     setEditData({
@@ -327,6 +370,7 @@ export default function ConsultaDetalhesModal({
           console.error("Error updating prontuário:", error);
           toast.error("Erro ao atualizar prontuário");
         } else {
+          setActiveTab("prontuarios");
           toast.success("Prontuário atualizado com sucesso");
           fetchData();
           onUpdate();
@@ -349,6 +393,7 @@ export default function ConsultaDetalhesModal({
           toast.error("Erro ao salvar prontuário");
         } else {
           setNovaAnamneseId(data.id);
+          setActiveTab("prontuarios");
           toast.success("Prontuário salvo com sucesso");
           fetchData();
           onUpdate();
@@ -360,6 +405,44 @@ export default function ConsultaDetalhesModal({
     }
 
     setSaving(false);
+  }
+
+  async function handleUpdateProntuarioLivreExistente() {
+    if (!selectedProntuarioLivre) return;
+
+    if (!editProntuarioLivre.trim()) {
+      toast.error("Escreva algo antes de salvar");
+      return;
+    }
+
+    setSavingProntuario(true);
+
+    const { error } = await supabase
+      .from("prontuario_livre")
+      .update({
+        conteudo: editProntuarioLivre,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", selectedProntuarioLivre.id);
+
+    if (error) {
+      toast.error("Erro ao atualizar prontuário livre");
+    } else {
+      if (selectedProntuarioLivre.id === prontuarioLivreId) {
+        setProntuarioLivre(editProntuarioLivre);
+      }
+
+      setSelectedProntuarioLivre({
+        ...selectedProntuarioLivre,
+        conteudo: editProntuarioLivre,
+      });
+      setIsEditingProntuarioLivre(false);
+      await fetchData();
+      onUpdate();
+      toast.success("Prontuário livre atualizado com sucesso");
+    }
+
+    setSavingProntuario(false);
   }
 
   const alergias = historico.filter(h => h.tipo === "alergia");
@@ -384,6 +467,39 @@ export default function ConsultaDetalhesModal({
     return `***.***.*${cpf.slice(-3)}-${cpf.slice(-2)}`;
   };
 
+  const resumirTexto = (texto: string, limite = 120) => {
+    const textoLimpo = texto.trim();
+    if (textoLimpo.length <= limite) return textoLimpo;
+    return `${textoLimpo.slice(0, limite).trim()}...`;
+  };
+
+  const prontuarios = [
+    ...anamneses.map((anamnese) => ({
+      id: anamnese.id,
+      tipo: "estruturado" as const,
+      created_at: anamnese.created_at,
+      medicoNome: anamnese.medico?.nome || "Médico",
+      titulo: anamnese.queixa_principal || "Sem queixa principal registrada",
+      subtitulo: anamnese.hipotese_diagnostica
+        ? `Diagnóstico: ${anamnese.hipotese_diagnostica}`
+        : anamnese.observacoes
+          ? `Observações: ${resumirTexto(anamnese.observacoes, 90)}`
+          : null,
+      registro: anamnese,
+    })),
+    ...prontuariosLivres.map((prontuario) => ({
+      id: prontuario.id,
+      tipo: "livre" as const,
+      created_at: prontuario.created_at,
+      medicoNome: prontuario.medico?.nome || "Médico",
+      titulo: resumirTexto(prontuario.conteudo || "Prontuário livre sem conteúdo"),
+      subtitulo: prontuario.consulta_id === consulta.id
+        ? "Registro livre da consulta atual"
+        : "Registro livre salvo em consulta anterior",
+      registro: prontuario,
+    })),
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
@@ -394,11 +510,11 @@ export default function ConsultaDetalhesModal({
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="paciente" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full flex flex-wrap h-auto gap-1 p-1">
             <TabsTrigger value="paciente" className="flex-1 min-w-[80px]">Paciente</TabsTrigger>
             <TabsTrigger value="historico" className="flex-1 min-w-[80px]">Histórico</TabsTrigger>
-            <TabsTrigger value="anamneses" className="flex-1 min-w-[80px]">Prontuário</TabsTrigger>
+            <TabsTrigger value="prontuarios" className="flex-1 min-w-[90px]">Prontuários</TabsTrigger>
             <TabsTrigger value="nova-anamnese" className="flex-1 min-w-[100px]">Novo Prontuário</TabsTrigger>
             <TabsTrigger value="prontuario-livre" className="flex-1 min-w-[120px]">Prontuário Livre</TabsTrigger>
             <TabsTrigger value="imagens" className="flex-1 min-w-[100px]">
@@ -601,49 +717,55 @@ export default function ConsultaDetalhesModal({
               )}
             </TabsContent>
 
-            {/* Tab: Previous Anamneses */}
-            <TabsContent value="anamneses" className="space-y-3">
+            {/* Tab: Prontuários */}
+            <TabsContent value="prontuarios" className="space-y-3">
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
-              ) : anamneses.length === 0 ? (
+              ) : prontuarios.length === 0 ? (
                 <div className="text-center py-12">
                   <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-muted-foreground">Nenhum prontuário registrado para este paciente</p>
                 </div>
               ) : (
                 <div className="grid gap-3">
-                  {anamneses.map((anamnese) => (
+                  {prontuarios.map((prontuario) => (
                     <Card 
-                      key={anamnese.id} 
+                      key={`${prontuario.tipo}-${prontuario.id}`} 
                       className="border-l-4 border-l-primary/60 hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-primary/5 to-transparent"
-                      onClick={() => openAnamneseDetails(anamnese)}
+                      onClick={() => prontuario.tipo === "estruturado"
+                        ? openAnamneseDetails(prontuario.registro)
+                        : openProntuarioLivreDetails(prontuario.registro)
+                      }
                     >
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-2 flex-wrap">
                               <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-0">
-                                {anamnese.medico?.nome || "Médico"}
+                                {prontuario.medicoNome}
+                              </Badge>
+                              <Badge variant="outline">
+                                {prontuario.tipo === "livre" ? "Livre" : "Estruturado"}
                               </Badge>
                               <span className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
-                                {format(new Date(anamnese.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                                {format(new Date(prontuario.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                               </span>
                             </div>
                             <p className="font-medium text-foreground">
-                              {anamnese.queixa_principal || "Sem queixa principal registrada"}
+                              {prontuario.titulo}
                             </p>
-                            {anamnese.hipotese_diagnostica && (
+                            {prontuario.subtitulo && (
                               <p className="text-sm text-muted-foreground line-clamp-1">
-                                <span className="font-medium">Diagnóstico:</span> {anamnese.hipotese_diagnostica}
+                                {prontuario.subtitulo}
                               </p>
                             )}
                           </div>
                           <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10">
                             <FileText className="w-4 h-4 mr-1" />
-                            Ver Detalhes
+                            Abrir
                           </Button>
                         </div>
                       </CardContent>
@@ -831,6 +953,80 @@ export default function ConsultaDetalhesModal({
                             <Button variant="outline" onClick={startEditing} className="gap-2">
                               <Pencil className="w-4 h-4" />
                               Editar Prontuário
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                )}
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isProntuarioLivreModalOpen} onOpenChange={setIsProntuarioLivreModalOpen}>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden z-[60]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-primary">
+                    <FileText className="w-5 h-5" />
+                    Detalhes do Prontuário Livre
+                  </DialogTitle>
+                </DialogHeader>
+
+                {selectedProntuarioLivre && (
+                  <ScrollArea className="max-h-[65vh] pr-4">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 p-3 bg-primary/10 rounded-lg flex-wrap">
+                        <Badge className="bg-primary text-primary-foreground">
+                          {selectedProntuarioLivre.medico?.nome || "Médico"}
+                        </Badge>
+                        <Badge variant="outline">Prontuário Livre</Badge>
+                        <span className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {format(new Date(selectedProntuarioLivre.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                      </div>
+
+                      {isEditingProntuarioLivre ? (
+                        <div className="space-y-4">
+                          <div>
+                            <Label>Conteúdo do prontuário</Label>
+                            <Textarea
+                              value={editProntuarioLivre}
+                              onChange={(e) => setEditProntuarioLivre(e.target.value)}
+                              rows={16}
+                              className="mt-2 text-sm font-mono resize-y min-h-[220px]"
+                            />
+                          </div>
+
+                          <div className="flex gap-2 pt-2">
+                            <Button onClick={handleUpdateProntuarioLivreExistente} disabled={savingProntuario} className="gap-2">
+                              {savingProntuario ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                              Salvar Alterações
+                            </Button>
+                            <Button variant="outline" onClick={() => setIsEditingProntuarioLivre(false)} className="gap-2">
+                              <X className="w-4 h-4" />
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="p-3 bg-muted/50 rounded-lg border">
+                            <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wide">Registro Livre</Label>
+                            <p className="mt-2 text-foreground whitespace-pre-wrap break-words">{selectedProntuarioLivre.conteudo}</p>
+                          </div>
+
+                          <div className="pt-3 border-t">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setEditProntuarioLivre(selectedProntuarioLivre.conteudo || "");
+                                setIsEditingProntuarioLivre(true);
+                              }}
+                              className="gap-2"
+                            >
+                              <Pencil className="w-4 h-4" />
+                              Editar Prontuário Livre
                             </Button>
                           </div>
                         </div>
