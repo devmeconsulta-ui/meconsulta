@@ -154,10 +154,10 @@ export default function ConsultaDetalhesModal({
     }
   }, [open]);
 
-  async function fetchData() {
+  async function fetchData(silent = false) {
     if (!pacienteId || !currentUser?.medicoId) return;
     
-    setLoading(true);
+    if (!silent) setLoading(true);
 
     const [historicoResponse, anamnesesResponse, prontuariosLivresResponse] = await Promise.all([
       supabase
@@ -201,7 +201,7 @@ export default function ConsultaDetalhesModal({
     setAnamneses(anamnesesResponse.data || []);
     setProntuariosLivres(prontuariosLivresResponse.data || []);
 
-    setLoading(false);
+    if (!silent) setLoading(false);
   }
 
   async function handleSaveProntuarioLivre() {
@@ -233,7 +233,7 @@ export default function ConsultaDetalhesModal({
         toast.error("Erro ao salvar prontuário: " + error.message);
       } else {
         setProntuarioLivre("");
-        await fetchData();
+        await fetchData(true);
         onUpdate();
         setActiveTab("prontuarios");
         toast.success("Prontuário salvo com sucesso");
@@ -269,7 +269,7 @@ export default function ConsultaDetalhesModal({
       toast.success("Prontuário atualizado com sucesso");
       setIsEditing(false);
       setIsAnamneseModalOpen(false);
-      fetchData();
+      fetchData(true);
       onUpdate();
     }
 
@@ -335,7 +335,7 @@ export default function ConsultaDetalhesModal({
           resetNovoProntuarioForm();
           setActiveTab("prontuarios");
           toast.success("Prontuário atualizado com sucesso");
-          fetchData();
+          fetchData(true);
           onUpdate();
         }
       } else {
@@ -358,7 +358,7 @@ export default function ConsultaDetalhesModal({
           resetNovoProntuarioForm();
           setActiveTab("prontuarios");
           toast.success("Prontuário salvo com sucesso");
-          fetchData();
+          fetchData(true);
           onUpdate();
         }
       }
@@ -396,7 +396,7 @@ export default function ConsultaDetalhesModal({
         conteudo: editProntuarioLivre,
       });
       setIsEditingProntuarioLivre(false);
-      await fetchData();
+      await fetchData(true);
       onUpdate();
       toast.success("Prontuário livre atualizado com sucesso");
     }
