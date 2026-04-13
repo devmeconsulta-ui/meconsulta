@@ -811,10 +811,11 @@ export default function ClinicaFinanceiro() {
       .map(c => {
         const config = medicoRepasseConfigs.find(cfg => cfg.medico_id === c.medico_id);
         const valorRepasse = calcularRepasseInterno(c);
+        const valorTotal = c.valor_consulta + (c.totalProcedimentos || 0);
         return {
           ...c,
           valor_repasse_calculado: valorRepasse,
-          deducao_clinica: c.valor_consulta - valorRepasse,
+          deducao_clinica: valorTotal - valorRepasse,
           config_repasse: config
         };
       });
