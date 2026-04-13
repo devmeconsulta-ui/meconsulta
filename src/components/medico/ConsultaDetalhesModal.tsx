@@ -377,6 +377,7 @@ export default function ConsultaDetalhesModal({
           console.error("Error updating prontuário:", error);
           toast.error("Erro ao atualizar prontuário");
         } else {
+          resetNovoProntuarioForm();
           setActiveTab("prontuarios");
           toast.success("Prontuário atualizado com sucesso");
           fetchData();
@@ -399,7 +400,7 @@ export default function ConsultaDetalhesModal({
           console.error("Error saving prontuário:", error);
           toast.error("Erro ao salvar prontuário");
         } else {
-          setNovaAnamneseId(data.id);
+          resetNovoProntuarioForm();
           setActiveTab("prontuarios");
           toast.success("Prontuário salvo com sucesso");
           fetchData();
@@ -472,6 +473,20 @@ export default function ConsultaDetalhesModal({
     if (!cpf) return "Não informado";
     // Mask CPF: show only last 3 digits
     return `***.***.*${cpf.slice(-3)}-${cpf.slice(-2)}`;
+  };
+
+  const resetNovoProntuarioForm = () => {
+    setNovaAnamneseId(null);
+    setNovaAnamnese({
+      queixa_principal: "",
+      historia_doenca_atual: "",
+      antecedentes_pessoais: "",
+      antecedentes_familiares: "",
+      exame_fisico: "",
+      hipotese_diagnostica: "",
+      conduta: "",
+      observacoes: "",
+    });
   };
 
   const resumirTexto = (texto: string, limite = 120) => {
@@ -1151,19 +1166,7 @@ export default function ConsultaDetalhesModal({
                     {novaAnamneseId && (
                       <Button
                         variant="outline"
-                        onClick={() => {
-                          setNovaAnamneseId(null);
-                          setNovaAnamnese({
-                            queixa_principal: "",
-                            historia_doenca_atual: "",
-                            antecedentes_pessoais: "",
-                            antecedentes_familiares: "",
-                            exame_fisico: "",
-                            hipotese_diagnostica: "",
-                            conduta: "",
-                            observacoes: "",
-                          });
-                        }}
+                        onClick={resetNovoProntuarioForm}
                         className="gap-2"
                       >
                         <Pencil className="w-4 h-4" />
