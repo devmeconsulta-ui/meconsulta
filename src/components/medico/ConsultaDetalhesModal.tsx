@@ -190,42 +190,56 @@ export default function ConsultaDetalhesModal({
 
   async function handleSaveProntuarioLivre() {
     if (!currentUser?.medicoId || !pacienteId) {
+      console.error("Prontuário livre - médico ou paciente não identificado:", { medicoId: currentUser?.medicoId, pacienteId });
       toast.error("Erro ao identificar médico ou paciente");
       return;
     }
+    
+    if (!prontuarioLivre.trim()) {
+      toast.error("Escreva algo antes de salvar");
+      return;
+    }
+
     setSavingProntuario(true);
 
-    if (prontuarioLivreId) {
-      // @ts-ignore
-      const { error } = await supabase
-        .from("prontuario_livre")
-        .update({ conteudo: prontuarioLivre })
-        .eq("id", prontuarioLivreId);
+    try {
+      if (prontuarioLivreId) {
+        // @ts-ignore
+        const { error } = await supabase
+          .from("prontuario_livre")
+          .update({ conteudo: prontuarioLivre, updated_at: new Date().toISOString() })
+          .eq("id", prontuarioLivreId);
 
-      if (error) {
-        toast.error("Erro ao salvar prontuário");
+        if (error) {
+          console.error("Erro update prontuário livre:", error);
+          toast.error("Erro ao salvar prontuário: " + error.message);
+        } else {
+          toast.success("Prontuário salvo com sucesso");
+        }
       } else {
-        toast.success("Prontuário salvo com sucesso");
-      }
-    } else {
-      // @ts-ignore
-      const { data, error } = await supabase
-        .from("prontuario_livre")
-        .insert({
-          consulta_id: consulta.id,
-          medico_id: currentUser.medicoId,
-          paciente_id: pacienteId,
-          conteudo: prontuarioLivre,
-        })
-        .select("id")
-        .single();
+        // @ts-ignore
+        const { data, error } = await supabase
+          .from("prontuario_livre")
+          .insert({
+            consulta_id: consulta.id,
+            medico_id: currentUser.medicoId,
+            paciente_id: pacienteId,
+            conteudo: prontuarioLivre,
+          })
+          .select("id")
+          .single();
 
-      if (error) {
-        toast.error("Erro ao salvar prontuário");
-      } else {
-        setProntuarioLivreId(data.id);
-        toast.success("Prontuário salvo com sucesso");
+        if (error) {
+          console.error("Erro insert prontuário livre:", error);
+          toast.error("Erro ao salvar prontuário: " + error.message);
+        } else {
+          setProntuarioLivreId(data.id);
+          toast.success("Prontuário salvo com sucesso");
+        }
       }
+    } catch (err) {
+      console.error("Exceção prontuário livre:", err);
+      toast.error("Erro inesperado ao salvar prontuário");
     }
     setSavingProntuario(false);
   }
@@ -249,9 +263,9 @@ export default function ConsultaDetalhesModal({
       .eq("id", selectedAnamnese.id);
 
     if (error) {
-      toast.error("Erro ao atualizar anamnese");
+      toast.error("Erro ao atualizar prontuário");
     } else {
-      toast.success("Anamnese atualizada com sucesso");
+      toast.success("Prontuário atualizado com sucesso");
       setIsEditing(false);
       setIsAnamneseModalOpen(false);
       fetchData();
@@ -305,10 +319,10 @@ export default function ConsultaDetalhesModal({
       });
 
     if (error) {
-      console.error("Error saving anamnese:", error);
-      toast.error("Erro ao salvar anamnese");
+      console.error("Error saving prontuário:", error);
+      toast.error("Erro ao salvar prontuário");
     } else {
-      toast.success("Anamnese salva com sucesso");
+      toast.success("Prontuário salvo com sucesso");
       setNovaAnamnese({
         queixa_principal: "",
         historia_doenca_atual: "",
@@ -574,7 +588,7 @@ export default function ConsultaDetalhesModal({
               ) : anamneses.length === 0 ? (
                 <div className="text-center py-12">
                   <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">Nenhuma anamnese registrada para este paciente</p>
+                  <p className="text-muted-foreground">Nenhum prontuário registrado para este paciente</p>
                 </div>
               ) : (
                 <div className="grid gap-3">
@@ -623,7 +637,7 @@ export default function ConsultaDetalhesModal({
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-primary">
                     <FileText className="w-5 h-5" />
-                    Detalhes da Anamnese
+                    Detalhes do Prontuário
                   </DialogTitle>
                 </DialogHeader>
                 
@@ -794,7 +808,7 @@ export default function ConsultaDetalhesModal({
                           <div className="pt-3 border-t">
                             <Button variant="outline" onClick={startEditing} className="gap-2">
                               <Pencil className="w-4 h-4" />
-                              Editar Anamnese
+                              Editar Prontuário
                             </Button>
                           </div>
                         </div>
@@ -811,7 +825,7 @@ export default function ConsultaDetalhesModal({
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
                     <FileText className="w-5 h-5 text-primary" />
-                    Nova Anamnese
+                    Novo Prontuário
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -906,7 +920,7 @@ export default function ConsultaDetalhesModal({
                     ) : (
                       <Save className="w-4 h-4" />
                     )}
-                    Salvar Anamnese
+                    Salvar Prontuário
                   </Button>
                 </CardContent>
               </Card>
