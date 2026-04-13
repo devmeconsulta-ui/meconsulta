@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfDay, endOfDay } from "date-fns";
 
+export interface CaixaDefinicao {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  cor: string;
+  ativo: boolean;
+}
+
 interface MovimentoCaixa {
   id: string;
   tipo: "entrada" | "saida" | "sangria" | "reforco";
@@ -32,7 +40,11 @@ interface CaixaState {
   loading: boolean;
 }
 
-export function useCaixaClinica(clinicaId: string | undefined) {
+export function useCaixaClinica(clinicaId: string | undefined, caixaId?: string | null) {
+  const [caixas, setCaixas] = useState<CaixaDefinicao[]>([]);
+  const [caixaSelecionadoId, setCaixaSelecionadoId] = useState<string | null>(caixaId || null);
+  const [loadingCaixas, setLoadingCaixas] = useState(true);
+
   const [state, setState] = useState<CaixaState>({
     caixaAberto: false,
     operacaoAberturaId: null,
@@ -43,13 +55,44 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     loading: true,
   });
 
+  // Fetch all caixas for clinic
+  const fetchCaixas = useCallback(async () => {
+    if (!clinicaId) return;
+    setLoadingCaixas(true);
+
+    // @ts-ignore
+    const { data, error } = await supabase
+      .from("caixas")
+      .select("*")
+      .eq("clinica_id", clinicaId)
+      .eq("ativo", true)
+      .order("created_at", { ascending: true });
+
+    if (!error && data) {
+      setCaixas(data);
+      // Auto-select first caixa if none selected
+      if (!caixaSelecionadoId && data.length > 0) {
+        setCaixaSelecionadoId(data[0].id);
+      }
+    }
+    setLoadingCaixas(false);
+  }, [clinicaId]);
+
+  useEffect(() => {
+    fetchCaixas();
+  }, [fetchCaixas]);
+
+  // Sync external caixaId prop
+  useEffect(() => {
+    if (caixaId) setCaixaSelecionadoId(caixaId);
+  }, [caixaId]);
+
   // Buscar consultas pagas não sincronizadas do dia
   const fetchConsultasPendentes = useCallback(async () => {
     if (!clinicaId) return [];
 
     const hoje = new Date();
     
-    // Buscar locais da clínica para pegar consultas por local também
     const { data: locaisData } = await supabase
       .from("locais_atendimento")
       .select("id")
@@ -58,7 +101,6 @@ export function useCaixaClinica(clinicaId: string | undefined) {
 
     const localIds = locaisData?.map(l => l.id) || [];
 
-    // Buscar consultas pagas de hoje que não foram sincronizadas
     let query = supabase
       .from("consultas")
       .select(`
@@ -75,7 +117,6 @@ export function useCaixaClinica(clinicaId: string | undefined) {
       .gte("data_hora", startOfDay(hoje).toISOString())
       .lte("data_hora", endOfDay(hoje).toISOString());
 
-    // Filtrar por clínica ou local
     if (localIds.length > 0) {
       query = query.or(`clinica_id.eq.${clinicaId},local_id.in.(${localIds.join(",")})`);
     } else {
@@ -87,29 +128,31 @@ export function useCaixaClinica(clinicaId: string | undefined) {
   }, [clinicaId]);
 
   const fetchCaixaStatus = useCallback(async () => {
-    if (!clinicaId) return;
+    if (!clinicaId || !caixaSelecionadoId) {
+      setState(prev => ({ ...prev, loading: false }));
+      return;
+    }
 
     setState((prev) => ({ ...prev, loading: true }));
 
     try {
-      // Buscar última operação do dia
       const hoje = new Date();
+      // @ts-ignore
       const { data: operacoes } = await supabase
         .from("caixa_operacoes")
         .select("*")
         .eq("clinica_id", clinicaId)
+        .eq("caixa_id", caixaSelecionadoId)
         .gte("created_at", startOfDay(hoje).toISOString())
         .lte("created_at", endOfDay(hoje).toISOString())
         .order("created_at", { ascending: false })
         .limit(2);
 
-      // Verificar se está aberto (última operação é abertura)
       const ultimaOperacao = operacoes?.[0];
       const caixaAberto = ultimaOperacao?.tipo === "abertura";
       const operacaoAberturaId = caixaAberto ? ultimaOperacao.id : null;
       const saldoAbertura = caixaAberto ? Number(ultimaOperacao.saldo_inicial) : 0;
 
-      // Se está aberto, buscar movimentos do dia
       let movimentos: MovimentoCaixa[] = [];
       let saldoAtual = saldoAbertura;
 
@@ -131,7 +174,6 @@ export function useCaixaClinica(clinicaId: string | undefined) {
             hora: format(new Date(m.created_at), "HH:mm"),
           })) || [];
 
-        // Calcular saldo atual
         movimentos.forEach((m) => {
           if (m.tipo === "entrada" || m.tipo === "reforco") {
             saldoAtual += m.valor;
@@ -141,7 +183,6 @@ export function useCaixaClinica(clinicaId: string | undefined) {
         });
       }
 
-      // Buscar consultas pendentes de sincronização
       const consultasPendentes = caixaAberto ? await fetchConsultasPendentes() : [];
 
       setState({
@@ -157,18 +198,18 @@ export function useCaixaClinica(clinicaId: string | undefined) {
       console.error("Erro ao buscar status do caixa:", error);
       setState((prev) => ({ ...prev, loading: false }));
     }
-  }, [clinicaId, fetchConsultasPendentes]);
+  }, [clinicaId, caixaSelecionadoId, fetchConsultasPendentes]);
 
   useEffect(() => {
     fetchCaixaStatus();
   }, [fetchCaixaStatus]);
 
-  // Configurar realtime para consultas pagas
+  // Realtime
   useEffect(() => {
     if (!clinicaId || !state.caixaAberto) return;
 
     const channel = supabase
-      .channel(`caixa-consultas-${clinicaId}`)
+      .channel(`caixa-consultas-${clinicaId}-${caixaSelecionadoId}`)
       .on(
         "postgres_changes",
         {
@@ -177,8 +218,7 @@ export function useCaixaClinica(clinicaId: string | undefined) {
           table: "consultas",
           filter: `status_pagamento=eq.pago`,
         },
-        async (payload) => {
-          // Quando uma consulta é marcada como paga, atualizar lista de pendentes
+        async () => {
           const consultasPendentes = await fetchConsultasPendentes();
           setState(prev => ({ ...prev, consultasPendentes }));
         }
@@ -188,17 +228,19 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [clinicaId, state.caixaAberto, fetchConsultasPendentes]);
+  }, [clinicaId, state.caixaAberto, caixaSelecionadoId, fetchConsultasPendentes]);
 
   const abrirCaixa = async (saldoInicial: number) => {
-    if (!clinicaId) {
-      return { data: null, error: { message: "Clínica não identificada" } };
+    if (!clinicaId || !caixaSelecionadoId) {
+      return { data: null, error: { message: "Clínica ou caixa não identificado" } };
     }
 
+    // @ts-ignore
     const { data, error } = await supabase
       .from("caixa_operacoes")
       .insert({
         clinica_id: clinicaId,
+        caixa_id: caixaSelecionadoId,
         tipo: "abertura",
         saldo_inicial: saldoInicial,
       })
@@ -206,7 +248,6 @@ export function useCaixaClinica(clinicaId: string | undefined) {
       .single();
 
     if (!error && data) {
-      // Buscar consultas pendentes após abrir o caixa
       const consultasPendentes = await fetchConsultasPendentes();
       
       setState((prev) => ({
@@ -224,14 +265,16 @@ export function useCaixaClinica(clinicaId: string | undefined) {
   };
 
   const fecharCaixa = async (observacoes: string) => {
-    if (!clinicaId) {
-      return { data: null, error: { message: "Clínica não identificada" } };
+    if (!clinicaId || !caixaSelecionadoId) {
+      return { data: null, error: { message: "Clínica ou caixa não identificado" } };
     }
 
+    // @ts-ignore
     const { data, error } = await supabase
       .from("caixa_operacoes")
       .insert({
         clinica_id: clinicaId,
+        caixa_id: caixaSelecionadoId,
         tipo: "fechamento",
         saldo_final: state.saldoAtual,
         observacoes,
@@ -257,14 +300,16 @@ export function useCaixaClinica(clinicaId: string | undefined) {
   const registrarMovimento = async (
     movimento: Omit<MovimentoCaixa, "id" | "hora">
   ) => {
-    if (!clinicaId || !state.operacaoAberturaId) {
+    if (!clinicaId || !state.operacaoAberturaId || !caixaSelecionadoId) {
       return { data: null, error: { message: "Caixa não está aberto" } };
     }
 
+    // @ts-ignore
     const { data, error } = await supabase
       .from("caixa_movimentos")
       .insert({
         clinica_id: clinicaId,
+        caixa_id: caixaSelecionadoId,
         operacao_abertura_id: state.operacaoAberturaId,
         tipo: movimento.tipo,
         valor: movimento.valor,
@@ -303,9 +348,8 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     return { data, error };
   };
 
-  // Sincronizar uma consulta paga com o caixa
   const sincronizarConsulta = async (consulta: ConsultaNaoSincronizada, formaPagamento: string) => {
-    if (!clinicaId || !state.operacaoAberturaId) {
+    if (!clinicaId || !state.operacaoAberturaId || !caixaSelecionadoId) {
       return { data: null, error: { message: "Caixa não está aberto" } };
     }
 
@@ -314,11 +358,12 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     const origemLabel = consulta.origem === "online" ? "Online" : "Interno";
     const descricao = `Consulta ${origemLabel} - ${nomePaciente}${nomeMedico ? ` (Dr. ${nomeMedico})` : ""}`;
 
-    // Criar movimento no caixa
+    // @ts-ignore
     const { data: movimentoData, error: movimentoError } = await supabase
       .from("caixa_movimentos")
       .insert({
         clinica_id: clinicaId,
+        caixa_id: caixaSelecionadoId,
         operacao_abertura_id: state.operacaoAberturaId,
         tipo: "entrada",
         valor: consulta.valor_consulta,
@@ -332,7 +377,6 @@ export function useCaixaClinica(clinicaId: string | undefined) {
       return { data: null, error: movimentoError };
     }
 
-    // Marcar consulta como sincronizada
     const { error: updateError } = await supabase
       .from("consultas")
       .update({
@@ -345,7 +389,6 @@ export function useCaixaClinica(clinicaId: string | undefined) {
       return { data: null, error: updateError };
     }
 
-    // Atualizar estado local
     const novoMovimento: MovimentoCaixa = {
       id: movimentoData.id,
       tipo: "entrada",
@@ -366,11 +409,9 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     return { data: movimentoData, error: null };
   };
 
-  // Sincronizar todas as consultas pendentes usando a forma de pagamento real de cada uma
   const sincronizarTodas = async (formaPagamentoFallback: string) => {
     const resultados = [];
     for (const consulta of state.consultasPendentes) {
-      // Usa a forma de pagamento registrada na consulta, ou o fallback
       const formaReal = consulta.formas_pagamento?.[0]?.tipo || formaPagamentoFallback;
       const resultado = await sincronizarConsulta(consulta, formaReal);
       resultados.push(resultado);
@@ -378,13 +419,72 @@ export function useCaixaClinica(clinicaId: string | undefined) {
     return resultados;
   };
 
+  // CRUD for caixas
+  const criarCaixa = async (nome: string, descricao?: string, cor?: string) => {
+    if (!clinicaId) return { data: null, error: { message: "Clínica não identificada" } };
+
+    // @ts-ignore
+    const { data, error } = await supabase
+      .from("caixas")
+      .insert({ clinica_id: clinicaId, nome, descricao: descricao || null, cor: cor || "#3b82f6" })
+      .select()
+      .single();
+
+    if (!error) await fetchCaixas();
+    return { data, error };
+  };
+
+  const editarCaixa = async (id: string, updates: { nome?: string; descricao?: string; cor?: string }) => {
+    // @ts-ignore
+    const { data, error } = await supabase
+      .from("caixas")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (!error) await fetchCaixas();
+    return { data, error };
+  };
+
+  const excluirCaixa = async (id: string) => {
+    // @ts-ignore
+    const { error } = await supabase
+      .from("caixas")
+      .update({ ativo: false, updated_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (!error) {
+      await fetchCaixas();
+      if (caixaSelecionadoId === id) {
+        setCaixaSelecionadoId(caixas.find(c => c.id !== id)?.id || null);
+      }
+    }
+    return { error };
+  };
+
+  const selecionarCaixa = (id: string) => {
+    setCaixaSelecionadoId(id);
+  };
+
+  const caixaSelecionado = caixas.find(c => c.id === caixaSelecionadoId) || null;
+
   return {
     ...state,
+    caixas,
+    caixaSelecionado,
+    caixaSelecionadoId,
+    loadingCaixas,
+    selecionarCaixa,
+    criarCaixa,
+    editarCaixa,
+    excluirCaixa,
     abrirCaixa,
     fecharCaixa,
     registrarMovimento,
     sincronizarConsulta,
     sincronizarTodas,
     refetch: fetchCaixaStatus,
+    refetchCaixas: fetchCaixas,
   };
 }

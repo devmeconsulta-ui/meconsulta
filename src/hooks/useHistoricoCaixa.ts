@@ -22,12 +22,12 @@ export interface FechamentoCaixa {
   }[];
 }
 
-export function useHistoricoCaixa(clinicaId: string | undefined) {
+export function useHistoricoCaixa(clinicaId: string | undefined, caixaId?: string | null) {
   const [historico, setHistorico] = useState<FechamentoCaixa[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchHistorico = useCallback(async () => {
-    if (!clinicaId) return;
+    if (!clinicaId || !caixaId) return;
 
     setLoading(true);
     try {
@@ -39,6 +39,7 @@ export function useHistoricoCaixa(clinicaId: string | undefined) {
         .from("caixa_operacoes")
         .select("*")
         .eq("clinica_id", clinicaId)
+        .eq("caixa_id", caixaId)
         .eq("tipo", "fechamento")
         .gte("created_at", dataLimite.toISOString())
         .order("created_at", { ascending: false });
@@ -117,7 +118,7 @@ export function useHistoricoCaixa(clinicaId: string | undefined) {
     } finally {
       setLoading(false);
     }
-  }, [clinicaId]);
+  }, [clinicaId, caixaId]);
 
   useEffect(() => {
     fetchHistorico();

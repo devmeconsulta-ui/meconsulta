@@ -96,6 +96,7 @@ import { FluxoCaixaChart } from "@/components/clinica/financeiro/FluxoCaixaChart
 import { MetasFinanceirasWidget } from "@/components/clinica/financeiro/MetasFinanceirasWidget";
 import { useCaixaClinica } from "@/hooks/useCaixaClinica";
 import { useHistoricoCaixa } from "@/hooks/useHistoricoCaixa";
+import { MultiCaixaSelector } from "@/components/clinica/financeiro/MultiCaixaSelector";
 
 interface ClinicaContext {
   clinicaData: any;
@@ -274,9 +275,11 @@ export default function ClinicaFinanceiro() {
     percentual_repasse: "70",
     valor_fixo_repasse: "",
   });
+  // Hook para gerenciar caixa - DEVE ficar ANTES de useHistoricoCaixa
+  const caixa = useCaixaClinica(clinicaData?.id);
 
   // Hook para histórico de caixa
-  const historicoData = useHistoricoCaixa(clinicaData?.id);
+  const historicoData = useHistoricoCaixa(clinicaData?.id, caixa.caixaSelecionadoId);
 
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -1383,8 +1386,7 @@ export default function ClinicaFinanceiro() {
     fetchAllData();
   };
 
-  // Hook para gerenciar caixa - DEVE ficar ANTES de qualquer early return
-  const caixa = useCaixaClinica(clinicaData?.id);
+  // (caixa hook moved earlier, before useHistoricoCaixa)
 
   // Calcular vencimentos - useMemo hooks também devem ficar antes do early return
   const vencimentosHoje = useMemo(() => {
@@ -2265,8 +2267,18 @@ export default function ClinicaFinanceiro() {
 
           {/* Layout em grid: Caixa + Metas + Vencimentos */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Controle de Caixa */}
-            <CaixaWidget
+            {/* Multi-Caixa Selector + Controle de Caixa */}
+            <div className="space-y-4">
+              <MultiCaixaSelector
+                caixas={caixa.caixas}
+                caixaSelecionadoId={caixa.caixaSelecionadoId}
+                caixaAberto={caixa.caixaAberto}
+                onSelecionarCaixa={caixa.selecionarCaixa}
+                onCriarCaixa={caixa.criarCaixa}
+                onEditarCaixa={caixa.editarCaixa}
+                onExcluirCaixa={caixa.excluirCaixa}
+              />
+              <CaixaWidget
               caixaAberto={caixa.caixaAberto}
               saldoAbertura={caixa.saldoAbertura}
               saldoAtual={caixa.saldoAtual}
@@ -2279,8 +2291,9 @@ export default function ClinicaFinanceiro() {
               historico={historicoData.historico}
               historicoLoading={historicoData.loading}
             />
+            </div>
 
-            {/* Metas Financeiras */}
+
             <MetasFinanceirasWidget
               clinicaId={clinicaData?.id}
               faturamentoAtual={metrics.pagoTotal}

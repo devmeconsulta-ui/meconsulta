@@ -240,6 +240,7 @@ export type Database = {
       }
       caixa_movimentos: {
         Row: {
+          caixa_id: string | null
           clinica_id: string
           created_at: string
           descricao: string
@@ -251,6 +252,7 @@ export type Database = {
           valor: number
         }
         Insert: {
+          caixa_id?: string | null
           clinica_id: string
           created_at?: string
           descricao: string
@@ -262,6 +264,7 @@ export type Database = {
           valor: number
         }
         Update: {
+          caixa_id?: string | null
           clinica_id?: string
           created_at?: string
           descricao?: string
@@ -273,6 +276,13 @@ export type Database = {
           valor?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "caixa_movimentos_caixa_id_fkey"
+            columns: ["caixa_id"]
+            isOneToOne: false
+            referencedRelation: "caixas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "caixa_movimentos_clinica_id_fkey"
             columns: ["clinica_id"]
@@ -298,6 +308,7 @@ export type Database = {
       }
       caixa_operacoes: {
         Row: {
+          caixa_id: string | null
           clinica_id: string
           created_at: string
           id: string
@@ -308,6 +319,7 @@ export type Database = {
           usuario_clinica_id: string | null
         }
         Insert: {
+          caixa_id?: string | null
           clinica_id: string
           created_at?: string
           id?: string
@@ -318,6 +330,7 @@ export type Database = {
           usuario_clinica_id?: string | null
         }
         Update: {
+          caixa_id?: string | null
           clinica_id?: string
           created_at?: string
           id?: string
@@ -328,6 +341,13 @@ export type Database = {
           usuario_clinica_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "caixa_operacoes_caixa_id_fkey"
+            columns: ["caixa_id"]
+            isOneToOne: false
+            referencedRelation: "caixas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "caixa_operacoes_clinica_id_fkey"
             columns: ["clinica_id"]
@@ -340,6 +360,47 @@ export type Database = {
             columns: ["usuario_clinica_id"]
             isOneToOne: false
             referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      caixas: {
+        Row: {
+          ativo: boolean
+          clinica_id: string
+          cor: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          clinica_id: string
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          clinica_id?: string
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caixas_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
             referencedColumns: ["id"]
           },
         ]
