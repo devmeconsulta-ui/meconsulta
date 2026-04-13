@@ -247,7 +247,11 @@ export default function ConsultaDetalhesModal({
           console.error("Erro update prontuário livre:", error);
           toast.error("Erro ao salvar prontuário: " + error.message);
         } else {
+          const savedContent = prontuarioLivre;
+          const savedId = prontuarioLivreId;
           await fetchData();
+          setProntuarioLivre(savedContent);
+          setProntuarioLivreId(savedId);
           onUpdate();
           setActiveTab("prontuarios");
           toast.success("Prontuário salvo com sucesso");
@@ -270,7 +274,10 @@ export default function ConsultaDetalhesModal({
           toast.error("Erro ao salvar prontuário: " + error.message);
         } else {
           setProntuarioLivreId(data.id);
+          const savedContent = prontuarioLivre;
           await fetchData();
+          setProntuarioLivre(savedContent);
+          setProntuarioLivreId(data.id);
           onUpdate();
           setActiveTab("prontuarios");
           toast.success("Prontuário salvo com sucesso");
