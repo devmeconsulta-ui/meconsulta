@@ -948,6 +948,22 @@ export default function ConsultaDetalhesModal({
               </Card>
             </TabsContent>
 
+            {/* Tab: Imagens do Prontuário */}
+            <TabsContent value="imagens">
+              {pacienteId ? (
+                <ProntuarioImagensTab
+                  consultaId={consulta.id}
+                  medicoId={currentUser?.medicoId || ""}
+                  pacienteId={pacienteId}
+                />
+              ) : (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Paciente não identificado</p>
+                </div>
+              )}
+            </TabsContent>
+
             {/* Tab: Prescrições e Pedidos */}
             <TabsContent value="prescricoes">
               {pacienteId ? (
