@@ -114,6 +114,8 @@ export default function ConsultaDetalhesModal({
   const [prontuarioLivreId, setProntuarioLivreId] = useState<string | null>(null);
   const [savingProntuario, setSavingProntuario] = useState(false);
 
+  // Novo Prontuário (structured) - track saved ID to allow in-place editing
+  const [novaAnamneseId, setNovaAnamneseId] = useState<string | null>(null);
   const [novaAnamnese, setNovaAnamnese] = useState({
     queixa_principal: "",
     historia_doenca_atual: "",
