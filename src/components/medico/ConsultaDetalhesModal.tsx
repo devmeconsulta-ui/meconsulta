@@ -22,7 +22,8 @@ import {
   X,
   Lock,
   MapPin,
-  ClipboardList
+  ClipboardList,
+  Camera
 } from "lucide-react";
 import { maskCPF } from "@/lib/maskUtils";
 import { format } from "date-fns";
