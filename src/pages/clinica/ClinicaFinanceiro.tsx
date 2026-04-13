@@ -101,6 +101,11 @@ interface ClinicaContext {
   clinicaData: any;
 }
 
+interface ConsultaProcedimento {
+  nome_procedimento: string;
+  valor: number;
+}
+
 interface Consulta {
   id: string;
   data_hora: string;
@@ -123,6 +128,8 @@ interface Consulta {
   convenio: { nome: string } | null;
   nome_paciente_consulta: string | null;
   finalizado_medico: boolean;
+  procedimentos?: ConsultaProcedimento[];
+  totalProcedimentos?: number;
 }
 
 interface Repasse {
@@ -365,8 +372,37 @@ export default function ClinicaFinanceiro() {
       .lte("data_hora", dateRange.end.toISOString())
       .order("data_hora", { ascending: false });
 
-    if (!error) {
-      setConsultas(data || []);
+    if (!error && data) {
+      // Fetch procedures for all consultations
+      const consultaIds = data.map((c: any) => c.id);
+      let procedimentosMap: Record<string, ConsultaProcedimento[]> = {};
+      
+      if (consultaIds.length > 0) {
+        // Fetch in batches of 200 to avoid URL length limits
+        for (let i = 0; i < consultaIds.length; i += 200) {
+          const batch = consultaIds.slice(i, i + 200);
+          const { data: procs } = await supabase
+            .from("consulta_procedimentos")
+            .select("consulta_id, nome_procedimento, valor")
+            .in("consulta_id", batch);
+          (procs || []).forEach((p: any) => {
+            if (!procedimentosMap[p.consulta_id]) procedimentosMap[p.consulta_id] = [];
+            procedimentosMap[p.consulta_id].push({ 
+              nome_procedimento: p.nome_procedimento, 
+              valor: Number(p.valor) 
+            });
+          });
+        }
+      }
+
+      // Enrich consultations with procedures
+      const enriched = data.map((c: any) => {
+        const procs = procedimentosMap[c.id] || [];
+        const totalProcedimentos = procs.reduce((sum: number, p) => sum + p.valor, 0);
+        return { ...c, procedimentos: procs, totalProcedimentos };
+      });
+      
+      setConsultas(enriched);
     }
   }
 
@@ -644,22 +680,53 @@ export default function ClinicaFinanceiro() {
       .slice(0, 5);
   }, [filteredConsultas]);
 
-  // Função para calcular o valor de repasse baseado na config
+  // Função para calcular o valor de repasse baseado na config (consulta + procedimentos)
   const calcularRepasseInterno = useCallback((consulta: Consulta) => {
+    // 1. Repasse da consulta em si
     const config = medicoRepasseConfigs.find(c => c.medico_id === consulta.medico_id);
+    let repasseConsulta = 0;
+    
     if (!config) {
-      // Se não há config, usa 70% padrão
-      return consulta.valor_consulta * 0.7;
+      repasseConsulta = consulta.valor_consulta * 0.7;
+    } else if (config.tipo_repasse === "fixo" && config.valor_fixo_repasse) {
+      repasseConsulta = config.valor_fixo_repasse;
+    } else {
+      const percentual = config.percentual_repasse || 70;
+      repasseConsulta = consulta.valor_consulta * (percentual / 100);
     }
     
-    if (config.tipo_repasse === "fixo" && config.valor_fixo_repasse) {
-      return config.valor_fixo_repasse;
+    // 2. Repasse dos procedimentos
+    let repasseProcedimentos = 0;
+    if (consulta.procedimentos && consulta.procedimentos.length > 0) {
+      consulta.procedimentos.forEach(proc => {
+        const procConfig = procedimentoRepasseConfigs.find(
+          cfg => cfg.medico_id === consulta.medico_id && 
+                 cfg.nome_procedimento.toLowerCase().trim() === proc.nome_procedimento.toLowerCase().trim()
+        );
+        
+        if (procConfig) {
+          if (procConfig.tipo_repasse === "fixo" && procConfig.valor_fixo_repasse) {
+            repasseProcedimentos += procConfig.valor_fixo_repasse;
+          } else {
+            repasseProcedimentos += proc.valor * ((procConfig.percentual_repasse || 0) / 100);
+          }
+        } else {
+          // Se não há config específica para o procedimento, aplica a mesma regra da consulta
+          if (!config) {
+            repasseProcedimentos += proc.valor * 0.7;
+          } else if (config.tipo_repasse === "fixo" && config.valor_fixo_repasse) {
+            // Para fixo, não faz sentido aplicar valor fixo da consulta ao procedimento
+            // Aplica percentual padrão
+            repasseProcedimentos += proc.valor * 0.7;
+          } else {
+            repasseProcedimentos += proc.valor * ((config.percentual_repasse || 70) / 100);
+          }
+        }
+      });
     }
     
-    // Percentual
-    const percentual = config.percentual_repasse || 70;
-    return consulta.valor_consulta * (percentual / 100);
-  }, [medicoRepasseConfigs]);
+    return repasseConsulta + repasseProcedimentos;
+  }, [medicoRepasseConfigs, procedimentoRepasseConfigs]);
 
   // Repasses detalhados por médico com separação online/interna
   const repassesPorMedicoDetalhado = useMemo(() => {
@@ -712,9 +779,10 @@ export default function ClinicaFinanceiro() {
           data[medicoNome].consultas_online += 1;
         } else if (c.origem === "interna") {
           const valorRepasse = calcularRepasseInterno(c);
+          const valorTotal = c.valor_consulta + (c.totalProcedimentos || 0);
           data[medicoNome].pendente_interna += valorRepasse;
-          data[medicoNome].total_consulta_interna += c.valor_consulta;
-          data[medicoNome].deducao_clinica += (c.valor_consulta - valorRepasse);
+          data[medicoNome].total_consulta_interna += valorTotal;
+          data[medicoNome].deducao_clinica += (valorTotal - valorRepasse);
           data[medicoNome].consultas_internas += 1;
         }
       });
@@ -743,10 +811,11 @@ export default function ClinicaFinanceiro() {
       .map(c => {
         const config = medicoRepasseConfigs.find(cfg => cfg.medico_id === c.medico_id);
         const valorRepasse = calcularRepasseInterno(c);
+        const valorTotal = c.valor_consulta + (c.totalProcedimentos || 0);
         return {
           ...c,
           valor_repasse_calculado: valorRepasse,
-          deducao_clinica: c.valor_consulta - valorRepasse,
+          deducao_clinica: valorTotal - valorRepasse,
           config_repasse: config
         };
       });
