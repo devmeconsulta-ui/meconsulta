@@ -808,7 +808,7 @@ export default function ConsultaDetalhesModal({
                           <div className="pt-3 border-t">
                             <Button variant="outline" onClick={startEditing} className="gap-2">
                               <Pencil className="w-4 h-4" />
-                              Editar Anamnese
+                              Editar Prontuário
                             </Button>
                           </div>
                         </div>
