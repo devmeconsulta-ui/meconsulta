@@ -825,7 +825,7 @@ export default function ConsultaDetalhesModal({
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
                     <FileText className="w-5 h-5 text-primary" />
-                    Nova Anamnese
+                    Novo Prontuário
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
