@@ -2267,8 +2267,18 @@ export default function ClinicaFinanceiro() {
 
           {/* Layout em grid: Caixa + Metas + Vencimentos */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Controle de Caixa */}
-            <CaixaWidget
+            {/* Multi-Caixa Selector + Controle de Caixa */}
+            <div className="space-y-4">
+              <MultiCaixaSelector
+                caixas={caixa.caixas}
+                caixaSelecionadoId={caixa.caixaSelecionadoId}
+                caixaAberto={caixa.caixaAberto}
+                onSelecionarCaixa={caixa.selecionarCaixa}
+                onCriarCaixa={caixa.criarCaixa}
+                onEditarCaixa={caixa.editarCaixa}
+                onExcluirCaixa={caixa.excluirCaixa}
+              />
+              <CaixaWidget
               caixaAberto={caixa.caixaAberto}
               saldoAbertura={caixa.saldoAbertura}
               saldoAtual={caixa.saldoAtual}
