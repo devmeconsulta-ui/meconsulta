@@ -269,7 +269,6 @@ export default function ConsultaDetalhesModal({
       setIsEditing(false);
       setIsAnamneseModalOpen(false);
       fetchData(true);
-      onUpdate();
     }
 
     setSaving(false);
