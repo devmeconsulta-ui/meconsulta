@@ -144,7 +144,7 @@ export default function ConsultaDetalhesModal({
 
     setHistorico(historicoData || []);
 
-    // Fetch previous anamneses for this patient
+    // Fetch previous anamneses for this patient - ONLY from the logged-in doctor
     const { data: anamnesesData } = await supabase
       .from("anamneses")
       .select(`
@@ -161,16 +161,18 @@ export default function ConsultaDetalhesModal({
         medico:medicos(nome)
       `)
       .eq("paciente_id", pacienteId)
+      .eq("medico_id", currentUser?.medicoId)
       .order("created_at", { ascending: false });
 
     setAnamneses(anamnesesData || []);
 
-    // Fetch prontuário livre for this consultation
+    // Fetch prontuário livre for this consultation - ONLY from the logged-in doctor
     // @ts-ignore
     const { data: prontuarioData } = await supabase
       .from("prontuario_livre")
       .select("id, conteudo")
       .eq("consulta_id", consulta.id)
+      .eq("medico_id", currentUser?.medicoId)
       .maybeSingle();
 
     if (prontuarioData) {
