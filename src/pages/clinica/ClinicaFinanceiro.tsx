@@ -101,6 +101,11 @@ interface ClinicaContext {
   clinicaData: any;
 }
 
+interface ConsultaProcedimento {
+  nome_procedimento: string;
+  valor: number;
+}
+
 interface Consulta {
   id: string;
   data_hora: string;
@@ -123,6 +128,8 @@ interface Consulta {
   convenio: { nome: string } | null;
   nome_paciente_consulta: string | null;
   finalizado_medico: boolean;
+  procedimentos?: ConsultaProcedimento[];
+  totalProcedimentos?: number;
 }
 
 interface Repasse {
