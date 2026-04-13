@@ -932,18 +932,42 @@ export default function ConsultaDetalhesModal({
                     />
                   </div>
 
-                  <Button 
-                    onClick={handleSaveAnamnese} 
-                    disabled={saving}
-                    className="w-full gap-2"
-                  >
-                    {saving ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4" />
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleSaveAnamnese} 
+                      disabled={saving}
+                      className="flex-1 gap-2"
+                    >
+                      {saving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      {novaAnamneseId ? "Atualizar Prontuário" : "Salvar Prontuário"}
+                    </Button>
+                    {novaAnamneseId && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setNovaAnamneseId(null);
+                          setNovaAnamnese({
+                            queixa_principal: "",
+                            historia_doenca_atual: "",
+                            antecedentes_pessoais: "",
+                            antecedentes_familiares: "",
+                            exame_fisico: "",
+                            hipotese_diagnostica: "",
+                            conduta: "",
+                            observacoes: "",
+                          });
+                        }}
+                        className="gap-2"
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Novo
+                      </Button>
                     )}
-                    Salvar Prontuário
-                  </Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
