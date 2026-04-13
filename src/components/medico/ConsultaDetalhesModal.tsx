@@ -114,6 +114,8 @@ export default function ConsultaDetalhesModal({
   const [prontuarioLivreId, setProntuarioLivreId] = useState<string | null>(null);
   const [savingProntuario, setSavingProntuario] = useState(false);
 
+  // Novo Prontuário (structured) - track saved ID to allow in-place editing
+  const [novaAnamneseId, setNovaAnamneseId] = useState<string | null>(null);
   const [novaAnamnese, setNovaAnamnese] = useState({
     queixa_principal: "",
     historia_doenca_atual: "",
@@ -310,32 +312,51 @@ export default function ConsultaDetalhesModal({
 
     setSaving(true);
 
-    const { error } = await supabase
-      .from("anamneses")
-      .insert({
-        consulta_id: consulta.id,
-        medico_id: currentUser.medicoId,
-        paciente_id: pacienteId,
-        ...novaAnamnese,
-      });
+    try {
+      if (novaAnamneseId) {
+        // Update existing
+        const { error } = await supabase
+          .from("anamneses")
+          .update({
+            ...novaAnamnese,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", novaAnamneseId);
 
-    if (error) {
-      console.error("Error saving prontuário:", error);
-      toast.error("Erro ao salvar prontuário");
-    } else {
-      toast.success("Prontuário salvo com sucesso");
-      setNovaAnamnese({
-        queixa_principal: "",
-        historia_doenca_atual: "",
-        antecedentes_pessoais: "",
-        antecedentes_familiares: "",
-        exame_fisico: "",
-        hipotese_diagnostica: "",
-        conduta: "",
-        observacoes: "",
-      });
-      fetchData();
-      onUpdate();
+        if (error) {
+          console.error("Error updating prontuário:", error);
+          toast.error("Erro ao atualizar prontuário");
+        } else {
+          toast.success("Prontuário atualizado com sucesso");
+          fetchData();
+          onUpdate();
+        }
+      } else {
+        // Insert new
+        const { data, error } = await supabase
+          .from("anamneses")
+          .insert({
+            consulta_id: consulta.id,
+            medico_id: currentUser.medicoId,
+            paciente_id: pacienteId,
+            ...novaAnamnese,
+          })
+          .select("id")
+          .single();
+
+        if (error) {
+          console.error("Error saving prontuário:", error);
+          toast.error("Erro ao salvar prontuário");
+        } else {
+          setNovaAnamneseId(data.id);
+          toast.success("Prontuário salvo com sucesso");
+          fetchData();
+          onUpdate();
+        }
+      }
+    } catch (err) {
+      console.error("Exceção ao salvar prontuário:", err);
+      toast.error("Erro inesperado ao salvar prontuário");
     }
 
     setSaving(false);
@@ -911,18 +932,42 @@ export default function ConsultaDetalhesModal({
                     />
                   </div>
 
-                  <Button 
-                    onClick={handleSaveAnamnese} 
-                    disabled={saving}
-                    className="w-full gap-2"
-                  >
-                    {saving ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4" />
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleSaveAnamnese} 
+                      disabled={saving}
+                      className="flex-1 gap-2"
+                    >
+                      {saving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      {novaAnamneseId ? "Atualizar Prontuário" : "Salvar Prontuário"}
+                    </Button>
+                    {novaAnamneseId && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setNovaAnamneseId(null);
+                          setNovaAnamnese({
+                            queixa_principal: "",
+                            historia_doenca_atual: "",
+                            antecedentes_pessoais: "",
+                            antecedentes_familiares: "",
+                            exame_fisico: "",
+                            hipotese_diagnostica: "",
+                            conduta: "",
+                            observacoes: "",
+                          });
+                        }}
+                        className="gap-2"
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Novo
+                      </Button>
                     )}
-                    Salvar Prontuário
-                  </Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
