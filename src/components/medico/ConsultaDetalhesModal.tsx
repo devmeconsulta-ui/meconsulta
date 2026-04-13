@@ -263,9 +263,9 @@ export default function ConsultaDetalhesModal({
       .eq("id", selectedAnamnese.id);
 
     if (error) {
-      toast.error("Erro ao atualizar anamnese");
+      toast.error("Erro ao atualizar prontuário");
     } else {
-      toast.success("Anamnese atualizada com sucesso");
+      toast.success("Prontuário atualizado com sucesso");
       setIsEditing(false);
       setIsAnamneseModalOpen(false);
       fetchData();
