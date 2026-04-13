@@ -588,7 +588,7 @@ export default function ConsultaDetalhesModal({
               ) : anamneses.length === 0 ? (
                 <div className="text-center py-12">
                   <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">Nenhuma anamnese registrada para este paciente</p>
+                  <p className="text-muted-foreground">Nenhum prontuário registrado para este paciente</p>
                 </div>
               ) : (
                 <div className="grid gap-3">
