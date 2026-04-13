@@ -319,10 +319,10 @@ export default function ConsultaDetalhesModal({
       });
 
     if (error) {
-      console.error("Error saving anamnese:", error);
-      toast.error("Erro ao salvar anamnese");
+      console.error("Error saving prontuário:", error);
+      toast.error("Erro ao salvar prontuário");
     } else {
-      toast.success("Anamnese salva com sucesso");
+      toast.success("Prontuário salvo com sucesso");
       setNovaAnamnese({
         queixa_principal: "",
         historia_doenca_atual: "",
