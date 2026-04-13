@@ -2291,8 +2291,9 @@ export default function ClinicaFinanceiro() {
               historico={historicoData.historico}
               historicoLoading={historicoData.loading}
             />
+            </div>
 
-            {/* Metas Financeiras */}
+
             <MetasFinanceirasWidget
               clinicaId={clinicaData?.id}
               faturamentoAtual={metrics.pagoTotal}
