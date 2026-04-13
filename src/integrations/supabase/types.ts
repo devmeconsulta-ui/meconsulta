@@ -3863,6 +3863,64 @@ export type Database = {
           },
         ]
       }
+      prontuario_imagens: {
+        Row: {
+          arquivo_nome: string | null
+          arquivo_url: string
+          categoria: string | null
+          consulta_id: string
+          created_at: string
+          id: string
+          legenda: string | null
+          medico_id: string
+          paciente_id: string
+        }
+        Insert: {
+          arquivo_nome?: string | null
+          arquivo_url: string
+          categoria?: string | null
+          consulta_id: string
+          created_at?: string
+          id?: string
+          legenda?: string | null
+          medico_id: string
+          paciente_id: string
+        }
+        Update: {
+          arquivo_nome?: string | null
+          arquivo_url?: string
+          categoria?: string | null
+          consulta_id?: string
+          created_at?: string
+          id?: string
+          legenda?: string | null
+          medico_id?: string
+          paciente_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prontuario_imagens_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prontuario_imagens_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prontuario_imagens_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prontuario_livre: {
         Row: {
           consulta_id: string | null
