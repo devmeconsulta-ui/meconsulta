@@ -1386,8 +1386,7 @@ export default function ClinicaFinanceiro() {
     fetchAllData();
   };
 
-  // Hook para gerenciar caixa - DEVE ficar ANTES de qualquer early return
-  const caixa = useCaixaClinica(clinicaData?.id);
+  // (caixa hook moved earlier, before useHistoricoCaixa)
 
   // Calcular vencimentos - useMemo hooks também devem ficar antes do early return
   const vencimentosHoje = useMemo(() => {
