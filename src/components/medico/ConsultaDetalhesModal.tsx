@@ -394,7 +394,6 @@ export default function ConsultaDetalhesModal({
       });
       setIsEditingProntuarioLivre(false);
       await fetchData(true);
-      onUpdate();
       toast.success("Prontuário livre atualizado com sucesso");
     }
 
