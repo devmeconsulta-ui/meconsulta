@@ -372,8 +372,37 @@ export default function ClinicaFinanceiro() {
       .lte("data_hora", dateRange.end.toISOString())
       .order("data_hora", { ascending: false });
 
-    if (!error) {
-      setConsultas(data || []);
+    if (!error && data) {
+      // Fetch procedures for all consultations
+      const consultaIds = data.map((c: any) => c.id);
+      let procedimentosMap: Record<string, ConsultaProcedimento[]> = {};
+      
+      if (consultaIds.length > 0) {
+        // Fetch in batches of 200 to avoid URL length limits
+        for (let i = 0; i < consultaIds.length; i += 200) {
+          const batch = consultaIds.slice(i, i + 200);
+          const { data: procs } = await supabase
+            .from("consulta_procedimentos")
+            .select("consulta_id, nome_procedimento, valor")
+            .in("consulta_id", batch);
+          (procs || []).forEach((p: any) => {
+            if (!procedimentosMap[p.consulta_id]) procedimentosMap[p.consulta_id] = [];
+            procedimentosMap[p.consulta_id].push({ 
+              nome_procedimento: p.nome_procedimento, 
+              valor: Number(p.valor) 
+            });
+          });
+        }
+      }
+
+      // Enrich consultations with procedures
+      const enriched = data.map((c: any) => {
+        const procs = procedimentosMap[c.id] || [];
+        const totalProcedimentos = procs.reduce((sum: number, p) => sum + p.valor, 0);
+        return { ...c, procedimentos: procs, totalProcedimentos };
+      });
+      
+      setConsultas(enriched);
     }
   }
 
