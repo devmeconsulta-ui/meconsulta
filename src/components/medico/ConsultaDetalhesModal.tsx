@@ -364,6 +364,10 @@ export default function ConsultaDetalhesModal({
             <TabsTrigger value="anamneses" className="flex-1 min-w-[80px]">Prontuário</TabsTrigger>
             <TabsTrigger value="nova-anamnese" className="flex-1 min-w-[100px]">Novo Prontuário</TabsTrigger>
             <TabsTrigger value="prontuario-livre" className="flex-1 min-w-[120px]">Prontuário Livre</TabsTrigger>
+            <TabsTrigger value="imagens" className="flex-1 min-w-[100px]">
+              <Camera className="w-4 h-4 mr-1" />
+              Imagens
+            </TabsTrigger>
             <TabsTrigger value="prescricoes" className="flex-1 min-w-[120px]">
               <ClipboardList className="w-4 h-4 mr-1" />
               Prescrições
