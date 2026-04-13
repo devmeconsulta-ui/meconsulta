@@ -779,9 +779,10 @@ export default function ClinicaFinanceiro() {
           data[medicoNome].consultas_online += 1;
         } else if (c.origem === "interna") {
           const valorRepasse = calcularRepasseInterno(c);
+          const valorTotal = c.valor_consulta + (c.totalProcedimentos || 0);
           data[medicoNome].pendente_interna += valorRepasse;
-          data[medicoNome].total_consulta_interna += c.valor_consulta;
-          data[medicoNome].deducao_clinica += (c.valor_consulta - valorRepasse);
+          data[medicoNome].total_consulta_interna += valorTotal;
+          data[medicoNome].deducao_clinica += (valorTotal - valorRepasse);
           data[medicoNome].consultas_internas += 1;
         }
       });
