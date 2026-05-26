@@ -1,3 +1,7 @@
+// Evolution API v2 orchestrator
+// Mantém o nome "zapi-manage" e o contrato (actions/respostas) por compatibilidade com o frontend.
+// Internamente usa Evolution API. Campos legados (zapi_instance_id, zapi_token) armazenam
+// agora o instanceName e a apikey da Evolution, respectivamente. provider passa a ser "evolution".
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -13,36 +17,67 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
-const ZAPI_BASE = "https://api.z-api.io";
+const EVO_URL = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/+$/, "");
+const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY") || "";
 
-function getZapiCredentials() {
-  const globalToken = Deno.env.get("ZAPI_CLIENT_TOKEN");
-  const partnerToken = Deno.env.get("ZAPI_PARTNER_TOKEN");
-  if (!globalToken) throw new Error("ZAPI_CLIENT_TOKEN não configurado nos secrets.");
-  if (!partnerToken) throw new Error("ZAPI_PARTNER_TOKEN não configurado nos secrets.");
-  return { globalToken, partnerToken };
+function evoHeaders(apikey?: string) {
+  return { "Content-Type": "application/json", apikey: apikey || EVO_KEY };
 }
 
-function clientHeaders(globalToken: string) {
-  return { "Content-Type": "application/json", "Client-Token": globalToken };
-}
-
-function integratorHeaders(globalToken: string, partnerToken: string) {
-  return { "Content-Type": "application/json", "Client-Token": globalToken, "Authorization": `Bearer ${partnerToken}` };
-}
-
-async function fetchZapi(url: string, options: RequestInit, retries = 3, delay = 1500): Promise<Response> {
+async function evoFetch(path: string, init: RequestInit, retries = 3, delay = 800): Promise<Response> {
+  let lastErr: unknown;
   for (let i = 0; i < retries; i++) {
     try {
-      const resp = await fetch(url, options);
-      return resp;
-    } catch (err) {
-      console.warn(`[zapi-manage] Fetch attempt ${i + 1}/${retries} failed:`, err);
-      if (i === retries - 1) throw err;
+      const r = await fetch(`${EVO_URL}${path}`, init);
+      return r;
+    } catch (e) {
+      lastErr = e;
+      console.warn(`[zapi-manage] evoFetch attempt ${i + 1}/${retries} failed:`, e);
       await new Promise((r) => setTimeout(r, delay * (i + 1)));
     }
   }
-  throw new Error("All retry attempts failed");
+  throw lastErr instanceof Error ? lastErr : new Error("evoFetch failed");
+}
+
+const WEBHOOK_EVENTS = [
+  "MESSAGES_UPSERT",
+  "MESSAGES_UPDATE",
+  "SEND_MESSAGE",
+  "CONNECTION_UPDATE",
+  "CONTACTS_UPSERT",
+  "QRCODE_UPDATED",
+];
+
+async function setWebhook(instanceName: string, apikey: string, webhookUrl: string): Promise<boolean> {
+  try {
+    const r = await evoFetch(`/webhook/set/${instanceName}`, {
+      method: "POST",
+      headers: evoHeaders(apikey),
+      body: JSON.stringify({
+        webhook: {
+          url: webhookUrl,
+          enabled: true,
+          webhookByEvents: false,
+          webhookBase64: true,
+          events: WEBHOOK_EVENTS,
+        },
+      }),
+    });
+    if (!r.ok) {
+      const txt = await r.text().catch(() => "");
+      console.warn("[zapi-manage] setWebhook non-OK", r.status, txt.slice(0, 200));
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn("[zapi-manage] setWebhook error:", e);
+    return false;
+  }
+}
+
+function safeName(input: string, suffix: string) {
+  const base = String(input || "wa").toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "wa";
+  return `${base}-${suffix.slice(0, 8)}`;
 }
 
 Deno.serve(async (req) => {
@@ -54,111 +89,97 @@ Deno.serve(async (req) => {
   const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
+    if (!EVO_URL || !EVO_KEY) {
+      return json({ ok: false, message: "EVOLUTION_API_URL/EVOLUTION_API_KEY não configurados" }, 200);
+    }
+
     const body = await req.json().catch(() => ({}));
     const action: string = body.action;
     if (!action) return json({ ok: false, message: "action é obrigatório" }, 400);
 
-    const { globalToken, partnerToken } = getZapiCredentials();
-
     // ─── test_connection ───
     if (action === "test_connection") {
-      const resp = await fetchZapi(`${ZAPI_BASE}/instances`, {
-        method: "GET",
-        headers: integratorHeaders(globalToken, partnerToken),
-      });
-      const data = await resp.json().catch(() => ({}));
-      return json({ ok: resp.ok, status: resp.status, data });
+      const r = await evoFetch(`/instance/fetchInstances`, { method: "GET", headers: evoHeaders() });
+      const data = await r.json().catch(() => ({}));
+      return json({ ok: r.ok, status: r.status, data });
     }
 
     // ─── create_instance ───
     if (action === "create_instance") {
       const { clinica_id, display_name } = body;
-      if (!clinica_id || !display_name) return json({ ok: false, message: "clinica_id e display_name obrigatórios" }, 400);
+      if (!clinica_id || !display_name) {
+        return json({ ok: false, message: "clinica_id e display_name obrigatórios" }, 400);
+      }
 
-      console.log(`[zapi-manage] Creating instance: ${display_name} for clinic: ${clinica_id}`);
+      const instanceName = safeName(display_name, clinica_id);
+      console.log(`[zapi-manage] create_instance: ${instanceName} (clinic: ${clinica_id})`);
 
-      // 1. Create via Integrator API
-      const createResp = await fetchZapi(`${ZAPI_BASE}/instances/integrator/on-demand`, {
+      const createResp = await evoFetch(`/instance/create`, {
         method: "POST",
-        headers: integratorHeaders(globalToken, partnerToken),
-        body: JSON.stringify({ name: display_name }),
+        headers: evoHeaders(),
+        body: JSON.stringify({ instanceName, qrcode: true, integration: "WHATSAPP-BAILEYS" }),
       });
       const payload = await createResp.json().catch(() => ({}));
-      console.log("[zapi-manage] Create response:", JSON.stringify(payload), "HTTP:", createResp.status);
+      console.log("[zapi-manage] create response HTTP:", createResp.status);
 
       if (!createResp.ok) {
-        return json({ ok: false, message: `Z-API retornou erro ${createResp.status}: ${payload?.error || payload?.message || "Unknown"}`, details: payload }, 200);
+        return json({
+          ok: false,
+          message: `Evolution retornou erro ${createResp.status}: ${payload?.message || payload?.error || "Unknown"}`,
+          details: payload,
+        }, 200);
       }
 
-      const inst = payload?.data ?? payload?.instance ?? payload;
-      const externalId = inst?.id || inst?.instanceId;
-      const externalToken = inst?.token;
+      const instanceApiKey: string =
+        payload?.hash?.apikey || payload?.hash || payload?.apikey || EVO_KEY;
+      const externalId: string =
+        payload?.instance?.instanceId || payload?.instance?.instanceName || instanceName;
+      const qrCodeBase64: string | null = payload?.qrcode?.base64 || null;
 
-      if (!externalId || !externalToken) {
-        return json({ ok: false, message: "Resposta da Z-API sem credenciais (id/token)", details: payload }, 200);
-      }
-
-      // 2. Save to omni_instancias
-      const webhookUrl = `${SUPABASE_URL}/functions/v1/webhook-receiver?provider=zapi&instance_id=PLACEHOLDER`;
-
+      const placeholderWebhook = `${SUPABASE_URL}/functions/v1/webhook-receiver?provider=evolution&instance_id=PLACEHOLDER`;
       const { data: instancia, error: dbErr } = await svc
         .from("omni_instancias")
         .insert({
           clinica_id,
           nome: display_name,
-          provider: "zapi",
-          zapi_instance_id: String(externalId),
-          zapi_token: externalToken,
+          provider: "evolution",
+          zapi_instance_id: instanceName,     // legacy column reused: stores Evolution instanceName
+          zapi_token: instanceApiKey,         // legacy column reused: stores Evolution instance apikey
           status: "connecting",
-          webhook_url: webhookUrl,
-          servidor_url: ZAPI_BASE,
+          webhook_url: placeholderWebhook,
+          servidor_url: EVO_URL,
           webhooks_configured: false,
-          configuracoes: { zapi_response: payload },
+          configuracoes: { evolution_response: payload },
         })
         .select()
         .single();
 
       if (dbErr) {
-        console.error("[zapi-manage] DB error:", dbErr);
-        return json({ ok: false, message: "Instância criada na Z-API mas erro ao salvar no banco", details: dbErr }, 500);
+        console.error("[zapi-manage] DB insert error:", dbErr);
+        return json({ ok: false, message: "Instância criada na Evolution mas erro ao salvar", details: dbErr }, 500);
       }
 
-      // 3. Also save to managed_instances for internal tracking
+      // Mirror to managed_instances for webhook routing
       const { data: managed } = await svc
         .from("managed_instances")
         .insert({
           clinica_id,
           display_name,
           external_instance_id: String(externalId),
-          external_token: externalToken,
-          provider: "zapi",
+          external_token: instanceApiKey,
+          provider: "evolution",
           status: "disconnected",
           omni_instancia_id: instancia.id,
+          evolution_instance_name: instanceName,
+          evolution_api_key: instanceApiKey,
         })
         .select()
         .single();
 
-      // 4. Setup webhooks with real ID
-      const realWebhookUrl = `${SUPABASE_URL}/functions/v1/webhook-receiver?provider=zapi&instance_id=${instancia.id}`;
-      let webhookOk = false;
+      // Configure webhook pointing to real instancia id
+      const realWebhookUrl = `${SUPABASE_URL}/functions/v1/webhook-receiver?provider=evolution&instance_id=${instancia.id}`;
+      const webhookOk = await setWebhook(instanceName, instanceApiKey, realWebhookUrl);
 
-      try {
-        const whResp = await fetchZapi(
-          `${ZAPI_BASE}/instances/${externalId}/token/${externalToken}/update-every-webhooks`,
-          {
-            method: "PUT",
-            headers: clientHeaders(globalToken),
-            body: JSON.stringify({ value: realWebhookUrl, notifySentByMe: true }),
-          },
-        );
-        const whData = await whResp.json().catch(() => ({}));
-        webhookOk = whResp.ok && whData.value === true;
-        console.log("[zapi-manage] Webhooks:", webhookOk, whData);
-      } catch (e) {
-        console.warn("[zapi-manage] Webhook setup failed (non-blocking):", e);
-      }
-
-      // Update webhook status
       await svc.from("omni_instancias").update({
         webhook_url: realWebhookUrl,
         webhooks_configured: webhookOk,
@@ -169,25 +190,11 @@ Deno.serve(async (req) => {
         await svc.from("managed_instances").update({ webhook_configured: webhookOk }).eq("id", managed.id);
       }
 
-      // 5. Get QR Code
-      let qrData: any = null;
-      try {
-        await new Promise(r => setTimeout(r, 2000));
-        const qrResp = await fetchZapi(
-          `${ZAPI_BASE}/instances/${externalId}/token/${externalToken}/qr-code/image`,
-          { method: "GET", headers: clientHeaders(globalToken) },
-        );
-        qrData = await qrResp.json().catch(() => ({}));
-        console.log("[zapi-manage] QR code HTTP:", qrResp.status);
-      } catch (err) {
-        console.warn("[zapi-manage] QR fetch (non-blocking):", err);
-      }
-
       return json({
         ok: true,
         instancia,
         managed_instance: managed,
-        qrCodeBase64: qrData?.value || qrData || null,
+        qrCodeBase64,
         webhook_configured: webhookOk,
         ...(webhookOk ? {} : { warning: "Webhooks pendentes — configure manualmente se necessário." }),
       });
@@ -200,33 +207,32 @@ Deno.serve(async (req) => {
 
       const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).single();
       if (!inst) return json({ ok: false, message: "Instância não encontrada" }, 404);
-      if (!inst.zapi_instance_id || !inst.zapi_token) return json({ ok: false, message: "Instância sem credenciais Z-API" }, 400);
+      const name = inst.zapi_instance_id;
+      const apikey = inst.zapi_token || EVO_KEY;
+      if (!name) return json({ ok: false, message: "Instância sem instanceName" }, 400);
 
-      const resp = await fetchZapi(
-        `${ZAPI_BASE}/instances/${inst.zapi_instance_id}/token/${inst.zapi_token}/qr-code/image`,
-        { method: "GET", headers: clientHeaders(globalToken) },
-        3, 2000,
-      );
-      const data = await resp.json().catch(() => ({}));
-      const qrCode =
-        (typeof data?.value === "string" && data.value) ||
-        (typeof data?.base64 === "string" && data.base64) ||
-        (typeof data?.qrcode === "string" && data.qrcode) ||
-        (typeof data?.qrCode === "string" && data.qrCode) ||
-        (typeof data === "string" ? data : null);
+      const r = await evoFetch(`/instance/connect/${name}`, { method: "GET", headers: evoHeaders(apikey) });
+      const data = await r.json().catch(() => ({}));
 
-      if (!resp.ok) {
-        const msg = resp.status === 403
-          ? "Conta Z-API bloqueada. Migre para Evolution API."
-          : "Falha ao obter QR Code na Z-API";
-        return json({ ok: false, message: msg, status_code: resp.status, raw: data }, 200);
+      if (!r.ok) {
+        return json({
+          ok: false,
+          message: `Falha ao obter QR Code (${r.status}): ${data?.message || data?.error || "Erro Evolution"}`,
+          status_code: r.status,
+          raw: data,
+        }, 200);
       }
 
-      if (!qrCode) {
-        return json({ ok: false, message: "QR Code não disponível agora (instância pode já estar conectada)" }, 409);
+      const qrcode = data?.base64 || data?.code || data?.qrcode || null;
+      if (!qrcode) {
+        return json({
+          ok: false,
+          message: "QR Code indisponível agora (instância pode já estar conectada)",
+          raw: data,
+        }, 200);
       }
 
-      return json({ ok: true, qrcode: qrCode });
+      return json({ ok: true, qrcode, pairingCode: data?.pairingCode || null, raw: data });
     }
 
     // ─── get_status ───
@@ -236,57 +242,49 @@ Deno.serve(async (req) => {
 
       const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).single();
       if (!inst) return json({ ok: false, message: "Instância não encontrada" }, 404);
-      if (!inst.zapi_instance_id || !inst.zapi_token) return json({ ok: false, message: "Instância sem credenciais Z-API" }, 400);
+      const name = inst.zapi_instance_id;
+      const apikey = inst.zapi_token || EVO_KEY;
+      if (!name) return json({ ok: false, message: "Instância sem instanceName" }, 400);
 
-      const resp = await fetchZapi(
-        `${ZAPI_BASE}/instances/${inst.zapi_instance_id}/token/${inst.zapi_token}/status`,
-        { method: "GET", headers: clientHeaders(globalToken) },
-      );
-      const data = await resp.json().catch(() => ({}));
+      const r = await evoFetch(`/instance/connectionState/${name}`, { method: "GET", headers: evoHeaders(apikey) });
+      const data = await r.json().catch(() => ({}));
 
-      if (!resp.ok) {
-        // Z-API conta bloqueada/erro: degrada gracioso pra UI (migração Evolution em andamento)
-        console.warn("[zapi-manage] get_status non-OK from Z-API:", resp.status, data);
-        await svc.from("omni_instancias").update({
-          status: "disconnected",
-          numero_whatsapp: null,
-        }).eq("id", instancia_id);
-        await svc.from("managed_instances").update({
-          status: "disconnected",
-          last_health_check: new Date().toISOString(),
-          last_error: `Z-API ${resp.status}: ${data?.error || data?.message || "blocked"}`,
-        }).eq("omni_instancia_id", instancia_id);
-        return json({
-          ok: true,
-          connected: false,
-          status: "disconnected",
-          phone_number: null,
-          zapi_unavailable: true,
-          zapi_status_code: resp.status,
-          raw: data,
-        });
+      if (!r.ok) {
+        console.warn("[zapi-manage] connectionState non-OK:", r.status, data);
+        return json({ ok: true, connected: false, status: "disconnected", phone_number: null, raw: data });
       }
 
-      const rawStatus = String(data?.status || "").toLowerCase();
-      const connected =
-        data?.connected === true ||
-        rawStatus === "connected" ||
-        rawStatus === "open";
-      const phoneNumber = data?.smartphoneConnected || data?.phoneConnected || data?.phone || null;
-      const newStatus = connected ? "connected" : "disconnected";
+      const state = String(data?.instance?.state || data?.state || "").toLowerCase();
+      const connected = state === "open" || state === "connected";
+      const newStatus = connected ? "connected" : (state === "connecting" ? "connecting" : "disconnected");
 
-      // Update omni_instancias
+      // Try to fetch phone number when open
+      let phoneNumber: string | null = null;
+      if (connected) {
+        try {
+          const f = await evoFetch(`/instance/fetchInstances?instanceName=${encodeURIComponent(name)}`, {
+            method: "GET", headers: evoHeaders(apikey),
+          });
+          const fdata = await f.json().catch(() => ({}));
+          const arr = Array.isArray(fdata) ? fdata : (fdata?.instances || []);
+          const me = arr[0]?.instance || arr[0] || {};
+          const wid = me?.owner || me?.wuid || me?.user?.id || me?.number || null;
+          if (wid) phoneNumber = String(wid).replace(/@.*/, "").replace(/\D/g, "");
+        } catch (e) {
+          console.warn("[zapi-manage] fetchInstances error:", e);
+        }
+      }
+
       await svc.from("omni_instancias").update({
         status: newStatus,
         numero_whatsapp: phoneNumber,
       }).eq("id", instancia_id);
 
-      // Update managed_instances if exists
       await svc.from("managed_instances").update({
         status: connected ? "online" : "disconnected",
         phone_number: phoneNumber,
         last_health_check: new Date().toISOString(),
-        last_error: connected ? null : (data?.error || null),
+        last_error: connected ? null : (data?.message || null),
       }).eq("omni_instancia_id", instancia_id);
 
       return json({ ok: true, connected, status: newStatus, phone_number: phoneNumber, raw: data });
@@ -298,20 +296,13 @@ Deno.serve(async (req) => {
       if (!instancia_id) return json({ ok: false, message: "instancia_id obrigatório" }, 400);
 
       const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).single();
-      if (!inst || !inst.zapi_instance_id || !inst.zapi_token) return json({ ok: false, message: "Instância não encontrada ou sem credenciais" }, 404);
+      if (!inst || !inst.zapi_instance_id) {
+        return json({ ok: false, message: "Instância não encontrada ou sem instanceName" }, 404);
+      }
+      const apikey = inst.zapi_token || EVO_KEY;
+      const webhookUrl = `${SUPABASE_URL}/functions/v1/webhook-receiver?provider=evolution&instance_id=${instancia_id}`;
 
-      const webhookUrl = `${SUPABASE_URL}/functions/v1/webhook-receiver?provider=zapi&instance_id=${instancia_id}`;
-
-      const resp = await fetchZapi(
-        `${ZAPI_BASE}/instances/${inst.zapi_instance_id}/token/${inst.zapi_token}/update-every-webhooks`,
-        {
-          method: "PUT",
-          headers: clientHeaders(globalToken),
-          body: JSON.stringify({ value: webhookUrl, notifySentByMe: true }),
-        },
-      );
-      const data = await resp.json().catch(() => ({}));
-      const ok = resp.ok && data.value === true;
+      const ok = await setWebhook(inst.zapi_instance_id, apikey, webhookUrl);
 
       await svc.from("omni_instancias").update({
         webhook_url: webhookUrl,
@@ -319,7 +310,9 @@ Deno.serve(async (req) => {
         webhooks_configured_at: ok ? new Date().toISOString() : null,
       }).eq("id", instancia_id);
 
-      return json({ ok, webhook_url: webhookUrl, response: data });
+      await svc.from("managed_instances").update({ webhook_configured: ok }).eq("omni_instancia_id", instancia_id);
+
+      return json({ ok, webhook_url: webhookUrl });
     }
 
     // ─── restart_instance ───
@@ -328,14 +321,12 @@ Deno.serve(async (req) => {
       if (!instancia_id) return json({ ok: false, message: "instancia_id obrigatório" }, 400);
 
       const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).single();
-      if (!inst || !inst.zapi_instance_id || !inst.zapi_token) return json({ ok: false, message: "Instância não encontrada" }, 404);
+      if (!inst || !inst.zapi_instance_id) return json({ ok: false, message: "Instância não encontrada" }, 404);
+      const apikey = inst.zapi_token || EVO_KEY;
 
-      const resp = await fetchZapi(
-        `${ZAPI_BASE}/instances/${inst.zapi_instance_id}/token/${inst.zapi_token}/restart`,
-        { method: "GET", headers: clientHeaders(globalToken) },
-      );
-      const data = await resp.json().catch(() => ({}));
-      return json({ ok: resp.ok, data });
+      const r = await evoFetch(`/instance/restart/${inst.zapi_instance_id}`, { method: "POST", headers: evoHeaders(apikey) });
+      const data = await r.json().catch(() => ({}));
+      return json({ ok: r.ok, data });
     }
 
     // ─── disconnect_instance ───
@@ -344,18 +335,16 @@ Deno.serve(async (req) => {
       if (!instancia_id) return json({ ok: false, message: "instancia_id obrigatório" }, 400);
 
       const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).single();
-      if (!inst || !inst.zapi_instance_id || !inst.zapi_token) return json({ ok: false, message: "Instância não encontrada" }, 404);
+      if (!inst || !inst.zapi_instance_id) return json({ ok: false, message: "Instância não encontrada" }, 404);
+      const apikey = inst.zapi_token || EVO_KEY;
 
-      const resp = await fetchZapi(
-        `${ZAPI_BASE}/instances/${inst.zapi_instance_id}/token/${inst.zapi_token}/disconnect`,
-        { method: "GET", headers: clientHeaders(globalToken) },
-      );
-      const data = await resp.json().catch(() => ({}));
+      const r = await evoFetch(`/instance/logout/${inst.zapi_instance_id}`, { method: "DELETE", headers: evoHeaders(apikey) });
+      const data = await r.json().catch(() => ({}));
 
       await svc.from("omni_instancias").update({ status: "disconnected", numero_whatsapp: null }).eq("id", instancia_id);
       await svc.from("managed_instances").update({ status: "disconnected", phone_number: null }).eq("omni_instancia_id", instancia_id);
 
-      return json({ ok: resp.ok, data });
+      return json({ ok: r.ok, data });
     }
 
     // ─── delete_instance ───
@@ -366,21 +355,22 @@ Deno.serve(async (req) => {
       const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).single();
       if (!inst) return json({ ok: false, message: "Instância não encontrada" }, 404);
 
-      // Delete from Z-API if credentials exist
-      if (inst.zapi_instance_id && inst.zapi_token) {
+      if (inst.zapi_instance_id) {
+        const apikey = inst.zapi_token || EVO_KEY;
         try {
-          await fetchZapi(
-            `${ZAPI_BASE}/instances/${inst.zapi_instance_id}/token/${inst.zapi_token}/delete`,
-            { method: "DELETE", headers: clientHeaders(globalToken) },
-          );
+          // try logout first then delete
+          await evoFetch(`/instance/logout/${inst.zapi_instance_id}`, { method: "DELETE", headers: evoHeaders(apikey) });
         } catch (e) {
-          console.warn("[zapi-manage] Z-API delete failed (non-blocking):", e);
+          console.warn("[zapi-manage] logout failed (non-blocking):", e);
+        }
+        try {
+          await evoFetch(`/instance/delete/${inst.zapi_instance_id}`, { method: "DELETE", headers: evoHeaders(apikey) });
+        } catch (e) {
+          console.warn("[zapi-manage] delete failed (non-blocking):", e);
         }
       }
 
-      // Delete from managed_instances
       await svc.from("managed_instances").delete().eq("omni_instancia_id", instancia_id);
-      // Delete from omni_instancias
       await svc.from("omni_instancias").delete().eq("id", instancia_id);
 
       return json({ ok: true });

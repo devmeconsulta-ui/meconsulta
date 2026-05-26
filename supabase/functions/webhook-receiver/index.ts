@@ -51,17 +51,78 @@ Deno.serve(async (req) => {
 
     const url = new URL(req.url);
     const instanceId = url.searchParams.get("instance_id");
-    const provider = url.searchParams.get("provider");
+    const provider = url.searchParams.get("provider") || "zapi";
 
-    if (!instanceId || provider !== "zapi") {
-      return new Response(JSON.stringify({ ok: false, message: "instance_id and provider=zapi required" }), {
+    if (!instanceId || (provider !== "zapi" && provider !== "evolution")) {
+      return new Response(JSON.stringify({ ok: false, message: "instance_id and provider=zapi|evolution required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const body = await req.json().catch(() => ({}));
-    console.log("[webhook-receiver] Event:", JSON.stringify(body).substring(0, 500));
+    const rawBody = await req.json().catch(() => ({}));
+    console.log(`[webhook-receiver:${provider}] Event:`, JSON.stringify(rawBody).substring(0, 500));
+
+    // Normalize Evolution v2 payload to legacy Z-API shape used below
+    let body: any = rawBody;
+    if (provider === "evolution") {
+      const ev = String(rawBody?.event || "").toLowerCase();
+      const data = rawBody?.data || {};
+
+      if (ev === "connection.update") {
+        const state = String(data?.state || "").toLowerCase();
+        if (state === "open") {
+          body = { event: "ConnectedCallback", connected: true, phone: (data?.wuid || "").split("@")[0] || null };
+        } else if (state === "close" || state === "closed") {
+          body = { event: "DisconnectedCallback", status: "disconnected" };
+        } else {
+          return new Response(JSON.stringify({ ok: true, event: "ignored_connection_state", state }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } else if (ev === "messages.upsert" || ev === "send.message") {
+        const key = data?.key || {};
+        const msg = data?.message || {};
+        const remote = String(key?.remoteJid || "");
+        const phone = remote.replace(/@.*/, "");
+        const fromMe = key?.fromMe === true;
+        const text = msg?.conversation || msg?.extendedTextMessage?.text || "";
+        const image = msg?.imageMessage;
+        const video = msg?.videoMessage;
+        const audio = msg?.audioMessage || msg?.pttMessage;
+        const document = msg?.documentMessage || msg?.documentWithCaptionMessage?.message?.documentMessage;
+        const sticker = msg?.stickerMessage;
+        const base64 = msg?.base64 || data?.message?.base64 || null;
+
+        body = {
+          phone,
+          chatId: remote,
+          fromMe,
+          messageId: key?.id || data?.messageId || null,
+          senderName: data?.pushName || null,
+          ...(image && { image: { caption: image.caption || "", imageUrl: base64 ? `data:${image.mimetype || "image/jpeg"};base64,${base64}` : (image?.url || null) } }),
+          ...(video && { video: { caption: video.caption || "", videoUrl: base64 ? `data:${video.mimetype || "video/mp4"};base64,${base64}` : (video?.url || null) } }),
+          ...(audio && { audio: { audioUrl: base64 ? `data:${audio.mimetype || "audio/ogg"};base64,${base64}` : (audio?.url || null) } }),
+          ...(document && { document: { fileName: document.fileName || "", caption: document.caption || "", documentUrl: base64 ? `data:${document.mimetype || "application/octet-stream"};base64,${base64}` : (document?.url || null) } }),
+          ...(sticker && { sticker: { stickerUrl: sticker?.url || null } }),
+          ...((!image && !video && !audio && !document && !sticker) && { text: { message: text } }),
+        };
+      } else if (ev === "messages.update") {
+        const update = Array.isArray(data) ? data[0] : data;
+        const key = update?.key || {};
+        const status = String(update?.status || update?.update?.status || "").toUpperCase();
+        body = {
+          event: "MessageStatusCallback",
+          ids: [key?.id || update?.messageId].filter(Boolean),
+          status,
+          phone: String(key?.remoteJid || "").replace(/@.*/, ""),
+        };
+      } else if (ev === "qrcode.updated" || ev === "contacts.upsert") {
+        return new Response(JSON.stringify({ ok: true, event: `ignored_${ev}` }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     // Get managed instance — try by id first, then by omni_instancia_id
     let { data: mi } = await serviceClient
