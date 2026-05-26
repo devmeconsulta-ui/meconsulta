@@ -1987,6 +1987,8 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           display_name: string
+          evolution_api_key: string | null
+          evolution_instance_name: string | null
           external_instance_id: string | null
           external_token: string | null
           id: string
@@ -2004,6 +2006,8 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           display_name: string
+          evolution_api_key?: string | null
+          evolution_instance_name?: string | null
           external_instance_id?: string | null
           external_token?: string | null
           id?: string
@@ -2021,6 +2025,8 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           display_name?: string
+          evolution_api_key?: string | null
+          evolution_instance_name?: string | null
           external_instance_id?: string | null
           external_token?: string | null
           id?: string
