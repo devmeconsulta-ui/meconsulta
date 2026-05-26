@@ -250,10 +250,14 @@ Deno.serve(async (req) => {
         // Map Z-API status values to our internal status
         const statusMap: Record<string, string> = {
           "SENT": "enviada",
+          "SERVER_ACK": "enviada",
           "RECEIVED": "entregue",
           "DELIVERED": "entregue",
+          "DELIVERY_ACK": "entregue",
           "READ": "lida",
+          "READ_SELF": "lida",
           "PLAYED": "lida",
+          "PLAYED_SELF": "lida",
           "FAILED": "erro",
           "ERROR": "erro",
         };
