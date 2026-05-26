@@ -436,8 +436,8 @@ Deno.serve(async (req) => {
 
     if (fetchError || !instancia) {
       return new Response(
-        JSON.stringify({ error: "Instância não encontrada" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, not_found: true, error: "Instância não encontrada" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
