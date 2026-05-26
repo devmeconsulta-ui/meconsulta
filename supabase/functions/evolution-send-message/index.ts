@@ -215,7 +215,8 @@ Deno.serve(async (req) => {
         .from("omni_instancias")
         .select("id, status, zapi_instance_id, zapi_token, provider")
         .eq("clinica_id", atendimento.clinica_id)
-        .eq("status", "connected")
+        .order("status", { ascending: false }) // 'connected' antes de 'disconnected'
+
         .limit(1)
         .maybeSingle();
 
