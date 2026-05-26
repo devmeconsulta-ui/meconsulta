@@ -216,7 +216,10 @@ Deno.serve(async (req) => {
         (typeof data === "string" ? data : null);
 
       if (!resp.ok) {
-        return json({ ok: false, message: "Falha ao obter QR Code na Z-API", status_code: resp.status, raw: data }, 502);
+        const msg = resp.status === 403
+          ? "Conta Z-API bloqueada. Migre para Evolution API."
+          : "Falha ao obter QR Code na Z-API";
+        return json({ ok: false, message: msg, status_code: resp.status, raw: data }, 502);
       }
 
       if (!qrCode) {
@@ -242,7 +245,26 @@ Deno.serve(async (req) => {
       const data = await resp.json().catch(() => ({}));
 
       if (!resp.ok) {
-        return json({ ok: false, message: "Falha ao consultar status na Z-API", status_code: resp.status, raw: data }, 502);
+        // Z-API conta bloqueada/erro: degrada gracioso pra UI (migração Evolution em andamento)
+        console.warn("[zapi-manage] get_status non-OK from Z-API:", resp.status, data);
+        await svc.from("omni_instancias").update({
+          status: "disconnected",
+          numero_whatsapp: null,
+        }).eq("id", instancia_id);
+        await svc.from("managed_instances").update({
+          status: "disconnected",
+          last_health_check: new Date().toISOString(),
+          last_error: `Z-API ${resp.status}: ${data?.error || data?.message || "blocked"}`,
+        }).eq("omni_instancia_id", instancia_id);
+        return json({
+          ok: true,
+          connected: false,
+          status: "disconnected",
+          phone_number: null,
+          zapi_unavailable: true,
+          zapi_status_code: resp.status,
+          raw: data,
+        });
       }
 
       const rawStatus = String(data?.status || "").toLowerCase();
