@@ -216,7 +216,10 @@ Deno.serve(async (req) => {
         (typeof data === "string" ? data : null);
 
       if (!resp.ok) {
-        return json({ ok: false, message: "Falha ao obter QR Code na Z-API", status_code: resp.status, raw: data }, 502);
+        const msg = resp.status === 403
+          ? "Conta Z-API bloqueada. Migre para Evolution API."
+          : "Falha ao obter QR Code na Z-API";
+        return json({ ok: false, message: msg, status_code: resp.status, raw: data }, 502);
       }
 
       if (!qrCode) {
