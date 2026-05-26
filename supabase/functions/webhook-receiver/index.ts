@@ -351,11 +351,29 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, event: "invalid_phone" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     const messageId = body.messageId || body.id?.id || crypto.randomUUID();
-    const { content_type, message, media_url, media_type } = mapContentType(body);
+    let { content_type, message, media_url, media_type } = mapContentType(body);
     const senderName = body.senderName || body.pushName || body.notifyName || null;
     const senderPhoto = body.photo || body.senderPhoto || body.profilePicture || body.imgUrl || null;
 
+    // Se a mídia é uma URL criptografada do WhatsApp (não acessível pelo browser),
+    // baixar via Evolution e subir no Storage para gerar URL pública.
+    if (
+      provider === "evolution" &&
+      media_url &&
+      !media_url.startsWith("data:") &&
+      /mmg\.whatsapp\.net|whatsapp\.net|\.enc(\?|$)/.test(media_url)
+    ) {
+      const EVO_URL = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/+$/, "");
+      const EVO_KEY = mi.evolution_api_key || Deno.env.get("EVOLUTION_API_KEY") || "";
+      const stored = await downloadAndStoreMedia(
+        serviceClient, EVO_URL, EVO_KEY, mi.evolution_instance_name,
+        body._evoKey, mi.clinica_id, content_type, media_type,
+      );
+      if (stored) media_url = stored;
+    }
+
     console.log(`[webhook-receiver] Incoming from ${phone}: ${content_type} - ${message?.substring(0, 50)}`);
+
 
     // Find or create contact
     let { data: contato } = await serviceClient
