@@ -215,7 +215,8 @@ Deno.serve(async (req) => {
         .from("omni_instancias")
         .select("id, status, zapi_instance_id, zapi_token, provider")
         .eq("clinica_id", atendimento.clinica_id)
-        .eq("status", "connected")
+        .order("status", { ascending: false }) // 'connected' antes de 'disconnected'
+
         .limit(1)
         .maybeSingle();
 
@@ -228,12 +229,15 @@ Deno.serve(async (req) => {
       instancia = instanciaFallback;
     }
 
-    if (instancia.status !== "connected") {
+    // Não bloqueia por status do cache: a API real (Evolution/Z-API) é a fonte da verdade.
+    // Apenas exige credenciais mínimas para tentar o envio.
+    if (!instancia.zapi_instance_id) {
       return new Response(
-        JSON.stringify({ error: "WhatsApp desconectado" }),
+        JSON.stringify({ error: "Instância sem credenciais configuradas" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
 
     // Normalize phone
     let telefoneNormalizado = contato.telefone.replace(/\D/g, "");
