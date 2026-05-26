@@ -100,13 +100,15 @@ Deno.serve(async (req) => {
           fromMe,
           messageId: key?.id || data?.messageId || null,
           senderName: data?.pushName || null,
+          _evoKey: key, // preservar para download posterior de mídia
           ...(image && { image: { caption: image.caption || "", imageUrl: base64 ? `data:${image.mimetype || "image/jpeg"};base64,${base64}` : (image?.url || null) } }),
           ...(video && { video: { caption: video.caption || "", videoUrl: base64 ? `data:${video.mimetype || "video/mp4"};base64,${base64}` : (video?.url || null) } }),
-          ...(audio && { audio: { audioUrl: base64 ? `data:${audio.mimetype || "audio/ogg"};base64,${base64}` : (audio?.url || null) } }),
-          ...(document && { document: { fileName: document.fileName || "", caption: document.caption || "", documentUrl: base64 ? `data:${document.mimetype || "application/octet-stream"};base64,${base64}` : (document?.url || null) } }),
-          ...(sticker && { sticker: { stickerUrl: sticker?.url || null } }),
+          ...(audio && { audio: { audioUrl: base64 ? `data:${audio.mimetype || "audio/ogg"};base64,${base64}` : (audio?.url || null), mimetype: audio.mimetype || "audio/ogg" } }),
+          ...(document && { document: { fileName: document.fileName || "", caption: document.caption || "", documentUrl: base64 ? `data:${document.mimetype || "application/octet-stream"};base64,${base64}` : (document?.url || null), mimetype: document.mimetype || "application/octet-stream" } }),
+          ...(sticker && { sticker: { stickerUrl: sticker?.url || null, mimetype: sticker.mimetype || "image/webp" } }),
           ...((!image && !video && !audio && !document && !sticker) && { text: { message: text } }),
         };
+
       } else if (ev === "messages.update") {
         const update = Array.isArray(data) ? data[0] : data;
         const key = update?.key || {};
