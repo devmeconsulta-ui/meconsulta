@@ -291,9 +291,10 @@ export function useOmniFilas(clinicaId: string | null) {
         body: { action: "get_status", instancia_id: instanciaId },
       });
 
-      if (response.error) throw response.error;
-      if (response.data?.ok === false) {
-        throw new Error(response.data?.message || "Falha ao verificar status da instância");
+      // Z-API bloqueada/migração Evolution: degrada silenciosamente
+      if (response.error || response.data?.ok === false) {
+        console.warn("[checkConnectionStatus] Z-API indisponível (migração Evolution):", response.error || response.data?.message);
+        return { ok: false, connected: false, zapi_unavailable: true };
       }
 
       await fetchInstancias();
