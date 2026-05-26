@@ -25,9 +25,61 @@ function mapContentType(msg: any): { content_type: string; message: string; medi
   if (msg.video) return { content_type: "video", message: msg.video.caption || "", media_url: msg.video.videoUrl || msg.video.url, media_type: "video" };
   if (msg.audio) return { content_type: "audio", message: "", media_url: msg.audio.audioUrl || msg.audio.url, media_type: "audio" };
   if (msg.document) return { content_type: "documento", message: msg.document.caption || msg.document.fileName || "", media_url: msg.document.documentUrl || msg.document.url, media_type: "document" };
-  if (msg.sticker) return { content_type: "sticker", message: "", media_url: msg.sticker.stickerUrl || msg.sticker.url, media_type: "sticker" };
+  if (msg.sticker) return { content_type: "sticker", message: "", media_url: msg.sticker.stickerUrl || msg.sticker.url, media_type: msg.sticker.mimetype || "image/webp" };
   return { content_type: "texto", message: msg.text?.message || msg.body || msg.message || "", media_url: null, media_type: null };
 }
+
+// Baixa mídia da Evolution (que retorna base64) e faz upload no Storage, retornando URL pública.
+async function downloadAndStoreMedia(
+  serviceClient: any,
+  evoUrl: string,
+  evoKey: string,
+  instanceName: string,
+  msgKey: any,
+  clinicaId: string,
+  contentType: string,
+  mimetype: string | null,
+): Promise<string | null> {
+  try {
+    if (!evoUrl || !evoKey || !instanceName || !msgKey?.id) return null;
+    const resp = await fetch(`${evoUrl.replace(/\/+$/, "")}/chat/getBase64FromMediaMessage/${encodeURIComponent(instanceName)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: evoKey },
+      body: JSON.stringify({ message: { key: msgKey }, convertToMp4: false }),
+    });
+    if (!resp.ok) {
+      console.warn("[webhook-receiver] getBase64 failed:", resp.status);
+      return null;
+    }
+    const data = await resp.json().catch(() => ({}));
+    const base64: string = data?.base64 || data?.media || "";
+    const mt: string = data?.mimetype || mimetype || "application/octet-stream";
+    if (!base64) return null;
+
+    const bin = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const extMap: Record<string, string> = {
+      "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+      "video/mp4": "mp4", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a",
+      "application/pdf": "pdf",
+    };
+    const ext = extMap[mt] || mt.split("/")[1] || "bin";
+    const folder = contentType === "sticker" ? "stickers" : contentType;
+    const path = `${clinicaId}/${folder}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await serviceClient.storage.from("omni-files").upload(path, bin, {
+      contentType: mt, upsert: false,
+    });
+    if (upErr) {
+      console.warn("[webhook-receiver] upload error:", upErr.message);
+      return null;
+    }
+    const { data: pub } = serviceClient.storage.from("omni-files").getPublicUrl(path);
+    return pub?.publicUrl || null;
+  } catch (e) {
+    console.warn("[webhook-receiver] downloadAndStoreMedia error:", e);
+    return null;
+  }
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
