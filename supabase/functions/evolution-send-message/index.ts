@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
     if (!instancia) {
       const { data: instanciaFallback } = await supabase
         .from("omni_instancias")
-        .select("id, status, zapi_instance_id, zapi_token")
+        .select("id, status, zapi_instance_id, zapi_token, provider")
         .eq("clinica_id", atendimento.clinica_id)
         .eq("status", "connected")
         .limit(1)
