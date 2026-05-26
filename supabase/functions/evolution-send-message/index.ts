@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
         contato:omni_contatos!contato_id(id, telefone),
         fila:omni_filas!fila_id(
           id, nome,
-          instancia:omni_instancias!instancia_id(id, status, zapi_instance_id, zapi_token)
+          instancia:omni_instancias!instancia_id(id, status, zapi_instance_id, zapi_token, provider)
         )
       `)
       .eq("id", atendimento_id)
