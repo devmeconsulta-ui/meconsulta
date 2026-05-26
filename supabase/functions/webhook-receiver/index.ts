@@ -388,7 +388,7 @@ Deno.serve(async (req) => {
       .select("id, foto_url, nome")
       .eq("clinica_id", mi.clinica_id)
       .eq("telefone", phone)
-      .single();
+      .maybeSingle();
 
     if (!contato) {
       const { data: newContato, error: contatoErr } = await serviceClient
