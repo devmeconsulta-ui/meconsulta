@@ -68,6 +68,49 @@ Deno.serve(async (req) => {
     const last_webhook_received_at = lastWebhookRes.data?.created_at || null;
     const last_message_sent_at = null;
 
+    // Provider Evolution: consultar diretamente a Evolution API
+    if ((instancia.provider || "").toLowerCase() === "evolution") {
+      const EVO_URL = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/+$/, "");
+      const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY") || "";
+      const name = instancia.zapi_instance_id;
+      let dbStatus: string = instancia.status || "disconnected";
+      let phoneNumber = instancia.numero_whatsapp;
+
+      if (EVO_URL && name) {
+        try {
+          const r = await fetch(`${EVO_URL}/instance/connectionState/${encodeURIComponent(name)}`, {
+            headers: { apikey: instancia.zapi_token || EVO_KEY },
+          });
+          const data = await r.json().catch(() => ({}));
+          const state = String(data?.instance?.state || data?.state || "").toLowerCase();
+          if (state === "open" || state === "connected") dbStatus = "connected";
+          else if (state === "connecting") dbStatus = "connecting";
+          else dbStatus = "disconnected";
+        } catch (e) {
+          console.warn("[health] Evolution check error:", e);
+        }
+      }
+
+      if (dbStatus !== instancia.status) {
+        await supabase.from("omni_instancias").update({ status: dbStatus }).eq("id", instancia_id);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          provider: "evolution",
+          instance_id: instancia.id,
+          status: dbStatus,
+          numero_whatsapp: phoneNumber,
+          qr_available: dbStatus !== "connected",
+          webhooks_configured: instancia.webhooks_configured ?? false,
+          last_webhook_received_at,
+          last_message_sent_at,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // If no Z-API credentials, return cached status
     if (!ZAPI_CLIENT_TOKEN || !instancia.zapi_instance_id || !instancia.zapi_token) {
       return new Response(
@@ -86,6 +129,7 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
 
     // Query Z-API for real status
     try {
