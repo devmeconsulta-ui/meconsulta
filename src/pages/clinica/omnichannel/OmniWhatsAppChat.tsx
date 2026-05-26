@@ -336,6 +336,14 @@ function MessageBubble({
             />
           </>
         )}
+        {mensagem.tipo === "sticker" && mensagem.arquivo_url && (
+          <img
+            src={mensagem.arquivo_url}
+            alt="Figurinha"
+            className="max-w-[140px] max-h-[140px] object-contain"
+          />
+        )}
+
         {mensagem.tipo === "video" && mensagem.arquivo_url && (
           <video controls src={mensagem.arquivo_url} className="rounded max-w-[300px]" />
         )}
