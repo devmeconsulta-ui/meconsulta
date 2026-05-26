@@ -223,16 +223,21 @@ Deno.serve(async (req) => {
         }, 200);
       }
 
-      const qrcode = data?.base64 || data?.code || data?.qrcode || null;
+      // Evolution retorna `base64` = PNG do QR; `code` = string crua de pareamento (NÃO é imagem).
+      // Usar apenas base64 para não quebrar a renderização da imagem no front.
+      let qrcode: string | null = data?.base64 || data?.qrcode || null;
+      if (qrcode && !qrcode.startsWith("data:")) {
+        qrcode = `data:image/png;base64,${qrcode}`;
+      }
       if (!qrcode) {
         return json({
           ok: false,
-          message: "QR Code indisponível agora (instância pode já estar conectada)",
+          message: "QR Code indisponível agora (instância pode já estar conectada). Tente novamente em alguns segundos.",
           raw: data,
         }, 200);
       }
 
-      return json({ ok: true, qrcode, pairingCode: data?.pairingCode || null, raw: data });
+      return json({ ok: true, qrcode, pairingCode: data?.pairingCode || data?.code || null, raw: data });
     }
 
     // ─── get_status ───
