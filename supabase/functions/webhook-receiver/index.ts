@@ -422,7 +422,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: false }), { status: 500, headers: corsHeaders });
     }
 
-    // Find or create active atendimento
+    // Find or create active atendimento (handles race via unique partial index)
     let { data: atendimento } = await serviceClient
       .from("omni_atendimentos")
       .select("id")
@@ -431,10 +431,10 @@ Deno.serve(async (req) => {
       .in("status", ["aguardando", "em_atendimento"])
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (!atendimento) {
-      const { data: newAtendimento } = await serviceClient
+      const { data: newAtendimento, error: atErr } = await serviceClient
         .from("omni_atendimentos")
         .insert({
           clinica_id: mi.clinica_id,
@@ -444,7 +444,21 @@ Deno.serve(async (req) => {
         })
         .select("id")
         .single();
-      atendimento = newAtendimento;
+      if (atErr) {
+        // Race: another webhook just created one — refetch
+        const { data: existing } = await serviceClient
+          .from("omni_atendimentos")
+          .select("id")
+          .eq("clinica_id", mi.clinica_id)
+          .eq("contato_id", contato.id)
+          .in("status", ["aguardando", "em_atendimento"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        atendimento = existing;
+      } else {
+        atendimento = newAtendimento;
+      }
     }
 
     if (!atendimento) {
