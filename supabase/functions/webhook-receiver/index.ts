@@ -164,12 +164,15 @@ Deno.serve(async (req) => {
       } else if (ev === "messages.update") {
         const update = Array.isArray(data) ? data[0] : data;
         const key = update?.key || {};
+        // Evolution v2 envia tanto formato com key.id quanto keyId no nível raiz
+        const msgId = key?.id || update?.keyId || update?.messageId || null;
+        const remote = key?.remoteJid || update?.remoteJid || "";
         const status = String(update?.status || update?.update?.status || "").toUpperCase();
         body = {
           event: "MessageStatusCallback",
-          ids: [key?.id || update?.messageId].filter(Boolean),
+          ids: [msgId].filter(Boolean),
           status,
-          phone: String(key?.remoteJid || "").replace(/@.*/, ""),
+          phone: String(remote).replace(/@.*/, ""),
         };
       } else if (ev === "qrcode.updated" || ev === "contacts.upsert") {
         return new Response(JSON.stringify({ ok: true, event: `ignored_${ev}` }), {
