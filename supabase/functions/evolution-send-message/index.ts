@@ -250,12 +250,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    const result = await sendViaZAPI(instancia, telefoneNormalizado, tipo, conteudo, arquivo_url, arquivo_nome, assinatura_nome);
+    const useEvolution = instancia.provider === "evolution";
+    const result = useEvolution
+      ? await sendViaEvolution(instancia, telefoneNormalizado, tipo, conteudo, arquivo_url, arquivo_nome, assinatura_nome)
+      : await sendViaZAPI(instancia, telefoneNormalizado, tipo, conteudo, arquivo_url, arquivo_nome, assinatura_nome);
 
-    console.log(`[${Date.now() - startTime}ms] Z-API response received`);
+    console.log(`[${Date.now() - startTime}ms] ${useEvolution ? "Evolution" : "Z-API"} response received`);
 
     if (!result.ok) {
-      console.error("Z-API send error:", result.data);
+      console.error(`${useEvolution ? "Evolution" : "Z-API"} send error:`, result.data);
 
       EdgeRuntime.waitUntil((async () => {
         let validAgenteId = agente_id || null;
