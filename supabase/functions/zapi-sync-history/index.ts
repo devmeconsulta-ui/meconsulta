@@ -442,9 +442,16 @@ Deno.serve(async (req) => {
     }
 
     if (instancia.provider !== "zapi" || !instancia.zapi_instance_id || !instancia.zapi_token) {
+      // Evolution (ou sem credenciais legadas) não suporta importação retroativa via este endpoint.
+      // Mensagens novas chegam em tempo real pelo webhook-receiver.
       return new Response(
-        JSON.stringify({ error: "Instância não é Z-API ou falta credenciais" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          success: true,
+          skipped: true,
+          provider: instancia.provider,
+          message: "Importação de histórico não disponível para esta instância. As mensagens novas serão recebidas automaticamente em tempo real.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
