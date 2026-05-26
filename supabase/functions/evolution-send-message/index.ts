@@ -101,6 +101,66 @@ async function sendViaZAPI(
   return { ok: response.ok, data, messageId };
 }
 
+async function sendViaEvolution(
+  instancia: any,
+  telefoneNormalizado: string,
+  tipo: string,
+  conteudo: string | undefined,
+  arquivo_url: string | undefined,
+  arquivo_nome: string | undefined,
+  assinaturaNome?: string | null,
+): Promise<{ ok: boolean; data: any; messageId?: string }> {
+  const EVO_URL = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/+$/, "");
+  const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY") || "";
+  // For Evolution-provider instances, instanceName is stored in zapi_instance_id and apikey in zapi_token
+  const instanceName = instancia.zapi_instance_id;
+  const apikey = instancia.zapi_token || EVO_KEY;
+  if (!EVO_URL || !instanceName || !apikey) {
+    return { ok: false, data: { error: "Evolution credentials missing" } };
+  }
+
+  const plainContent = (conteudo || "").trim();
+  const signedContent = assinaturaNome
+    ? (plainContent ? `*${assinaturaNome}*\n${plainContent}` : `*${assinaturaNome}*`)
+    : plainContent;
+
+  const number = telefoneNormalizado;
+  const headers = { "Content-Type": "application/json", apikey };
+  let endpoint = "";
+  let body: any = {};
+
+  switch (tipo) {
+    case "texto":
+      endpoint = `${EVO_URL}/message/sendText/${instanceName}`;
+      body = { number, text: signedContent };
+      break;
+    case "imagem":
+      endpoint = `${EVO_URL}/message/sendMedia/${instanceName}`;
+      body = { number, mediatype: "image", media: arquivo_url, caption: signedContent || undefined, fileName: arquivo_nome || "image.jpg" };
+      break;
+    case "video":
+      endpoint = `${EVO_URL}/message/sendMedia/${instanceName}`;
+      body = { number, mediatype: "video", media: arquivo_url, caption: signedContent || undefined, fileName: arquivo_nome || "video.mp4" };
+      break;
+    case "documento":
+      endpoint = `${EVO_URL}/message/sendMedia/${instanceName}`;
+      body = { number, mediatype: "document", media: arquivo_url, caption: signedContent || undefined, fileName: arquivo_nome || "file" };
+      break;
+    case "audio":
+      endpoint = `${EVO_URL}/message/sendWhatsAppAudio/${instanceName}`;
+      body = { number, audio: arquivo_url };
+      break;
+    default:
+      endpoint = `${EVO_URL}/message/sendText/${instanceName}`;
+      body = { number, text: signedContent };
+  }
+
+  const response = await fetchWithRetry(endpoint, { method: "POST", headers, body: JSON.stringify(body) }, 3, 800);
+  const data = await response.json().catch(() => ({}));
+  const messageId = data?.key?.id || data?.messageId || data?.id || null;
+  return { ok: response.ok, data, messageId };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
