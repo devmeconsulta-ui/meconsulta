@@ -164,12 +164,15 @@ Deno.serve(async (req) => {
       } else if (ev === "messages.update") {
         const update = Array.isArray(data) ? data[0] : data;
         const key = update?.key || {};
+        // Evolution v2 envia tanto formato com key.id quanto keyId no nível raiz
+        const msgId = key?.id || update?.keyId || update?.messageId || null;
+        const remote = key?.remoteJid || update?.remoteJid || "";
         const status = String(update?.status || update?.update?.status || "").toUpperCase();
         body = {
           event: "MessageStatusCallback",
-          ids: [key?.id || update?.messageId].filter(Boolean),
+          ids: [msgId].filter(Boolean),
           status,
-          phone: String(key?.remoteJid || "").replace(/@.*/, ""),
+          phone: String(remote).replace(/@.*/, ""),
         };
       } else if (ev === "qrcode.updated" || ev === "contacts.upsert") {
         return new Response(JSON.stringify({ ok: true, event: `ignored_${ev}` }), {
@@ -247,10 +250,14 @@ Deno.serve(async (req) => {
         // Map Z-API status values to our internal status
         const statusMap: Record<string, string> = {
           "SENT": "enviada",
+          "SERVER_ACK": "enviada",
           "RECEIVED": "entregue",
           "DELIVERED": "entregue",
+          "DELIVERY_ACK": "entregue",
           "READ": "lida",
+          "READ_SELF": "lida",
           "PLAYED": "lida",
+          "PLAYED_SELF": "lida",
           "FAILED": "erro",
           "ERROR": "erro",
         };
@@ -381,7 +388,7 @@ Deno.serve(async (req) => {
       .select("id, foto_url, nome")
       .eq("clinica_id", mi.clinica_id)
       .eq("telefone", phone)
-      .single();
+      .maybeSingle();
 
     if (!contato) {
       const { data: newContato, error: contatoErr } = await serviceClient
@@ -415,7 +422,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: false }), { status: 500, headers: corsHeaders });
     }
 
-    // Find or create active atendimento
+    // Find or create active atendimento (handles race via unique partial index)
     let { data: atendimento } = await serviceClient
       .from("omni_atendimentos")
       .select("id")
@@ -424,10 +431,10 @@ Deno.serve(async (req) => {
       .in("status", ["aguardando", "em_atendimento"])
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (!atendimento) {
-      const { data: newAtendimento } = await serviceClient
+      const { data: newAtendimento, error: atErr } = await serviceClient
         .from("omni_atendimentos")
         .insert({
           clinica_id: mi.clinica_id,
@@ -437,7 +444,21 @@ Deno.serve(async (req) => {
         })
         .select("id")
         .single();
-      atendimento = newAtendimento;
+      if (atErr) {
+        // Race: another webhook just created one — refetch
+        const { data: existing } = await serviceClient
+          .from("omni_atendimentos")
+          .select("id")
+          .eq("clinica_id", mi.clinica_id)
+          .eq("contato_id", contato.id)
+          .in("status", ["aguardando", "em_atendimento"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        atendimento = existing;
+      } else {
+        atendimento = newAtendimento;
+      }
     }
 
     if (!atendimento) {
