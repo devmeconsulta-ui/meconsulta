@@ -116,3 +116,21 @@ verify_jwt = false
 
 [functions.evolution-delete-message]
 verify_jwt = false
+
+[functions.evolution-v2-create-instance]
+verify_jwt = false
+
+[functions.evolution-v2-connect-instance]
+verify_jwt = false
+
+[functions.evolution-v2-connection-status]
+verify_jwt = false
+
+[functions.evolution-v2-disconnect]
+verify_jwt = false
+
+[functions.evolution-v2-send-message]
+verify_jwt = false
+
+[functions.evolution-v2-webhook]
+verify_jwt = false
