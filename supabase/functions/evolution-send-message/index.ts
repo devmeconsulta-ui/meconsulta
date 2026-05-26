@@ -1,4 +1,4 @@
-// NOTE: Named "evolution-send-message" for backward compatibility. Uses Z-API exclusively.
+// Send message — suporta Evolution v2 (preferencial) e Z-API (legado) por instância.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
