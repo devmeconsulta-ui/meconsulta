@@ -42,12 +42,14 @@ interface NovoAtendimentoModalProps {
   onAtendimentoCriado: (atendimentoId: string) => void;
 }
 
-function getInitials(name: string) {
-  const parts = name.split(" ");
-  if (parts.length >= 2) {
+function getInitials(name: unknown) {
+  const safe = typeof name === "string" ? name.trim() : String(name ?? "").trim();
+  if (!safe) return "??";
+  const parts = safe.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2 && parts[0][0] && parts[1][0]) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
-  return name.substring(0, 2).toUpperCase();
+  return safe.substring(0, 2).toUpperCase();
 }
 
 function formatPhone(phone: string): string {
