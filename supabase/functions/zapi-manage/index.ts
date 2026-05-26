@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
       console.log("[zapi-manage] Create response:", JSON.stringify(payload), "HTTP:", createResp.status);
 
       if (!createResp.ok) {
-        return json({ ok: false, message: `Z-API retornou erro ${createResp.status}: ${payload?.error || payload?.message || "Unknown"}`, details: payload }, 502);
+        return json({ ok: false, message: `Z-API retornou erro ${createResp.status}: ${payload?.error || payload?.message || "Unknown"}`, details: payload }, 200);
       }
 
       const inst = payload?.data ?? payload?.instance ?? payload;
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
       const externalToken = inst?.token;
 
       if (!externalId || !externalToken) {
-        return json({ ok: false, message: "Resposta da Z-API sem credenciais (id/token)", details: payload }, 502);
+        return json({ ok: false, message: "Resposta da Z-API sem credenciais (id/token)", details: payload }, 200);
       }
 
       // 2. Save to omni_instancias
@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
         const msg = resp.status === 403
           ? "Conta Z-API bloqueada. Migre para Evolution API."
           : "Falha ao obter QR Code na Z-API";
-        return json({ ok: false, message: msg, status_code: resp.status, raw: data }, 502);
+        return json({ ok: false, message: msg, status_code: resp.status, raw: data }, 200);
       }
 
       if (!qrCode) {
