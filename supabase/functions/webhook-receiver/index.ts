@@ -163,6 +163,7 @@ Deno.serve(async (req) => {
           messageId: key?.id || data?.messageId || null,
           senderName: data?.pushName || null,
           _evoKey: key, // preservar para download posterior de mídia
+          _evoMessage: msg, // Evolution precisa do payload da mídia para descriptografar base64
           ...(image && { image: { caption: image.caption || "", imageUrl: base64 ? `data:${image.mimetype || "image/jpeg"};base64,${base64}` : (image?.url || null) } }),
           ...(video && { video: { caption: video.caption || "", videoUrl: base64 ? `data:${video.mimetype || "video/mp4"};base64,${base64}` : (video?.url || null) } }),
           ...(audio && { audio: { audioUrl: base64 ? `data:${audio.mimetype || "audio/ogg"};base64,${base64}` : (audio?.url || null), mimetype: audio.mimetype || "audio/ogg" } }),
@@ -384,7 +385,7 @@ Deno.serve(async (req) => {
       const EVO_KEY = mi.evolution_api_key || Deno.env.get("EVOLUTION_API_KEY") || "";
       const stored = await downloadAndStoreMedia(
         serviceClient, EVO_URL, EVO_KEY, mi.evolution_instance_name,
-        body._evoKey, mi.clinica_id, content_type, media_type,
+        body._evoKey, body._evoMessage, mi.clinica_id, content_type, media_type,
       );
       if (stored) media_url = stored;
     }
