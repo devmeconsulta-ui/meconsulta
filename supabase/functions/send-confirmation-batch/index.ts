@@ -92,11 +92,21 @@ Deno.serve(async (req: Request) => {
     }
 
     const instancia = fila.instancia;
-    if (!instancia?.zapi_instance_id || !instancia?.zapi_token) {
-      throw new Error("Fila não possui instância WhatsApp Z-API conectada");
+    if (!instancia?.zapi_instance_id) {
+      throw new Error("Fila não possui instância WhatsApp conectada");
     }
 
+    const isEvolution = instancia.provider === "evolution";
+    const EVO_URL = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/+$/, "");
+    const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY") || "";
     const zapiBase = `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}`;
+
+    if (isEvolution && (!EVO_URL || !instancia.zapi_instance_id)) {
+      throw new Error("Credenciais Evolution não configuradas");
+    }
+    if (!isEvolution && !instancia.zapi_token) {
+      throw new Error("Fila não possui instância WhatsApp Z-API conectada");
+    }
 
     // Buscar dados das consultas
     const { data: consultas, error: consultasError } = await supabase
