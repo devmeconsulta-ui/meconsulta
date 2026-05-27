@@ -51,9 +51,7 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
 
-    if (!ZAPI_CLIENT_TOKEN) {
-      throw new Error("ZAPI_CLIENT_TOKEN não configurado");
-    }
+    // ZAPI_CLIENT_TOKEN é validado por instância (apenas se provider for zapi)
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -92,11 +90,21 @@ Deno.serve(async (req: Request) => {
     }
 
     const instancia = fila.instancia;
-    if (!instancia?.zapi_instance_id || !instancia?.zapi_token) {
-      throw new Error("Fila não possui instância WhatsApp Z-API conectada");
+    if (!instancia?.zapi_instance_id) {
+      throw new Error("Fila não possui instância WhatsApp conectada");
     }
 
+    const isEvolution = instancia.provider === "evolution";
+    const EVO_URL = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/+$/, "");
+    const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY") || "";
     const zapiBase = `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}`;
+
+    if (isEvolution && (!EVO_URL || !instancia.zapi_instance_id)) {
+      throw new Error("Credenciais Evolution não configuradas");
+    }
+    if (!isEvolution && !instancia.zapi_token) {
+      throw new Error("Fila não possui instância WhatsApp Z-API conectada");
+    }
 
     // Buscar dados das consultas
     const { data: consultas, error: consultasError } = await supabase
@@ -192,24 +200,34 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Enviar mensagem via Z-API
-        const zapiResponse = await fetchWithRetry(
-          `${zapiBase}/send-text`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Client-Token": ZAPI_CLIENT_TOKEN,
-            },
-            body: JSON.stringify({
-              phone: telefone,
-              message: mensagem,
-            }),
-          },
-          3, 800
-        );
+        // Enviar mensagem via provider correto
+        const zapiResponse = isEvolution
+          ? await fetchWithRetry(
+              `${EVO_URL}/message/sendText/${instancia.zapi_instance_id}`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  apikey: instancia.zapi_token || EVO_KEY,
+                },
+                body: JSON.stringify({ number: telefone, text: mensagem }),
+              },
+              3, 800
+            )
+          : await fetchWithRetry(
+              `${zapiBase}/send-text`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Client-Token": ZAPI_CLIENT_TOKEN,
+                },
+                body: JSON.stringify({ phone: telefone, message: mensagem }),
+              },
+              3, 800
+            );
 
-        const zapiResult = await zapiResponse.json();
+        const zapiResult = await zapiResponse.json().catch(() => ({}));
 
         if (!zapiResponse.ok) {
           await supabase
@@ -231,7 +249,7 @@ Deno.serve(async (req: Request) => {
             .update({
               status: "enviada",
               data_envio: new Date().toISOString(),
-              whatsapp_message_id: zapiResult.messageId || zapiResult.zapiMessageId || null,
+              whatsapp_message_id: zapiResult?.key?.id || zapiResult?.messageId || zapiResult?.zapiMessageId || null,
             })
             .eq("id", confirmacao.id);
 
