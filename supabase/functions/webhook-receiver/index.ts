@@ -52,8 +52,13 @@ async function downloadAndStoreMedia(
       return null;
     }
     const data = await resp.json().catch(() => ({}));
-    const base64: string = data?.base64 || data?.media || "";
-    const mt: string = data?.mimetype || mimetype || "application/octet-stream";
+    const rawBase64: string = data?.base64 || data?.media || "";
+    const base64 = rawBase64.includes(",") ? rawBase64.split(",").pop() || "" : rawBase64;
+    let mt: string = data?.mimetype || mimetype || "application/octet-stream";
+    if (contentType === "audio" && (mt === "audio" || !mt.includes("/"))) mt = "audio/ogg";
+    if (contentType === "imagem" && (mt === "image" || !mt.includes("/"))) mt = "image/jpeg";
+    if (contentType === "video" && (mt === "video" || !mt.includes("/"))) mt = "video/mp4";
+    if (contentType === "sticker" && (mt === "image" || !mt.includes("/"))) mt = "image/webp";
     if (!base64) return null;
 
     const bin = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
@@ -62,7 +67,7 @@ async function downloadAndStoreMedia(
       "video/mp4": "mp4", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a",
       "application/pdf": "pdf",
     };
-    const ext = extMap[mt] || mt.split("/")[1] || "bin";
+    const ext = extMap[mt] || mt.split("/")[1]?.split(";")[0] || "bin";
     const folder = contentType === "sticker" ? "stickers" : contentType;
     const path = `${clinicaId}/${folder}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
     const { error: upErr } = await serviceClient.storage.from("omni-files").upload(path, bin, {
