@@ -107,20 +107,38 @@ export function AudioPlayerWithFallback({ url, isOutgoing = false }: AudioPlayer
       "rounded-2xl p-2.5 min-w-[220px] max-w-[280px] shadow-sm",
       colors.bubbleBg
     )}>
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        playsInline
+        onLoadedMetadata={handleLoadedMetadata}
+        onCanPlay={handleLoadedMetadata}
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={() => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+        }}
+        onPause={() => setIsPlaying(false)}
+        onError={handleAudioError}
+        className="hidden"
+      />
       <div className="flex items-center gap-3">
         {/* Play/Pause Button */}
         <button
           onClick={handlePlayPause}
-          disabled={isLoading}
+          disabled={error}
           className={cn(
             "w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0",
-            isLoading 
-              ? "bg-muted cursor-wait" 
+            error
+              ? "bg-muted cursor-not-allowed text-muted-foreground"
               : "bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer"
           )}
-          aria-label={isPlaying ? "Pausar" : "Reproduzir"}
+          aria-label={error ? "Áudio indisponível" : isPlaying ? "Pausar" : "Reproduzir"}
         >
-          {isLoading ? (
+          {error ? (
+            <AlertCircle className="h-5 w-5" />
+          ) : isLoading ? (
             <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           ) : isPlaying ? (
             <Pause className="h-5 w-5 fill-current" />
@@ -161,7 +179,7 @@ export function AudioPlayerWithFallback({ url, isOutgoing = false }: AudioPlayer
           {/* Time */}
           <div className="flex items-center justify-between mt-0.5">
             <span className="text-[10px] text-muted-foreground">
-              {formatTime(isPlaying ? currentTime : (currentTime || duration))}
+              {error ? "indisponível" : formatTime(isPlaying ? currentTime : (currentTime || duration))}
             </span>
             <Mic className="h-3 w-3 text-muted-foreground opacity-60" />
           </div>
