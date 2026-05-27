@@ -36,6 +36,7 @@ async function downloadAndStoreMedia(
   evoKey: string,
   instanceName: string,
   msgKey: any,
+  msgPayload: any,
   clinicaId: string,
   contentType: string,
   mimetype: string | null,
@@ -45,10 +46,14 @@ async function downloadAndStoreMedia(
     const resp = await fetch(`${evoUrl.replace(/\/+$/, "")}/chat/getBase64FromMediaMessage/${encodeURIComponent(instanceName)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: evoKey },
-      body: JSON.stringify({ message: { key: msgKey }, convertToMp4: false }),
+      body: JSON.stringify({
+        message: { key: msgKey, message: msgPayload || {} },
+        convertToMp4: false,
+      }),
     });
     if (!resp.ok) {
-      console.warn("[webhook-receiver] getBase64 failed:", resp.status);
+      const errText = await resp.text().catch(() => "");
+      console.warn("[webhook-receiver] getBase64 failed:", resp.status, errText.substring(0, 200));
       return null;
     }
     const data = await resp.json().catch(() => ({}));
