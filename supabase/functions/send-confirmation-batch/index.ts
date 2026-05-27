@@ -249,7 +249,7 @@ Deno.serve(async (req: Request) => {
             .update({
               status: "enviada",
               data_envio: new Date().toISOString(),
-              whatsapp_message_id: zapiResult.messageId || zapiResult.zapiMessageId || null,
+              whatsapp_message_id: zapiResult?.key?.id || zapiResult?.messageId || zapiResult?.zapiMessageId || null,
             })
             .eq("id", confirmacao.id);
 
