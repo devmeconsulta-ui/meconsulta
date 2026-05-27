@@ -51,9 +51,7 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
 
-    if (!ZAPI_CLIENT_TOKEN) {
-      throw new Error("ZAPI_CLIENT_TOKEN não configurado");
-    }
+    // ZAPI_CLIENT_TOKEN é validado por instância (apenas se provider for zapi)
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
