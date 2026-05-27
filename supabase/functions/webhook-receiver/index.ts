@@ -21,10 +21,10 @@ function normalizePhone(phone: string): string {
 }
 
 function mapContentType(msg: any): { content_type: string; message: string; media_url: string | null; media_type: string | null } {
-  if (msg.image) return { content_type: "imagem", message: msg.image.caption || "", media_url: msg.image.imageUrl || msg.image.url, media_type: "image" };
-  if (msg.video) return { content_type: "video", message: msg.video.caption || "", media_url: msg.video.videoUrl || msg.video.url, media_type: "video" };
-  if (msg.audio) return { content_type: "audio", message: "", media_url: msg.audio.audioUrl || msg.audio.url, media_type: "audio" };
-  if (msg.document) return { content_type: "documento", message: msg.document.caption || msg.document.fileName || "", media_url: msg.document.documentUrl || msg.document.url, media_type: "document" };
+  if (msg.image) return { content_type: "imagem", message: msg.image.caption || "", media_url: msg.image.imageUrl || msg.image.url, media_type: msg.image.mimetype || "image/jpeg" };
+  if (msg.video) return { content_type: "video", message: msg.video.caption || "", media_url: msg.video.videoUrl || msg.video.url, media_type: msg.video.mimetype || "video/mp4" };
+  if (msg.audio) return { content_type: "audio", message: "", media_url: msg.audio.audioUrl || msg.audio.url, media_type: msg.audio.mimetype || "audio/ogg" };
+  if (msg.document) return { content_type: "documento", message: msg.document.caption || msg.document.fileName || "", media_url: msg.document.documentUrl || msg.document.url, media_type: msg.document.mimetype || "application/octet-stream" };
   if (msg.sticker) return { content_type: "sticker", message: "", media_url: msg.sticker.stickerUrl || msg.sticker.url, media_type: msg.sticker.mimetype || "image/webp" };
   return { content_type: "texto", message: msg.text?.message || msg.body || msg.message || "", media_url: null, media_type: null };
 }
@@ -36,6 +36,7 @@ async function downloadAndStoreMedia(
   evoKey: string,
   instanceName: string,
   msgKey: any,
+  msgPayload: any,
   clinicaId: string,
   contentType: string,
   mimetype: string | null,
@@ -45,15 +46,24 @@ async function downloadAndStoreMedia(
     const resp = await fetch(`${evoUrl.replace(/\/+$/, "")}/chat/getBase64FromMediaMessage/${encodeURIComponent(instanceName)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: evoKey },
-      body: JSON.stringify({ message: { key: msgKey }, convertToMp4: false }),
+      body: JSON.stringify({
+        message: { key: msgKey, message: msgPayload || {} },
+        convertToMp4: false,
+      }),
     });
     if (!resp.ok) {
-      console.warn("[webhook-receiver] getBase64 failed:", resp.status);
+      const errText = await resp.text().catch(() => "");
+      console.warn("[webhook-receiver] getBase64 failed:", resp.status, errText.substring(0, 200));
       return null;
     }
     const data = await resp.json().catch(() => ({}));
-    const base64: string = data?.base64 || data?.media || "";
-    const mt: string = data?.mimetype || mimetype || "application/octet-stream";
+    const rawBase64: string = data?.base64 || data?.media || "";
+    const base64 = rawBase64.includes(",") ? rawBase64.split(",").pop() || "" : rawBase64;
+    let mt: string = data?.mimetype || mimetype || "application/octet-stream";
+    if (contentType === "audio" && (mt === "audio" || !mt.includes("/"))) mt = "audio/ogg";
+    if (contentType === "imagem" && (mt === "image" || !mt.includes("/"))) mt = "image/jpeg";
+    if (contentType === "video" && (mt === "video" || !mt.includes("/"))) mt = "video/mp4";
+    if (contentType === "sticker" && (mt === "image" || !mt.includes("/"))) mt = "image/webp";
     if (!base64) return null;
 
     const bin = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
@@ -62,7 +72,7 @@ async function downloadAndStoreMedia(
       "video/mp4": "mp4", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a",
       "application/pdf": "pdf",
     };
-    const ext = extMap[mt] || mt.split("/")[1] || "bin";
+    const ext = extMap[mt] || mt.split("/")[1]?.split(";")[0] || "bin";
     const folder = contentType === "sticker" ? "stickers" : contentType;
     const path = `${clinicaId}/${folder}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
     const { error: upErr } = await serviceClient.storage.from("omni-files").upload(path, bin, {
@@ -153,6 +163,7 @@ Deno.serve(async (req) => {
           messageId: key?.id || data?.messageId || null,
           senderName: data?.pushName || null,
           _evoKey: key, // preservar para download posterior de mídia
+          _evoMessage: msg, // Evolution precisa do payload da mídia para descriptografar base64
           ...(image && { image: { caption: image.caption || "", imageUrl: base64 ? `data:${image.mimetype || "image/jpeg"};base64,${base64}` : (image?.url || null) } }),
           ...(video && { video: { caption: video.caption || "", videoUrl: base64 ? `data:${video.mimetype || "video/mp4"};base64,${base64}` : (video?.url || null) } }),
           ...(audio && { audio: { audioUrl: base64 ? `data:${audio.mimetype || "audio/ogg"};base64,${base64}` : (audio?.url || null), mimetype: audio.mimetype || "audio/ogg" } }),
@@ -359,6 +370,8 @@ Deno.serve(async (req) => {
     }
     const messageId = body.messageId || body.id?.id || crypto.randomUUID();
     let { content_type, message, media_url, media_type } = mapContentType(body);
+    let media_original_url: string | null = null;
+    let media_status: string | null = null;
     const senderName = body.senderName || body.pushName || body.notifyName || null;
     const senderPhoto = body.photo || body.senderPhoto || body.profilePicture || body.imgUrl || null;
 
@@ -370,13 +383,20 @@ Deno.serve(async (req) => {
       !media_url.startsWith("data:") &&
       /mmg\.whatsapp\.net|whatsapp\.net|\.enc(\?|$)/.test(media_url)
     ) {
+      media_original_url = media_url;
       const EVO_URL = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/+$/, "");
       const EVO_KEY = mi.evolution_api_key || Deno.env.get("EVOLUTION_API_KEY") || "";
       const stored = await downloadAndStoreMedia(
         serviceClient, EVO_URL, EVO_KEY, mi.evolution_instance_name,
-        body._evoKey, mi.clinica_id, content_type, media_type,
+        body._evoKey, body._evoMessage, mi.clinica_id, content_type, media_type,
       );
-      if (stored) media_url = stored;
+      if (stored) {
+        media_url = stored;
+        media_status = "downloaded";
+      } else {
+        media_url = null;
+        media_status = "error";
+      }
     }
 
     console.log(`[webhook-receiver] Incoming from ${phone}: ${content_type} - ${message?.substring(0, 50)}`);
@@ -478,6 +498,9 @@ Deno.serve(async (req) => {
         whatsapp_message_id: messageId,
         arquivo_url: media_url,
         arquivo_tipo: media_type,
+        media_status,
+        media_mime: media_type,
+        media_original_url,
       });
 
     if (msgErr) {
