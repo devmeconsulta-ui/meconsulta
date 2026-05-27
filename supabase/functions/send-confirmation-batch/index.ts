@@ -202,24 +202,34 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Enviar mensagem via Z-API
-        const zapiResponse = await fetchWithRetry(
-          `${zapiBase}/send-text`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Client-Token": ZAPI_CLIENT_TOKEN,
-            },
-            body: JSON.stringify({
-              phone: telefone,
-              message: mensagem,
-            }),
-          },
-          3, 800
-        );
+        // Enviar mensagem via provider correto
+        const zapiResponse = isEvolution
+          ? await fetchWithRetry(
+              `${EVO_URL}/message/sendText/${instancia.zapi_instance_id}`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  apikey: instancia.zapi_token || EVO_KEY,
+                },
+                body: JSON.stringify({ number: telefone, text: mensagem }),
+              },
+              3, 800
+            )
+          : await fetchWithRetry(
+              `${zapiBase}/send-text`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Client-Token": ZAPI_CLIENT_TOKEN,
+                },
+                body: JSON.stringify({ phone: telefone, message: mensagem }),
+              },
+              3, 800
+            );
 
-        const zapiResult = await zapiResponse.json();
+        const zapiResult = await zapiResponse.json().catch(() => ({}));
 
         if (!zapiResponse.ok) {
           await supabase
