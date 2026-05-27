@@ -370,6 +370,8 @@ Deno.serve(async (req) => {
     }
     const messageId = body.messageId || body.id?.id || crypto.randomUUID();
     let { content_type, message, media_url, media_type } = mapContentType(body);
+    let media_original_url: string | null = null;
+    let media_status: string | null = null;
     const senderName = body.senderName || body.pushName || body.notifyName || null;
     const senderPhoto = body.photo || body.senderPhoto || body.profilePicture || body.imgUrl || null;
 
@@ -381,13 +383,20 @@ Deno.serve(async (req) => {
       !media_url.startsWith("data:") &&
       /mmg\.whatsapp\.net|whatsapp\.net|\.enc(\?|$)/.test(media_url)
     ) {
+      media_original_url = media_url;
       const EVO_URL = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/+$/, "");
       const EVO_KEY = mi.evolution_api_key || Deno.env.get("EVOLUTION_API_KEY") || "";
       const stored = await downloadAndStoreMedia(
         serviceClient, EVO_URL, EVO_KEY, mi.evolution_instance_name,
         body._evoKey, body._evoMessage, mi.clinica_id, content_type, media_type,
       );
-      if (stored) media_url = stored;
+      if (stored) {
+        media_url = stored;
+        media_status = "downloaded";
+      } else {
+        media_url = null;
+        media_status = "error";
+      }
     }
 
     console.log(`[webhook-receiver] Incoming from ${phone}: ${content_type} - ${message?.substring(0, 50)}`);
@@ -489,6 +498,9 @@ Deno.serve(async (req) => {
         whatsapp_message_id: messageId,
         arquivo_url: media_url,
         arquivo_tipo: media_type,
+        media_status,
+        media_mime: media_type,
+        media_original_url,
       });
 
     if (msgErr) {
