@@ -1,234 +1,90 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Play, Pause, Mic } from "lucide-react";
+import { Play, Pause, Mic, AlertCircle } from "lucide-react";
 
 interface AudioPlayerWithFallbackProps {
   url: string;
   isOutgoing?: boolean;
 }
 
-// Static waveform heights - never changes
 const WAVEFORM_HEIGHTS = [3, 5, 8, 4, 10, 6, 12, 5, 8, 14, 6, 9, 4, 11, 7, 5, 13, 8, 6, 10, 4, 7, 12, 5, 9, 6, 8, 4];
 
-export function AudioPlayerWithFallback({ 
-  url, 
-  isOutgoing = false
-}: AudioPlayerWithFallbackProps) {
+export function AudioPlayerWithFallback({ url, isOutgoing = false }: AudioPlayerWithFallbackProps) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Web Audio API refs
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioBufferRef = useRef<AudioBuffer | null>(null);
-  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const pausedAtRef = useRef<number>(0);
-  const animationRef = useRef<number | null>(null);
-  const mountedRef = useRef(true);
+  const [error, setError] = useState(false);
 
-  // Memoized colors for WhatsApp style
   const colors = useMemo(() => ({
-    bubbleBg: isOutgoing ? "bg-[#D9FDD3]" : "bg-white",
+    bubbleBg: isOutgoing ? "bg-[#D9FDD3]" : "bg-card",
     waveformColor: isOutgoing ? "#53bdeb" : "#667781",
     progressColor: isOutgoing ? "#25D366" : "#00a884",
   }), [isOutgoing]);
 
-  // Cleanup function
-  const cleanup = useCallback(() => {
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-    if (sourceNodeRef.current) {
-      try {
-        sourceNodeRef.current.stop();
-        sourceNodeRef.current.disconnect();
-      } catch (e) {}
-      sourceNodeRef.current = null;
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      try {
-        audioContextRef.current.close();
-      } catch (e) {}
-      audioContextRef.current = null;
-    }
-    audioBufferRef.current = null;
+  useEffect(() => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsLoading(true);
+    setError(false);
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+  }, [url]);
+
+  const handleLoadedMetadata = useCallback(() => {
+    const audio = audioRef.current;
+    const loadedDuration = audio?.duration || 0;
+    setDuration(Number.isFinite(loadedDuration) ? loadedDuration : 0);
+    setIsLoading(false);
+    setError(false);
   }, []);
 
-  // Load audio using Web Audio API
-  useEffect(() => {
-    mountedRef.current = true;
-    let abortController = new AbortController();
-
-    const loadAudio = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        setCurrentTime(0);
-        pausedAtRef.current = 0;
-
-        // Create AudioContext
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContextClass) {
-          throw new Error("Web Audio API não suportada");
-        }
-
-        const audioContext = new AudioContextClass();
-        audioContextRef.current = audioContext;
-
-        // Fetch the audio file
-        const response = await fetch(url, { signal: abortController.signal });
-        
-        if (!response.ok) {
-          throw new Error(`Erro ao carregar áudio: ${response.status}`);
-        }
-
-        const arrayBuffer = await response.arrayBuffer();
-
-        if (!mountedRef.current) return;
-
-        // Decode the audio data
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        
-        if (!mountedRef.current) return;
-
-        audioBufferRef.current = audioBuffer;
-        setDuration(audioBuffer.duration);
-        setIsLoading(false);
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        
-        console.error("[AudioPlayer] Load error:", err);
-        if (mountedRef.current) {
-          setError(err instanceof Error ? err.message : "Erro ao carregar áudio");
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadAudio();
-
-    return () => {
-      mountedRef.current = false;
-      abortController.abort();
-      cleanup();
-    };
-  }, [url, cleanup]);
-
-  // Update progress while playing
-  const updateProgress = useCallback(() => {
-    if (!audioContextRef.current || !mountedRef.current) return;
-    
-    const elapsed = audioContextRef.current.currentTime - startTimeRef.current + pausedAtRef.current;
-    const clampedTime = Math.min(elapsed, duration);
-    setCurrentTime(clampedTime);
-    
-    if (elapsed < duration) {
-      animationRef.current = requestAnimationFrame(updateProgress);
-    } else {
-      setIsPlaying(false);
-      setCurrentTime(0);
-      pausedAtRef.current = 0;
+  const handleTimeUpdate = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    setCurrentTime(audio.currentTime || 0);
+    const loadedDuration = audio.duration || 0;
+    if (Number.isFinite(loadedDuration) && loadedDuration > 0) {
+      setDuration(loadedDuration);
     }
-  }, [duration]);
-
-  useEffect(() => {
-    if (isPlaying && mountedRef.current) {
-      animationRef.current = requestAnimationFrame(updateProgress);
-    }
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-    };
-  }, [isPlaying, updateProgress]);
+  }, []);
 
   const handlePlayPause = useCallback(async () => {
-    if (!audioContextRef.current || !audioBufferRef.current) return;
+    const audio = audioRef.current;
+    if (!audio || error) return;
 
-    const audioContext = audioContextRef.current;
-
-    // Resume context if suspended
-    if (audioContext.state === "suspended") {
-      await audioContext.resume();
-    }
-
-    if (isPlaying) {
-      // Pause
-      if (sourceNodeRef.current) {
-        try {
-          sourceNodeRef.current.stop();
-          sourceNodeRef.current.disconnect();
-        } catch (e) {}
-        sourceNodeRef.current = null;
+    try {
+      if (isPlaying) {
+        audio.pause();
+        setIsPlaying(false);
+        return;
       }
-      pausedAtRef.current = audioContext.currentTime - startTimeRef.current + pausedAtRef.current;
-      setIsPlaying(false);
-    } else {
-      // Play
-      const source = audioContext.createBufferSource();
-      source.buffer = audioBufferRef.current;
-      source.connect(audioContext.destination);
-      
-      source.onended = () => {
-        if (sourceNodeRef.current === source && mountedRef.current) {
-          setIsPlaying(false);
-          setCurrentTime(0);
-          pausedAtRef.current = 0;
-          sourceNodeRef.current = null;
-        }
-      };
 
-      const offset = Math.min(pausedAtRef.current, duration);
-      startTimeRef.current = audioContext.currentTime;
-      source.start(0, offset);
-      sourceNodeRef.current = source;
+      await audio.play();
       setIsPlaying(true);
+      setIsLoading(false);
+    } catch (err) {
+      console.error("[AudioPlayer] Playback error:", err);
+      setIsPlaying(false);
+      setIsLoading(false);
+      setError(true);
     }
-  }, [isPlaying, duration]);
+  }, [error, isPlaying]);
 
   const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!duration || !audioBufferRef.current) return;
-    
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percentage = Math.max(0, Math.min(1, x / rect.width));
-    const seekTime = percentage * duration;
-    
-    // If playing, restart from new position
-    if (isPlaying && sourceNodeRef.current && audioContextRef.current) {
-      try {
-        sourceNodeRef.current.stop();
-        sourceNodeRef.current.disconnect();
-      } catch (e) {}
-      
-      const source = audioContextRef.current.createBufferSource();
-      source.buffer = audioBufferRef.current;
-      source.connect(audioContextRef.current.destination);
-      
-      source.onended = () => {
-        if (sourceNodeRef.current === source && mountedRef.current) {
-          setIsPlaying(false);
-          setCurrentTime(0);
-          pausedAtRef.current = 0;
-          sourceNodeRef.current = null;
-        }
-      };
+    const audio = audioRef.current;
+    if (!audio || !duration || error) return;
 
-      startTimeRef.current = audioContextRef.current.currentTime;
-      pausedAtRef.current = seekTime;
-      source.start(0, seekTime);
-      sourceNodeRef.current = source;
-    } else {
-      pausedAtRef.current = seekTime;
-    }
-    
-    setCurrentTime(seekTime);
-  }, [duration, isPlaying]);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const percentage = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    audio.currentTime = percentage * duration;
+    setCurrentTime(audio.currentTime);
+  }, [duration, error]);
 
   const formatTime = useCallback((time: number) => {
     if (!time || !isFinite(time)) return "0:00";
@@ -237,29 +93,14 @@ export function AudioPlayerWithFallback({
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }, []);
 
-  const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const handleAudioError = useCallback(() => {
+    console.error("[AudioPlayer] Native audio error:", url);
+    setError(true);
+    setIsLoading(false);
+    setIsPlaying(false);
+  }, [url]);
 
-  // Error state - use native audio as final fallback
-  if (error) {
-    return (
-      <div className={cn(
-        "rounded-2xl p-2 min-w-[200px] max-w-[280px] shadow-sm",
-        colors.bubbleBg
-      )}>
-        <audio 
-          src={url} 
-          controls 
-          preload="auto"
-          playsInline
-          className="w-full h-10"
-          style={{ borderRadius: '8px' }}
-        />
-        <p className="text-[10px] text-muted-foreground text-center mt-1">
-          Player alternativo
-        </p>
-      </div>
-    );
-  }
+  const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div className={cn(
