@@ -30,14 +30,8 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
-
-    if (!ZAPI_CLIENT_TOKEN) {
-      console.log("Z-API não configurada, notificação ignorada");
-      return new Response(
-        JSON.stringify({ success: false, reason: "zapi_not_configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const EVO_URL = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/+$/, "");
+    const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY") || "";
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -60,10 +54,26 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     const instancia = fila?.instancia as any;
-    if (filaError || !instancia?.zapi_instance_id || !instancia?.zapi_token) {
-      console.log("Nenhuma instância Z-API ativa encontrada para a clínica", clinica_id);
+    if (filaError || !instancia?.zapi_instance_id) {
+      console.log("Nenhuma instância WhatsApp ativa para a clínica", clinica_id);
       return new Response(
         JSON.stringify({ success: false, reason: "no_whatsapp_instance" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const isEvolution = instancia.provider === "evolution";
+    if (!isEvolution && (!instancia.zapi_token || !ZAPI_CLIENT_TOKEN)) {
+      console.log("Z-API não configurada para esta instância");
+      return new Response(
+        JSON.stringify({ success: false, reason: "zapi_not_configured" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (isEvolution && !EVO_URL) {
+      console.log("Evolution API URL não configurada");
+      return new Response(
+        JSON.stringify({ success: false, reason: "evolution_not_configured" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
