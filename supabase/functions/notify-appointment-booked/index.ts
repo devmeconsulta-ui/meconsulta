@@ -84,44 +84,45 @@ Deno.serve(async (req: Request) => {
       telefone = "55" + telefone;
     }
 
-    // === Buscar foto de perfil do WhatsApp via Z-API e salvar no paciente ===
-    try {
-      const profilePicResponse = await fetchWithRetry(
-        `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
-        { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN } },
-        2, 800
-      );
+    // === Buscar foto de perfil do WhatsApp via Z-API e salvar no paciente (apenas Z-API) ===
+    if (!isEvolution && ZAPI_CLIENT_TOKEN) {
+      try {
+        const profilePicResponse = await fetchWithRetry(
+          `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/profile-picture/${telefone}`,
+          { method: "GET", headers: { "Client-Token": ZAPI_CLIENT_TOKEN } },
+          2, 800
+        );
 
-      if (profilePicResponse.ok) {
-        const profileData = await profilePicResponse.json();
-        const profilePictureUrl = profileData?.link || profileData?.profilePictureUrl || profileData?.imgUrl;
+        if (profilePicResponse.ok) {
+          const profileData = await profilePicResponse.json();
+          const profilePictureUrl = profileData?.link || profileData?.profilePictureUrl || profileData?.imgUrl;
 
-        if (profilePictureUrl) {
-          const telefoneSem55 = telefone.startsWith("55") ? telefone.slice(2) : telefone;
-          
-          const { data: paciente } = await supabase
-            .from("pacientes")
-            .select("id, foto_url")
-            .or(`telefone.eq.${telefoneSem55},telefone.eq.${telefone}`)
-            .maybeSingle();
+          if (profilePictureUrl) {
+            const telefoneSem55 = telefone.startsWith("55") ? telefone.slice(2) : telefone;
 
-          if (paciente && !paciente.foto_url) {
-            await supabase
+            const { data: paciente } = await supabase
               .from("pacientes")
-              .update({ foto_url: profilePictureUrl })
-              .eq("id", paciente.id);
-            console.log("Foto do WhatsApp salva para paciente", paciente.id);
-          }
+              .select("id, foto_url")
+              .or(`telefone.eq.${telefoneSem55},telefone.eq.${telefone}`)
+              .maybeSingle();
 
-          await supabase
-            .from("omni_contatos")
-            .update({ foto_url: profilePictureUrl })
-            .or(`telefone.eq.${telefoneSem55},telefone.eq.${telefone}`)
-            .is("foto_url", null);
+            if (paciente && !paciente.foto_url) {
+              await supabase
+                .from("pacientes")
+                .update({ foto_url: profilePictureUrl })
+                .eq("id", paciente.id);
+            }
+
+            await supabase
+              .from("omni_contatos")
+              .update({ foto_url: profilePictureUrl })
+              .or(`telefone.eq.${telefoneSem55},telefone.eq.${telefone}`)
+              .is("foto_url", null);
+          }
         }
+      } catch (picError) {
+        console.log("Erro ao buscar foto do WhatsApp (não bloqueante):", picError);
       }
-    } catch (picError) {
-      console.log("Erro ao buscar foto do WhatsApp (não bloqueante):", picError);
     }
 
     // Formatar data/hora
