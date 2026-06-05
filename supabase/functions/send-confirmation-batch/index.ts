@@ -5,13 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const ZAPI_BASE = "https://api.z-api.io";
-
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 800): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch(url, options);
-      return response;
+      return await fetch(url, options);
     } catch (error) {
       console.warn(`Fetch attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : error);
       if (i === retries - 1) throw error;
@@ -49,9 +46,12 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
+    const EVO_URL = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/+$/, "");
+    const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY") || "";
 
-    // ZAPI_CLIENT_TOKEN é validado por instância (apenas se provider for zapi)
+    if (!EVO_URL) {
+      throw new Error("EVOLUTION_API_URL não configurada");
+    }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -75,13 +75,10 @@ Deno.serve(async (req: Request) => {
     const isAgendado = !!agendar_para;
     const consultasToProcess = consulta_ids.slice(0, 50);
 
-    // Buscar dados da fila (instância WhatsApp via Z-API)
+    // Buscar dados da fila (instância Evolution)
     const { data: fila, error: filaError } = await supabase
       .from("omni_filas")
-      .select(`
-        *,
-        instancia:omni_instancias(*)
-      `)
+      .select(`*, instancia:omni_instancias(*)`)
       .eq("id", fila_id)
       .single();
 
@@ -92,18 +89,6 @@ Deno.serve(async (req: Request) => {
     const instancia = fila.instancia;
     if (!instancia?.zapi_instance_id) {
       throw new Error("Fila não possui instância WhatsApp conectada");
-    }
-
-    const isEvolution = instancia.provider === "evolution";
-    const EVO_URL = (Deno.env.get("EVOLUTION_API_URL") || "").replace(/\/+$/, "");
-    const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY") || "";
-    const zapiBase = `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}`;
-
-    if (isEvolution && (!EVO_URL || !instancia.zapi_instance_id)) {
-      throw new Error("Credenciais Evolution não configuradas");
-    }
-    if (!isEvolution && !instancia.zapi_token) {
-      throw new Error("Fila não possui instância WhatsApp Z-API conectada");
     }
 
     // Buscar dados das consultas
@@ -164,11 +149,8 @@ Deno.serve(async (req: Request) => {
         }
 
         let telefone = paciente.telefone.replace(/\D/g, "");
-        if (!telefone.startsWith("55")) {
-          telefone = "55" + telefone;
-        }
+        if (!telefone.startsWith("55")) telefone = "55" + telefone;
 
-        // Salvar registro de confirmação
         const confirmacaoData: any = {
           clinica_id,
           consulta_id: consulta.id,
@@ -200,48 +182,35 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Enviar mensagem via provider correto
-        const zapiResponse = isEvolution
-          ? await fetchWithRetry(
-              `${EVO_URL}/message/sendText/${instancia.zapi_instance_id}`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  apikey: instancia.zapi_token || EVO_KEY,
-                },
-                body: JSON.stringify({ number: telefone, text: mensagem }),
-              },
-              3, 800
-            )
-          : await fetchWithRetry(
-              `${zapiBase}/send-text`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Client-Token": ZAPI_CLIENT_TOKEN,
-                },
-                body: JSON.stringify({ phone: telefone, message: mensagem }),
-              },
-              3, 800
-            );
+        // Enviar via Evolution
+        const evoResponse = await fetchWithRetry(
+          `${EVO_URL}/message/sendText/${instancia.zapi_instance_id}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: instancia.zapi_token || EVO_KEY,
+            },
+            body: JSON.stringify({ number: telefone, text: mensagem }),
+          },
+          3, 800
+        );
 
-        const zapiResult = await zapiResponse.json().catch(() => ({}));
+        const evoResult = await evoResponse.json().catch(() => ({}));
 
-        if (!zapiResponse.ok) {
+        if (!evoResponse.ok) {
           await supabase
             .from("confirmacoes_agenda")
             .update({
               status: "erro",
-              erro_descricao: zapiResult.message || JSON.stringify(zapiResult) || "Erro ao enviar mensagem",
+              erro_descricao: evoResult.message || JSON.stringify(evoResult) || "Erro ao enviar mensagem",
             })
             .eq("id", confirmacao.id);
 
           results.push({
             consulta_id: consulta.id,
             success: false,
-            error: zapiResult.message || "Erro ao enviar mensagem",
+            error: evoResult.message || "Erro ao enviar mensagem",
           });
         } else {
           await supabase
@@ -249,7 +218,7 @@ Deno.serve(async (req: Request) => {
             .update({
               status: "enviada",
               data_envio: new Date().toISOString(),
-              whatsapp_message_id: zapiResult?.key?.id || zapiResult?.messageId || zapiResult?.zapiMessageId || null,
+              whatsapp_message_id: evoResult?.key?.id || evoResult?.messageId || null,
             })
             .eq("id", confirmacao.id);
 
@@ -257,7 +226,6 @@ Deno.serve(async (req: Request) => {
           sentCount++;
         }
 
-        // Delay entre mensagens
         if (i < consultas.length - 1) {
           const delay = Math.floor(Math.random() * (intervalo_max - intervalo_min + 1)) + intervalo_min;
           const extraDelay = sentCount > 0 && sentCount % 20 === 0 ? 10000 : 0;
@@ -273,7 +241,7 @@ Deno.serve(async (req: Request) => {
     const agendadasCount = results.filter((r) => r.agendado).length;
     const failCount = results.filter((r) => !r.success).length;
 
-    console.log(`[SendConfirmation] Concluído: ${successCount} enviadas, ${agendadasCount} agendadas, ${failCount} falhas (via Z-API)`);
+    console.log(`[SendConfirmation] Concluído: ${successCount} enviadas, ${agendadasCount} agendadas, ${failCount} falhas (via Evolution)`);
 
     return new Response(
       JSON.stringify({ success: true, total: results.length, enviadas: successCount, agendadas: agendadasCount, falhas: failCount, results }),
