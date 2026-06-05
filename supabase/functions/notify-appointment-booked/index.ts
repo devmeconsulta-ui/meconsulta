@@ -142,24 +142,34 @@ Deno.serve(async (req: Request) => {
 
     const mensagem = `Olá ${paciente_nome || ""}! 🏥\n\nSeu horário foi reservado com sucesso:\n\n📅 *Data:* ${dataFormatada}\n🕐 *Horário:* ${horaFormatada}\n👨‍⚕️ *Médico(a):* Dr(a). ${medico_nome || ""}${local_nome ? `\n📍 *Local:* ${local_nome}` : ""}\n\nEm caso de dúvidas, entre em contato conosco.\nObrigado! 😊`;
 
-    // Enviar via Z-API
-    const zapiResponse = await fetchWithRetry(
-      `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/send-text`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Client-Token": ZAPI_CLIENT_TOKEN,
-        },
-        body: JSON.stringify({
-          phone: telefone,
-          message: mensagem,
-        }),
-      },
-      3, 800
-    );
+    // Enviar via provider correto
+    const zapiResponse = isEvolution
+      ? await fetchWithRetry(
+          `${EVO_URL}/message/sendText/${instancia.zapi_instance_id}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: instancia.zapi_token || EVO_KEY,
+            },
+            body: JSON.stringify({ number: telefone, text: mensagem }),
+          },
+          3, 800
+        )
+      : await fetchWithRetry(
+          `${ZAPI_BASE}/instances/${instancia.zapi_instance_id}/token/${instancia.zapi_token}/send-text`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Client-Token": ZAPI_CLIENT_TOKEN!,
+            },
+            body: JSON.stringify({ phone: telefone, message: mensagem }),
+          },
+          3, 800
+        );
 
-    const result = await zapiResponse.json();
+    const result = await zapiResponse.json().catch(() => ({}));
 
     if (!zapiResponse.ok) {
       console.error("Erro ao enviar notificação WhatsApp:", result);
@@ -169,7 +179,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log("Notificação de agendamento enviada com sucesso para", telefone);
+    console.log(`Notificação de agendamento enviada via ${isEvolution ? "Evolution" : "Z-API"} para`, telefone);
 
     return new Response(
       JSON.stringify({ success: true }),
