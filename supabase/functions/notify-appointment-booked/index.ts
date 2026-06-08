@@ -47,23 +47,30 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Buscar primeira fila ativa com instância Evolution conectada
-    const { data: fila, error: filaError } = await supabase
+    // Buscar filas ativas e selecionar uma com instância Evolution CONECTADA
+    const { data: filas, error: filaError } = await supabase
       .from("omni_filas")
       .select(`*, instancia:omni_instancias(*)`)
       .eq("clinica_id", clinica_id)
-      .eq("ativo", true)
-      .limit(1)
-      .maybeSingle();
+      .eq("ativo", true);
 
-    const instancia = fila?.instancia as any;
-    if (filaError || !instancia?.zapi_instance_id) {
-      console.log("Nenhuma instância WhatsApp ativa para a clínica", clinica_id);
+    if (filaError) {
+      console.error("[notify-appointment-booked] Erro ao buscar filas:", filaError);
+    }
+
+    const filaConectada = (filas || []).find((f: any) => f.instancia?.status === "connected" && f.instancia?.zapi_instance_id)
+      || (filas || []).find((f: any) => f.instancia?.zapi_instance_id);
+
+    const instancia = filaConectada?.instancia as any;
+    if (!instancia?.zapi_instance_id) {
+      console.log(`[notify-appointment-booked] Nenhuma instância Evolution disponível para a clínica ${clinica_id}. Filas encontradas: ${filas?.length || 0}`);
       return new Response(
         JSON.stringify({ success: false, reason: "no_whatsapp_instance" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log(`[notify-appointment-booked] Usando instância ${instancia.nome} (status: ${instancia.status}) para clínica ${clinica_id}`);
 
     // Formatar telefone
     let telefone = paciente_telefone.replace(/\D/g, "");
