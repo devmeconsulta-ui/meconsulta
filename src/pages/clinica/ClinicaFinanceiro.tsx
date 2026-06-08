@@ -317,6 +317,52 @@ export default function ClinicaFinanceiro() {
     }
   }, [clinicaData?.id, dateRange]);
 
+  // 🔄 Realtime: atualiza painel financeiro automaticamente quando dados mudam
+  useEffect(() => {
+    if (!clinicaData?.id) return;
+
+    const channel = supabase
+      .channel(`financeiro-${clinicaData.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "consultas", filter: `clinica_id=eq.${clinicaData.id}` },
+        () => { fetchConsultas(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "caixa_movimentos", filter: `clinica_id=eq.${clinicaData.id}` },
+        () => { fetchAllData(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "contas_pagar", filter: `clinica_id=eq.${clinicaData.id}` },
+        () => { fetchContasPagar(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "contas_receber", filter: `clinica_id=eq.${clinicaData.id}` },
+        () => { fetchContasReceber(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "repasses_medico", filter: `clinica_id=eq.${clinicaData.id}` },
+        () => { fetchRepasses(); }
+      )
+      .subscribe();
+
+    // Refetch ao voltar para a aba/janela
+    const onFocus = () => fetchAllData();
+    const onVisibility = () => { if (document.visibilityState === "visible") fetchAllData(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [clinicaData?.id]);
+
   async function fetchAllData() {
     setLoading(true);
     await Promise.all([
