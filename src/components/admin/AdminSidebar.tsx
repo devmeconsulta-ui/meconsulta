@@ -11,6 +11,7 @@ import {
   X,
   Plug,
   Building2,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -79,6 +80,12 @@ const menuItems: MenuItem[] = [
     title: "Integrações", 
     url: "/admin/integracoes", 
     icon: Plug,
+    allowedRoles: ["admin", "superadmin"]
+  },
+  {
+    title: "Importações",
+    url: "/admin/importacoes",
+    icon: Upload,
     allowedRoles: ["admin", "superadmin"]
   },
 ];
