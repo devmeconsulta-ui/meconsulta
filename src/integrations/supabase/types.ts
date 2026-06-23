@@ -1793,6 +1793,54 @@ export type Database = {
           },
         ]
       }
+      import_jobs: {
+        Row: {
+          arquivo_nome: string | null
+          atualizados: number | null
+          clinica_id: string | null
+          created_at: string
+          created_by: string | null
+          criados: number | null
+          detalhes_erros: Json | null
+          erros: number | null
+          id: string
+          origem: string | null
+          status: string | null
+          tipo: string
+          total_registros: number | null
+        }
+        Insert: {
+          arquivo_nome?: string | null
+          atualizados?: number | null
+          clinica_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          criados?: number | null
+          detalhes_erros?: Json | null
+          erros?: number | null
+          id?: string
+          origem?: string | null
+          status?: string | null
+          tipo: string
+          total_registros?: number | null
+        }
+        Update: {
+          arquivo_nome?: string | null
+          atualizados?: number | null
+          clinica_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          criados?: number | null
+          detalhes_erros?: Json | null
+          erros?: number | null
+          id?: string
+          origem?: string | null
+          status?: string | null
+          tipo?: string
+          total_registros?: number | null
+        }
+        Relationships: []
+      }
       lista_espera: {
         Row: {
           clinica_id: string | null
@@ -3648,6 +3696,65 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "paciente_dependentes_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      paciente_documentos: {
+        Row: {
+          arquivo_nome: string | null
+          arquivo_tamanho: number | null
+          arquivo_tipo: string | null
+          arquivo_url: string
+          categoria: string | null
+          clinica_id: string | null
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          origem_import: string | null
+          paciente_id: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          arquivo_nome?: string | null
+          arquivo_tamanho?: number | null
+          arquivo_tipo?: string | null
+          arquivo_url: string
+          categoria?: string | null
+          clinica_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          origem_import?: string | null
+          paciente_id: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          arquivo_nome?: string | null
+          arquivo_tamanho?: number | null
+          arquivo_tipo?: string | null
+          arquivo_url?: string
+          categoria?: string | null
+          clinica_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          origem_import?: string | null
+          paciente_id?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paciente_documentos_paciente_id_fkey"
             columns: ["paciente_id"]
             isOneToOne: false
             referencedRelation: "pacientes"
