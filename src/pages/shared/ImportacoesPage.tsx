@@ -151,8 +151,8 @@ export default function ImportacoesPage({ scope }: { scope: Scope }) {
       setSelectedClinica(currentUser?.clinicaId || "");
     } else {
       (async () => {
-        const { data } = await supabase.from("clinicas").select("id, nome").order("nome");
-        setClinicas((data as ClinicaOption[]) || []);
+        const { data } = await supabase.from("clinicas").select("id, nome_fantasia").order("nome_fantasia");
+        setClinicas(((data as any[]) || []).map((c) => ({ id: c.id, nome: c.nome_fantasia })));
       })();
     }
   }, [scope, currentUser?.clinicaId]);
