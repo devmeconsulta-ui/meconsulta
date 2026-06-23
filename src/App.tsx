@@ -28,6 +28,7 @@ import AdminConsultas from "./pages/admin/AdminConsultas";
 import AdminFinanceiroPage from "./pages/admin/AdminFinanceiroPage";
 import AdminConfiguracoes from "./pages/admin/AdminConfiguracoes";
 import AdminIntegracoes from "./pages/admin/AdminIntegracoes";
+import ImportacoesPage from "./pages/shared/ImportacoesPage";
 
 // Medico pages
 import { MedicoLayout } from "./components/medico/MedicoLayout";
@@ -195,6 +196,7 @@ const App = () => (
               <Route path="tiss/exportar-xml" element={<TissExportarXml />} />
               <Route path="tiss/relatorios" element={<TissRelatorios />} />
               <Route path="configuracoes" element={<ClinicaConfiguracoes />} />
+              <Route path="importacoes" element={<ImportacoesPage scope="clinica" />} />
               <Route path="suporte" element={<ClinicaSuporte />} />
             </Route>
 
@@ -220,6 +222,7 @@ const App = () => (
               <Route path="financeiro" element={<AdminFinanceiroPage />} />
               <Route path="configuracoes" element={<AdminConfiguracoes />} />
               <Route path="integracoes" element={<AdminIntegracoes />} />
+              <Route path="importacoes" element={<ImportacoesPage scope="admin" />} />
             </Route>
 
             {/* Catch-all */}

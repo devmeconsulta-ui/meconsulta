@@ -28,6 +28,7 @@ import {
   FileCode,
   ClipboardList,
   BarChart3,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,7 @@ const menuItems: MenuItem[] = [
   { icon: Wallet, label: "Dados Bancários", path: "/clinica/dados-bancarios" },
   { icon: Star, label: "Avaliações", path: "/clinica/avaliacoes" },
   { icon: User, label: "Usuários da Clínica", path: "/clinica/usuarios" },
+  { icon: Upload, label: "Importações", path: "/clinica/importacoes" },
   { icon: Settings, label: "Configurações", path: "/clinica/configuracoes" },
 ];
 
