@@ -274,6 +274,7 @@ export default function MedicoConsultas() {
         convenio_id,
         tipo_servico,
         valor_consulta,
+        observacoes_paciente,
         paciente:pacientes!consultas_paciente_id_fkey(id, nome, cpf, data_nascimento, cidade, estado, bairro),
         dependente:paciente_dependentes(id, nome, parentesco),
         local:locais_atendimento(id, nome_local, endereco, cidade, estado, tipo_atendimento),
