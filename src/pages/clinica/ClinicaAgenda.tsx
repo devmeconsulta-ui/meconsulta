@@ -157,7 +157,9 @@ export default function ClinicaAgenda() {
   const podeGerenciarAgenda = !currentUser?.isClinicaUser
     || currentUser?.papel === "gerente"
     || currentUser?.papel === "admin"
-    || currentUser?.papel === "superadmin";
+    || currentUser?.papel === "superadmin"
+    || currentUser?.papel === "secretaria"
+    || currentUser?.papel === "atendente";
   
   // Filters
   const [filterMedico, setFilterMedico] = useState("todos");
