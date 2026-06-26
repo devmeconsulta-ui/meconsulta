@@ -39,6 +39,7 @@ interface Consulta {
   data_hora: string;
   status_consulta: string;
   motivo_consulta: string | null;
+  observacoes_paciente?: string | null;
   nome_paciente_consulta: string | null;
   paciente_id?: string | null;
   paciente: {
@@ -597,6 +598,15 @@ export default function ConsultaDetalhesModal({
                     <div>
                       <Label className="text-muted-foreground text-xs">Motivo da Consulta</Label>
                       <p className="font-medium">{consulta.motivo_consulta}</p>
+                    </div>
+                  )}
+                  {consulta.observacoes_paciente && (
+                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900">
+                      <Label className="text-amber-700 dark:text-amber-400 text-xs font-semibold flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Observações da Secretaria / Recepção
+                      </Label>
+                      <p className="text-sm mt-1 whitespace-pre-wrap text-foreground">{consulta.observacoes_paciente}</p>
                     </div>
                   )}
                 </CardContent>
