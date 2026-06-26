@@ -309,18 +309,25 @@ export default function MedicoAgenda() {
 
   function getSlotStatus(slot: Slot) {
     if (!slot.disponivel || (slot.consultas && slot.consultas.length > 0)) {
-      const consulta = slot.consultas?.[0];
-      if (consulta) {
+      const consultas = slot.consultas || [];
+      if (consultas.length > 0) {
+        const primeiraConsulta = consultas[0];
+        const nomes = consultas.map(c => c.nome_paciente_consulta || c.pacientes?.nome || "Paciente");
+        const pacienteNome = consultas.length > 1
+          ? `${nomes[0]} +${consultas.length - 1}`
+          : nomes[0];
         return {
           status: "reservado",
-          origem: consulta.origem || "online",
-          pacienteNome: consulta.nome_paciente_consulta || consulta.pacientes?.nome || "Paciente",
-          statusConsulta: consulta.status_consulta,
+          origem: primeiraConsulta.origem || "online",
+          pacienteNome,
+          statusConsulta: primeiraConsulta.status_consulta,
+          totalConsultas: consultas.length,
+          todosNomes: nomes,
         };
       }
-      return { status: "indisponivel", origem: null, pacienteNome: null, statusConsulta: null };
+      return { status: "indisponivel", origem: null, pacienteNome: null, statusConsulta: null, totalConsultas: 0, todosNomes: [] };
     }
-    return { status: "livre", origem: null, pacienteNome: null, statusConsulta: null };
+    return { status: "livre", origem: null, pacienteNome: null, statusConsulta: null, totalConsultas: 0, todosNomes: [] };
   }
 
   function getFilteredSlots() {
