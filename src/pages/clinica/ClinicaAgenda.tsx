@@ -151,6 +151,13 @@ export default function ClinicaAgenda() {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("semana");
   const clinicaId = clinicaData?.id || currentUser?.clinicaId || null;
+
+  // Permissão para gerenciar agenda (gerar/excluir slots em massa)
+  // Dono da clínica + cargos administrativos podem; recepção/secretária não
+  const podeGerenciarAgenda = !currentUser?.isClinicaUser
+    || currentUser?.papel === "gerente"
+    || currentUser?.papel === "admin"
+    || currentUser?.papel === "superadmin";
   
   // Filters
   const [filterMedico, setFilterMedico] = useState("todos");
@@ -1585,10 +1592,12 @@ export default function ClinicaAgenda() {
             <Users className="h-4 w-4" />
             Lista de Espera
           </Button>
-          <Button onClick={() => setGerarSlotsModalOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Gerar Horários
-          </Button>
+          {podeGerenciarAgenda && (
+            <Button onClick={() => setGerarSlotsModalOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Gerar Horários
+            </Button>
+          )}
         </div>
       </div>
 
