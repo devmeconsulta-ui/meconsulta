@@ -286,23 +286,46 @@ export function useOmniFilas(clinicaId: string | null) {
   };
 
   const checkConnectionStatus = async (instanciaId: string) => {
-    try {
-      const response = await supabase.functions.invoke("zapi-manage", {
-        body: { action: "get_status", instancia_id: instanciaId },
-      });
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await supabase.functions.invoke("zapi-manage", {
+          body: { action: "get_status", instancia_id: instanciaId },
+        });
 
-      // Z-API bloqueada/migração Evolution: degrada silenciosamente
-      if (response.error || response.data?.ok === false) {
-        console.warn("[checkConnectionStatus] Z-API indisponível (migração Evolution):", response.error || response.data?.message);
-        return { ok: false, connected: false, zapi_unavailable: true };
+        const errMsg = response.error
+          ? String((response.error as any).message || response.error)
+          : "";
+        const isDegraded =
+          errMsg.includes("503") ||
+          errMsg.includes("SERVICE_DEGRADED") ||
+          errMsg.includes("temporarily unavailable");
+
+        if (isDegraded && attempt < maxRetries - 1) {
+          await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+          continue;
+        }
+
+        // Z-API/edge indisponível: degrada silenciosamente
+        if (response.error || response.data?.ok === false) {
+          console.warn(
+            "[checkConnectionStatus] indisponível:",
+            response.error || response.data?.message
+          );
+          return { ok: false, connected: false, zapi_unavailable: true };
+        }
+
+        await fetchInstancias();
+        return response.data;
+      } catch (error) {
+        if (attempt === maxRetries - 1) {
+          console.error("Error checking connection status:", error);
+          return null;
+        }
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
       }
-
-      await fetchInstancias();
-      return response.data;
-    } catch (error) {
-      console.error("Error checking connection status:", error);
-      return null;
     }
+    return null;
   };
 
   return {
