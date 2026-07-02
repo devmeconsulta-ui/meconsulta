@@ -292,8 +292,8 @@ Deno.serve(async (req) => {
       const { instancia_id } = body;
       if (!instancia_id) return json({ ok: false, message: "instancia_id obrigatório" }, 400);
 
-      const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).single();
-      if (!inst) return json({ ok: false, message: "Instância não encontrada" }, 404);
+      const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).maybeSingle();
+      if (!inst) return json({ ok: true, connected: false, status: "not_found", message: "Instância não encontrada" });
       const name = inst.zapi_instance_id;
       const apikey = inst.zapi_token || EVO_KEY;
       if (!name) return json({ ok: false, message: "Instância sem instanceName" }, 400);
@@ -362,8 +362,8 @@ Deno.serve(async (req) => {
       const { instancia_id } = body;
       if (!instancia_id) return json({ ok: false, message: "instancia_id obrigatório" }, 400);
 
-      const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).single();
-      if (!inst) return json({ ok: false, message: "Instância não encontrada" }, 404);
+      const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).maybeSingle();
+      if (!inst) return json({ ok: true, connected: false, status: "not_found", phone_number: null, message: "Instância não encontrada" });
       const name = inst.zapi_instance_id;
       const apikey = inst.zapi_token || EVO_KEY;
       if (!name) return json({ ok: false, message: "Instância sem instanceName" }, 400);

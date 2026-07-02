@@ -172,6 +172,9 @@ export default function OmniFilas() {
           toast.success("WhatsApp conectado com sucesso!");
           setQrCodeData(null);
           await checkConnectionStatus(qrCodeData.instanciaId);
+        } else if (!error && data?.status === "not_found") {
+          // Instância foi removida do banco — fecha modal para evitar loop
+          setQrCodeData(null);
         }
       } catch (err) {
         console.error("Error checking connection:", err);
