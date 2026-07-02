@@ -80,6 +80,35 @@ function safeName(input: string, suffix: string) {
   return `${base}-${suffix.slice(0, 8)}`;
 }
 
+type EvolutionInstance = Record<string, unknown> & {
+  instance?: Record<string, unknown>;
+  name?: string;
+  connectionStatus?: string;
+  ownerJid?: string;
+  profileName?: string;
+  token?: string;
+};
+
+function getEvolutionInstanceName(item: EvolutionInstance): string {
+  return String(item?.name || item?.instance?.instanceName || "");
+}
+
+function getEvolutionStatus(item: EvolutionInstance): string {
+  return String(item?.connectionStatus || item?.instance?.state || "").toLowerCase();
+}
+
+function getEvolutionPhone(item: EvolutionInstance): string | null {
+  const raw = item?.ownerJid || item?.instance?.owner || item?.instance?.wuid || item?.instance?.number || item?.instance?.user?.id || null;
+  return raw ? String(raw).replace(/@.*/, "").replace(/\D/g, "") : null;
+}
+
+async function findEvolutionInstance(instanceName: string): Promise<EvolutionInstance | null> {
+  const r = await evoFetch(`/instance/fetchInstances`, { method: "GET", headers: evoHeaders() });
+  const data = await r.json().catch(() => []);
+  const arr = Array.isArray(data) ? data : (data?.instances || []);
+  return (arr as EvolutionInstance[]).find((item) => getEvolutionInstanceName(item) === instanceName) || null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, message: "Use POST" }, 405);
