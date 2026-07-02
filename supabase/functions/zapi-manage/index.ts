@@ -110,6 +110,54 @@ async function findEvolutionInstance(instanceName: string): Promise<EvolutionIns
   return (arr as EvolutionInstance[]).find((item) => getEvolutionInstanceName(item) === instanceName) || null;
 }
 
+// Executa ações pós-conexão: garante webhook configurado e vincula filas órfãs
+// (mesma clínica, ativas e sem instancia_id) a esta instância.
+async function onInstanceConnected(
+  svc: ReturnType<typeof createClient>,
+  supabaseUrl: string,
+  inst: Record<string, unknown>,
+): Promise<{ webhook_configured: boolean; linked_filas: number }> {
+  const instId = String(inst.id);
+  const clinicaId = inst.clinica_id ? String(inst.clinica_id) : null;
+  const evoName = inst.zapi_instance_id ? String(inst.zapi_instance_id) : null;
+  const apikey = (inst.zapi_token as string) || EVO_KEY;
+  const webhookUrl = `${supabaseUrl}/functions/v1/webhook-receiver?provider=evolution&instance_id=${instId}`;
+
+  // 1) Garante webhook configurado no Evolution
+  let webhookOk = Boolean(inst.webhooks_configured);
+  const currentUrl = String(inst.webhook_url || "");
+  if (evoName && (!webhookOk || currentUrl !== webhookUrl)) {
+    webhookOk = await setWebhook(evoName, apikey, webhookUrl);
+    await svc.from("omni_instancias").update({
+      webhook_url: webhookUrl,
+      webhooks_configured: webhookOk,
+      webhooks_configured_at: webhookOk ? new Date().toISOString() : null,
+    }).eq("id", instId);
+    await svc.from("managed_instances").update({ webhook_configured: webhookOk }).eq("omni_instancia_id", instId);
+  }
+
+  // 2) Vincula filas ativas da mesma clínica que estão sem instância
+  let linked = 0;
+  if (clinicaId) {
+    const { data: filas } = await svc
+      .from("omni_filas")
+      .select("id")
+      .eq("clinica_id", clinicaId)
+      .is("instancia_id", null)
+      .eq("ativo", true);
+    const ids = (filas || []).map((f: { id: string }) => f.id);
+    if (ids.length) {
+      const { error: upErr } = await svc.from("omni_filas").update({ instancia_id: instId }).in("id", ids);
+      if (!upErr) linked = ids.length;
+      else console.warn("[zapi-manage] falha ao vincular filas:", upErr);
+    }
+  }
+
+  return { webhook_configured: webhookOk, linked_filas: linked };
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, message: "Use POST" }, 405);
@@ -316,11 +364,15 @@ Deno.serve(async (req) => {
             last_error: null,
           }).eq("omni_instancia_id", instancia_id);
 
+          const post = await onInstanceConnected(svc, SUPABASE_URL, { ...inst, status: "connected", numero_whatsapp: phoneNumber });
+
           return json({
             ok: true,
             connected: true,
             status: "connected",
             phone_number: phoneNumber,
+            webhook_configured: post.webhook_configured,
+            linked_filas: post.linked_filas,
             message: "Esta instância já está pareada no Evolution. Não é necessário escanear QR Code novamente.",
           });
         }
@@ -419,7 +471,15 @@ Deno.serve(async (req) => {
         last_error: connected ? null : (data?.message || null),
       }).eq("omni_instancia_id", instancia_id);
 
-      return json({ ok: true, connected, status: newStatus, phone_number: phoneNumber, raw: data });
+      let webhookConfigured: boolean | undefined;
+      let linkedFilas: number | undefined;
+      if (connected) {
+        const post = await onInstanceConnected(svc, SUPABASE_URL, { ...inst, status: "connected", numero_whatsapp: phoneNumber });
+        webhookConfigured = post.webhook_configured;
+        linkedFilas = post.linked_filas;
+      }
+
+      return json({ ok: true, connected, status: newStatus, phone_number: phoneNumber, webhook_configured: webhookConfigured, linked_filas: linkedFilas, raw: data });
     }
 
     // ─── setup_webhooks ───
