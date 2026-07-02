@@ -106,13 +106,70 @@ Deno.serve(async (req) => {
 
     // ─── create_instance ───
     if (action === "create_instance") {
-      const { clinica_id, display_name } = body;
+      const { clinica_id, display_name, force } = body;
       if (!clinica_id || !display_name) {
         return json({ ok: false, message: "clinica_id e display_name obrigatórios" }, 400);
       }
 
       const instanceName = safeName(display_name, clinica_id);
       console.log(`[zapi-manage] create_instance: ${instanceName} (clinic: ${clinica_id})`);
+
+      // ─── Validação: já existe instância desta clínica no Evolution? ───
+      if (!force) {
+        try {
+          const clinicSuffix = clinica_id.slice(0, 8).toLowerCase();
+          const listResp = await evoFetch(`/instance/fetchInstances`, { method: "GET", headers: evoHeaders() });
+          const listData = await listResp.json().catch(() => []);
+          const arr = Array.isArray(listData) ? listData : (listData?.instances || []);
+
+          const existing = arr.filter((i: Record<string, unknown>) => {
+            const n = String(i?.name || (i as { instance?: { instanceName?: string } })?.instance?.instanceName || "").toLowerCase();
+            return n.includes(clinicSuffix);
+          });
+
+          const openOrConnecting = existing.find((i: Record<string, unknown>) => {
+            const s = String(i?.connectionStatus || (i as { instance?: { state?: string } })?.instance?.state || "").toLowerCase();
+            return s === "open" || s === "connected" || s === "connecting";
+          });
+
+          if (openOrConnecting) {
+            const st = String(openOrConnecting?.connectionStatus || "").toLowerCase();
+            const isOpen = st === "open" || st === "connected";
+            const evName = String(openOrConnecting?.name || "");
+            const profileName = openOrConnecting?.profileName as string | undefined;
+            const ownerJid = openOrConnecting?.ownerJid as string | undefined;
+            const phone = ownerJid ? String(ownerJid).replace(/@.*/, "").replace(/\D/g, "") : null;
+
+            // Check whether it is already adopted locally
+            const { data: local } = await svc
+              .from("omni_instancias")
+              .select("id, nome")
+              .eq("clinica_id", clinica_id)
+              .eq("zapi_instance_id", evName)
+              .maybeSingle();
+
+            return json({
+              ok: false,
+              duplicate: true,
+              message: isOpen
+                ? `Já existe uma instância conectada para esta clínica${profileName ? ` (${profileName})` : ""}${phone ? ` – número ${phone}` : ""}. Use essa em vez de criar uma nova.`
+                : `Já existe uma instância em pareamento para esta clínica. Aguarde escanear o QR ou exclua a atual antes de criar outra.`,
+              existing: {
+                evolution_instance_name: evName,
+                connection_status: st,
+                profile_name: profileName || null,
+                phone_number: phone,
+                omni_instancia_id: local?.id || null,
+                already_adopted: !!local,
+              },
+            }, 200);
+          }
+        } catch (e) {
+          console.warn("[zapi-manage] duplicate check failed (non-blocking):", e);
+        }
+      }
+
+
 
       const createResp = await evoFetch(`/instance/create`, {
         method: "POST",
