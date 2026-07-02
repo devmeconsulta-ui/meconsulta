@@ -205,9 +205,17 @@ export function useOmniFilas(clinicaId: string | null) {
       }
 
       const data = response.data;
+
+      // ─── Instância duplicada detectada no Evolution ───
+      if (data?.ok === false && data?.duplicate) {
+        toast.warning(data.message || "Já existe uma instância para esta clínica.");
+        return { duplicate: true, existing: data.existing, message: data.message };
+      }
+
       if (data?.ok === false) {
         throw { message: data.message || "Erro de configuração no backend" };
       }
+
 
       await fetchInstancias();
 
