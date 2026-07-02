@@ -468,7 +468,15 @@ Deno.serve(async (req) => {
         last_error: connected ? null : (data?.message || null),
       }).eq("omni_instancia_id", instancia_id);
 
-      return json({ ok: true, connected, status: newStatus, phone_number: phoneNumber, raw: data });
+      let webhookConfigured: boolean | undefined;
+      let linkedFilas: number | undefined;
+      if (connected) {
+        const post = await onInstanceConnected(svc, SUPABASE_URL, { ...inst, status: "connected", numero_whatsapp: phoneNumber });
+        webhookConfigured = post.webhook_configured;
+        linkedFilas = post.linked_filas;
+      }
+
+      return json({ ok: true, connected, status: newStatus, phone_number: phoneNumber, webhook_configured: webhookConfigured, linked_filas: linkedFilas, raw: data });
     }
 
     // ─── setup_webhooks ───
