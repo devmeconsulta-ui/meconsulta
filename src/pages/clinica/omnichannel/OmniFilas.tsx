@@ -254,6 +254,14 @@ export default function OmniFilas() {
     const result = await createInstancia(novaInstanciaNome);
     setCreatingInstancia(false);
 
+    if ((result as { duplicate?: boolean } | null)?.duplicate) {
+      setShowNovaInstancia(false);
+      setNovaInstanciaNome("");
+      // Recarrega para mostrar a instância existente
+      await fetchInstancias?.();
+      return;
+    }
+
     if (result?.instancia) {
       setShowNovaInstancia(false);
       setNovaInstanciaNome("");
@@ -262,6 +270,7 @@ export default function OmniFilas() {
       }
     }
   };
+
 
   const handleConnect = async (instanciaId: string) => {
     setConnectingId(instanciaId);
