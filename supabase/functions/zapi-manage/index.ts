@@ -361,11 +361,15 @@ Deno.serve(async (req) => {
             last_error: null,
           }).eq("omni_instancia_id", instancia_id);
 
+          const post = await onInstanceConnected(svc, SUPABASE_URL, { ...inst, status: "connected", numero_whatsapp: phoneNumber });
+
           return json({
             ok: true,
             connected: true,
             status: "connected",
             phone_number: phoneNumber,
+            webhook_configured: post.webhook_configured,
+            linked_filas: post.linked_filas,
             message: "Esta instância já está pareada no Evolution. Não é necessário escanear QR Code novamente.",
           });
         }
