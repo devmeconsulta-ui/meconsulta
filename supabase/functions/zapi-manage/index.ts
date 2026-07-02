@@ -98,7 +98,8 @@ function getEvolutionStatus(item: EvolutionInstance): string {
 }
 
 function getEvolutionPhone(item: EvolutionInstance): string | null {
-  const raw = item?.ownerJid || item?.instance?.owner || item?.instance?.wuid || item?.instance?.number || item?.instance?.user?.id || null;
+  const user = item?.instance?.user as Record<string, unknown> | undefined;
+  const raw = item?.ownerJid || item?.instance?.owner || item?.instance?.wuid || item?.instance?.number || user?.id || null;
   return raw ? String(raw).replace(/@.*/, "").replace(/\D/g, "") : null;
 }
 
@@ -297,6 +298,36 @@ Deno.serve(async (req) => {
       const apikey = inst.zapi_token || EVO_KEY;
       if (!name) return json({ ok: false, message: "Instância sem instanceName" }, 400);
 
+      try {
+        const existing = await findEvolutionInstance(name);
+        const listedState = existing ? getEvolutionStatus(existing) : "";
+        const alreadyConnected = listedState === "open" || listedState === "connected";
+        if (alreadyConnected) {
+          const phoneNumber = existing ? getEvolutionPhone(existing) : inst.numero_whatsapp || null;
+          await svc.from("omni_instancias").update({
+            status: "connected",
+            numero_whatsapp: phoneNumber,
+          }).eq("id", instancia_id);
+
+          await svc.from("managed_instances").update({
+            status: "online",
+            phone_number: phoneNumber,
+            last_health_check: new Date().toISOString(),
+            last_error: null,
+          }).eq("omni_instancia_id", instancia_id);
+
+          return json({
+            ok: true,
+            connected: true,
+            status: "connected",
+            phone_number: phoneNumber,
+            message: "Esta instância já está pareada no Evolution. Não é necessário escanear QR Code novamente.",
+          });
+        }
+      } catch (e) {
+        console.warn("[zapi-manage] fetchInstances pre-connect check failed:", e);
+      }
+
       const r = await evoFetch(`/instance/connect/${name}`, { method: "GET", headers: evoHeaders(apikey) });
       const data = await r.json().catch(() => ({}));
 
@@ -340,18 +371,28 @@ Deno.serve(async (req) => {
       const r = await evoFetch(`/instance/connectionState/${name}`, { method: "GET", headers: evoHeaders(apikey) });
       const data = await r.json().catch(() => ({}));
 
-      if (!r.ok) {
+      let listed: EvolutionInstance | null = null;
+      try {
+        listed = await findEvolutionInstance(name);
+      } catch (e) {
+        console.warn("[zapi-manage] fetchInstances status fallback failed:", e);
+      }
+
+      if (!r.ok && !listed) {
         console.warn("[zapi-manage] connectionState non-OK:", r.status, data);
         return json({ ok: true, connected: false, status: "disconnected", phone_number: null, raw: data });
       }
 
-      const state = String(data?.instance?.state || data?.state || "").toLowerCase();
+      const connectionState = String(data?.instance?.state || data?.state || "").toLowerCase();
+      const listedState = listed ? getEvolutionStatus(listed) : "";
+      const state = listedState === "open" || listedState === "connected" ? listedState : connectionState;
       const connected = state === "open" || state === "connected";
       const newStatus = connected ? "connected" : (state === "connecting" ? "connecting" : "disconnected");
 
       // Try to fetch phone number when open
       let phoneNumber: string | null = null;
       if (connected) {
+        phoneNumber = listed ? getEvolutionPhone(listed) : null;
         try {
           const f = await evoFetch(`/instance/fetchInstances?instanceName=${encodeURIComponent(name)}`, {
             method: "GET", headers: evoHeaders(apikey),
