@@ -154,6 +154,9 @@ async function onInstanceConnected(
   }
 
   return { webhook_configured: webhookOk, linked_filas: linked };
+}
+
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
