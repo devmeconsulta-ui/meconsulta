@@ -257,10 +257,9 @@ export default function OmniFilas() {
     if ((result as { duplicate?: boolean } | null)?.duplicate) {
       setShowNovaInstancia(false);
       setNovaInstanciaNome("");
-      // Recarrega para mostrar a instância existente
-      await fetchInstancias?.();
       return;
     }
+
 
     if (result?.instancia) {
       setShowNovaInstancia(false);
