@@ -48,6 +48,7 @@ import {
   Calendar,
   Bot,
   Send,
+  RotateCw,
 } from "lucide-react";
 import { useOmniFilas, OmniFila } from "@/hooks/useOmniFilas";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
@@ -142,6 +143,33 @@ export default function OmniFilas() {
 
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [refreshingStatusId, setRefreshingStatusId] = useState<string | null>(null);
+  const [reconnectingId, setReconnectingId] = useState<string | null>(null);
+
+  const handleForceReconnect = async (instanciaId: string) => {
+    setReconnectingId(instanciaId);
+    try {
+      const { data, error } = await supabase.functions.invoke("zapi-manage", {
+        body: { action: "force_reconnect", instancia_id: instanciaId },
+      });
+      if (error) throw error;
+      if (data?.ok === false) {
+        toast.error(data?.message || "Falha ao forçar reconexão");
+        return;
+      }
+      if (data?.qrcode) {
+        setQrCodeData({ instanciaId, qrcode: data.qrcode });
+        toast.success("Nova sessão iniciada — escaneie o QR Code");
+      } else {
+        toast.success(data?.message || "Reconexão solicitada");
+      }
+      await checkConnectionStatus(instanciaId);
+    } catch (err) {
+      console.error("Force reconnect error:", err);
+      toast.error("Erro ao forçar reconexão");
+    } finally {
+      setReconnectingId(null);
+    }
+  };
 
   // Sync progress polling
   const instanciaIds = instancias.map((i: any) => i.id);
@@ -823,11 +851,25 @@ export default function OmniFilas() {
                         size="sm"
                         onClick={() => handleCheckStatus(instancia.id)}
                         disabled={refreshingStatusId === instancia.id}
+                        title="Atualizar status"
                       >
                         {refreshingStatusId === instancia.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleForceReconnect(instancia.id)}
+                        disabled={reconnectingId === instancia.id}
+                        title="Forçar reconexão (encerra sessão atual e gera novo QR)"
+                      >
+                        {reconnectingId === instancia.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RotateCw className="h-4 w-4" />
                         )}
                       </Button>
                       <AlertDialog>
