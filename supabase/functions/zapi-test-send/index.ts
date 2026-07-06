@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
       }
     } else if (instancia.provider === "evolution") {
       const instanceName = instancia.zapi_instance_id;
-      const apiKey = instancia.zapi_token || EVOLUTION_API_KEY;
+      const apiKey = EVOLUTION_API_KEY || instancia.zapi_token;
       if (!EVOLUTION_API_URL || !apiKey || !instanceName) {
         errorMsg = "Credenciais Evolution ausentes";
       } else {
