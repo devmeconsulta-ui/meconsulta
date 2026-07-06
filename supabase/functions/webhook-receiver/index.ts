@@ -29,6 +29,45 @@ function mapContentType(msg: any): { content_type: string; message: string; medi
   return { content_type: "texto", message: msg.text?.message || msg.body || msg.message || "", media_url: null, media_type: null };
 }
 
+function redactWebhookPayload(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactWebhookPayload);
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    const lower = key.toLowerCase();
+    if (lower.includes("token") || lower.includes("apikey") || lower.includes("secret") || lower.includes("authorization")) {
+      out[key] = "[redacted]";
+    } else if ((lower.includes("base64") || lower.includes("qrcode")) && typeof item === "string") {
+      out[key] = `[base64:${String(item).length} chars]`;
+    } else {
+      out[key] = redactWebhookPayload(item);
+    }
+  }
+  return out;
+}
+
+async function logWhatsapp(
+  serviceClient: any,
+  clinicaId: string | null | undefined,
+  instanciaId: string | null | undefined,
+  acao: string,
+  status: string,
+  detalhes: Record<string, unknown> = {},
+) {
+  try {
+    if (!clinicaId) return;
+    await serviceClient.from("whatsapp_logs").insert({
+      clinica_id: clinicaId,
+      instancia_id: instanciaId || null,
+      acao,
+      status,
+      detalhes: redactWebhookPayload(detalhes),
+    });
+  } catch (e) {
+    console.warn("[webhook-receiver] whatsapp_logs insert failed:", e);
+  }
+}
+
 // Baixa mídia da Evolution (que retorna base64) e faz upload no Storage, retornando URL pública.
 async function downloadAndStoreMedia(
   serviceClient: any,
@@ -214,25 +253,58 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: false }), { status: 404, headers: corsHeaders });
     }
 
+    await logWhatsapp(serviceClient, mi.clinica_id, mi.omni_instancia_id || instanceId, `webhook_${String(rawBody?.event || body.event || body.type || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "_")}`, "received", {
+      provider,
+      instance_id_param: instanceId,
+      managed_instance_id: mi.id,
+      normalized_event: body.event || body.type || null,
+      raw_event: rawBody?.event || null,
+      payload: rawBody,
+    });
+
     // ─── DisconnectedCallback ───
     if (body.event === "DisconnectedCallback" || body.status === "disconnected") {
       await serviceClient.from("managed_instances").update({
         status: "disconnected",
         last_error: "Disconnected via webhook",
-      }).eq("id", instanceId);
-      console.log("[webhook-receiver] Instance disconnected:", instanceId);
+      }).eq("id", mi.id);
+      if (mi.omni_instancia_id) {
+        await serviceClient.from("omni_instancias").update({
+          status: "disconnected",
+          numero_whatsapp: null,
+        }).eq("id", mi.omni_instancia_id);
+      }
+      await logWhatsapp(serviceClient, mi.clinica_id, mi.omni_instancia_id || instanceId, "webhook_disconnected_applied", "success", {
+        provider,
+        instance_id_param: instanceId,
+        managed_instance_id: mi.id,
+      });
+      console.log("[webhook-receiver] Instance disconnected:", mi.id);
       return new Response(JSON.stringify({ ok: true, event: "disconnected" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // ─── ConnectedCallback ───
     if (body.event === "ConnectedCallback" || body.connected === true) {
+      const phone = body.phone || body.wid || null;
       await serviceClient.from("managed_instances").update({
         status: "online",
-        phone_number: body.phone || body.wid || null,
+        phone_number: phone,
         last_error: null,
         last_health_check: new Date().toISOString(),
-      }).eq("id", instanceId);
-      console.log("[webhook-receiver] Instance connected:", instanceId);
+      }).eq("id", mi.id);
+      if (mi.omni_instancia_id) {
+        await serviceClient.from("omni_instancias").update({
+          status: "connected",
+          numero_whatsapp: phone,
+        }).eq("id", mi.omni_instancia_id);
+      }
+      await logWhatsapp(serviceClient, mi.clinica_id, mi.omni_instancia_id || instanceId, "webhook_connected_applied", "success", {
+        provider,
+        instance_id_param: instanceId,
+        managed_instance_id: mi.id,
+        phone,
+      });
+      console.log("[webhook-receiver] Instance connected:", mi.id);
       return new Response(JSON.stringify({ ok: true, event: "connected" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
