@@ -103,6 +103,13 @@ function getEvolutionPhone(item: EvolutionInstance): string | null {
   return raw ? String(raw).replace(/@.*/, "").replace(/\D/g, "") : null;
 }
 
+async function getEvolutionConnectionState(instanceName: string, apikey?: string): Promise<{ ok: boolean; state: string; raw: Record<string, unknown> }> {
+  const r = await evoFetch(`/instance/connectionState/${instanceName}`, { method: "GET", headers: evoHeaders(apikey) });
+  const data = await r.json().catch(() => ({}));
+  const state = String(data?.instance?.state || data?.state || "").toLowerCase();
+  return { ok: r.ok, state, raw: data };
+}
+
 async function findEvolutionInstance(instanceName: string): Promise<EvolutionInstance | null> {
   const r = await evoFetch(`/instance/fetchInstances`, { method: "GET", headers: evoHeaders() });
   const data = await r.json().catch(() => []);
@@ -349,7 +356,10 @@ Deno.serve(async (req) => {
       try {
         const existing = await findEvolutionInstance(name);
         const listedState = existing ? getEvolutionStatus(existing) : "";
-        const alreadyConnected = listedState === "open" || listedState === "connected";
+        const current = await getEvolutionConnectionState(name, apikey).catch(() => ({ ok: false, state: "", raw: {} }));
+        const currentConnected = current.state === "open" || current.state === "connected";
+        const currentUnavailable = !current.ok || !current.state;
+        const alreadyConnected = currentConnected || (currentUnavailable && (listedState === "open" || listedState === "connected"));
         if (alreadyConnected) {
           const phoneNumber = existing ? getEvolutionPhone(existing) : inst.numero_whatsapp || null;
           await svc.from("omni_instancias").update({
@@ -420,8 +430,8 @@ Deno.serve(async (req) => {
       const apikey = inst.zapi_token || EVO_KEY;
       if (!name) return json({ ok: false, message: "Instância sem instanceName" }, 400);
 
-      const r = await evoFetch(`/instance/connectionState/${name}`, { method: "GET", headers: evoHeaders(apikey) });
-      const data = await r.json().catch(() => ({}));
+      const current = await getEvolutionConnectionState(name, apikey);
+      const data = current.raw;
 
       let listed: EvolutionInstance | null = null;
       try {
@@ -430,14 +440,14 @@ Deno.serve(async (req) => {
         console.warn("[zapi-manage] fetchInstances status fallback failed:", e);
       }
 
-      if (!r.ok && !listed) {
-        console.warn("[zapi-manage] connectionState non-OK:", r.status, data);
+      if (!current.ok && !listed) {
+        console.warn("[zapi-manage] connectionState non-OK:", data);
         return json({ ok: true, connected: false, status: "disconnected", phone_number: null, raw: data });
       }
 
-      const connectionState = String(data?.instance?.state || data?.state || "").toLowerCase();
+      const connectionState = current.state;
       const listedState = listed ? getEvolutionStatus(listed) : "";
-      const state = listedState === "open" || listedState === "connected" ? listedState : connectionState;
+      const state = connectionState || listedState;
       const connected = state === "open" || state === "connected";
       const newStatus = connected ? "connected" : (state === "connecting" ? "connecting" : "disconnected");
 
