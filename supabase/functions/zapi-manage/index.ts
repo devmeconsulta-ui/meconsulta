@@ -172,7 +172,7 @@ async function callEvolution(
   path: string,
   init: RequestInit,
   retries = 3,
-): Promise<{ resp: Response; data: Record<string, unknown> }> {
+): Promise<{ resp: Response; data: any }> {
   const method = init.method || "GET";
   const started = Date.now();
   console.log(`[zapi-manage:${meta.traceId}] Evolution ${meta.step} -> ${method} ${path}`);
