@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
+import { parseISO } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1301,7 +1302,7 @@ export default function OmniFilas() {
 
 function formatDiagnosticDate(value: unknown) {
   if (!value) return "-";
-  const date = new Date(String(value));
+  const date = parseISO(String(value));
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString("pt-BR");
 }
