@@ -48,6 +48,7 @@ import {
   Calendar,
   Bot,
   Send,
+  RotateCw,
 } from "lucide-react";
 import { useOmniFilas, OmniFila } from "@/hooks/useOmniFilas";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
