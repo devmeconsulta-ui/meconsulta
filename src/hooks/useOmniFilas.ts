@@ -188,14 +188,19 @@ export function useOmniFilas(clinicaId: string | null) {
     }
   };
 
-  const createInstancia = async (nome: string) => {
+  const createInstancia = async (nome: string, opts?: { cleanupOrphan?: boolean }) => {
     if (!clinicaId) return null;
 
     try {
-      console.log("[createInstancia] POST zapi-manage create_instance", { nome, clinicaId });
+      console.log("[createInstancia] POST zapi-manage create_instance", { nome, clinicaId, opts });
 
       const response = await supabase.functions.invoke("zapi-manage", {
-        body: { action: "create_instance", clinica_id: clinicaId, display_name: nome },
+        body: {
+          action: "create_instance",
+          clinica_id: clinicaId,
+          display_name: nome,
+          cleanup_orphan: !!opts?.cleanupOrphan,
+        },
       });
 
       console.log("[createInstancia] Response:", { error: response.error, data: response.data });

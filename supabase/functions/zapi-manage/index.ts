@@ -233,21 +233,40 @@ Deno.serve(async (req) => {
               .eq("zapi_instance_id", evName)
               .maybeSingle();
 
-            return json({
-              ok: false,
-              duplicate: true,
-              message: isOpen
-                ? `Já existe uma instância conectada para esta clínica${profileName ? ` (${profileName})` : ""}${phone ? ` – número ${phone}` : ""}. Use essa em vez de criar uma nova.`
-                : `Já existe uma instância em pareamento para esta clínica. Aguarde escanear o QR ou exclua a atual antes de criar outra.`,
-              existing: {
-                evolution_instance_name: evName,
-                connection_status: st,
-                profile_name: profileName || null,
-                phone_number: phone,
-                omni_instancia_id: local?.id || null,
-                already_adopted: !!local,
-              },
-            }, 200);
+            // Se o registro local não existe e o chamador pediu limpeza, apaga
+            // a órfã na Evolution e segue adiante para criar uma nova.
+            if (!local && body.cleanup_orphan && evName) {
+              console.log(`[zapi-manage] cleanup_orphan: apagando ${evName} na Evolution`);
+              try {
+                await evoFetch(`/instance/logout/${evName}`, { method: "DELETE", headers: evoHeaders() });
+              } catch (e) {
+                console.warn("[zapi-manage] cleanup logout falhou:", e);
+              }
+              try {
+                await evoFetch(`/instance/delete/${evName}`, { method: "DELETE", headers: evoHeaders() });
+              } catch (e) {
+                console.warn("[zapi-manage] cleanup delete falhou:", e);
+              }
+              await new Promise((r) => setTimeout(r, 800));
+              // não retorna aqui — cai no fluxo normal de create abaixo
+            } else {
+              return json({
+                ok: false,
+                duplicate: true,
+                message: isOpen
+                  ? `Já existe uma instância conectada para esta clínica${profileName ? ` (${profileName})` : ""}${phone ? ` – número ${phone}` : ""}. Use essa em vez de criar uma nova.`
+                  : `Já existe uma instância em pareamento para esta clínica. Aguarde escanear o QR ou exclua a atual antes de criar outra.`,
+                existing: {
+                  evolution_instance_name: evName,
+                  connection_status: st,
+                  profile_name: profileName || null,
+                  phone_number: phone,
+                  omni_instancia_id: local?.id || null,
+                  already_adopted: !!local,
+                  can_cleanup: !local,
+                },
+              }, 200);
+            }
           }
         } catch (e) {
           console.warn("[zapi-manage] duplicate check failed (non-blocking):", e);

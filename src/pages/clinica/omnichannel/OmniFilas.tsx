@@ -315,7 +315,19 @@ export default function OmniFilas() {
     }
 
     setCreatingInstancia(true);
-    const result = await createInstancia(novaInstanciaNome);
+    let result = await createInstancia(novaInstanciaNome);
+
+    // Órfã na Evolution (sem registro local) → oferece limpar automaticamente
+    const dup = result as { duplicate?: boolean; existing?: { already_adopted?: boolean; can_cleanup?: boolean; evolution_instance_name?: string } } | null;
+    if (dup?.duplicate && dup.existing && dup.existing.already_adopted === false) {
+      const evName = dup.existing.evolution_instance_name || "instância";
+      const confirmed = window.confirm(
+        `Foi encontrada uma instância órfã na Evolution (${evName}) sem registro local.\n\nDeseja excluí-la da Evolution e criar uma nova agora?`,
+      );
+      if (confirmed) {
+        result = await createInstancia(novaInstanciaNome, { cleanupOrphan: true });
+      }
+    }
     setCreatingInstancia(false);
 
     if ((result as { duplicate?: boolean } | null)?.duplicate) {
@@ -323,7 +335,6 @@ export default function OmniFilas() {
       setNovaInstanciaNome("");
       return;
     }
-
 
     if (result?.instancia) {
       setShowNovaInstancia(false);
@@ -333,6 +344,7 @@ export default function OmniFilas() {
       }
     }
   };
+
 
 
   const handleConnect = async (instanciaId: string) => {
