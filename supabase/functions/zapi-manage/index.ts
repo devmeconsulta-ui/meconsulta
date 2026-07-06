@@ -13,7 +13,7 @@ const corsHeaders = {
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 }
 
@@ -101,6 +101,191 @@ function getEvolutionPhone(item: EvolutionInstance): string | null {
   const user = item?.instance?.user as Record<string, unknown> | undefined;
   const raw = item?.ownerJid || item?.instance?.owner || item?.instance?.wuid || item?.instance?.number || user?.id || null;
   return raw ? String(raw).replace(/@.*/, "").replace(/\D/g, "") : null;
+}
+
+function redactEvolutionPayload(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactEvolutionPayload);
+  if (!value || typeof value !== "object") return value;
+
+  const redacted: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    const lower = key.toLowerCase();
+    if (
+      lower.includes("apikey") ||
+      lower === "apikey" ||
+      lower.includes("token") ||
+      lower.includes("secret") ||
+      lower.includes("authorization") ||
+      lower === "hash"
+    ) {
+      redacted[key] = "[redacted]";
+    } else if ((lower.includes("base64") || lower.includes("qrcode")) && typeof item === "string") {
+      redacted[key] = `[qr:${String(item).length} chars]`;
+    } else {
+      redacted[key] = redactEvolutionPayload(item);
+    }
+  }
+  return redacted;
+}
+
+function normalizeQrCode(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const qrcode = raw.trim();
+  return qrcode.startsWith("data:") ? qrcode : `data:image/png;base64,${qrcode}`;
+}
+
+async function responseBody(resp: Response): Promise<unknown> {
+  const text = await resp.text().catch(() => "");
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { text: text.slice(0, 1000) };
+  }
+}
+
+async function logWhatsapp(
+  svc: ReturnType<typeof createClient>,
+  clinicaId: string | null | undefined,
+  instanciaId: string | null | undefined,
+  acao: string,
+  status: string,
+  detalhes: Record<string, unknown> = {},
+) {
+  try {
+    if (!clinicaId) return;
+    await svc.from("whatsapp_logs").insert({
+      clinica_id: clinicaId,
+      instancia_id: instanciaId || null,
+      acao,
+      status,
+      detalhes: redactEvolutionPayload(detalhes),
+    });
+  } catch (e) {
+    console.warn("[zapi-manage] whatsapp_logs insert failed:", e);
+  }
+}
+
+async function callEvolution(
+  svc: ReturnType<typeof createClient>,
+  meta: { clinicaId?: string | null; instanciaId?: string | null; traceId: string; step: string },
+  path: string,
+  init: RequestInit,
+  retries = 3,
+): Promise<{ resp: Response; data: Record<string, unknown> }> {
+  const method = init.method || "GET";
+  const started = Date.now();
+  console.log(`[zapi-manage:${meta.traceId}] Evolution ${meta.step} -> ${method} ${path}`);
+  try {
+    const resp = await evoFetch(path, init, retries);
+    const data = (await responseBody(resp)) as Record<string, unknown>;
+    const elapsed_ms = Date.now() - started;
+    console.log(`[zapi-manage:${meta.traceId}] Evolution ${meta.step} <- ${resp.status} (${elapsed_ms}ms)`);
+    await logWhatsapp(svc, meta.clinicaId, meta.instanciaId, `evolution_${meta.step}`, resp.ok ? "success" : "error", {
+      trace_id: meta.traceId,
+      method,
+      path,
+      http_status: resp.status,
+      elapsed_ms,
+      response: data,
+    });
+    return { resp, data };
+  } catch (e) {
+    const elapsed_ms = Date.now() - started;
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`[zapi-manage:${meta.traceId}] Evolution ${meta.step} failed:`, e);
+    await logWhatsapp(svc, meta.clinicaId, meta.instanciaId, `evolution_${meta.step}`, "error", {
+      trace_id: meta.traceId,
+      method,
+      path,
+      elapsed_ms,
+      error: message,
+    });
+    throw e;
+  }
+}
+
+async function cleanEvolutionSession(
+  svc: ReturnType<typeof createClient>,
+  meta: { clinicaId?: string | null; instanciaId?: string | null; traceId: string; reason: string },
+  instanceName: string,
+  apikey?: string,
+) {
+  const results: Record<string, unknown>[] = [];
+  await logWhatsapp(svc, meta.clinicaId, meta.instanciaId, "session_cleanup_start", "info", {
+    trace_id: meta.traceId,
+    reason: meta.reason,
+    instance_name: instanceName,
+  });
+
+  for (const step of ["logout", "restart"] as const) {
+    const path = step === "logout" ? `/instance/logout/${instanceName}` : `/instance/restart/${instanceName}`;
+    const method = step === "logout" ? "DELETE" : "POST";
+    try {
+      const { resp, data } = await callEvolution(svc, { ...meta, step: `session_${step}` }, path, {
+        method,
+        headers: evoHeaders(apikey),
+      }, 1);
+      results.push({ step, ok: resp.ok, status: resp.status, response: data });
+    } catch (e) {
+      results.push({ step, ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  await new Promise((r) => setTimeout(r, 1200));
+  await logWhatsapp(svc, meta.clinicaId, meta.instanciaId, "session_cleanup_done", "info", {
+    trace_id: meta.traceId,
+    reason: meta.reason,
+    instance_name: instanceName,
+    results,
+  });
+  return results;
+}
+
+async function acquireConnectSlot(
+  svc: ReturnType<typeof createClient>,
+  inst: Record<string, unknown>,
+  traceId: string,
+): Promise<{ acquired: boolean; recentQr?: string | null; message?: string }> {
+  const instanciaId = String(inst.id);
+  const clinicaId = String(inst.clinica_id || "");
+  const { data: managed } = await svc
+    .from("managed_instances")
+    .select("status,last_health_check")
+    .eq("omni_instancia_id", instanciaId)
+    .maybeSingle();
+
+  const last = managed?.last_health_check ? new Date(String(managed.last_health_check)).getTime() : 0;
+  const ageMs = last ? Date.now() - last : Number.POSITIVE_INFINITY;
+  if (managed?.status === "connecting" && ageMs < 25_000) {
+    const { data: logs } = await svc
+      .from("whatsapp_logs")
+      .select("detalhes,created_at")
+      .eq("instancia_id", instanciaId)
+      .eq("acao", "qr_code_generated")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const recentQr = (logs?.[0]?.detalhes as Record<string, unknown> | undefined)?.qrcode as string | undefined;
+    await logWhatsapp(svc, clinicaId, instanciaId, "connect_deduplicated", "info", {
+      trace_id: traceId,
+      age_ms: ageMs,
+      reused_recent_qr: Boolean(recentQr),
+    });
+    return {
+      acquired: false,
+      recentQr: recentQr || null,
+      message: "Já existe uma tentativa de conexão em andamento. Reutilizando o QR Code mais recente.",
+    };
+  }
+
+  await svc.from("managed_instances").update({
+    status: "connecting",
+    last_health_check: new Date().toISOString(),
+    last_error: null,
+  }).eq("omni_instancia_id", instanciaId);
+  await svc.from("omni_instancias").update({ status: "connecting" }).eq("id", instanciaId);
+
+  return { acquired: true };
 }
 
 async function getEvolutionConnectionState(instanceName: string, apikey?: string): Promise<{ ok: boolean; state: string; raw: Record<string, unknown> }> {
