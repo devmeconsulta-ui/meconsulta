@@ -37,7 +37,7 @@ function redactWebhookPayload(value: unknown): unknown {
     const lower = key.toLowerCase();
     if (lower.includes("token") || lower.includes("apikey") || lower.includes("secret") || lower.includes("authorization")) {
       out[key] = "[redacted]";
-    } else if ((lower.includes("base64") || lower.includes("qrcode")) && typeof item === "string") {
+    } else if ((lower.includes("base64") || lower.includes("qrcode") || lower === "code") && typeof item === "string") {
       out[key] = `[base64:${String(item).length} chars]`;
     } else {
       out[key] = redactWebhookPayload(item);
@@ -50,6 +50,15 @@ function normalizeQrCode(raw: unknown): string | null {
   if (typeof raw !== "string" || !raw.trim()) return null;
   const qrcode = raw.trim();
   return qrcode.startsWith("data:") ? qrcode : `data:image/png;base64,${qrcode}`;
+}
+
+function extractEvolutionQrCode(data: any): string | null {
+  return normalizeQrCode(
+    data?.qrcode?.base64 ||
+    data?.qrcode?.qrcode ||
+    data?.qrcode ||
+    data?.base64
+  );
 }
 
 async function logWhatsapp(
@@ -265,7 +274,7 @@ Deno.serve(async (req) => {
     });
 
     if (provider === "evolution" && String(rawBody?.event || "").toLowerCase() === "qrcode.updated") {
-      const qr = normalizeQrCode(rawBody?.data?.qrcode || rawBody?.data?.base64 || rawBody?.data?.qrcode?.base64);
+      const qr = extractEvolutionQrCode(rawBody?.data || {});
       if (qr) {
         await logWhatsapp(serviceClient, mi.clinica_id, mi.omni_instancia_id || instanceId, "qr_code_generated", "success", {
           source: "webhook_qrcode_updated",
