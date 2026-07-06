@@ -549,6 +549,69 @@ Deno.serve(async (req) => {
       return json({ ok: r.ok, data });
     }
 
+    // ─── force_reconnect ───
+    // Logout + restart + connect no Evolution para forçar nova sessão/QR
+    // sem precisar deletar a instância manualmente.
+    if (action === "force_reconnect") {
+      const { instancia_id } = body;
+      if (!instancia_id) return json({ ok: false, message: "instancia_id obrigatório" }, 400);
+
+      const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).single();
+      if (!inst || !inst.zapi_instance_id) return json({ ok: false, message: "Instância não encontrada" }, 404);
+      const name = inst.zapi_instance_id;
+      const apikey = inst.zapi_token || EVO_KEY;
+
+      // 1) logout (encerra sessão atual — ignora erros)
+      try {
+        await evoFetch(`/instance/logout/${name}`, { method: "DELETE", headers: evoHeaders(apikey) });
+      } catch (e) {
+        console.warn("[zapi-manage] force_reconnect logout falhou (non-blocking):", e);
+      }
+
+      // 2) restart (reinicia o worker Baileys — ignora erros)
+      try {
+        await evoFetch(`/instance/restart/${name}`, { method: "POST", headers: evoHeaders(apikey) });
+      } catch (e) {
+        console.warn("[zapi-manage] force_reconnect restart falhou (non-blocking):", e);
+      }
+
+      // Pequena pausa para o Evolution estabilizar antes de pedir novo QR
+      await new Promise((r) => setTimeout(r, 1200));
+
+      // 3) connect — retorna QR/pairing code
+      const r = await evoFetch(`/instance/connect/${name}`, { method: "GET", headers: evoHeaders(apikey) });
+      const data = await r.json().catch(() => ({}));
+
+      await svc.from("omni_instancias").update({ status: "connecting", numero_whatsapp: null }).eq("id", instancia_id);
+      await svc.from("managed_instances").update({
+        status: "disconnected",
+        phone_number: null,
+        last_health_check: new Date().toISOString(),
+        last_error: null,
+      }).eq("omni_instancia_id", instancia_id);
+
+      if (!r.ok) {
+        return json({
+          ok: false,
+          message: `Falha ao reconectar (${r.status}): ${data?.message || data?.error || "Erro Evolution"}`,
+          raw: data,
+        }, 200);
+      }
+
+      let qrcode: string | null = data?.base64 || data?.qrcode || null;
+      if (qrcode && !qrcode.startsWith("data:")) qrcode = `data:image/png;base64,${qrcode}`;
+
+      return json({
+        ok: true,
+        qrcode,
+        pairingCode: data?.pairingCode || data?.code || null,
+        message: qrcode
+          ? "Sessão reiniciada. Escaneie o novo QR Code para reconectar."
+          : "Reconexão solicitada. Aguarde alguns segundos e verifique o status.",
+        raw: data,
+      });
+    }
+
     // ─── delete_instance ───
     if (action === "delete_instance") {
       const { instancia_id } = body;
