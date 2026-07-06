@@ -143,6 +143,33 @@ export default function OmniFilas() {
 
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [refreshingStatusId, setRefreshingStatusId] = useState<string | null>(null);
+  const [reconnectingId, setReconnectingId] = useState<string | null>(null);
+
+  const handleForceReconnect = async (instanciaId: string) => {
+    setReconnectingId(instanciaId);
+    try {
+      const { data, error } = await supabase.functions.invoke("zapi-manage", {
+        body: { action: "force_reconnect", instancia_id: instanciaId },
+      });
+      if (error) throw error;
+      if (data?.ok === false) {
+        toast.error(data?.message || "Falha ao forçar reconexão");
+        return;
+      }
+      if (data?.qrcode) {
+        setQrCodeData({ instanciaId, qrcode: data.qrcode });
+        toast.success("Nova sessão iniciada — escaneie o QR Code");
+      } else {
+        toast.success(data?.message || "Reconexão solicitada");
+      }
+      await checkConnectionStatus(instanciaId);
+    } catch (err) {
+      console.error("Force reconnect error:", err);
+      toast.error("Erro ao forçar reconexão");
+    } finally {
+      setReconnectingId(null);
+    }
+  };
 
   // Sync progress polling
   const instanciaIds = instancias.map((i: any) => i.id);
