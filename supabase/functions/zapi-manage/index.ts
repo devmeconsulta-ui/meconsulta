@@ -434,13 +434,19 @@ Deno.serve(async (req) => {
             const s = String(i?.connectionStatus || (i as { instance?: { state?: string } })?.instance?.state || "").toLowerCase();
             return s === "open" || s === "connected" || s === "connecting";
           });
+          const staleOrExact = existing.find((i: Record<string, unknown>) => {
+            const n = String(i?.name || (i as { instance?: { instanceName?: string } })?.instance?.instanceName || "").toLowerCase();
+            return n === instanceName.toLowerCase();
+          }) || existing[0];
 
-          if (openOrConnecting) {
-            const st = String(openOrConnecting?.connectionStatus || "").toLowerCase();
+          if (openOrConnecting || staleOrExact) {
+            const found = openOrConnecting || staleOrExact;
+            const st = String(found?.connectionStatus || (found as { instance?: { state?: string } })?.instance?.state || "").toLowerCase();
             const isOpen = st === "open" || st === "connected";
-            const evName = String(openOrConnecting?.name || "");
-            const profileName = openOrConnecting?.profileName as string | undefined;
-            const ownerJid = openOrConnecting?.ownerJid as string | undefined;
+            const isInvalidSession = !isOpen && st !== "connecting";
+            const evName = String(found?.name || (found as { instance?: { instanceName?: string } })?.instance?.instanceName || "");
+            const profileName = found?.profileName as string | undefined;
+            const ownerJid = found?.ownerJid as string | undefined;
             const phone = ownerJid ? String(ownerJid).replace(/@.*/, "").replace(/\D/g, "") : null;
 
             // Check whether it is already adopted locally
@@ -453,9 +459,9 @@ Deno.serve(async (req) => {
 
             // Se o registro local não existe e o chamador pediu limpeza, apaga
             // a órfã na Evolution e segue adiante para criar uma nova.
-            if (!local && body.cleanup_orphan && evName) {
-              console.log(`[zapi-manage:${traceId}] cleanup_orphan: apagando ${evName} na Evolution`);
-              await cleanEvolutionSession(svc, { clinicaId: clinica_id, traceId, reason: "orphan_before_create" }, evName);
+            if (!local && (body.cleanup_orphan || isInvalidSession) && evName) {
+              console.log(`[zapi-manage:${traceId}] cleanup_orphan/stale: apagando ${evName} na Evolution`);
+              await cleanEvolutionSession(svc, { clinicaId: clinica_id, traceId, reason: isInvalidSession ? "stale_before_create" : "orphan_before_create" }, evName);
               try {
                 await callEvolution(svc, { clinicaId: clinica_id, traceId, step: "delete_orphan" }, `/instance/delete/${evName}`, { method: "DELETE", headers: evoHeaders() }, 1);
               } catch (e) {
