@@ -287,13 +287,22 @@ export function useOmniFilas(clinicaId: string | null) {
       });
 
       if (response.error) throw response.error;
+      const data = response.data;
+      if (data?.ok === false) throw new Error(data?.message || "Erro ao excluir instância");
 
       await Promise.all([fetchInstancias(), fetchFilas()]);
-      toast.success("Instância excluída com sucesso");
+
+      const evoDeleted = data?.evolution?.deleted;
+      const attempted = data?.evolution?.attempted?.length || 0;
+      if (attempted > 0 && !evoDeleted) {
+        toast.warning("Instância removida localmente, mas não foi possível apagar na Evolution. Verifique os logs.");
+      } else {
+        toast.success("Instância excluída (local e Evolution)");
+      }
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting instancia:", error);
-      toast.error("Erro ao excluir instância");
+      toast.error(error?.message || "Erro ao excluir instância");
       return false;
     }
   };

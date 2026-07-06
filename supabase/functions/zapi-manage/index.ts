@@ -687,25 +687,54 @@ Deno.serve(async (req) => {
       const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).single();
       if (!inst) return json({ ok: false, message: "Instância não encontrada" }, 404);
 
-      if (inst.zapi_instance_id) {
-        const apikey = inst.zapi_token || EVO_KEY;
+      // Nomes candidatos para apagar na Evolution (fallback para o nome local)
+      const evoNames = Array.from(new Set(
+        [inst.zapi_instance_id, inst.nome].filter((v): v is string => typeof v === "string" && v.length > 0)
+      ));
+
+      const evoResults: Array<{ name: string; logout: boolean; delete: boolean; error?: string }> = [];
+      const apikey = inst.zapi_token || EVO_KEY;
+
+      for (const evName of evoNames) {
+        const r = { name: evName, logout: false, delete: false } as { name: string; logout: boolean; delete: boolean; error?: string };
         try {
-          // try logout first then delete
-          await evoFetch(`/instance/logout/${inst.zapi_instance_id}`, { method: "DELETE", headers: evoHeaders(apikey) });
+          await evoFetch(`/instance/logout/${evName}`, { method: "DELETE", headers: evoHeaders(apikey) });
+          r.logout = true;
         } catch (e) {
-          console.warn("[zapi-manage] logout failed (non-blocking):", e);
+          console.warn(`[zapi-manage] logout ${evName} falhou:`, e);
         }
         try {
-          await evoFetch(`/instance/delete/${inst.zapi_instance_id}`, { method: "DELETE", headers: evoHeaders(apikey) });
+          await evoFetch(`/instance/delete/${evName}`, { method: "DELETE", headers: evoHeaders(apikey) });
+          r.delete = true;
         } catch (e) {
-          console.warn("[zapi-manage] delete failed (non-blocking):", e);
+          r.error = e instanceof Error ? e.message : String(e);
+          console.warn(`[zapi-manage] delete ${evName} falhou:`, e);
         }
+        evoResults.push(r);
       }
+
+      // Desvincula filas antes de apagar a instância local
+      const { data: filasVinculadas } = await svc
+        .from("omni_filas")
+        .select("id")
+        .eq("instancia_id", instancia_id);
+
+      if (filasVinculadas?.length) {
+        await svc.from("omni_filas").update({ instancia_id: null }).eq("instancia_id", instancia_id);
+      }
+
+      // Limpa jobs de sync pendentes
+      await svc.from("whatsapp_sync_jobs").delete().eq("instancia_id", instancia_id);
 
       await svc.from("managed_instances").delete().eq("omni_instancia_id", instancia_id);
       await svc.from("omni_instancias").delete().eq("id", instancia_id);
 
-      return json({ ok: true });
+      const evoDeleted = evoResults.some((r) => r.delete);
+      return json({
+        ok: true,
+        evolution: { attempted: evoNames, deleted: evoDeleted, results: evoResults },
+        filas_desvinculadas: filasVinculadas?.length || 0,
+      });
     }
 
     return json({ ok: false, message: `Ação desconhecida: ${action}` }, 400);
