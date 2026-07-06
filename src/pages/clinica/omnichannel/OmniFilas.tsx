@@ -1193,6 +1193,24 @@ export default function OmniFilas() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!orphanPrompt} onOpenChange={(open) => !open && setOrphanPrompt(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Instância órfã detectada na Evolution</AlertDialogTitle>
+            <AlertDialogDescription>
+              Encontramos <strong>{orphanPrompt?.evName}</strong> na Evolution sem registro local
+              nesta clínica. Deseja apagá-la da Evolution e criar uma nova instância agora?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmOrphanCleanup}>
+              Apagar e criar nova
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </div>
     </OmniLayout>
   );
