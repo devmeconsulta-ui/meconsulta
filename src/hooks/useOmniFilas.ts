@@ -45,6 +45,20 @@ export interface OmniFila {
   instancia?: OmniInstancia;
 }
 
+export interface OmniInstanciaDiagnostico {
+  ok: boolean;
+  trace_id?: string;
+  instance?: Record<string, unknown>;
+  managed_instance?: Record<string, unknown> | null;
+  evolution?: Record<string, unknown>;
+  last_qr?: { generated_at?: string; qrcode?: string | null; source?: string | null; trace_id?: string | null } | null;
+  last_connection_attempt?: Record<string, unknown> | null;
+  recent_attempts?: Array<Record<string, unknown>>;
+  recent_errors?: Array<Record<string, unknown>>;
+  webhook_events?: Array<Record<string, unknown>>;
+  message?: string;
+}
+
 function normalizeQrCodeValue(value: unknown): string | null {
   if (typeof value === "string" && value.trim()) return value;
   if (value && typeof value === "object") {
@@ -350,6 +364,23 @@ export function useOmniFilas(clinicaId: string | null) {
     return null;
   };
 
+  const diagnoseInstancia = async (instanciaId: string): Promise<OmniInstanciaDiagnostico | null> => {
+    try {
+      const response = await supabase.functions.invoke("zapi-manage", {
+        body: { action: "diagnose_instance", instancia_id: instanciaId },
+      });
+
+      if (response.error) throw response.error;
+      const data = response.data as OmniInstanciaDiagnostico;
+      if (data?.ok === false) throw new Error(data?.message || "Erro ao diagnosticar instância");
+      return data;
+    } catch (error: any) {
+      console.error("Error diagnosing instancia:", error);
+      toast.error(error?.message || "Erro ao diagnosticar instância");
+      return null;
+    }
+  };
+
   return {
     filas,
     instancias,
@@ -363,5 +394,6 @@ export function useOmniFilas(clinicaId: string | null) {
     disconnectInstancia,
     deleteInstancia,
     checkConnectionStatus,
+    diagnoseInstancia,
   };
 }

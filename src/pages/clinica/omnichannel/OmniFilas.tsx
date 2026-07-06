@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
+import { parseISO } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -49,6 +51,7 @@ import {
   Bot,
   Send,
   RotateCw,
+  Activity,
 } from "lucide-react";
 import { useOmniFilas, OmniFila } from "@/hooks/useOmniFilas";
 import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
@@ -95,6 +98,7 @@ export default function OmniFilas() {
     disconnectInstancia,
     deleteInstancia,
     checkConnectionStatus,
+    diagnoseInstancia,
   } = useOmniFilas(clinicaId);
 
   const [showNovaFila, setShowNovaFila] = useState(false);
@@ -108,6 +112,8 @@ export default function OmniFilas() {
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [creatingInstancia, setCreatingInstancia] = useState(false);
   const [deletingInstanciaId, setDeletingInstanciaId] = useState<string | null>(null);
+  const [diagnosticLoadingId, setDiagnosticLoadingId] = useState<string | null>(null);
+  const [diagnosticData, setDiagnosticData] = useState<any | null>(null);
   const [testSendInstanciaId, setTestSendInstanciaId] = useState<string | null>(null);
   const [testSendPhone, setTestSendPhone] = useState("");
   const [testSending, setTestSending] = useState(false);
@@ -203,6 +209,13 @@ export default function OmniFilas() {
     } finally {
       setPairingLoading(false);
     }
+  };
+
+  const handleDiagnoseInstancia = async (instanciaId: string) => {
+    setDiagnosticLoadingId(instanciaId);
+    const data = await diagnoseInstancia(instanciaId);
+    setDiagnosticLoadingId(null);
+    if (data) setDiagnosticData(data);
   };
 
   // Sync progress polling
@@ -422,6 +435,9 @@ export default function OmniFilas() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Nova Instância WhatsApp</DialogTitle>
+                <DialogDescription>
+                  Crie uma instância limpa na Evolution para conectar o WhatsApp da clínica.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 <div>
@@ -692,6 +708,9 @@ export default function OmniFilas() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Conectar WhatsApp</DialogTitle>
+            <DialogDescription>
+              Use o QR Code mais recente ou gere um código de pareamento para concluir a conexão.
+            </DialogDescription>
           </DialogHeader>
           <Tabs value={connectMode} onValueChange={(v) => setConnectMode(v as "qr" | "code")} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
@@ -796,6 +815,9 @@ export default function OmniFilas() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Testar Envio</DialogTitle>
+            <DialogDescription>
+              Envie uma mensagem simples para validar se a instância conectada está funcionando.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
@@ -993,6 +1015,19 @@ export default function OmniFilas() {
                           <RotateCw className="h-4 w-4" />
                         )}
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDiagnoseInstancia(instancia.id)}
+                        disabled={diagnosticLoadingId === instancia.id}
+                        title="Diagnóstico da conexão Evolution"
+                      >
+                        {diagnosticLoadingId === instancia.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Activity className="h-4 w-4" />
+                        )}
+                      </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
@@ -1057,7 +1092,7 @@ export default function OmniFilas() {
                           {instancia.webhooks_configured_at && (
                             <div className="flex justify-between">
                               <span>Webhooks em:</span>
-                              <span className="font-mono">{new Date(instancia.webhooks_configured_at).toLocaleString("pt-BR")}</span>
+                              <span className="font-mono">{formatDiagnosticDate(instancia.webhooks_configured_at)}</span>
                             </div>
                           )}
                           <div className="flex justify-between">
@@ -1179,6 +1214,9 @@ export default function OmniFilas() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Fila: {editingFila?.nome}</DialogTitle>
+            <DialogDescription>
+              Ajuste configurações, mensagens e horários desta fila de atendimento.
+            </DialogDescription>
           </DialogHeader>
           {editingFila && (
             <EditarFilaForm
@@ -1211,8 +1249,89 @@ export default function OmniFilas() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!diagnosticData} onOpenChange={(open) => !open && setDiagnosticData(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Diagnóstico da conexão WhatsApp</DialogTitle>
+            <DialogDescription>
+              Status técnico da instância, QR Code, tentativas recentes, erros da Evolution e webhooks recebidos.
+            </DialogDescription>
+          </DialogHeader>
+
+          {diagnosticData && (
+            <div className="space-y-4 pt-2 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <DiagnosticItem label="Status local" value={String(diagnosticData.instance?.status || "-")} />
+                <DiagnosticItem label="Status gerenciado" value={String(diagnosticData.managed_instance?.status || "-")} />
+                <DiagnosticItem label="Estado Evolution" value={String((diagnosticData.evolution?.connection_state as any)?.state || "-")} />
+                <DiagnosticItem label="Última tentativa" value={formatDiagnosticDate(diagnosticData.last_connection_attempt?.created_at)} />
+                <DiagnosticItem label="Último erro" value={String(diagnosticData.managed_instance?.last_error || diagnosticData.recent_errors?.[0]?.acao || "-")} />
+                <DiagnosticItem label="Webhooks" value={diagnosticData.instance?.webhooks_configured ? "Configurados" : "Pendentes"} />
+              </div>
+
+              {diagnosticData.last_qr?.qrcode && (
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">Último QR Code gerado</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDiagnosticDate(diagnosticData.last_qr.generated_at)}
+                    </span>
+                  </div>
+                  <div className="flex justify-center">
+                    <img
+                      src={diagnosticData.last_qr.qrcode}
+                      alt="Último QR Code gerado"
+                      className="h-40 w-40"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <DiagnosticList title="Tentativas recentes" items={diagnosticData.recent_attempts || []} />
+              <DiagnosticList title="Erros retornados" items={diagnosticData.recent_errors || []} />
+              <DiagnosticList title="Eventos de webhook" items={diagnosticData.webhook_events || []} />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       </div>
     </OmniLayout>
+  );
+}
+
+function formatDiagnosticDate(value: unknown) {
+  if (!value) return "-";
+  const date = parseISO(String(value));
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("pt-BR");
+}
+
+function DiagnosticItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-medium break-words">{value || "-"}</p>
+    </div>
+  );
+}
+
+function DiagnosticList({ title, items }: { title: string; items: any[] }) {
+  return (
+    <details className="rounded-md border p-3">
+      <summary className="cursor-pointer font-medium">{title} ({items.length})</summary>
+      <div className="mt-3 space-y-2">
+        {items.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Nenhum registro encontrado.</p>
+        ) : (
+          items.map((item, index) => (
+            <pre key={`${title}-${index}`} className="overflow-x-auto rounded bg-muted p-2 text-xs">
+              {JSON.stringify(item, null, 2)}
+            </pre>
+          ))
+        )}
+      </div>
+    </details>
   );
 }
 

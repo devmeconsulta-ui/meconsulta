@@ -13,7 +13,7 @@ const corsHeaders = {
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 }
 
@@ -103,6 +103,192 @@ function getEvolutionPhone(item: EvolutionInstance): string | null {
   return raw ? String(raw).replace(/@.*/, "").replace(/\D/g, "") : null;
 }
 
+function redactEvolutionPayload(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactEvolutionPayload);
+  if (!value || typeof value !== "object") return value;
+
+  const redacted: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    const lower = key.toLowerCase();
+    if (
+      lower.includes("apikey") ||
+      lower === "apikey" ||
+      lower.includes("token") ||
+      lower.includes("secret") ||
+      lower.includes("authorization") ||
+      lower === "hash"
+    ) {
+      redacted[key] = "[redacted]";
+    } else if ((lower.includes("base64") || lower.includes("qrcode")) && typeof item === "string") {
+      redacted[key] = `[qr:${String(item).length} chars]`;
+    } else {
+      redacted[key] = redactEvolutionPayload(item);
+    }
+  }
+  return redacted;
+}
+
+function normalizeQrCode(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const qrcode = raw.trim();
+  return qrcode.startsWith("data:") ? qrcode : `data:image/png;base64,${qrcode}`;
+}
+
+async function responseBody(resp: Response): Promise<unknown> {
+  const text = await resp.text().catch(() => "");
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { text: text.slice(0, 1000) };
+  }
+}
+
+async function logWhatsapp(
+  svc: ReturnType<typeof createClient>,
+  clinicaId: string | null | undefined,
+  instanciaId: string | null | undefined,
+  acao: string,
+  status: string,
+  detalhes: Record<string, unknown> = {},
+) {
+  try {
+    if (!clinicaId) return;
+    await svc.from("whatsapp_logs").insert({
+      clinica_id: clinicaId,
+      instancia_id: instanciaId || null,
+      acao,
+      status,
+      detalhes: redactEvolutionPayload(detalhes),
+    });
+  } catch (e) {
+    console.warn("[zapi-manage] whatsapp_logs insert failed:", e);
+  }
+}
+
+async function callEvolution(
+  svc: ReturnType<typeof createClient>,
+  meta: { clinicaId?: string | null; instanciaId?: string | null; traceId: string; step: string },
+  path: string,
+  init: RequestInit,
+  retries = 3,
+): Promise<{ resp: Response; data: any }> {
+  const method = init.method || "GET";
+  const started = Date.now();
+  console.log(`[zapi-manage:${meta.traceId}] Evolution ${meta.step} -> ${method} ${path}`);
+  try {
+    const resp = await evoFetch(path, init, retries);
+    const data = (await responseBody(resp)) as any;
+    const elapsed_ms = Date.now() - started;
+    console.log(`[zapi-manage:${meta.traceId}] Evolution ${meta.step} <- ${resp.status} (${elapsed_ms}ms)`);
+    await logWhatsapp(svc, meta.clinicaId, meta.instanciaId, `evolution_${meta.step}`, resp.ok ? "success" : "error", {
+      trace_id: meta.traceId,
+      method,
+      path,
+      http_status: resp.status,
+      elapsed_ms,
+      response: data,
+    });
+    return { resp, data };
+  } catch (e) {
+    const elapsed_ms = Date.now() - started;
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`[zapi-manage:${meta.traceId}] Evolution ${meta.step} failed:`, e);
+    await logWhatsapp(svc, meta.clinicaId, meta.instanciaId, `evolution_${meta.step}`, "error", {
+      trace_id: meta.traceId,
+      method,
+      path,
+      elapsed_ms,
+      error: message,
+    });
+    throw e;
+  }
+}
+
+async function cleanEvolutionSession(
+  svc: ReturnType<typeof createClient>,
+  meta: { clinicaId?: string | null; instanciaId?: string | null; traceId: string; reason: string },
+  instanceName: string,
+  apikey?: string,
+) {
+  const results: Record<string, unknown>[] = [];
+  await logWhatsapp(svc, meta.clinicaId, meta.instanciaId, "session_cleanup_start", "info", {
+    trace_id: meta.traceId,
+    reason: meta.reason,
+    instance_name: instanceName,
+  });
+
+  for (const step of ["logout", "restart"] as const) {
+    const path = step === "logout" ? `/instance/logout/${instanceName}` : `/instance/restart/${instanceName}`;
+    const method = step === "logout" ? "DELETE" : "POST";
+    try {
+      const { resp, data } = await callEvolution(svc, { ...meta, step: `session_${step}` }, path, {
+        method,
+        headers: evoHeaders(apikey),
+      }, 1);
+      results.push({ step, ok: resp.ok, status: resp.status, response: data });
+    } catch (e) {
+      results.push({ step, ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  await new Promise((r) => setTimeout(r, 1200));
+  await logWhatsapp(svc, meta.clinicaId, meta.instanciaId, "session_cleanup_done", "info", {
+    trace_id: meta.traceId,
+    reason: meta.reason,
+    instance_name: instanceName,
+    results,
+  });
+  return results;
+}
+
+async function acquireConnectSlot(
+  svc: ReturnType<typeof createClient>,
+  inst: Record<string, unknown>,
+  traceId: string,
+): Promise<{ acquired: boolean; recentQr?: string | null; message?: string }> {
+  const instanciaId = String(inst.id);
+  const clinicaId = String(inst.clinica_id || "");
+  const { data: managed } = await svc
+    .from("managed_instances")
+    .select("status,last_health_check")
+    .eq("omni_instancia_id", instanciaId)
+    .maybeSingle();
+
+  const last = managed?.last_health_check ? new Date(String(managed.last_health_check)).getTime() : 0;
+  const ageMs = last ? Date.now() - last : Number.POSITIVE_INFINITY;
+  if (managed?.status === "connecting" && ageMs < 25_000) {
+    const { data: logs } = await svc
+      .from("whatsapp_logs")
+      .select("detalhes,created_at")
+      .eq("instancia_id", instanciaId)
+      .eq("acao", "qr_code_generated")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const recentDetails = logs?.[0]?.detalhes as Record<string, unknown> | undefined;
+    const recentQr = (recentDetails?.qr_image || recentDetails?.qrcode) as string | undefined;
+    await logWhatsapp(svc, clinicaId, instanciaId, "connect_deduplicated", "info", {
+      trace_id: traceId,
+      age_ms: ageMs,
+      reused_recent_qr: Boolean(recentQr),
+    });
+    return {
+      acquired: false,
+      recentQr: recentQr || null,
+      message: "Já existe uma tentativa de conexão em andamento. Reutilizando o QR Code mais recente.",
+    };
+  }
+
+  await svc.from("managed_instances").update({
+    status: "connecting",
+    last_health_check: new Date().toISOString(),
+    last_error: null,
+  }).eq("omni_instancia_id", instanciaId);
+  await svc.from("omni_instancias").update({ status: "connecting" }).eq("id", instanciaId);
+
+  return { acquired: true };
+}
+
 async function getEvolutionConnectionState(instanceName: string, apikey?: string): Promise<{ ok: boolean; state: string; raw: Record<string, unknown> }> {
   const r = await evoFetch(`/instance/connectionState/${instanceName}`, { method: "GET", headers: evoHeaders(apikey) });
   const data = await r.json().catch(() => ({}));
@@ -180,13 +366,14 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action: string = body.action;
+    const traceId = crypto.randomUUID();
     if (!action) return json({ ok: false, message: "action é obrigatório" }, 400);
 
     // ─── test_connection ───
     if (action === "test_connection") {
       const r = await evoFetch(`/instance/fetchInstances`, { method: "GET", headers: evoHeaders() });
       const data = await r.json().catch(() => ({}));
-      return json({ ok: r.ok, status: r.status, data });
+      return json({ ok: r.ok, status: r.status, data: redactEvolutionPayload(data) });
     }
 
     // ─── create_instance ───
@@ -197,14 +384,46 @@ Deno.serve(async (req) => {
       }
 
       const instanceName = safeName(display_name, clinica_id);
-      console.log(`[zapi-manage] create_instance: ${instanceName} (clinic: ${clinica_id})`);
+      console.log(`[zapi-manage:${traceId}] create_instance: ${instanceName} (clinic: ${clinica_id})`);
+      await logWhatsapp(svc, clinica_id, null, "create_instance_start", "info", {
+        trace_id: traceId,
+        instance_name: instanceName,
+        display_name,
+      });
+
+      const { data: localExisting } = await svc
+        .from("omni_instancias")
+        .select("id, nome, status, zapi_instance_id")
+        .eq("clinica_id", clinica_id)
+        .eq("zapi_instance_id", instanceName)
+        .maybeSingle();
+
+      if (localExisting && !force) {
+        await logWhatsapp(svc, clinica_id, localExisting.id, "create_instance_duplicate_local", "info", {
+          trace_id: traceId,
+          instance_name: instanceName,
+          local_id: localExisting.id,
+          local_status: localExisting.status,
+        });
+        return json({
+          ok: false,
+          duplicate: true,
+          message: "Já existe uma instância local com este nome para esta clínica. Use a instância existente ou exclua antes de criar outra.",
+          existing: {
+            evolution_instance_name: instanceName,
+            connection_status: localExisting.status,
+            omni_instancia_id: localExisting.id,
+            already_adopted: true,
+            can_cleanup: false,
+          },
+        }, 200);
+      }
 
       // ─── Validação: já existe instância desta clínica no Evolution? ───
       if (!force) {
         try {
           const clinicSuffix = clinica_id.slice(0, 8).toLowerCase();
-          const listResp = await evoFetch(`/instance/fetchInstances`, { method: "GET", headers: evoHeaders() });
-          const listData = await listResp.json().catch(() => []);
+          const { data: listData } = await callEvolution(svc, { clinicaId: clinica_id, traceId, step: "fetch_instances_before_create" }, `/instance/fetchInstances`, { method: "GET", headers: evoHeaders() });
           const arr = Array.isArray(listData) ? listData : (listData?.instances || []);
 
           const existing = arr.filter((i: Record<string, unknown>) => {
@@ -216,13 +435,19 @@ Deno.serve(async (req) => {
             const s = String(i?.connectionStatus || (i as { instance?: { state?: string } })?.instance?.state || "").toLowerCase();
             return s === "open" || s === "connected" || s === "connecting";
           });
+          const staleOrExact = existing.find((i: Record<string, unknown>) => {
+            const n = String(i?.name || (i as { instance?: { instanceName?: string } })?.instance?.instanceName || "").toLowerCase();
+            return n === instanceName.toLowerCase();
+          }) || existing[0];
 
-          if (openOrConnecting) {
-            const st = String(openOrConnecting?.connectionStatus || "").toLowerCase();
+          if (openOrConnecting || staleOrExact) {
+            const found = openOrConnecting || staleOrExact;
+            const st = String(found?.connectionStatus || (found as { instance?: { state?: string } })?.instance?.state || "").toLowerCase();
             const isOpen = st === "open" || st === "connected";
-            const evName = String(openOrConnecting?.name || "");
-            const profileName = openOrConnecting?.profileName as string | undefined;
-            const ownerJid = openOrConnecting?.ownerJid as string | undefined;
+            const isInvalidSession = !isOpen && st !== "connecting";
+            const evName = String(found?.name || (found as { instance?: { instanceName?: string } })?.instance?.instanceName || "");
+            const profileName = found?.profileName as string | undefined;
+            const ownerJid = found?.ownerJid as string | undefined;
             const phone = ownerJid ? String(ownerJid).replace(/@.*/, "").replace(/\D/g, "") : null;
 
             // Check whether it is already adopted locally
@@ -235,15 +460,11 @@ Deno.serve(async (req) => {
 
             // Se o registro local não existe e o chamador pediu limpeza, apaga
             // a órfã na Evolution e segue adiante para criar uma nova.
-            if (!local && body.cleanup_orphan && evName) {
-              console.log(`[zapi-manage] cleanup_orphan: apagando ${evName} na Evolution`);
+            if (!local && (body.cleanup_orphan || isInvalidSession) && evName) {
+              console.log(`[zapi-manage:${traceId}] cleanup_orphan/stale: apagando ${evName} na Evolution`);
+              await cleanEvolutionSession(svc, { clinicaId: clinica_id, traceId, reason: isInvalidSession ? "stale_before_create" : "orphan_before_create" }, evName);
               try {
-                await evoFetch(`/instance/logout/${evName}`, { method: "DELETE", headers: evoHeaders() });
-              } catch (e) {
-                console.warn("[zapi-manage] cleanup logout falhou:", e);
-              }
-              try {
-                await evoFetch(`/instance/delete/${evName}`, { method: "DELETE", headers: evoHeaders() });
+                await callEvolution(svc, { clinicaId: clinica_id, traceId, step: "delete_orphan" }, `/instance/delete/${evName}`, { method: "DELETE", headers: evoHeaders() }, 1);
               } catch (e) {
                 console.warn("[zapi-manage] cleanup delete falhou:", e);
               }
@@ -272,16 +493,12 @@ Deno.serve(async (req) => {
           console.warn("[zapi-manage] duplicate check failed (non-blocking):", e);
         }
       }
-
-
-
-      const createResp = await evoFetch(`/instance/create`, {
+      const { resp: createResp, data: payload } = await callEvolution(svc, { clinicaId: clinica_id, traceId, step: "create_instance" }, `/instance/create`, {
         method: "POST",
         headers: evoHeaders(),
         body: JSON.stringify({ instanceName, qrcode: true, integration: "WHATSAPP-BAILEYS" }),
       });
-      const payload = await createResp.json().catch(() => ({}));
-      console.log("[zapi-manage] create response HTTP:", createResp.status);
+      console.log(`[zapi-manage:${traceId}] create response HTTP:`, createResp.status);
 
       if (!createResp.ok) {
         return json({
@@ -295,7 +512,7 @@ Deno.serve(async (req) => {
         payload?.hash?.apikey || payload?.hash || payload?.apikey || EVO_KEY;
       const externalId: string =
         payload?.instance?.instanceId || payload?.instance?.instanceName || instanceName;
-      const qrCodeBase64: string | null = payload?.qrcode?.base64 || null;
+      const qrCodeBase64: string | null = normalizeQrCode(payload?.qrcode?.base64) || null;
 
       const placeholderWebhook = `${SUPABASE_URL}/functions/v1/webhook-receiver?provider=evolution&instance_id=PLACEHOLDER`;
       const { data: instancia, error: dbErr } = await svc
@@ -310,14 +527,24 @@ Deno.serve(async (req) => {
           webhook_url: placeholderWebhook,
           servidor_url: EVO_URL,
           webhooks_configured: false,
-          configuracoes: { evolution_response: payload },
+          configuracoes: { evolution_response: redactEvolutionPayload(payload), last_connection_trace_id: traceId },
         })
         .select()
         .single();
 
       if (dbErr) {
         console.error("[zapi-manage] DB insert error:", dbErr);
+        await logWhatsapp(svc, clinica_id, null, "create_instance_db_error", "error", { trace_id: traceId, error: dbErr.message, instance_name: instanceName });
         return json({ ok: false, message: "Instância criada na Evolution mas erro ao salvar", details: dbErr }, 500);
+      }
+
+      if (qrCodeBase64) {
+        await logWhatsapp(svc, clinica_id, instancia.id, "qr_code_generated", "success", {
+          trace_id: traceId,
+          source: "create_instance",
+          instance_name: instanceName,
+          qr_image: qrCodeBase64,
+        });
       }
 
       // Mirror to managed_instances for webhook routing
@@ -340,6 +567,12 @@ Deno.serve(async (req) => {
       // Configure webhook pointing to real instancia id
       const realWebhookUrl = `${SUPABASE_URL}/functions/v1/webhook-receiver?provider=evolution&instance_id=${instancia.id}`;
       const webhookOk = await setWebhook(instanceName, instanceApiKey, realWebhookUrl);
+      await logWhatsapp(svc, clinica_id, instancia.id, "set_webhook", webhookOk ? "success" : "error", {
+        trace_id: traceId,
+        instance_name: instanceName,
+        webhook_url: realWebhookUrl,
+        events: WEBHOOK_EVENTS,
+      });
 
       await svc.from("omni_instancias").update({
         webhook_url: realWebhookUrl,
@@ -356,6 +589,7 @@ Deno.serve(async (req) => {
         instancia,
         managed_instance: managed,
         qrCodeBase64,
+        trace_id: traceId,
         webhook_configured: webhookOk,
         ...(webhookOk ? {} : { warning: "Webhooks pendentes — configure manualmente se necessário." }),
       });
@@ -409,8 +643,27 @@ Deno.serve(async (req) => {
         console.warn("[zapi-manage] fetchInstances pre-connect check failed:", e);
       }
 
-      const r = await evoFetch(`/instance/connect/${name}`, { method: "GET", headers: evoHeaders(apikey) });
-      const data = await r.json().catch(() => ({}));
+      const slot = await acquireConnectSlot(svc, inst, traceId);
+      if (!slot.acquired) {
+        if (slot.recentQr) {
+          return json({ ok: true, qrcode: slot.recentQr, pairingCode: null, reused: true, trace_id: traceId, message: slot.message });
+        }
+        return json({ ok: false, message: slot.message || "Já existe uma conexão em andamento. Aguarde alguns segundos.", trace_id: traceId }, 200);
+      }
+
+      await cleanEvolutionSession(svc, {
+        clinicaId: String(inst.clinica_id || ""),
+        instanciaId: instancia_id,
+        traceId,
+        reason: "before_qr_connect",
+      }, name, apikey);
+
+      const { resp: r, data } = await callEvolution(svc, {
+        clinicaId: String(inst.clinica_id || ""),
+        instanciaId: instancia_id,
+        traceId,
+        step: "connect_qr",
+      }, `/instance/connect/${name}`, { method: "GET", headers: evoHeaders(apikey) });
 
       if (!r.ok) {
         return json({
@@ -423,19 +676,31 @@ Deno.serve(async (req) => {
 
       // Evolution retorna `base64` = PNG do QR; `code` = string crua de pareamento (NÃO é imagem).
       // Usar apenas base64 para não quebrar a renderização da imagem no front.
-      let qrcode: string | null = data?.base64 || data?.qrcode || null;
-      if (qrcode && !qrcode.startsWith("data:")) {
-        qrcode = `data:image/png;base64,${qrcode}`;
-      }
+      let qrcode: string | null = normalizeQrCode(data?.base64 || data?.qrcode);
       if (!qrcode) {
+        await svc.from("managed_instances").update({ last_error: "Evolution não retornou QR Code" }).eq("omni_instancia_id", instancia_id);
+        await logWhatsapp(svc, inst.clinica_id, instancia_id, "qr_code_missing", "error", {
+          trace_id: traceId,
+          instance_name: name,
+          response: data,
+        });
         return json({
           ok: false,
           message: "QR Code indisponível agora (instância pode já estar conectada). Tente novamente em alguns segundos.",
           raw: data,
+          trace_id: traceId,
         }, 200);
       }
 
-      return json({ ok: true, qrcode, pairingCode: data?.pairingCode || data?.code || null, raw: data });
+      await logWhatsapp(svc, inst.clinica_id, instancia_id, "qr_code_generated", "success", {
+        trace_id: traceId,
+        source: "get_qr_code",
+        instance_name: name,
+        qr_image: qrcode,
+        pairing_code_available: Boolean(data?.pairingCode || data?.code),
+      });
+
+      return json({ ok: true, qrcode, pairingCode: data?.pairingCode || data?.code || null, raw: redactEvolutionPayload(data), trace_id: traceId });
     }
 
     // ─── get_status ───
@@ -511,6 +776,126 @@ Deno.serve(async (req) => {
       return json({ ok: true, connected, status: newStatus, phone_number: phoneNumber, webhook_configured: webhookConfigured, linked_filas: linkedFilas, raw: data });
     }
 
+    // ─── diagnose_instance ───
+    if (action === "diagnose_instance") {
+      const { instancia_id } = body;
+      if (!instancia_id) return json({ ok: false, message: "instancia_id obrigatório" }, 400);
+
+      const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).maybeSingle();
+      if (!inst) return json({ ok: false, message: "Instância não encontrada" }, 404);
+      const { data: managed } = await svc.from("managed_instances").select("*").eq("omni_instancia_id", instancia_id).maybeSingle();
+
+      const name = inst.zapi_instance_id;
+      const apikey = inst.zapi_token || EVO_KEY;
+      let connection: Record<string, unknown> | null = null;
+      let listed: EvolutionInstance | null = null;
+      if (name) {
+        try {
+          connection = await getEvolutionConnectionState(name, apikey);
+          const state = String((connection as { state?: string })?.state || "").toLowerCase();
+          if (state === "open" || state === "connected" || state === "connecting") {
+            const localStatus = state === "open" || state === "connected" ? "connected" : "connecting";
+            const managedStatus = localStatus === "connected" ? "online" : "connecting";
+            await svc.from("omni_instancias").update({ status: localStatus }).eq("id", instancia_id);
+            await svc.from("managed_instances").update({
+              status: managedStatus,
+              last_health_check: new Date().toISOString(),
+              last_error: null,
+            }).eq("omni_instancia_id", instancia_id);
+            inst.status = localStatus;
+            if (managed) {
+              managed.status = managedStatus;
+              managed.last_error = null;
+            }
+          }
+        } catch (e) {
+          connection = { ok: false, error: e instanceof Error ? e.message : String(e) };
+        }
+        try {
+          listed = await findEvolutionInstance(name);
+        } catch (e) {
+          console.warn("[zapi-manage] diagnose fetchInstances failed:", e);
+        }
+      }
+
+      const { data: lastQrLogs } = await svc
+        .from("whatsapp_logs")
+        .select("created_at,detalhes")
+        .eq("instancia_id", instancia_id)
+        .eq("acao", "qr_code_generated")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      const lastQrDetails = (lastQrLogs?.[0]?.detalhes || {}) as Record<string, unknown>;
+
+      const { data: attemptLogs } = await svc
+        .from("whatsapp_logs")
+        .select("created_at,acao,status,detalhes")
+        .eq("instancia_id", instancia_id)
+        .in("acao", ["create_instance_start", "qr_code_generated", "evolution_connect_qr", "connect_deduplicated", "session_cleanup_start", "session_cleanup_done", "pairing_code_generated"])
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      const { data: errorLogs } = await svc
+        .from("whatsapp_logs")
+        .select("created_at,acao,status,detalhes")
+        .eq("instancia_id", instancia_id)
+        .eq("status", "error")
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      const { data: webhookLogs } = await svc
+        .from("whatsapp_logs")
+        .select("created_at,acao,status,detalhes")
+        .eq("instancia_id", instancia_id)
+        .like("acao", "webhook_%")
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      await logWhatsapp(svc, inst.clinica_id, instancia_id, "diagnose_instance", "success", { trace_id: traceId, instance_name: name });
+
+      return json({
+        ok: true,
+        trace_id: traceId,
+        instance: {
+          id: inst.id,
+          nome: inst.nome,
+          provider: inst.provider,
+          status: inst.status,
+          evolution_instance_name: name,
+          numero_whatsapp: inst.numero_whatsapp,
+          webhook_url: inst.webhook_url,
+          webhooks_configured: inst.webhooks_configured,
+          webhooks_configured_at: inst.webhooks_configured_at,
+          created_at: inst.created_at,
+          updated_at: inst.updated_at,
+        },
+        managed_instance: managed ? {
+          id: managed.id,
+          status: managed.status,
+          phone_number: managed.phone_number,
+          webhook_configured: managed.webhook_configured,
+          last_health_check: managed.last_health_check,
+          last_error: managed.last_error,
+        } : null,
+        evolution: {
+          configured: Boolean(EVO_URL && EVO_KEY),
+          base_url: EVO_URL,
+          connection_state: connection ? redactEvolutionPayload(connection) : null,
+          listed_instance: listed ? redactEvolutionPayload(listed) : null,
+        },
+        last_qr: lastQrLogs?.[0] ? {
+          generated_at: lastQrLogs[0].created_at,
+          qrcode: lastQrDetails.qr_image || null,
+          source: lastQrDetails.source || null,
+          trace_id: lastQrDetails.trace_id || null,
+        } : null,
+        last_connection_attempt: attemptLogs?.[0] || null,
+        recent_attempts: attemptLogs || [],
+        recent_errors: errorLogs || [],
+        webhook_events: webhookLogs || [],
+      });
+    }
+
     // ─── setup_webhooks ───
     if (action === "setup_webhooks") {
       const { instancia_id } = body;
@@ -580,26 +965,10 @@ Deno.serve(async (req) => {
       const name = inst.zapi_instance_id;
       const apikey = inst.zapi_token || EVO_KEY;
 
-      // 1) logout (encerra sessão atual — ignora erros)
-      try {
-        await evoFetch(`/instance/logout/${name}`, { method: "DELETE", headers: evoHeaders(apikey) });
-      } catch (e) {
-        console.warn("[zapi-manage] force_reconnect logout falhou (non-blocking):", e);
-      }
-
-      // 2) restart (reinicia o worker Baileys — ignora erros)
-      try {
-        await evoFetch(`/instance/restart/${name}`, { method: "POST", headers: evoHeaders(apikey) });
-      } catch (e) {
-        console.warn("[zapi-manage] force_reconnect restart falhou (non-blocking):", e);
-      }
-
-      // Pequena pausa para o Evolution estabilizar antes de pedir novo QR
-      await new Promise((r) => setTimeout(r, 1200));
+      await cleanEvolutionSession(svc, { clinicaId: inst.clinica_id, instanciaId: instancia_id, traceId, reason: "force_reconnect" }, name, apikey);
 
       // 3) connect — retorna QR/pairing code
-      const r = await evoFetch(`/instance/connect/${name}`, { method: "GET", headers: evoHeaders(apikey) });
-      const data = await r.json().catch(() => ({}));
+      const { resp: r, data } = await callEvolution(svc, { clinicaId: inst.clinica_id, instanciaId: instancia_id, traceId, step: "connect_qr" }, `/instance/connect/${name}`, { method: "GET", headers: evoHeaders(apikey) });
 
       await svc.from("omni_instancias").update({ status: "connecting", numero_whatsapp: null }).eq("id", instancia_id);
       await svc.from("managed_instances").update({
@@ -617,17 +986,26 @@ Deno.serve(async (req) => {
         }, 200);
       }
 
-      let qrcode: string | null = data?.base64 || data?.qrcode || null;
-      if (qrcode && !qrcode.startsWith("data:")) qrcode = `data:image/png;base64,${qrcode}`;
+      let qrcode: string | null = normalizeQrCode(data?.base64 || data?.qrcode);
+      if (qrcode) {
+        await logWhatsapp(svc, inst.clinica_id, instancia_id, "qr_code_generated", "success", {
+          trace_id: traceId,
+          source: "force_reconnect",
+          instance_name: name,
+          qr_image: qrcode,
+          pairing_code_available: Boolean(data?.pairingCode || data?.code),
+        });
+      }
 
       return json({
         ok: true,
         qrcode,
         pairingCode: data?.pairingCode || data?.code || null,
+        trace_id: traceId,
         message: qrcode
           ? "Sessão reiniciada. Escaneie o novo QR Code para reconectar."
           : "Reconexão solicitada. Aguarde alguns segundos e verifique o status.",
-        raw: data,
+        raw: redactEvolutionPayload(data),
       });
     }
 
@@ -647,11 +1025,22 @@ Deno.serve(async (req) => {
       const name = inst.zapi_instance_id;
       const apikey = inst.zapi_token || EVO_KEY;
 
-      const r = await evoFetch(`/instance/connect/${name}?number=${encodeURIComponent(digits)}`, {
+      const slot = await acquireConnectSlot(svc, inst, traceId);
+      if (!slot.acquired) {
+        return json({ ok: false, message: slot.message || "Já existe uma tentativa de conexão em andamento. Aguarde alguns segundos.", trace_id: traceId }, 200);
+      }
+
+      await cleanEvolutionSession(svc, {
+        clinicaId: String(inst.clinica_id || ""),
+        instanciaId: instancia_id,
+        traceId,
+        reason: "before_pairing_code",
+      }, name, apikey);
+
+      const { resp: r, data } = await callEvolution(svc, { clinicaId: inst.clinica_id, instanciaId: instancia_id, traceId, step: "connect_pairing_code" }, `/instance/connect/${name}?number=${encodeURIComponent(digits)}`, {
         method: "GET",
         headers: evoHeaders(apikey),
       });
-      const data = await r.json().catch(() => ({}));
 
       if (!r.ok) {
         return json({
@@ -662,8 +1051,7 @@ Deno.serve(async (req) => {
       }
 
       const pairingCode: string | null = data?.pairingCode || data?.code || null;
-      let qrcode: string | null = data?.base64 || data?.qrcode || null;
-      if (qrcode && !qrcode.startsWith("data:")) qrcode = `data:image/png;base64,${qrcode}`;
+      let qrcode: string | null = normalizeQrCode(data?.base64 || data?.qrcode);
 
       if (!pairingCode) {
         return json({
@@ -675,8 +1063,14 @@ Deno.serve(async (req) => {
       }
 
       await svc.from("omni_instancias").update({ status: "connecting" }).eq("id", instancia_id);
+      await logWhatsapp(svc, inst.clinica_id, instancia_id, "pairing_code_generated", "success", {
+        trace_id: traceId,
+        instance_name: name,
+        phone_digits_length: digits.length,
+        has_qr: Boolean(qrcode),
+      });
 
-      return json({ ok: true, pairingCode, qrcode, raw: data });
+      return json({ ok: true, pairingCode, qrcode, raw: redactEvolutionPayload(data), trace_id: traceId });
     }
 
     // ─── delete_instance ───
