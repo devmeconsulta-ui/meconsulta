@@ -100,7 +100,10 @@ export default function OmniFilas() {
   const [showNovaFila, setShowNovaFila] = useState(false);
   const [showNovaInstancia, setShowNovaInstancia] = useState(false);
   const [editingFila, setEditingFila] = useState<OmniFila | null>(null);
-  const [qrCodeData, setQrCodeData] = useState<{ instanciaId: string; qrcode: string } | null>(null);
+  const [qrCodeData, setQrCodeData] = useState<{ instanciaId: string; qrcode: string | null; pairingCode?: string | null } | null>(null);
+  const [pairingPhone, setPairingPhone] = useState("");
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const [connectMode, setConnectMode] = useState<"qr" | "code">("qr");
   const [syncHistoryDays, setSyncHistoryDays] = useState<number>(0);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [creatingInstancia, setCreatingInstancia] = useState(false);
