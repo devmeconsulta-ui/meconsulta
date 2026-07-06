@@ -147,6 +147,7 @@ export default function OmniFilas() {
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [refreshingStatusId, setRefreshingStatusId] = useState<string | null>(null);
   const [reconnectingId, setReconnectingId] = useState<string | null>(null);
+  const [orphanPrompt, setOrphanPrompt] = useState<{ evName: string } | null>(null);
 
   const handleForceReconnect = async (instanciaId: string) => {
     setReconnectingId(instanciaId);
