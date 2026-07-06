@@ -178,7 +178,7 @@ async function callEvolution(
   console.log(`[zapi-manage:${meta.traceId}] Evolution ${meta.step} -> ${method} ${path}`);
   try {
     const resp = await evoFetch(path, init, retries);
-    const data = (await responseBody(resp)) as Record<string, unknown>;
+    const data = (await responseBody(resp)) as any;
     const elapsed_ms = Date.now() - started;
     console.log(`[zapi-manage:${meta.traceId}] Evolution ${meta.step} <- ${resp.status} (${elapsed_ms}ms)`);
     await logWhatsapp(svc, meta.clinicaId, meta.instanciaId, `evolution_${meta.step}`, resp.ok ? "success" : "error", {
