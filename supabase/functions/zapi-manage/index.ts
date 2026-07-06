@@ -265,7 +265,8 @@ async function acquireConnectSlot(
       .eq("acao", "qr_code_generated")
       .order("created_at", { ascending: false })
       .limit(1);
-    const recentQr = (logs?.[0]?.detalhes as Record<string, unknown> | undefined)?.qrcode as string | undefined;
+    const recentDetails = logs?.[0]?.detalhes as Record<string, unknown> | undefined;
+    const recentQr = (recentDetails?.qr_image || recentDetails?.qrcode) as string | undefined;
     await logWhatsapp(svc, clinicaId, instanciaId, "connect_deduplicated", "info", {
       trace_id: traceId,
       age_ms: ageMs,
