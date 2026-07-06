@@ -1003,8 +1003,8 @@ export default function OmniFilas() {
                             <AlertDialogTitle>Excluir instância</AlertDialogTitle>
                             <AlertDialogDescription>
                               Tem certeza que deseja excluir a instância "{instancia.nome}"?
-                              Esta ação irá desconectar o WhatsApp e excluir a instância permanentemente.
-                              As filas vinculadas serão desvinculadas automaticamente.
+                              Esta ação irá <strong>desconectar o WhatsApp e apagar a instância também na Evolution</strong> (logout + delete),
+                              limpar jobs de sincronização e desvincular automaticamente as filas relacionadas. A operação não pode ser desfeita.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
