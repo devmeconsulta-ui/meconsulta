@@ -372,7 +372,7 @@ Deno.serve(async (req) => {
     if (action === "test_connection") {
       const r = await evoFetch(`/instance/fetchInstances`, { method: "GET", headers: evoHeaders() });
       const data = await r.json().catch(() => ({}));
-      return json({ ok: r.ok, status: r.status, data });
+      return json({ ok: r.ok, status: r.status, data: redactEvolutionPayload(data) });
     }
 
     // ─── create_instance ───
