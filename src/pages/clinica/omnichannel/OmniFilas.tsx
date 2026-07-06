@@ -174,6 +174,36 @@ export default function OmniFilas() {
     }
   };
 
+  const handleRequestPairingCode = async (instanciaId: string) => {
+    const digits = pairingPhone.replace(/\D/g, "");
+    if (digits.length < 10) {
+      toast.error("Informe o número com DDI+DDD, ex: 5511999999999");
+      return;
+    }
+    setPairingLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("zapi-manage", {
+        body: { action: "get_pairing_code", instancia_id: instanciaId, phone_number: digits },
+      });
+      if (error) throw error;
+      if (data?.ok === false || !data?.pairingCode) {
+        toast.error(data?.message || "Não foi possível gerar o código");
+        return;
+      }
+      setQrCodeData((prev) =>
+        prev
+          ? { ...prev, pairingCode: data.pairingCode, qrcode: data.qrcode || prev.qrcode }
+          : { instanciaId, qrcode: data.qrcode || null, pairingCode: data.pairingCode }
+      );
+      toast.success("Código gerado — abra o WhatsApp e digite-o");
+    } catch (err) {
+      console.error("Pairing code error:", err);
+      toast.error("Erro ao gerar código de pareamento");
+    } finally {
+      setPairingLoading(false);
+    }
+  };
+
   // Sync progress polling
   const instanciaIds = instancias.map((i: any) => i.id);
   const syncProgressMap = useSyncProgress(instanciaIds);
