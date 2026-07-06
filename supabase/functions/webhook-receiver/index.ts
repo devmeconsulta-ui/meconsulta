@@ -177,9 +177,7 @@ Deno.serve(async (req) => {
         } else if (state === "close" || state === "closed") {
           body = { event: "DisconnectedCallback", status: "disconnected" };
         } else {
-          return new Response(JSON.stringify({ ok: true, event: "ignored_connection_state", state }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          body = { event: "EvolutionIgnoredCallback", rawEvent: ev, state };
         }
       } else if (ev === "messages.upsert" || ev === "send.message") {
         const key = data?.key || {};
@@ -225,9 +223,7 @@ Deno.serve(async (req) => {
           phone: String(remote).replace(/@.*/, ""),
         };
       } else if (ev === "qrcode.updated" || ev === "contacts.upsert") {
-        return new Response(JSON.stringify({ ok: true, event: `ignored_${ev}` }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        body = { event: "EvolutionIgnoredCallback", rawEvent: ev, qrcode: data?.qrcode || data?.base64 || null };
       }
     }
 
