@@ -46,6 +46,12 @@ function redactWebhookPayload(value: unknown): unknown {
   return out;
 }
 
+function normalizeQrCode(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const qrcode = raw.trim();
+  return qrcode.startsWith("data:") ? qrcode : `data:image/png;base64,${qrcode}`;
+}
+
 async function logWhatsapp(
   serviceClient: any,
   clinicaId: string | null | undefined,
@@ -257,6 +263,18 @@ Deno.serve(async (req) => {
       raw_event: rawBody?.event || null,
       payload: rawBody,
     });
+
+    if (provider === "evolution" && String(rawBody?.event || "").toLowerCase() === "qrcode.updated") {
+      const qr = normalizeQrCode(rawBody?.data?.qrcode || rawBody?.data?.base64 || rawBody?.data?.qrcode?.base64);
+      if (qr) {
+        await logWhatsapp(serviceClient, mi.clinica_id, mi.omni_instancia_id || instanceId, "qr_code_generated", "success", {
+          source: "webhook_qrcode_updated",
+          instance_id_param: instanceId,
+          managed_instance_id: mi.id,
+          qr_image: qr,
+        });
+      }
+    }
 
     // ─── DisconnectedCallback ───
     if (body.event === "DisconnectedCallback" || body.status === "disconnected") {
