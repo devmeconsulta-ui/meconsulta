@@ -100,7 +100,10 @@ export default function OmniFilas() {
   const [showNovaFila, setShowNovaFila] = useState(false);
   const [showNovaInstancia, setShowNovaInstancia] = useState(false);
   const [editingFila, setEditingFila] = useState<OmniFila | null>(null);
-  const [qrCodeData, setQrCodeData] = useState<{ instanciaId: string; qrcode: string } | null>(null);
+  const [qrCodeData, setQrCodeData] = useState<{ instanciaId: string; qrcode: string | null; pairingCode?: string | null } | null>(null);
+  const [pairingPhone, setPairingPhone] = useState("");
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const [connectMode, setConnectMode] = useState<"qr" | "code">("qr");
   const [syncHistoryDays, setSyncHistoryDays] = useState<number>(0);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [creatingInstancia, setCreatingInstancia] = useState(false);
@@ -168,6 +171,36 @@ export default function OmniFilas() {
       toast.error("Erro ao forçar reconexão");
     } finally {
       setReconnectingId(null);
+    }
+  };
+
+  const handleRequestPairingCode = async (instanciaId: string) => {
+    const digits = pairingPhone.replace(/\D/g, "");
+    if (digits.length < 10) {
+      toast.error("Informe o número com DDI+DDD, ex: 5511999999999");
+      return;
+    }
+    setPairingLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("zapi-manage", {
+        body: { action: "get_pairing_code", instancia_id: instanciaId, phone_number: digits },
+      });
+      if (error) throw error;
+      if (data?.ok === false || !data?.pairingCode) {
+        toast.error(data?.message || "Não foi possível gerar o código");
+        return;
+      }
+      setQrCodeData((prev) =>
+        prev
+          ? { ...prev, pairingCode: data.pairingCode, qrcode: data.qrcode || prev.qrcode }
+          : { instanciaId, qrcode: data.qrcode || null, pairingCode: data.pairingCode }
+      );
+      toast.success("Código gerado — abra o WhatsApp e digite-o");
+    } catch (err) {
+      console.error("Pairing code error:", err);
+      toast.error("Erro ao gerar código de pareamento");
+    } finally {
+      setPairingLoading(false);
     }
   };
 
@@ -623,52 +656,118 @@ export default function OmniFilas() {
         </div>
       </div>
 
-      {/* QR Code Modal */}
-      <Dialog open={!!qrCodeData} onOpenChange={() => setQrCodeData(null)}>
+      {/* QR Code / Pairing Code Modal */}
+      <Dialog
+        open={!!qrCodeData}
+        onOpenChange={(open) => {
+          if (!open) {
+            setQrCodeData(null);
+            setPairingPhone("");
+            setConnectMode("qr");
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Escaneie o QR Code</DialogTitle>
+            <DialogTitle>Conectar WhatsApp</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
-            {qrCodeData?.qrcode && (
-              <img
-                src={
-                  qrCodeData.qrcode.startsWith("data:")
-                    ? qrCodeData.qrcode
-                    : `data:image/png;base64,${qrCodeData.qrcode}`
-                }
-                alt="QR Code"
-                className="w-64 h-64"
-              />
-            )}
-            <p className="text-sm text-muted-foreground text-center">
-              Abra o WhatsApp no seu celular e escaneie o código acima
-            </p>
-            {syncHistoryDays > 0 && (
-              <div className="flex items-center gap-2 text-xs bg-muted px-3 py-2 rounded-md">
-                <Calendar className="h-3.5 w-3.5 text-primary" />
-                <span>
-                  Importando histórico dos últimos{" "}
-                  {syncHistoryDays === 1 ? "24 horas" : `${syncHistoryDays} dias`}
-                </span>
+          <Tabs value={connectMode} onValueChange={(v) => setConnectMode(v as "qr" | "code")} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="qr">QR Code</TabsTrigger>
+              <TabsTrigger value="code">Código</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="qr">
+              <div className="flex flex-col items-center gap-4 py-4">
+                {qrCodeData?.qrcode ? (
+                  <img
+                    src={
+                      qrCodeData.qrcode.startsWith("data:")
+                        ? qrCodeData.qrcode
+                        : `data:image/png;base64,${qrCodeData.qrcode}`
+                    }
+                    alt="QR Code"
+                    className="w-64 h-64"
+                  />
+                ) : (
+                  <div className="w-64 h-64 flex items-center justify-center bg-muted rounded">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground text-center">
+                  Abra o WhatsApp no seu celular e escaneie o código acima
+                </p>
               </div>
-            )}
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {checkingConnection ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Verificando conexão automaticamente...</span>
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4" />
-                  <span>Aguardando escaneamento...</span>
-                </>
-              )}
+            </TabsContent>
+
+            <TabsContent value="code">
+              <div className="flex flex-col gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pairing-phone">Número com DDI + DDD</Label>
+                  <Input
+                    id="pairing-phone"
+                    placeholder="5511999999999"
+                    value={pairingPhone}
+                    onChange={(e) => setPairingPhone(e.target.value)}
+                    disabled={pairingLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Ex: 55 (Brasil) + 11 (DDD) + número. Só dígitos.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => qrCodeData && handleRequestPairingCode(qrCodeData.instanciaId)}
+                  disabled={pairingLoading || !pairingPhone}
+                >
+                  {pairingLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" /> Gerando…
+                    </>
+                  ) : (
+                    "Gerar código"
+                  )}
+                </Button>
+
+                {qrCodeData?.pairingCode && (
+                  <div className="rounded-md border bg-muted p-4 text-center">
+                    <p className="text-xs text-muted-foreground mb-2">Seu código de pareamento</p>
+                    <p className="text-3xl font-mono font-bold tracking-widest">
+                      {qrCodeData.pairingCode}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-3">
+                      No WhatsApp: <strong>Aparelhos conectados › Conectar aparelho › Conectar com número de telefone</strong> e digite este código.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {syncHistoryDays > 0 && (
+            <div className="flex items-center gap-2 text-xs bg-muted px-3 py-2 rounded-md">
+              <Calendar className="h-3.5 w-3.5 text-primary" />
+              <span>
+                Importando histórico dos últimos{" "}
+                {syncHistoryDays === 1 ? "24 horas" : `${syncHistoryDays} dias`}
+              </span>
             </div>
+          )}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
+            {checkingConnection ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Verificando conexão automaticamente...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                <span>Aguardando pareamento...</span>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
+
 
       {/* Test Send Dialog */}
       <Dialog open={!!testSendInstanciaId} onOpenChange={(open) => { if (!open) setTestSendInstanciaId(null); }}>
