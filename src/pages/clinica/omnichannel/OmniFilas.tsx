@@ -851,11 +851,25 @@ export default function OmniFilas() {
                         size="sm"
                         onClick={() => handleCheckStatus(instancia.id)}
                         disabled={refreshingStatusId === instancia.id}
+                        title="Atualizar status"
                       >
                         {refreshingStatusId === instancia.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleForceReconnect(instancia.id)}
+                        disabled={reconnectingId === instancia.id}
+                        title="Forçar reconexão (encerra sessão atual e gera novo QR)"
+                      >
+                        {reconnectingId === instancia.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RotateCw className="h-4 w-4" />
                         )}
                       </Button>
                       <AlertDialog>
