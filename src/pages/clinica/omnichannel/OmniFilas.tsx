@@ -1092,7 +1092,7 @@ export default function OmniFilas() {
                           {instancia.webhooks_configured_at && (
                             <div className="flex justify-between">
                               <span>Webhooks em:</span>
-                              <span className="font-mono">{new Date(instancia.webhooks_configured_at).toLocaleString("pt-BR")}</span>
+                              <span className="font-mono">{formatDiagnosticDate(instancia.webhooks_configured_at)}</span>
                             </div>
                           )}
                           <div className="flex justify-between">
