@@ -612,6 +612,54 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ─── get_pairing_code ───
+    // Retorna código de 8 caracteres para pareamento sem QR Code (WhatsApp
+    // "Conectar aparelho > Conectar com número de telefone").
+    if (action === "get_pairing_code") {
+      const { instancia_id, phone_number } = body;
+      if (!instancia_id) return json({ ok: false, message: "instancia_id obrigatório" }, 400);
+      const digits = String(phone_number || "").replace(/\D/g, "");
+      if (digits.length < 10) {
+        return json({ ok: false, message: "Informe um número válido com DDI+DDD (ex: 5511999999999)" }, 400);
+      }
+
+      const { data: inst } = await svc.from("omni_instancias").select("*").eq("id", instancia_id).maybeSingle();
+      if (!inst || !inst.zapi_instance_id) return json({ ok: false, message: "Instância não encontrada" }, 404);
+      const name = inst.zapi_instance_id;
+      const apikey = inst.zapi_token || EVO_KEY;
+
+      const r = await evoFetch(`/instance/connect/${name}?number=${encodeURIComponent(digits)}`, {
+        method: "GET",
+        headers: evoHeaders(apikey),
+      });
+      const data = await r.json().catch(() => ({}));
+
+      if (!r.ok) {
+        return json({
+          ok: false,
+          message: `Falha ao gerar código (${r.status}): ${data?.message || data?.error || "Erro Evolution"}`,
+          raw: data,
+        }, 200);
+      }
+
+      const pairingCode: string | null = data?.pairingCode || data?.code || null;
+      let qrcode: string | null = data?.base64 || data?.qrcode || null;
+      if (qrcode && !qrcode.startsWith("data:")) qrcode = `data:image/png;base64,${qrcode}`;
+
+      if (!pairingCode) {
+        return json({
+          ok: false,
+          message: "Evolution não retornou o código de pareamento. Tente novamente em alguns segundos.",
+          qrcode,
+          raw: data,
+        }, 200);
+      }
+
+      await svc.from("omni_instancias").update({ status: "connecting" }).eq("id", instancia_id);
+
+      return json({ ok: true, pairingCode, qrcode, raw: data });
+    }
+
     // ─── delete_instance ───
     if (action === "delete_instance") {
       const { instancia_id } = body;
