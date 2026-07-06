@@ -147,6 +147,7 @@ export default function OmniFilas() {
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [refreshingStatusId, setRefreshingStatusId] = useState<string | null>(null);
   const [reconnectingId, setReconnectingId] = useState<string | null>(null);
+  const [orphanPrompt, setOrphanPrompt] = useState<{ evName: string } | null>(null);
 
   const handleForceReconnect = async (instanciaId: string) => {
     setReconnectingId(instanciaId);
@@ -308,28 +309,9 @@ export default function OmniFilas() {
     });
   };
 
-  const handleCreateInstancia = async () => {
-    if (!novaInstanciaNome) {
-      toast.error("Nome da instância é obrigatório");
-      return;
-    }
-
-    setCreatingInstancia(true);
-    let result = await createInstancia(novaInstanciaNome);
-
-    // Órfã na Evolution (sem registro local) → oferece limpar automaticamente
-    const dup = result as { duplicate?: boolean; existing?: { already_adopted?: boolean; can_cleanup?: boolean; evolution_instance_name?: string } } | null;
-    if (dup?.duplicate && dup.existing && dup.existing.already_adopted === false) {
-      const evName = dup.existing.evolution_instance_name || "instância";
-      const confirmed = window.confirm(
-        `Foi encontrada uma instância órfã na Evolution (${evName}) sem registro local.\n\nDeseja excluí-la da Evolution e criar uma nova agora?`,
-      );
-      if (confirmed) {
-        result = await createInstancia(novaInstanciaNome, { cleanupOrphan: true });
-      }
-    }
-    setCreatingInstancia(false);
-
+  const finishCreateResult = (
+    result: Awaited<ReturnType<typeof createInstancia>>,
+  ) => {
     if ((result as { duplicate?: boolean } | null)?.duplicate) {
       setShowNovaInstancia(false);
       setNovaInstanciaNome("");
@@ -343,6 +325,34 @@ export default function OmniFilas() {
         setQrCodeData({ instanciaId: result.instancia.id, qrcode: result.qrcode });
       }
     }
+  };
+
+  const handleCreateInstancia = async () => {
+    if (!novaInstanciaNome) {
+      toast.error("Nome da instância é obrigatório");
+      return;
+    }
+
+    setCreatingInstancia(true);
+    const result = await createInstancia(novaInstanciaNome);
+    setCreatingInstancia(false);
+
+    // Órfã na Evolution (sem registro local) → abre modal de confirmação
+    const dup = result as { duplicate?: boolean; existing?: { already_adopted?: boolean; can_cleanup?: boolean; evolution_instance_name?: string } } | null;
+    if (dup?.duplicate && dup.existing && dup.existing.already_adopted === false) {
+      setOrphanPrompt({ evName: dup.existing.evolution_instance_name || "instância" });
+      return;
+    }
+
+    finishCreateResult(result);
+  };
+
+  const handleConfirmOrphanCleanup = async () => {
+    setOrphanPrompt(null);
+    setCreatingInstancia(true);
+    const result = await createInstancia(novaInstanciaNome, { cleanupOrphan: true });
+    setCreatingInstancia(false);
+    finishCreateResult(result);
   };
 
 
@@ -1183,6 +1193,24 @@ export default function OmniFilas() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!orphanPrompt} onOpenChange={(open) => !open && setOrphanPrompt(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Instância órfã detectada na Evolution</AlertDialogTitle>
+            <AlertDialogDescription>
+              Encontramos <strong>{orphanPrompt?.evName}</strong> na Evolution sem registro local
+              nesta clínica. Deseja apagá-la da Evolution e criar uma nova instância agora?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmOrphanCleanup}>
+              Apagar e criar nova
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </div>
     </OmniLayout>
   );
