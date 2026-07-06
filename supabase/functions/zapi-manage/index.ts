@@ -792,6 +792,22 @@ Deno.serve(async (req) => {
       if (name) {
         try {
           connection = await getEvolutionConnectionState(name, apikey);
+          const state = String((connection as { state?: string })?.state || "").toLowerCase();
+          if (state === "open" || state === "connected" || state === "connecting") {
+            const localStatus = state === "open" || state === "connected" ? "connected" : "connecting";
+            const managedStatus = localStatus === "connected" ? "online" : "connecting";
+            await svc.from("omni_instancias").update({ status: localStatus }).eq("id", instancia_id);
+            await svc.from("managed_instances").update({
+              status: managedStatus,
+              last_health_check: new Date().toISOString(),
+              last_error: null,
+            }).eq("omni_instancia_id", instancia_id);
+            inst.status = localStatus;
+            if (managed) {
+              managed.status = managedStatus;
+              managed.last_error = null;
+            }
+          }
         } catch (e) {
           connection = { ok: false, error: e instanceof Error ? e.message : String(e) };
         }
