@@ -426,6 +426,7 @@ export default function OmniConfirmacaoAgenda() {
     } finally {
       setSendingManualId(null);
     }
+  };
 
   return (
     <OmniLayout clinicaId={clinicaId || undefined}>
