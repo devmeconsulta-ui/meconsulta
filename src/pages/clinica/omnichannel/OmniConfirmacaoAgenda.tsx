@@ -1034,13 +1034,13 @@ export default function OmniConfirmacaoAgenda() {
                       <TableBody>
                         {isLoadingConsultas ? (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center py-8">
+                            <TableCell colSpan={6} className="text-center py-8">
                               Carregando...
                             </TableCell>
                           </TableRow>
                         ) : consultasFiltradas.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center py-8">
+                            <TableCell colSpan={6} className="text-center py-8">
                               <div className="flex flex-col items-center gap-2 text-muted-foreground">
                                 <Calendar className="h-8 w-8 opacity-50" />
                                 <p>Nenhuma consulta disponível para este período</p>
