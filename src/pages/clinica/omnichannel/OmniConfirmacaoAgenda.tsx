@@ -394,6 +394,39 @@ export default function OmniConfirmacaoAgenda() {
     setSelectedConsultas([]);
   };
 
+  const [sendingManualId, setSendingManualId] = useState<string | null>(null);
+  const handleEnviarManual = async (consultaId: string) => {
+    try {
+      setSendingManualId(consultaId);
+      const { data, error } = await supabase.functions.invoke("create-manual-confirmation", {
+        body: {
+          consulta_id: consultaId,
+          clinica_id: clinicaId,
+          mensagem_template: mensagemTemplate,
+          base_url: window.location.origin,
+          ordem_chegada: incluirOrdemChegada,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Falha ao gerar mensagem");
+
+      window.open(data.wa_url, "_blank", "noopener,noreferrer");
+      toast({
+        title: "WhatsApp aberto",
+        description: "A mensagem já vai pronta. Basta clicar em enviar no WhatsApp.",
+      });
+      refetchConfirmacoes();
+      refetchConsultas();
+    } catch (e: any) {
+      toast({
+        title: "Erro ao preparar envio manual",
+        description: e.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSendingManualId(null);
+    }
+
   return (
     <OmniLayout clinicaId={clinicaId || undefined}>
       <div className="space-y-6">
