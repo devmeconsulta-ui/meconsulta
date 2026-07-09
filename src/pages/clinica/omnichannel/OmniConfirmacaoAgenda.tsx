@@ -1028,6 +1028,7 @@ export default function OmniConfirmacaoAgenda() {
                           <TableHead>Médico</TableHead>
                           <TableHead>Data/Hora</TableHead>
                           <TableHead>Telefone</TableHead>
+                          <TableHead className="text-right">Enviar manual</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
