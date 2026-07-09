@@ -1121,6 +1121,26 @@ export default function OmniConfirmacaoAgenda() {
                                   </span>
                                 </div>
                               </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                                  disabled={
+                                    !consulta.paciente?.telefone ||
+                                    sendingManualId === consulta.id
+                                  }
+                                  onClick={() => handleEnviarManual(consulta.id)}
+                                  title="Abrir WhatsApp com a mensagem pronta para este paciente"
+                                >
+                                  {sendingManualId === consulta.id ? (
+                                    <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                  ) : (
+                                    <Share2 className="h-3.5 w-3.5 mr-1.5" />
+                                  )}
+                                  WhatsApp
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           ))
                         )}
