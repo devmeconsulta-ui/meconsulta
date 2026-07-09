@@ -56,7 +56,10 @@ import {
   Timer,
   Users,
   Zap,
+  Share2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import { format, addDays, isToday, isTomorrow, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -389,6 +392,40 @@ export default function OmniConfirmacaoAgenda() {
     });
 
     setSelectedConsultas([]);
+  };
+
+  const [sendingManualId, setSendingManualId] = useState<string | null>(null);
+  const handleEnviarManual = async (consultaId: string) => {
+    try {
+      setSendingManualId(consultaId);
+      const { data, error } = await supabase.functions.invoke("create-manual-confirmation", {
+        body: {
+          consulta_id: consultaId,
+          clinica_id: clinicaId,
+          mensagem_template: mensagemTemplate,
+          base_url: window.location.origin,
+          ordem_chegada: incluirOrdemChegada,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Falha ao gerar mensagem");
+
+      window.open(data.wa_url, "_blank", "noopener,noreferrer");
+      toast({
+        title: "WhatsApp aberto",
+        description: "A mensagem já vai pronta. Basta clicar em enviar no WhatsApp.",
+      });
+      refetchConfirmacoes();
+      refetchConsultas();
+    } catch (e: any) {
+      toast({
+        title: "Erro ao preparar envio manual",
+        description: e.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSendingManualId(null);
+    }
   };
 
   return (
@@ -991,18 +1028,19 @@ export default function OmniConfirmacaoAgenda() {
                           <TableHead>Médico</TableHead>
                           <TableHead>Data/Hora</TableHead>
                           <TableHead>Telefone</TableHead>
+                          <TableHead className="text-right">Enviar manual</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {isLoadingConsultas ? (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center py-8">
+                            <TableCell colSpan={6} className="text-center py-8">
                               Carregando...
                             </TableCell>
                           </TableRow>
                         ) : consultasFiltradas.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center py-8">
+                            <TableCell colSpan={6} className="text-center py-8">
                               <div className="flex flex-col items-center gap-2 text-muted-foreground">
                                 <Calendar className="h-8 w-8 opacity-50" />
                                 <p>Nenhuma consulta disponível para este período</p>
@@ -1082,6 +1120,26 @@ export default function OmniConfirmacaoAgenda() {
                                     {consulta.paciente?.telefone || "Sem telefone"}
                                   </span>
                                 </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                                  disabled={
+                                    !consulta.paciente?.telefone ||
+                                    sendingManualId === consulta.id
+                                  }
+                                  onClick={() => handleEnviarManual(consulta.id)}
+                                  title="Abrir WhatsApp com a mensagem pronta para este paciente"
+                                >
+                                  {sendingManualId === consulta.id ? (
+                                    <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                  ) : (
+                                    <Share2 className="h-3.5 w-3.5 mr-1.5" />
+                                  )}
+                                  WhatsApp
+                                </Button>
                               </TableCell>
                             </TableRow>
                           ))

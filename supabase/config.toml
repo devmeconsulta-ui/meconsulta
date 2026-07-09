@@ -134,3 +134,6 @@ verify_jwt = false
 
 [functions.evolution-v2-webhook]
 verify_jwt = false
+
+[functions.create-manual-confirmation]
+verify_jwt = false
