@@ -118,16 +118,19 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
       const { data: confirmadas } = await supabase
         .from("confirmacoes_agenda")
         .select("consulta_id")
-        .eq("clinica_id", clinicaId)
-        .in("status", ["pendente", "enviada", "confirmada"]);
+        .eq("clinica_id", clinicaId);
 
       const idsConfirmados = confirmadas?.map((c) => c.consulta_id) || [];
 
-      // Buscar consultas dos últimos 7 dias até o futuro que não tenham confirmação
+      // Buscar consultas dos últimos 30 dias até o futuro (próximos 365 dias)
       const dataInicio = new Date();
-      dataInicio.setDate(dataInicio.getDate() - 7);
+      dataInicio.setDate(dataInicio.getDate() - 30);
       dataInicio.setHours(0, 0, 0, 0);
       const dataInicioISO = dataInicio.toISOString();
+      
+      const dataFim = new Date();
+      dataFim.setFullYear(dataFim.getFullYear() + 1);
+      const dataFimISO = dataFim.toISOString();
 
       // @ts-ignore - relacionamento ambíguo entre medicos e consultas
       let query = supabase
@@ -145,8 +148,8 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
         .eq("clinica_id", clinicaId)
         .not("paciente_id", "is", null) // Apenas consultas com paciente vinculado
         .gte("data_hora", dataInicioISO)
+        .lte("data_hora", dataFimISO)
         .in("status_consulta", ["agendada", "aguardando_pagamento", "confirmada", "paga"])
-        .order("data_hora", { ascending: true });
 
       if (idsConfirmados.length > 0) {
         // Filtrar consultas que não estão na lista de confirmadas

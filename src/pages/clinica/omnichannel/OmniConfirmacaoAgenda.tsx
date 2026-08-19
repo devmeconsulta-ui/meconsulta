@@ -195,7 +195,9 @@ export default function OmniConfirmacaoAgenda() {
       result = result.filter((c: any) => new Date(c.data_hora) <= limite);
     } else if (filterPeriodo === "proximos30") {
       const limite = addDays(hoje, 30);
-      result = result.filter((c: any) => new Date(c.data_hora) <= limite);
+      result = result.filter((c: any) => new Date(c.data_hora) <= endOfDay(limite));
+    } else if (filterPeriodo === "todos") {
+      // Sem filtro adicional
     }
 
     // Filtro por médico
