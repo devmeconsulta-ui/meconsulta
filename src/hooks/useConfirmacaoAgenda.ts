@@ -123,10 +123,11 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
 
       const idsConfirmados = confirmadas?.map((c) => c.consulta_id) || [];
 
-      // Buscar consultas futuras sem confirmação
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0); // Start of today in local time
-      const hojeISO = hoje.toISOString();
+      // Buscar consultas dos últimos 7 dias até o futuro que não tenham confirmação
+      const dataInicio = new Date();
+      dataInicio.setDate(dataInicio.getDate() - 7);
+      dataInicio.setHours(0, 0, 0, 0);
+      const dataInicioISO = dataInicio.toISOString();
 
       // @ts-ignore - relacionamento ambíguo entre medicos e consultas
       let query = supabase
@@ -143,7 +144,7 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
         `)
         .eq("clinica_id", clinicaId)
         .not("paciente_id", "is", null) // Apenas consultas com paciente vinculado
-        .gte("data_hora", hojeISO)
+        .gte("data_hora", dataInicioISO)
         .in("status_consulta", ["agendada", "aguardando_pagamento", "confirmada", "paga"])
         .order("data_hora", { ascending: true });
 
