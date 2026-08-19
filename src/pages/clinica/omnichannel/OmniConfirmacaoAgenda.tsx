@@ -173,7 +173,15 @@ export default function OmniConfirmacaoAgenda() {
     // Filtro por período
     const hoje = new Date();
     if (filterPeriodo === "hoje") {
-      result = result.filter((c: any) => isToday(new Date(c.data_hora)));
+      result = result.filter((c: any) => {
+        const date = new Date(c.data_hora);
+        const today = new Date();
+        return (
+          date.getDate() === today.getDate() &&
+          date.getMonth() === today.getMonth() &&
+          date.getFullYear() === today.getFullYear()
+        );
+      });
     } else if (filterPeriodo === "amanha") {
       result = result.filter((c: any) => isTomorrow(new Date(c.data_hora)));
     } else if (filterPeriodo === "proximos3") {
