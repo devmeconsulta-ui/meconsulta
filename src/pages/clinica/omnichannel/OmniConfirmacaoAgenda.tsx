@@ -959,6 +959,11 @@ export default function OmniConfirmacaoAgenda() {
                         className="h-8"
                       >
                         Todos
+                        {filterPeriodo !== "todos" && consultasDisponiveis.length > 0 && (
+                          <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+                            {consultasDisponiveis.length}
+                          </Badge>
+                        )}
                       </Button>
                     </div>
 
