@@ -129,7 +129,7 @@ export default function OmniConfirmacaoAgenda() {
   const [selectedFila, setSelectedFila] = useState<string>("");
   const [mensagemTemplate, setMensagemTemplate] = useState(MENSAGEM_PADRAO);
   const [intervaloEnvio, setIntervaloEnvio] = useState([4]); // segundos
-  const [filterPeriodo, setFilterPeriodo] = useState<string>("amanha");
+  const [filterPeriodo, setFilterPeriodo] = useState<string>("todos");
   const [filterMedico, setFilterMedico] = useState<string>("todos");
   const [searchTerm, setSearchTerm] = useState("");
   const [showMultiDoctorWarning, setShowMultiDoctorWarning] = useState(false);
@@ -150,9 +150,9 @@ export default function OmniConfirmacaoAgenda() {
 
   const AVISO_ORDEM_CHEGADA = `\n\n⚠️ *ATENÇÃO:* O atendimento será realizado por *ordem de chegada* no local. Quanto mais cedo você chegar, mais cedo será atendido(a).`;
 
-  // Carregar automaticamente consultas de amanhã ao montar
+  // Carregar todas as consultas ao montar
   useEffect(() => {
-    setFilterPeriodo("amanha");
+    setFilterPeriodo("todos");
   }, []);
 
   // Inserir/remover aviso de ordem de chegada na mensagem
@@ -959,6 +959,11 @@ export default function OmniConfirmacaoAgenda() {
                         className="h-8"
                       >
                         Todos
+                        {filterPeriodo !== "todos" && consultasDisponiveis.length > 0 && (
+                          <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+                            {consultasDisponiveis.length}
+                          </Badge>
+                        )}
                       </Button>
                     </div>
 
