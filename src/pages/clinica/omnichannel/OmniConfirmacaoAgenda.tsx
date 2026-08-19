@@ -150,10 +150,10 @@ export default function OmniConfirmacaoAgenda() {
 
   const AVISO_ORDEM_CHEGADA = `\n\n⚠️ *ATENÇÃO:* O atendimento será realizado por *ordem de chegada* no local. Quanto mais cedo você chegar, mais cedo será atendido(a).`;
 
-  // Carregar todas as consultas ao montar
+  // Forçar filtro "todos" por padrão e sempre que houver mudança na lista
   useEffect(() => {
     setFilterPeriodo("todos");
-  }, []);
+  }, [consultasDisponiveis.length]);
 
   // Inserir/remover aviso de ordem de chegada na mensagem
   useEffect(() => {
@@ -170,34 +170,42 @@ export default function OmniConfirmacaoAgenda() {
   const consultasFiltradas = useMemo(() => {
     let result = [...consultasDisponiveis] as any[];
 
-    // Filtro por período
     const hoje = new Date();
+    const hojeStart = startOfDay(hoje);
+    const hojeEnd = endOfDay(hoje);
+
+    // Filtro por período
     if (filterPeriodo === "hoje") {
       result = result.filter((c: any) => {
-        const date = new Date(c.data_hora);
-        const today = new Date();
-        return (
-          date.getDate() === today.getDate() &&
-          date.getMonth() === today.getMonth() &&
-          date.getFullYear() === today.getFullYear()
-        );
+        const dataConsulta = new Date(c.data_hora);
+        return dataConsulta >= hojeStart && dataConsulta <= hojeEnd;
       });
     } else if (filterPeriodo === "amanha") {
-      result = result.filter((c: any) => isTomorrow(new Date(c.data_hora)));
+      const amanha = addDays(hoje, 1);
+      const amanhaStart = startOfDay(amanha);
+      const amanhaEnd = endOfDay(amanha);
+      result = result.filter((c: any) => {
+        const dataConsulta = new Date(c.data_hora);
+        return dataConsulta >= amanhaStart && dataConsulta <= amanhaEnd;
+      });
     } else if (filterPeriodo === "proximos3") {
       const limite = addDays(hoje, 3);
       result = result.filter((c: any) => {
         const dataConsulta = new Date(c.data_hora);
-        return dataConsulta >= startOfDay(hoje) && dataConsulta <= endOfDay(limite);
+        return dataConsulta >= hojeStart && dataConsulta <= endOfDay(limite);
       });
     } else if (filterPeriodo === "proximos7") {
       const limite = addDays(hoje, 7);
-      result = result.filter((c: any) => new Date(c.data_hora) <= limite);
+      result = result.filter((c: any) => {
+        const dataConsulta = new Date(c.data_hora);
+        return dataConsulta >= hojeStart && dataConsulta <= endOfDay(limite);
+      });
     } else if (filterPeriodo === "proximos30") {
       const limite = addDays(hoje, 30);
-      result = result.filter((c: any) => new Date(c.data_hora) <= endOfDay(limite));
-    } else if (filterPeriodo === "todos") {
-      // Sem filtro adicional
+      result = result.filter((c: any) => {
+        const dataConsulta = new Date(c.data_hora);
+        return dataConsulta >= hojeStart && dataConsulta <= endOfDay(limite);
+      });
     }
 
     // Filtro por médico
