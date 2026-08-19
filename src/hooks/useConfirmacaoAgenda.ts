@@ -122,18 +122,17 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
 
       const idsConfirmados = confirmadas?.map((c) => c.consulta_id) || [];
 
-      // Buscar consultas dos últimos 30 dias até o futuro (próximos 365 dias)
+      // Buscar consultas de um período amplo (D-30 até D+365)
       const dataInicio = new Date();
       dataInicio.setDate(dataInicio.getDate() - 30);
       dataInicio.setHours(0, 0, 0, 0);
-      const dataInicioISO = dataInicio.toISOString();
       
       const dataFim = new Date();
       dataFim.setFullYear(dataFim.getFullYear() + 1);
-      const dataFimISO = dataFim.toISOString();
+      dataFim.setHours(23, 59, 59, 999);
 
-      // @ts-ignore - relacionamento ambíguo entre medicos e consultas
-      let query = supabase
+      // @ts-ignore - relacionamento ambíguo
+      const { data, error } = await supabase
         .from("consultas")
         .select(`
           id,
@@ -146,17 +145,15 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
           clinica:clinicas!consultas_clinica_id_fkey(id, nome_fantasia)
         `)
         .eq("clinica_id", clinicaId)
-        .not("paciente_id", "is", null) // Apenas consultas com paciente vinculado
-        .gte("data_hora", dataInicioISO)
-        .lte("data_hora", dataFimISO)
-        .in("status_consulta", ["agendada", "aguardando_pagamento", "confirmada", "paga"])
+        .not("paciente_id", "is", null)
+        .gte("data_hora", dataInicio.toISOString())
+        .lte("data_hora", dataFim.toISOString())
+        .in("status_consulta", ["agendada", "aguardando_pagamento", "confirmada", "paga", "atendendo", "aguardando", "concluida"]);
 
-      if (idsConfirmados.length > 0) {
-        // Filtrar consultas que não estão na lista de confirmadas
-        query = query.not("id", "in", `(${idsConfirmados.join(",")})`);
-      }
+      const consultas = data || [];
 
-      const { data, error } = await query;
+      // Filtrar no cliente para garantir que consultas com confirmação não apareçam
+      return consultas.filter(c => !idsConfirmados.includes(c.id));
 
       if (error) throw error;
       return data || [];
