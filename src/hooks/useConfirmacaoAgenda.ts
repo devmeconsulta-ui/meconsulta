@@ -149,7 +149,7 @@ export function useConfirmacaoAgenda(clinicaId: string | null) {
         .not("paciente_id", "is", null) // Apenas consultas com paciente vinculado
         .gte("data_hora", dataInicioISO)
         .lte("data_hora", dataFimISO)
-        .order("data_hora", { ascending: true });
+        .in("status_consulta", ["agendada", "aguardando_pagamento", "confirmada", "paga"])
 
       if (idsConfirmados.length > 0) {
         // Filtrar consultas que não estão na lista de confirmadas
