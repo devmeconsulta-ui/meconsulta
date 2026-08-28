@@ -1223,7 +1223,7 @@ function ExportarDados({ clinicaId }: { clinicaId: string | null | undefined }) 
         "Consultas",
         (consultas || []).map((c: any) => ({
           "Data/Hora": fmtDateTime(c.data_hora),
-          Paciente: nome(c.paciente_id),
+          Paciente: nome(c.paciente_id, c.id),
           CPF: cpf(c.paciente_id),
           Status: c.status_consulta || "",
           Pagamento: c.status_pagamento || "",
@@ -1248,7 +1248,7 @@ function ExportarDados({ clinicaId }: { clinicaId: string | null | undefined }) 
           .sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""))
           .map((p: any) => ({
             Data: fmtDateTime(p.created_at),
-            Paciente: nome(p.paciente_id),
+            Paciente: nome(p.paciente_id, p.consulta_id),
             CPF: cpf(p.paciente_id),
             "Evolução / Prontuário": p.conteudo || "",
           })),
@@ -1263,7 +1263,7 @@ function ExportarDados({ clinicaId }: { clinicaId: string | null | undefined }) 
           .sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""))
           .map((a: any) => ({
             Data: fmtDateTime(a.created_at),
-            Paciente: nome(a.paciente_id),
+            Paciente: nome(a.paciente_id, a.consulta_id),
             CPF: cpf(a.paciente_id),
             "Queixa Principal": a.queixa_principal || "",
             "História da Doença Atual": a.historia_doenca_atual || "",
@@ -1285,7 +1285,7 @@ function ExportarDados({ clinicaId }: { clinicaId: string | null | undefined }) 
           .sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""))
           .map((p: any) => ({
             Data: fmtDateTime(p.created_at),
-            Paciente: nome(p.paciente_id),
+            Paciente: nome(p.paciente_id, p.consulta_id),
             CPF: cpf(p.paciente_id),
             Tipo: p.tipo || "",
             Título: p.titulo || "",
