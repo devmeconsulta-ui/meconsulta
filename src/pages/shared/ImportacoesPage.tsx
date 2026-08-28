@@ -248,10 +248,15 @@ export default function ImportacoesPage({ scope }: { scope: Scope }) {
             <FileArchive className="w-4 h-4" />
             <span className="hidden sm:inline">Documentos</span>
           </TabsTrigger>
+          <TabsTrigger value="exportar" className="gap-2">
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Exportar</span>
+          </TabsTrigger>
           <TabsTrigger value="historico" className="gap-2">
             <History className="w-4 h-4" />
             <span className="hidden sm:inline">Histórico</span>
           </TabsTrigger>
+
         </TabsList>
 
         <TabsContent value="pacientes">
