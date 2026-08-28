@@ -1003,3 +1003,284 @@ function HistoricoJobs({ jobs, onRefresh }: { jobs: JobRow[]; onRefresh: () => v
     </Card>
   );
 }
+
+/* ===== Exportação ===== */
+function autoCols(rows: Record<string, any>[], headers: string[]) {
+  return headers.map((h) => ({
+    wch: Math.min(
+      50,
+      Math.max(h.length + 2, ...rows.map((r) => String(r[h] ?? "").length + 2), 12),
+    ),
+  }));
+}
+
+function addSheet(wb: XLSX.WorkBook, name: string, rows: Record<string, any>[], headers: string[]) {
+  const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{}], { header: headers });
+  ws["!cols"] = autoCols(rows, headers);
+  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+  ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(rows.length, 1), c: headers.length - 1 } }) };
+  XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+}
+
+const fmtDateTime = (v?: string | null) =>
+  v ? new Date(v).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "";
+const fmtDate = (v?: string | null) =>
+  v ? new Date(v).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "";
+
+function ExportarDados({ clinicaId }: { clinicaId: string | null | undefined }) {
+  const [medicos, setMedicos] = useState<{ id: string; nome: string; crm: string | null; especialidade: string | null }[]>([]);
+  const [medicoId, setMedicoId] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      if (!clinicaId) return setMedicos([]);
+      const { data: vinculos } = await supabase
+        .from("clinicas_medicos")
+        .select("medico_id")
+        .eq("clinica_id", clinicaId)
+        .eq("ativo", true);
+      const ids = (vinculos || []).map((v: any) => v.medico_id);
+      if (!ids.length) return setMedicos([]);
+      const { data } = await supabase
+        .from("medicos")
+        .select("id, nome, crm, especialidade")
+        .in("id", ids)
+        .order("nome");
+      setMedicos((data as any) || []);
+    })();
+  }, [clinicaId]);
+
+  const exportar = async () => {
+    if (!medicoId) return;
+    setLoading(true);
+    try {
+      const medico = medicos.find((m) => m.id === medicoId);
+
+      setStatus("Buscando consultas...");
+      const { data: consultas } = await supabase
+        .from("consultas")
+        .select("id, paciente_id, data_hora, status_consulta, status_pagamento, valor_consulta, valor_medico, tipo_atendimento, tipo_servico, motivo_consulta, sintomas, observacoes_paciente, observacao_finalizacao_medico, origem")
+        .eq("medico_id", medicoId)
+        .order("data_hora", { ascending: false });
+
+      setStatus("Buscando prontuários...");
+      const [{ data: prontuarios }, { data: anamneses }, { data: prescricoes }] = await Promise.all([
+        supabase.from("prontuario_livre").select("id, paciente_id, consulta_id, conteudo, created_at").eq("medico_id", medicoId),
+        supabase
+          .from("anamneses")
+          .select("id, paciente_id, consulta_id, queixa_principal, historia_doenca_atual, antecedentes_pessoais, antecedentes_familiares, exame_fisico, hipotese_diagnostica, conduta, observacoes, created_at")
+          .eq("medico_id", medicoId),
+        supabase.from("prescricoes_documentos").select("id, paciente_id, consulta_id, tipo, titulo, conteudo, created_at").eq("medico_id", medicoId),
+      ]);
+
+      const pacienteIds = Array.from(
+        new Set(
+          [
+            ...(consultas || []).map((c: any) => c.paciente_id),
+            ...(prontuarios || []).map((p: any) => p.paciente_id),
+            ...(anamneses || []).map((a: any) => a.paciente_id),
+            ...(prescricoes || []).map((p: any) => p.paciente_id),
+          ].filter(Boolean),
+        ),
+      ) as string[];
+
+      setStatus("Buscando pacientes...");
+      const pacientes: any[] = [];
+      for (let i = 0; i < pacienteIds.length; i += 200) {
+        const { data } = await supabase
+          .from("pacientes")
+          .select("id, nome, cpf, telefone, data_nascimento, cidade, estado, bairro, usuario_id")
+          .in("id", pacienteIds.slice(i, i + 200));
+        pacientes.push(...(data || []));
+      }
+      const usuarioIds = pacientes.map((p) => p.usuario_id).filter(Boolean);
+      const emails: Record<string, string> = {};
+      for (let i = 0; i < usuarioIds.length; i += 200) {
+        const { data } = await supabase.from("usuarios").select("id, email").in("id", usuarioIds.slice(i, i + 200));
+        (data || []).forEach((u: any) => (emails[u.id] = u.email));
+      }
+      const pMap = new Map(pacientes.map((p) => [p.id, p]));
+      const nome = (id: string) => pMap.get(id)?.nome || "—";
+      const cpf = (id: string) => pMap.get(id)?.cpf || "";
+
+      setStatus("Gerando planilha...");
+      const wb = XLSX.utils.book_new();
+
+      const resumoHeaders = ["Informação", "Valor"];
+      addSheet(
+        wb,
+        "Resumo",
+        [
+          { Informação: "Médico", Valor: medico?.nome || "" },
+          { Informação: "CRM", Valor: medico?.crm || "" },
+          { Informação: "Especialidade", Valor: medico?.especialidade || "" },
+          { Informação: "Gerado em", Valor: fmtDateTime(new Date().toISOString()) },
+          { Informação: "Total de pacientes", Valor: pacientes.length },
+          { Informação: "Total de consultas", Valor: consultas?.length || 0 },
+          { Informação: "Prontuários (evolução livre)", Valor: prontuarios?.length || 0 },
+          { Informação: "Anamneses", Valor: anamneses?.length || 0 },
+          { Informação: "Prescrições/Documentos", Valor: prescricoes?.length || 0 },
+        ],
+        resumoHeaders,
+      );
+
+      const pacHeaders = ["Nome", "CPF", "Telefone", "E-mail", "Nascimento", "Cidade", "Estado", "Bairro", "Consultas"];
+      const consultasPorPaciente: Record<string, number> = {};
+      (consultas || []).forEach((c: any) => {
+        if (c.paciente_id) consultasPorPaciente[c.paciente_id] = (consultasPorPaciente[c.paciente_id] || 0) + 1;
+      });
+      addSheet(
+        wb,
+        "Pacientes",
+        pacientes
+          .sort((a, b) => (a.nome || "").localeCompare(b.nome || ""))
+          .map((p) => ({
+            Nome: p.nome || "",
+            CPF: p.cpf || "",
+            Telefone: p.telefone || "",
+            "E-mail": p.usuario_id ? emails[p.usuario_id] || "" : "",
+            Nascimento: fmtDate(p.data_nascimento),
+            Cidade: p.cidade || "",
+            Estado: p.estado || "",
+            Bairro: p.bairro || "",
+            Consultas: consultasPorPaciente[p.id] || 0,
+          })),
+        pacHeaders,
+      );
+
+      const consHeaders = ["Data/Hora", "Paciente", "CPF", "Status", "Pagamento", "Valor (R$)", "Repasse (R$)", "Tipo", "Serviço", "Origem", "Motivo", "Sintomas", "Obs. Recepção", "Obs. Médico"];
+      addSheet(
+        wb,
+        "Consultas",
+        (consultas || []).map((c: any) => ({
+          "Data/Hora": fmtDateTime(c.data_hora),
+          Paciente: nome(c.paciente_id),
+          CPF: cpf(c.paciente_id),
+          Status: c.status_consulta || "",
+          Pagamento: c.status_pagamento || "",
+          "Valor (R$)": Number(c.valor_consulta || 0),
+          "Repasse (R$)": Number(c.valor_medico || 0),
+          Tipo: c.tipo_atendimento || "",
+          Serviço: c.tipo_servico || "",
+          Origem: c.origem || "",
+          Motivo: c.motivo_consulta || "",
+          Sintomas: c.sintomas || "",
+          "Obs. Recepção": c.observacoes_paciente || "",
+          "Obs. Médico": c.observacao_finalizacao_medico || "",
+        })),
+        consHeaders,
+      );
+
+      const prontHeaders = ["Data", "Paciente", "CPF", "Evolução / Prontuário"];
+      addSheet(
+        wb,
+        "Prontuários",
+        (prontuarios || [])
+          .sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""))
+          .map((p: any) => ({
+            Data: fmtDateTime(p.created_at),
+            Paciente: nome(p.paciente_id),
+            CPF: cpf(p.paciente_id),
+            "Evolução / Prontuário": p.conteudo || "",
+          })),
+        prontHeaders,
+      );
+
+      const anamHeaders = ["Data", "Paciente", "CPF", "Queixa Principal", "História da Doença Atual", "Antecedentes Pessoais", "Antecedentes Familiares", "Exame Físico", "Hipótese Diagnóstica", "Conduta", "Observações"];
+      addSheet(
+        wb,
+        "Anamneses",
+        (anamneses || [])
+          .sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""))
+          .map((a: any) => ({
+            Data: fmtDateTime(a.created_at),
+            Paciente: nome(a.paciente_id),
+            CPF: cpf(a.paciente_id),
+            "Queixa Principal": a.queixa_principal || "",
+            "História da Doença Atual": a.historia_doenca_atual || "",
+            "Antecedentes Pessoais": a.antecedentes_pessoais || "",
+            "Antecedentes Familiares": a.antecedentes_familiares || "",
+            "Exame Físico": a.exame_fisico || "",
+            "Hipótese Diagnóstica": a.hipotese_diagnostica || "",
+            Conduta: a.conduta || "",
+            Observações: a.observacoes || "",
+          })),
+        anamHeaders,
+      );
+
+      const presHeaders = ["Data", "Paciente", "CPF", "Tipo", "Título", "Conteúdo"];
+      addSheet(
+        wb,
+        "Prescrições",
+        (prescricoes || [])
+          .sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""))
+          .map((p: any) => ({
+            Data: fmtDateTime(p.created_at),
+            Paciente: nome(p.paciente_id),
+            CPF: cpf(p.paciente_id),
+            Tipo: p.tipo || "",
+            Título: p.titulo || "",
+            Conteúdo: typeof p.conteudo === "string" ? p.conteudo : JSON.stringify(p.conteudo ?? ""),
+          })),
+        presHeaders,
+      );
+
+      const slug = (medico?.nome || "medico").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase();
+      XLSX.writeFile(wb, `prontuarios_${slug}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success("Planilha exportada com sucesso!");
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Erro ao exportar: " + (e?.message || "desconhecido"));
+    } finally {
+      setLoading(false);
+      setStatus("");
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Exportar Prontuários e Pacientes</CardTitle>
+        <CardDescription>
+          Gere uma planilha Excel completa e organizada com todos os dados de um médico.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            A planilha contém as abas: <strong>Resumo</strong>, <strong>Pacientes</strong>,{" "}
+            <strong>Consultas</strong>, <strong>Prontuários</strong>, <strong>Anamneses</strong> e{" "}
+            <strong>Prescrições</strong>.
+          </AlertDescription>
+        </Alert>
+
+        <div className="space-y-2 max-w-md">
+          <Label>Médico</Label>
+          <Select value={medicoId} onValueChange={setMedicoId} disabled={!clinicaId || !medicos.length}>
+            <SelectTrigger>
+              <SelectValue placeholder={medicos.length ? "Selecione o médico" : "Nenhum médico vinculado"} />
+            </SelectTrigger>
+            <SelectContent>
+              {medicos.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.nome}
+                  {m.crm ? ` — CRM ${m.crm}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {loading && status && <p className="text-xs text-muted-foreground">{status}</p>}
+
+        <Button onClick={exportar} disabled={!medicoId || loading} className="w-full">
+          {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+          Exportar Planilha Excel
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
