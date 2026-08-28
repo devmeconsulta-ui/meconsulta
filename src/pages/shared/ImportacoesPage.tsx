@@ -271,7 +271,11 @@ export default function ImportacoesPage({ scope }: { scope: Scope }) {
         <TabsContent value="documentos">
           <DocumentosImport clinicaId={clinicaId} onDone={(r, name) => logJob("documentos", name, "upload", r)} />
         </TabsContent>
+        <TabsContent value="exportar">
+          <ExportarDados clinicaId={clinicaId} />
+        </TabsContent>
         <TabsContent value="historico">
+
           <HistoricoJobs jobs={jobs} onRefresh={loadJobs} />
         </TabsContent>
       </Tabs>
