@@ -1061,6 +1061,35 @@ function ExportarDados({ clinicaId }: { clinicaId: string | null | undefined }) 
     })();
   }, [clinicaId]);
 
+  // Busca paginada (contorna o limite de 1000 linhas do PostgREST) com erro visível
+  const fetchAll = async (
+    table: string,
+    select: string,
+    build: (q: any) => any,
+  ): Promise<any[]> => {
+    const out: any[] = [];
+    const step = 1000;
+    for (let from = 0; ; from += step) {
+      const { data, error } = await build(supabase.from(table as any).select(select)).range(from, from + step - 1);
+      if (error) throw new Error(`${table}: ${error.message}`);
+      const rows = (data as any[]) || [];
+      out.push(...rows);
+      if (rows.length < step) break;
+    }
+    return out;
+  };
+
+  const fetchByIds = async (table: string, select: string, column: string, ids: string[]) => {
+    const out: any[] = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      const { data, error } = await supabase.from(table as any).select(select).in(column, chunk).limit(1000);
+      if (error) throw new Error(`${table}: ${error.message}`);
+      out.push(...((data as any[]) || []));
+    }
+    return out;
+  };
+
   const exportar = async () => {
     if (!medicoId) return;
     setLoading(true);
@@ -1068,51 +1097,80 @@ function ExportarDados({ clinicaId }: { clinicaId: string | null | undefined }) 
       const medico = medicos.find((m) => m.id === medicoId);
 
       setStatus("Buscando consultas...");
-      const { data: consultas } = await supabase
-        .from("consultas")
-        .select("id, paciente_id, data_hora, status_consulta, status_pagamento, valor_consulta, valor_medico, tipo_atendimento, tipo_servico, motivo_consulta, sintomas, observacoes_paciente, observacao_finalizacao_medico, origem")
-        .eq("medico_id", medicoId)
-        .order("data_hora", { ascending: false });
+      const consultas = await fetchAll(
+        "consultas",
+        "id, paciente_id, nome_paciente_consulta, data_hora, status_consulta, status_pagamento, valor_consulta, valor_medico, tipo_atendimento, tipo_servico, motivo_consulta, sintomas, observacoes_paciente, observacao_finalizacao_medico, origem",
+        (q) => q.eq("medico_id", medicoId).order("data_hora", { ascending: false }),
+      );
+      const consultaIds = consultas.map((c: any) => c.id);
 
       setStatus("Buscando prontuários...");
-      const [{ data: prontuarios }, { data: anamneses }, { data: prescricoes }] = await Promise.all([
-        supabase.from("prontuario_livre").select("id, paciente_id, consulta_id, conteudo, created_at").eq("medico_id", medicoId),
-        supabase
-          .from("anamneses")
-          .select("id, paciente_id, consulta_id, queixa_principal, historia_doenca_atual, antecedentes_pessoais, antecedentes_familiares, exame_fisico, hipotese_diagnostica, conduta, observacoes, created_at")
-          .eq("medico_id", medicoId),
-        supabase.from("prescricoes_documentos").select("id, paciente_id, consulta_id, tipo, titulo, conteudo, created_at").eq("medico_id", medicoId),
+      const [pronMedico, anamMedico, presMedico] = await Promise.all([
+        fetchAll("prontuario_livre", "id, paciente_id, consulta_id, conteudo, created_at", (q) => q.eq("medico_id", medicoId)),
+        fetchAll(
+          "anamneses",
+          "id, paciente_id, consulta_id, queixa_principal, historia_doenca_atual, antecedentes_pessoais, antecedentes_familiares, exame_fisico, hipotese_diagnostica, conduta, observacoes, created_at",
+          (q) => q.eq("medico_id", medicoId),
+        ),
+        fetchAll("prescricoes_documentos", "id, paciente_id, consulta_id, tipo, titulo, conteudo, created_at", (q) =>
+          q.eq("medico_id", medicoId),
+        ),
       ]);
+
+      // Também traz registros vinculados às consultas do médico (mesmo que gravados por outro medico_id)
+      setStatus("Complementando por consultas...");
+      const [pronCons, anamCons, presCons] = await Promise.all([
+        fetchByIds("prontuario_livre", "id, paciente_id, consulta_id, conteudo, created_at", "consulta_id", consultaIds),
+        fetchByIds(
+          "anamneses",
+          "id, paciente_id, consulta_id, queixa_principal, historia_doenca_atual, antecedentes_pessoais, antecedentes_familiares, exame_fisico, hipotese_diagnostica, conduta, observacoes, created_at",
+          "consulta_id",
+          consultaIds,
+        ),
+        fetchByIds("prescricoes_documentos", "id, paciente_id, consulta_id, tipo, titulo, conteudo, created_at", "consulta_id", consultaIds),
+      ]);
+
+      const dedupe = (a: any[], b: any[]) => {
+        const map = new Map<string, any>();
+        [...a, ...b].forEach((r) => map.set(r.id, r));
+        return Array.from(map.values());
+      };
+      const prontuarios = dedupe(pronMedico, pronCons);
+      const anamneses = dedupe(anamMedico, anamCons);
+      const prescricoes = dedupe(presMedico, presCons);
 
       const pacienteIds = Array.from(
         new Set(
           [
-            ...(consultas || []).map((c: any) => c.paciente_id),
-            ...(prontuarios || []).map((p: any) => p.paciente_id),
-            ...(anamneses || []).map((a: any) => a.paciente_id),
-            ...(prescricoes || []).map((p: any) => p.paciente_id),
+            ...consultas.map((c: any) => c.paciente_id),
+            ...prontuarios.map((p: any) => p.paciente_id),
+            ...anamneses.map((a: any) => a.paciente_id),
+            ...prescricoes.map((p: any) => p.paciente_id),
           ].filter(Boolean),
         ),
       ) as string[];
 
       setStatus("Buscando pacientes...");
-      const pacientes: any[] = [];
-      for (let i = 0; i < pacienteIds.length; i += 200) {
-        const { data } = await supabase
-          .from("pacientes")
-          .select("id, nome, cpf, telefone, data_nascimento, cidade, estado, bairro, usuario_id")
-          .in("id", pacienteIds.slice(i, i + 200));
-        pacientes.push(...(data || []));
-      }
-      const usuarioIds = pacientes.map((p) => p.usuario_id).filter(Boolean);
+      const pacientes = await fetchByIds(
+        "pacientes",
+        "id, nome, cpf, telefone, data_nascimento, cidade, estado, bairro, usuario_id",
+        "id",
+        pacienteIds,
+      );
+      const usuarioIds = pacientes.map((p) => p.usuario_id).filter(Boolean) as string[];
       const emails: Record<string, string> = {};
-      for (let i = 0; i < usuarioIds.length; i += 200) {
-        const { data } = await supabase.from("usuarios").select("id, email").in("id", usuarioIds.slice(i, i + 200));
-        (data || []).forEach((u: any) => (emails[u.id] = u.email));
-      }
+      const usuarios = await fetchByIds("usuarios", "id, email", "id", usuarioIds);
+      usuarios.forEach((u: any) => (emails[u.id] = u.email));
       const pMap = new Map(pacientes.map((p) => [p.id, p]));
-      const nome = (id: string) => pMap.get(id)?.nome || "—";
+      const consMap = new Map(consultas.map((c: any) => [c.id, c]));
+      const nome = (id: string, consultaId?: string) =>
+        pMap.get(id)?.nome || (consultaId ? consMap.get(consultaId)?.nome_paciente_consulta : "") || "—";
       const cpf = (id: string) => pMap.get(id)?.cpf || "";
+
+      if (!consultas.length && !prontuarios.length && !anamneses.length) {
+        toast.warning("Nenhum registro encontrado para este médico.");
+      }
+
 
       setStatus("Gerando planilha...");
       const wb = XLSX.utils.book_new();
