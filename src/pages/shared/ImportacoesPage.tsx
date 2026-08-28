@@ -1193,29 +1193,102 @@ function ExportarDados({ clinicaId }: { clinicaId: string | null | undefined }) 
         resumoHeaders,
       );
 
-      const pacHeaders = ["Nome", "CPF", "Telefone", "E-mail", "Nascimento", "Cidade", "Estado", "Bairro", "Consultas"];
-      const consultasPorPaciente: Record<string, number> = {};
+      const pacHeaders = [
+        "Nome",
+        "CPF",
+        "Telefone",
+        "E-mail",
+        "Nascimento",
+        "Cidade",
+        "Estado",
+        "Bairro",
+        "Consultas",
+        "Prontuários",
+        "Anamneses",
+        "Prescrições",
+        "Primeiro Atendimento",
+        "Último Atendimento",
+        "Cadastro",
+      ];
+
+      const countBy = (rows: any[]) => {
+        const m: Record<string, number> = {};
+        rows.forEach((r: any) => {
+          const key = r.paciente_id || `avulso:${(consMap.get(r.consulta_id)?.nome_paciente_consulta || "").trim().toLowerCase()}`;
+          if (key && key !== "avulso:") m[key] = (m[key] || 0) + 1;
+        });
+        return m;
+      };
+      const cntCons: Record<string, number> = {};
+      const datas: Record<string, string[]> = {};
       (consultas || []).forEach((c: any) => {
-        if (c.paciente_id) consultasPorPaciente[c.paciente_id] = (consultasPorPaciente[c.paciente_id] || 0) + 1;
+        const key = c.paciente_id || `avulso:${(c.nome_paciente_consulta || "").trim().toLowerCase()}`;
+        if (!key || key === "avulso:") return;
+        cntCons[key] = (cntCons[key] || 0) + 1;
+        if (c.data_hora) (datas[key] = datas[key] || []).push(c.data_hora);
       });
+      const cntPron = countBy(prontuarios);
+      const cntAnam = countBy(anamneses);
+      const cntPres = countBy(prescricoes);
+
+      // Pacientes cadastrados + pacientes atendidos sem cadastro (somente nome na consulta)
+      const linhasPacientes: any[] = pacientes.map((p: any) => ({
+        Nome: p.nome || "",
+        CPF: p.cpf || "",
+        Telefone: p.telefone || "",
+        "E-mail": p.usuario_id ? emails[p.usuario_id] || "" : "",
+        Nascimento: fmtDate(p.data_nascimento),
+        Cidade: p.cidade || "",
+        Estado: p.estado || "",
+        Bairro: p.bairro || "",
+        Consultas: cntCons[p.id] || 0,
+        Prontuários: cntPron[p.id] || 0,
+        Anamneses: cntAnam[p.id] || 0,
+        Prescrições: cntPres[p.id] || 0,
+        _key: p.id,
+        Cadastro: "Cadastrado",
+      }));
+
+      const avulsos = new Map<string, string>();
+      (consultas || []).forEach((c: any) => {
+        if (c.paciente_id) return;
+        const n = (c.nome_paciente_consulta || "").trim();
+        if (!n) return;
+        avulsos.set(`avulso:${n.toLowerCase()}`, n);
+      });
+      avulsos.forEach((n, key) => {
+        linhasPacientes.push({
+          Nome: n,
+          CPF: "",
+          Telefone: "",
+          "E-mail": "",
+          Nascimento: "",
+          Cidade: "",
+          Estado: "",
+          Bairro: "",
+          Consultas: cntCons[key] || 0,
+          Prontuários: cntPron[key] || 0,
+          Anamneses: cntAnam[key] || 0,
+          Prescrições: cntPres[key] || 0,
+          _key: key,
+          Cadastro: "Sem cadastro",
+        });
+      });
+
+      linhasPacientes.forEach((l) => {
+        const ds = (datas[l._key] || []).slice().sort();
+        l["Primeiro Atendimento"] = ds.length ? fmtDateTime(ds[0]) : "";
+        l["Último Atendimento"] = ds.length ? fmtDateTime(ds[ds.length - 1]) : "";
+        delete l._key;
+      });
+
       addSheet(
         wb,
         "Pacientes",
-        pacientes
-          .sort((a, b) => (a.nome || "").localeCompare(b.nome || ""))
-          .map((p) => ({
-            Nome: p.nome || "",
-            CPF: p.cpf || "",
-            Telefone: p.telefone || "",
-            "E-mail": p.usuario_id ? emails[p.usuario_id] || "" : "",
-            Nascimento: fmtDate(p.data_nascimento),
-            Cidade: p.cidade || "",
-            Estado: p.estado || "",
-            Bairro: p.bairro || "",
-            Consultas: consultasPorPaciente[p.id] || 0,
-          })),
+        linhasPacientes.sort((a, b) => (a.Nome || "").localeCompare(b.Nome || "")),
         pacHeaders,
       );
+
 
       const consHeaders = ["Data/Hora", "Paciente", "CPF", "Status", "Pagamento", "Valor (R$)", "Repasse (R$)", "Tipo", "Serviço", "Origem", "Motivo", "Sintomas", "Obs. Recepção", "Obs. Médico"];
       addSheet(
