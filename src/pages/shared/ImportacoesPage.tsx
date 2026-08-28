@@ -231,7 +231,7 @@ export default function ImportacoesPage({ scope }: { scope: Scope }) {
       )}
 
       <Tabs defaultValue="pacientes" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6">
           <TabsTrigger value="pacientes" className="gap-2">
             <Users className="w-4 h-4" />
             <span className="hidden sm:inline">Pacientes</span>
