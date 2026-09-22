@@ -1,117 +1,48 @@
+# Integração WhatsApp Cloud API (Meta) — independente
 
-# Migração Z-API → Evolution API v2
+Nova integração oficial com a API do WhatsApp da Meta, totalmente separada de qualquer conexão existente. Cada número cadastrado tem suas próprias credenciais, sua própria caixa de entrada e seu próprio histórico.
 
-Substituição completa. Z-API sai, Evolution v2 entra como único provedor. Histórico migrado.
+## O que será criado
 
-## Pré-requisitos (você precisa confirmar)
+### 1. Administração de números
+Nova tela em **Omnichannel > WhatsApp Oficial**:
+- Cadastrar, editar e remover conexões
+- Campos: nome da conexão, WABA ID, Phone Number ID, token de acesso, token de verificação do webhook
+- Status visual: ativo, inativo, erro
+- Botão "Testar conexão" que consulta a Meta e mostra o número e o nome de exibição reais
+- Endereço do webhook pronto para copiar e colar no painel da Meta
 
-1. **EVOLUTION_API_URL** e **EVOLUTION_API_KEY** já existem nos secrets ✅
-2. Confirmar que esses secrets apontam pra uma instância **Evolution v2** funcional (não v1).
-3. Webhook público do Supabase será registrado na Evolution — sem firewall bloqueando.
+### 2. Caixa de entrada
+- Lista de números conectados; ao escolher um, aparecem apenas as conversas daquele número
+- Conversa em tempo real, campo de resposta, histórico completo
+- Indicadores de enviado, entregue, lido e falhou
+- Envio de texto, imagem, documento, áudio, vídeo e modelos (templates) aprovados
 
-## Escopo das mudanças
+### 3. Segurança
+- Tokens gravados criptografados; nunca retornam para a tela (só um trecho mascarado)
+- Todas as ações administrativas exigem login
+- Assinatura do webhook conferida com o App Secret
+- Cada envio usa obrigatoriamente o Phone Number ID da conexão escolhida
 
-### 1. Banco de dados (migration)
+## Detalhes técnicos
 
-- Adicionar colunas em `managed_instances`:
-  - `evolution_instance_name TEXT` (nome da instância na Evolution)
-  - `evolution_api_key TEXT` (hash/token por instância retornado no create)
-  - `provider TEXT DEFAULT 'evolution'` (flag de origem)
-- Manter `external_instance_id` / `external_token` como aliases já existentes (compatibilidade outbox).
-- Em `omni_mensagens`: nenhuma mudança estrutural (já é provider-agnóstico).
-- Backfill: instâncias Z-API ativas marcadas `provider='zapi_legacy'` e desabilitadas (status `offline`) — usuário recria via QR Evolution.
+**Tabelas novas** (prefixo `wac_`, sem tocar nas tabelas omni existentes):
+- `wac_conexoes` — nome, waba_id, phone_number_id, display_phone, verify_token, `access_token_enc` (criptografado), status, clinica_id
+- `wac_contatos` — wa_id, nome, conexao_id
+- `wac_conversas` — conexao_id, contato_id, última mensagem, não lidas, janela de 24h
+- `wac_mensagens` — conversa_id, direção, tipo, conteúdo, media_url, wamid, status
+- `wac_eventos` — wamid, status, timestamp, erro
 
-### 2. Edge Functions — CRIAR (novas, padrão Evolution v2)
+RLS por `clinica_id` com as políticas e GRANTs padrão do projeto; `wac_conexoes` sem acesso direto do cliente ao token (view/coluna mascarada via função security definer).
 
-```text
-supabase/functions/
-├── evolution-v2-create-instance/     # POST /instance/create
-├── evolution-v2-connect-instance/    # GET /instance/connect/{name} -> QR
-├── evolution-v2-connection-status/   # GET /instance/connectionState/{name}
-├── evolution-v2-disconnect/          # DELETE /instance/logout/{name}
-├── evolution-v2-delete-instance/     # DELETE /instance/delete/{name}
-├── evolution-v2-send-message/        # POST /message/sendText|sendMedia|sendWhatsAppAudio
-├── evolution-v2-webhook/             # Recebe message.upsert, connection.update, etc
-├── evolution-v2-sync-history/        # POST /chat/findMessages + import
-└── evolution-v2-set-webhook/         # POST /webhook/set/{name} (config inicial)
-```
+**Edge Functions** (Graph API v21.0):
+- `wac-admin` — CRUD de conexões, teste de conexão (`GET /{phone_number_id}`), rotação de token
+- `wac-send` — texto, mídia (imagem/documento/áudio/vídeo) e template; resolve credenciais pela conexão
+- `wac-webhook` — verificação `hub.mode`/`hub.verify_token`/`hub.challenge`, validação `X-Hub-Signature-256`, persistência de mensagens recebidas e de status de entrega, realtime para a UI
 
-### 3. Edge Functions — REESCREVER (mantêm nome, troca lógica)
+**Criptografia**: AES-GCM via Web Crypto com `STORE_ENCRYPTION_KEY`; token nunca sai do backend.
 
-- `process-outbox` → trocar endpoints Z-API por Evolution v2 (`/message/sendText/{instance}`, `/message/sendMedia/{instance}`, `/message/sendWhatsAppAudio/{instance}`).
-- `evolution-send-message` → já tem o nome certo, vira wrapper do v2.
-- `evolution-webhook` → redirecionar pro novo `evolution-v2-webhook` (compat com webhooks já cadastrados externamente).
+**Secrets necessários**: `META_APP_ID`, `META_APP_SECRET`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN`, `STORE_ENCRYPTION_KEY` (pedidos na hora da implementação).
 
-### 4. Edge Functions — DEPRECAR/DELETAR
-
-```text
-zapi-adapter
-zapi-create-instance
-zapi-manage
-zapi-sync-history
-zapi-test-send
-zapi-webhook
-evolution-connect-instance        (era Z-API por dentro)
-evolution-connection-status       (era Z-API)
-evolution-delete-instance         (era Z-API)
-evolution-delete-message          (era Z-API)
-evolution-disconnect-instance     (era Z-API)
-evolution-edit-message            (era Z-API)
-```
-
-Vamos manter os arquivos por 1 deploy e depois deletar, ou deletar já. Recomendo **deletar já** já que escopo é substituição total.
-
-### 5. Frontend
-
-- `OmniIntegracoes.tsx` — formulário de instância: remover campos Z-API (instance_id/token), adicionar campo "nome da instância" Evolution.
-- `OmniWhatsAppChat.tsx`, hooks de status (`useOmniConnectionMonitor`) — trocar invocação para `evolution-v2-*`.
-- `OmniAtendimentos.tsx` painel de admin — trocar botões "QR Code"/"Desconectar" pras novas funções.
-
-### 6. Webhooks na Evolution (configuração externa)
-
-Cada instância nova chama `evolution-v2-set-webhook` que registra:
-```
-URL: https://dwqceailivjjacvqzfnh.supabase.co/functions/v1/evolution-v2-webhook
-Eventos: MESSAGES_UPSERT, MESSAGES_UPDATE, CONNECTION_UPDATE, CONTACTS_UPSERT, PRESENCE_UPDATE, SEND_MESSAGE
-```
-
-### 7. Migração de histórico
-
-Script edge function `migrate-zapi-to-evolution-history`:
-- Para cada instância antiga Z-API com `omni_atendimentos` ativos
-- Lê contatos/atendimentos/mensagens existentes (já estão no Supabase, provider-agnóstico)
-- Após usuário conectar nova instância Evolution com o mesmo número, vincula `instance_id` dos atendimentos antigos à nova instância.
-- Opcional: importar últimos 30 dias da Evolution via `/chat/findMessages` pra preencher gaps.
-
-## Ordem de execução (rollout seguro)
-
-```text
-Fase 1: DB migration (colunas evolution_*, provider)
-Fase 2: Criar evolution-v2-* edge functions (paralelo, sem afetar Z-API)
-Fase 3: Frontend toggle "usar Evolution" + criação de nova instância
-Fase 4: Você testa: cria instância, conecta QR, envia texto, recebe texto, envia áudio, recebe áudio, envia imagem
-Fase 5: Validado → script de re-vinculação de histórico
-Fase 6: Deletar funções Z-API + colunas zapi_* (migration de cleanup)
-```
-
-## Riscos
-
-- **Áudio**: Evolution v2 envia áudio como `/message/sendWhatsAppAudio` com base64 OGG/Opus — comportamento diferente do Z-API. Mesma lógica do player (Web Audio API decodeAudioData) deve funcionar.
-- **Webhook payload**: estrutura `data.key.remoteJid`, `data.message.conversation`, etc — completamente diferente do Z-API. Mapeamento novo necessário.
-- **IDs de mensagem**: Evolution usa `key.id` (formato Baileys), Z-API usava `messageId`. `omni_mensagens.whatsapp_message_id` aceita ambos.
-- **Instâncias ativas Z-API**: vão parar de funcionar no momento do deploy. Cliente precisa reescanear QR. Recomendo aviso prévio.
-
-## Validação por etapa
-
-Cada fase só avança após teste manual seu na preview:
-- Fase 2: `curl` nas funções novas → 200 OK
-- Fase 4: ciclo completo texto + mídia + áudio + status entrega
-- Fase 5: histórico antigo aparece na nova instância
-
-## O que preciso de você antes de começar
-
-1. Confirmar que `EVOLUTION_API_URL` aponta pra v2 (geralmente `https://seu-server.com` sem `/manager`).
-2. Confirmar `EVOLUTION_API_KEY` é a **API key global** (Authorization header `apikey`), não por instância.
-3. Aviso aos usuários ativos de Z-API que vão precisar reescanear.
-
-Posso começar pela **Fase 1 (migration) + Fase 2 (edge functions novas)** num único pacote, sem tocar no que está em produção, pra você testar isolado antes de virar a chave?
+## Fora do escopo
+Nenhuma alteração nas conexões e configurações já existentes do projeto.
