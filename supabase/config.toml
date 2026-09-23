@@ -137,3 +137,12 @@ verify_jwt = false
 
 [functions.create-manual-confirmation]
 verify_jwt = false
+
+[functions.wac-admin]
+verify_jwt = false
+
+[functions.wac-send]
+verify_jwt = false
+
+[functions.wac-webhook]
+verify_jwt = false
