@@ -487,6 +487,7 @@ export default function OmniWhatsAppOficial() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </OmniLayout>
   );
 }
 
