@@ -177,6 +177,7 @@ const App = () => (
               <Route path="omnichannel/notificacoes" element={<OmniNotificacoes />} />
               <Route path="omnichannel/integracoes" element={<OmniIntegracoes />} />
               <Route path="omnichannel/ia" element={<OmniIA />} />
+              <Route path="omnichannel/whatsapp-oficial" element={<OmniWhatsAppOficial />} />
               <Route path="medicos" element={<ClinicaMedicos />} />
               <Route path="consultas" element={<ClinicaConsultas />} />
               <Route path="pacientes" element={<ClinicaPacientes />} />
