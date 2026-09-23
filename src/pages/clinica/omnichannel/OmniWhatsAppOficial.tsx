@@ -55,6 +55,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { OmniLayout } from "@/components/clinica/omnichannel/OmniLayout";
 import { useWacInbox, useWhatsAppCloud, type WacConexao } from "@/hooks/useWhatsAppCloud";
 
 function dataHora(valor?: string | null) {
