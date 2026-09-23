@@ -35,6 +35,7 @@ const navItems: NavItem[] = [
   { icon: ListChecks, label: "Filas", path: "/clinica/omnichannel/filas" },
   { icon: FileText, label: "Relatórios", path: "/clinica/omnichannel/relatorios" },
   { icon: CalendarCheck, label: "Confirmação Agenda", path: "/clinica/omnichannel/confirmacao-agenda" },
+  { icon: BadgeCheck, label: "WhatsApp Oficial", path: "/clinica/omnichannel/whatsapp-oficial" },
 ];
 
 interface OmniHeaderProps {
