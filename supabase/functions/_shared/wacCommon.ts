@@ -37,17 +37,28 @@ export async function requireUser(
 ): Promise<{ ok: true; tipo: string } | { ok: false; status: number; message: string }> {
   if (!usuarioId) return { ok: false, status: 401, message: "Não autenticado" };
 
-  const { data: usuario, error } = await db
+  const { data: usuario } = await db
     .from("usuarios")
-    .select("id, tipo_usuario, ativo")
+    .select("id, tipo, ativo")
     .eq("id", usuarioId)
     .maybeSingle();
 
-  if (error || !usuario || usuario.ativo === false) {
-    return { ok: false, status: 401, message: "Usuário inválido" };
+  // Funcionários da clínica ficam em usuarios_clinica (id próprio, sem linha em usuarios)
+  if (!usuario) {
+    const { data: staff } = await db
+      .from("usuarios_clinica")
+      .select("id, clinica_id, ativo")
+      .eq("id", usuarioId)
+      .maybeSingle();
+    if (!staff || staff.ativo === false) return { ok: false, status: 401, message: "Usuário inválido" };
+    if (clinicaId && staff.clinica_id !== clinicaId) {
+      return { ok: false, status: 403, message: "Sem permissão para esta clínica" };
+    }
+    return { ok: true, tipo: "staff" };
   }
 
-  if (usuario.tipo_usuario === "admin") return { ok: true, tipo: "admin" };
+  if (usuario.ativo === false) return { ok: false, status: 401, message: "Usuário inválido" };
+  if (usuario.tipo === "admin") return { ok: true, tipo: "admin" };
 
   if (clinicaId) {
     const { data: clinica } = await db
@@ -57,19 +68,10 @@ export async function requireUser(
       .eq("usuario_id", usuarioId)
       .maybeSingle();
     if (clinica) return { ok: true, tipo: "clinica" };
-
-    const { data: vinculo } = await db
-      .from("usuarios_clinica")
-      .select("id")
-      .eq("usuario_id", usuarioId)
-      .eq("clinica_id", clinicaId)
-      .maybeSingle();
-    if (vinculo) return { ok: true, tipo: "staff" };
-
     return { ok: false, status: 403, message: "Sem permissão para esta clínica" };
   }
 
-  return { ok: true, tipo: usuario.tipo_usuario ?? "usuario" };
+  return { ok: true, tipo: usuario.tipo ?? "usuario" };
 }
 
 export interface ConexaoCreds {
