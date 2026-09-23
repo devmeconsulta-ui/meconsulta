@@ -96,6 +96,7 @@ import OmniConfirmacaoAgenda from "./pages/clinica/omnichannel/OmniConfirmacaoAg
 import OmniNotificacoes from "./pages/clinica/omnichannel/OmniNotificacoes";
 import OmniIntegracoes from "./pages/clinica/omnichannel/OmniIntegracoes";
 import OmniIA from "./pages/clinica/omnichannel/OmniIA";
+import OmniWhatsAppOficial from "./pages/clinica/omnichannel/OmniWhatsAppOficial";
 
 // Atendente pages
 import { AtendenteLayout } from "./components/atendente/AtendenteLayout";
