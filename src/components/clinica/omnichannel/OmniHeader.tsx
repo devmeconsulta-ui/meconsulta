@@ -11,7 +11,8 @@ import {
   MessageCircle,
   Settings2,
   Sparkles,
-  WifiOff
+  WifiOff,
+  BadgeCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -35,6 +36,7 @@ const navItems: NavItem[] = [
   { icon: ListChecks, label: "Filas", path: "/clinica/omnichannel/filas" },
   { icon: FileText, label: "Relatórios", path: "/clinica/omnichannel/relatorios" },
   { icon: CalendarCheck, label: "Confirmação Agenda", path: "/clinica/omnichannel/confirmacao-agenda" },
+  { icon: BadgeCheck, label: "WhatsApp Oficial", path: "/clinica/omnichannel/whatsapp-oficial" },
 ];
 
 interface OmniHeaderProps {

@@ -4622,6 +4622,351 @@ export type Database = {
           },
         ]
       }
+      wac_conexoes: {
+        Row: {
+          ativo: boolean
+          clinica_id: string | null
+          created_at: string
+          display_phone_number: string | null
+          id: string
+          nome: string
+          phone_number_id: string
+          status: string
+          token_atualizado_em: string | null
+          ultimo_erro: string | null
+          ultimo_teste_em: string | null
+          updated_at: string
+          verified_name: string | null
+          verify_token: string
+          waba_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          clinica_id?: string | null
+          created_at?: string
+          display_phone_number?: string | null
+          id?: string
+          nome: string
+          phone_number_id: string
+          status?: string
+          token_atualizado_em?: string | null
+          ultimo_erro?: string | null
+          ultimo_teste_em?: string | null
+          updated_at?: string
+          verified_name?: string | null
+          verify_token: string
+          waba_id: string
+        }
+        Update: {
+          ativo?: boolean
+          clinica_id?: string | null
+          created_at?: string
+          display_phone_number?: string | null
+          id?: string
+          nome?: string
+          phone_number_id?: string
+          status?: string
+          token_atualizado_em?: string | null
+          ultimo_erro?: string | null
+          ultimo_teste_em?: string | null
+          updated_at?: string
+          verified_name?: string | null
+          verify_token?: string
+          waba_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wac_conexoes_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wac_conexoes_secrets: {
+        Row: {
+          access_token_enc: string
+          conexao_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          access_token_enc: string
+          conexao_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          access_token_enc?: string
+          conexao_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wac_conexoes_secrets_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: true
+            referencedRelation: "wac_conexoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wac_contatos: {
+        Row: {
+          clinica_id: string | null
+          conexao_id: string
+          created_at: string
+          foto_url: string | null
+          id: string
+          nome: string | null
+          paciente_id: string | null
+          updated_at: string
+          wa_id: string
+        }
+        Insert: {
+          clinica_id?: string | null
+          conexao_id: string
+          created_at?: string
+          foto_url?: string | null
+          id?: string
+          nome?: string | null
+          paciente_id?: string | null
+          updated_at?: string
+          wa_id: string
+        }
+        Update: {
+          clinica_id?: string | null
+          conexao_id?: string
+          created_at?: string
+          foto_url?: string | null
+          id?: string
+          nome?: string | null
+          paciente_id?: string | null
+          updated_at?: string
+          wa_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wac_contatos_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wac_contatos_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "wac_conexoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wac_contatos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wac_conversas: {
+        Row: {
+          clinica_id: string | null
+          conexao_id: string
+          contato_id: string
+          created_at: string
+          id: string
+          janela_expira_em: string | null
+          nao_lidas: number
+          status: string
+          ultima_mensagem: string | null
+          ultima_mensagem_em: string | null
+          updated_at: string
+        }
+        Insert: {
+          clinica_id?: string | null
+          conexao_id: string
+          contato_id: string
+          created_at?: string
+          id?: string
+          janela_expira_em?: string | null
+          nao_lidas?: number
+          status?: string
+          ultima_mensagem?: string | null
+          ultima_mensagem_em?: string | null
+          updated_at?: string
+        }
+        Update: {
+          clinica_id?: string | null
+          conexao_id?: string
+          contato_id?: string
+          created_at?: string
+          id?: string
+          janela_expira_em?: string | null
+          nao_lidas?: number
+          status?: string
+          ultima_mensagem?: string | null
+          ultima_mensagem_em?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wac_conversas_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wac_conversas_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "wac_conexoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wac_conversas_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "wac_contatos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wac_eventos: {
+        Row: {
+          conexao_id: string | null
+          created_at: string
+          erro_codigo: string | null
+          erro_mensagem: string | null
+          id: string
+          mensagem_id: string | null
+          ocorrido_em: string
+          payload: Json | null
+          status: string
+          wamid: string | null
+        }
+        Insert: {
+          conexao_id?: string | null
+          created_at?: string
+          erro_codigo?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          mensagem_id?: string | null
+          ocorrido_em?: string
+          payload?: Json | null
+          status: string
+          wamid?: string | null
+        }
+        Update: {
+          conexao_id?: string | null
+          created_at?: string
+          erro_codigo?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          mensagem_id?: string | null
+          ocorrido_em?: string
+          payload?: Json | null
+          status?: string
+          wamid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wac_eventos_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "wac_conexoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wac_eventos_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "wac_mensagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wac_mensagens: {
+        Row: {
+          conexao_id: string
+          conteudo: string | null
+          conversa_id: string
+          created_at: string
+          direcao: string
+          enviado_por: string | null
+          erro: string | null
+          filename: string | null
+          id: string
+          media_id: string | null
+          media_mime: string | null
+          media_url: string | null
+          status: string
+          template_nome: string | null
+          timestamp_meta: string | null
+          tipo: string
+          updated_at: string
+          wamid: string | null
+        }
+        Insert: {
+          conexao_id: string
+          conteudo?: string | null
+          conversa_id: string
+          created_at?: string
+          direcao: string
+          enviado_por?: string | null
+          erro?: string | null
+          filename?: string | null
+          id?: string
+          media_id?: string | null
+          media_mime?: string | null
+          media_url?: string | null
+          status?: string
+          template_nome?: string | null
+          timestamp_meta?: string | null
+          tipo?: string
+          updated_at?: string
+          wamid?: string | null
+        }
+        Update: {
+          conexao_id?: string
+          conteudo?: string | null
+          conversa_id?: string
+          created_at?: string
+          direcao?: string
+          enviado_por?: string | null
+          erro?: string | null
+          filename?: string | null
+          id?: string
+          media_id?: string | null
+          media_mime?: string | null
+          media_url?: string | null
+          status?: string
+          template_nome?: string | null
+          timestamp_meta?: string | null
+          tipo?: string
+          updated_at?: string
+          wamid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wac_mensagens_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "wac_conexoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wac_mensagens_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "wac_conversas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_logs: {
         Row: {
           acao: string
