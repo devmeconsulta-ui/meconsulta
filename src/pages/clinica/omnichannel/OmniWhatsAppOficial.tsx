@@ -116,6 +116,7 @@ const FORM_VAZIO: FormState = {
 
 export default function OmniWhatsAppOficial() {
   const {
+    clinicaId,
     conexoes,
     conexoesAtivas,
     webhookUrl,
