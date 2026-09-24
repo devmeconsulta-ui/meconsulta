@@ -2565,6 +2565,7 @@ export type Database = {
           transferido_de_agente_id: string | null
           transferido_de_fila_id: string | null
           updated_at: string
+          wac_conexao_id: string | null
         }
         Insert: {
           agente_id?: string | null
@@ -2592,6 +2593,7 @@ export type Database = {
           transferido_de_agente_id?: string | null
           transferido_de_fila_id?: string | null
           updated_at?: string
+          wac_conexao_id?: string | null
         }
         Update: {
           agente_id?: string | null
@@ -2619,6 +2621,7 @@ export type Database = {
           transferido_de_agente_id?: string | null
           transferido_de_fila_id?: string | null
           updated_at?: string
+          wac_conexao_id?: string | null
         }
         Relationships: [
           {
@@ -2661,6 +2664,13 @@ export type Database = {
             columns: ["transferido_de_fila_id"]
             isOneToOne: false
             referencedRelation: "omni_filas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_atendimentos_wac_conexao_id_fkey"
+            columns: ["wac_conexao_id"]
+            isOneToOne: false
+            referencedRelation: "wac_conexoes"
             referencedColumns: ["id"]
           },
         ]
@@ -2798,6 +2808,7 @@ export type Database = {
           mensagem_fora_horario: string | null
           nome: string
           updated_at: string
+          wac_conexao_id: string | null
         }
         Insert: {
           atendimentos_max_agente?: number | null
@@ -2817,6 +2828,7 @@ export type Database = {
           mensagem_fora_horario?: string | null
           nome: string
           updated_at?: string
+          wac_conexao_id?: string | null
         }
         Update: {
           atendimentos_max_agente?: number | null
@@ -2836,6 +2848,7 @@ export type Database = {
           mensagem_fora_horario?: string | null
           nome?: string
           updated_at?: string
+          wac_conexao_id?: string | null
         }
         Relationships: [
           {
@@ -2850,6 +2863,13 @@ export type Database = {
             columns: ["instancia_id"]
             isOneToOne: false
             referencedRelation: "omni_instancias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_filas_wac_conexao_id_fkey"
+            columns: ["wac_conexao_id"]
+            isOneToOne: false
+            referencedRelation: "wac_conexoes"
             referencedColumns: ["id"]
           },
         ]
