@@ -76,6 +76,8 @@ const CORES_FILA = [
   "#84cc16", // lime
 ];
 
+import { WacConexaoSelect } from "@/components/clinica/omnichannel/WacConexaoSelect";
+
 export default function OmniFilas() {
   const { clinicaData } = useOutletContext<ClinicaContext>();
   const { currentUser: authUser } = useAuth();
@@ -270,6 +272,7 @@ export default function OmniFilas() {
     descricao: "",
     cor: "#3b82f6",
     instancia_id: "",
+    wac_conexao_id: "",
     mensagem_boas_vindas: "",
     mensagem_fora_horario: "",
     mensagem_fechamento: "",
@@ -293,6 +296,7 @@ export default function OmniFilas() {
       descricao: novaFilaData.descricao,
       cor: novaFilaData.cor,
       instancia_id: novaFilaData.instancia_id || null,
+      wac_conexao_id: novaFilaData.wac_conexao_id || null,
       mensagem_boas_vindas: novaFilaData.mensagem_boas_vindas,
       mensagem_fora_horario: novaFilaData.mensagem_fora_horario,
       mensagem_fechamento: novaFilaData.mensagem_fechamento,
@@ -311,6 +315,7 @@ export default function OmniFilas() {
       descricao: "",
       cor: "#3b82f6",
       instancia_id: "",
+    wac_conexao_id: "",
       mensagem_boas_vindas: "",
       mensagem_fora_horario: "",
       mensagem_fechamento: "",
@@ -543,6 +548,14 @@ export default function OmniFilas() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <div className="mt-3">
+                      <Label>WhatsApp Oficial (Meta)</Label>
+                      <WacConexaoSelect
+                        clinicaId={clinicaId}
+                        value={novaFilaData.wac_conexao_id}
+                        onChange={(v) => setNovaFilaData({ ...novaFilaData, wac_conexao_id: v })}
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -1354,6 +1367,7 @@ function EditarFilaForm({
     descricao: fila.descricao || "",
     cor: fila.cor,
     instancia_id: fila.instancia_id || "",
+    wac_conexao_id: fila.wac_conexao_id || "",
     mensagem_boas_vindas: fila.mensagem_boas_vindas || "",
     mensagem_fora_horario: fila.mensagem_fora_horario || "",
     mensagem_fechamento: fila.mensagem_fechamento || "",
@@ -1381,6 +1395,7 @@ function EditarFilaForm({
       descricao: formData.descricao,
       cor: formData.cor,
       instancia_id: formData.instancia_id || null,
+      wac_conexao_id: formData.wac_conexao_id || null,
       mensagem_boas_vindas: formData.mensagem_boas_vindas,
       mensagem_fora_horario: formData.mensagem_fora_horario,
       mensagem_fechamento: formData.mensagem_fechamento,
@@ -1468,6 +1483,14 @@ function EditarFilaForm({
               ))}
             </SelectContent>
           </Select>
+                    <div className="mt-3">
+                      <Label>WhatsApp Oficial (Meta)</Label>
+                      <WacConexaoSelect
+                        clinicaId={fila.clinica_id}
+                        value={formData.wac_conexao_id}
+                        onChange={(v) => setFormData({ ...formData, wac_conexao_id: v })}
+                      />
+                    </div>
         </div>
 
         <div>

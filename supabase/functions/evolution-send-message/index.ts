@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
     const { data: atendimento, error: atendimentoError } = await supabase
       .from("omni_atendimentos")
       .select(`
-        id, clinica_id, data_abertura, data_primeira_resposta, fila_id,
+        id, clinica_id, data_abertura, data_primeira_resposta, fila_id, wac_conexao_id,
         contato:omni_contatos!contato_id(id, telefone),
         fila:omni_filas!fila_id(
           id, nome,
@@ -203,6 +203,40 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "Atendimento não encontrado" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Atendimento do WhatsApp Oficial (Meta): envia pelo mesmo número de entrada
+    if ((atendimento as any).wac_conexao_id) {
+      const wacTipo = ({ texto: "text", imagem: "image", audio: "audio", video: "video", documento: "document" } as Record<string, string>)[tipo] ?? "text";
+      const textoAssinado = assinatura_nome && conteudo ? `*${assinatura_nome}*\n${conteudo}` : conteudo;
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/wac-send`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          internal: true,
+          conexao_id: (atendimento as any).wac_conexao_id,
+          to: (atendimento as any).contato?.telefone,
+          tipo: wacTipo,
+          texto: wacTipo === "text" ? textoAssinado : undefined,
+          caption: wacTipo !== "text" ? textoAssinado : undefined,
+          link: arquivo_url,
+          filename: arquivo_nome,
+          atendimento_id,
+          agente_id: agente_id ?? null,
+          omni_tipo: tipo,
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!d.ok) {
+        const janela = /24|re-engage|131047/i.test(String(d.message ?? ""));
+        return new Response(JSON.stringify({
+          error: janela ? "Janela de 24h encerrada" : "Falha ao enviar pelo WhatsApp Oficial",
+          details: janela ? "Fora da janela de 24h só é possível enviar modelos aprovados (tela WhatsApp Oficial)." : d.message,
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ success: true, provider: "wac", wamid: d.wamid }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const contato = atendimento.contato;

@@ -23,6 +23,7 @@ export interface OmniAtendimento {
   id: string;
   clinica_id: string;
   fila_id: string | null;
+  wac_conexao_id?: string | null;
   contato_id: string;
   agente_id: string | null;
   protocolo: number;
