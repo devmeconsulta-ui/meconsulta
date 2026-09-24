@@ -45,6 +45,85 @@ function textoDaMensagem(m: Record<string, any>): string | null {
   }
 }
 
+const TIPO_OMNI: Record<string, string> = {
+  text: "texto", button: "texto", interactive: "texto", image: "imagem", audio: "audio",
+  voice: "audio", video: "video", document: "documento", sticker: "sticker", location: "localizacao",
+};
+
+// Encaminha a mensagem recebida para o fluxo de filas/atendimentos (omni_*)
+async function rotearParaFila(
+  db: any, conexao: { id: string; clinica_id: string | null }, waId: string,
+  nome: string | null, m: Record<string, any>, conteudo: string | null,
+) {
+  if (!conexao.clinica_id) return;
+  const { data: fila } = await db.from("omni_filas").select("id")
+    .eq("wac_conexao_id", conexao.id).eq("ativo", true).limit(1).maybeSingle();
+  if (!fila) return;
+
+  const clinicaId = conexao.clinica_id;
+  const tel8 = waId.slice(-8);
+  const { data: existentes } = await db.from("omni_contatos").select("id, telefone, nome")
+    .eq("clinica_id", clinicaId).ilike("telefone", `%${tel8}`).limit(1);
+  let contatoId = existentes?.[0]?.id as string | undefined;
+  if (!contatoId) {
+    const { data: novo, error } = await db.from("omni_contatos")
+      .insert({ clinica_id: clinicaId, nome: nome || waId, telefone: waId }).select("id").single();
+    if (error) { console.error("[wac-webhook] contato omni:", error); return; }
+    contatoId = novo.id;
+  }
+
+  const { data: aberto } = await db.from("omni_atendimentos").select("id")
+    .eq("clinica_id", clinicaId).eq("contato_id", contatoId).eq("wac_conexao_id", conexao.id)
+    .in("status", ["aguardando", "em_atendimento"])
+    .order("data_abertura", { ascending: false }).limit(1).maybeSingle();
+  let atendimentoId = aberto?.id as string | undefined;
+  if (!atendimentoId) {
+    const { data: novo, error } = await db.from("omni_atendimentos").insert({
+      clinica_id: clinicaId, contato_id: contatoId, fila_id: fila.id,
+      wac_conexao_id: conexao.id, status: "aguardando", canal: "whatsapp",
+    }).select("id").single();
+    if (error) { console.error("[wac-webhook] atendimento omni:", error); return; }
+    atendimentoId = novo.id;
+  }
+
+  const tipo = TIPO_OMNI[m.type] ?? "texto";
+  const media = m[m.type] ?? {};
+  const { error: msgErr } = await db.from("omni_mensagens").insert({
+    atendimento_id: atendimentoId, contato_id: contatoId, tipo, direcao: "entrada",
+    conteudo: conteudo ?? (tipo === "texto" ? null : `[${m.type}]`),
+    arquivo_nome: media?.filename ?? null, arquivo_tipo: media?.mime_type ?? null,
+    whatsapp_message_id: m.id, status: "entregue",
+  });
+  if (msgErr) { console.error("[wac-webhook] mensagem omni:", msgErr); return; }
+
+  // IA da fila (mesmo fluxo do número não oficial)
+  if (tipo === "texto" && conteudo) {
+    try {
+      const url = Deno.env.get("SUPABASE_URL");
+      const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      const r = await fetch(`${url}/functions/v1/omni-ai-respond`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ atendimento_id: atendimentoId, mensagem: conteudo, clinica_id: clinicaId }),
+      });
+      if (r.ok) {
+        const ai = await r.json();
+        if (ai.ai_active && Array.isArray(ai.mensagens)) {
+          for (const texto of ai.mensagens) {
+            await fetch(`${url}/functions/v1/wac-send`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ internal: true, conexao_id: conexao.id, to: waId, tipo: "text",
+                texto: typeof texto === "string" ? texto : texto?.conteudo ?? String(texto),
+                atendimento_id: atendimentoId, enviado_por: "IA" }),
+            });
+          }
+        }
+      }
+    } catch (e) { console.error("[wac-webhook] IA:", e); }
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -166,6 +245,8 @@ Deno.serve(async (req) => {
               status: "aberta",
             })
             .eq("id", conversa!.id);
+
+          await rotearParaFila(db, conexao, waId, perfil?.profile?.name ?? null, m, conteudo);
         }
 
         // ---- Status de entrega ----
@@ -192,6 +273,13 @@ Deno.serve(async (req) => {
                 erro: s.errors?.[0]?.title ?? null,
               })
               .eq("id", mensagem.id);
+          }
+
+          const omniStatus: Record<string, string> = { enviado: "enviada", entregue: "entregue", lido: "lida", falhou: "erro" };
+          if (omniStatus[status]) {
+            await db.from("omni_mensagens")
+              .update({ status: omniStatus[status], erro_descricao: s.errors?.[0]?.title ?? null })
+              .eq("whatsapp_message_id", s.id);
           }
 
           await db.from("wac_eventos").insert({
