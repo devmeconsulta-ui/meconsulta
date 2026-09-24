@@ -412,7 +412,12 @@ function ConversationItem({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <span className="font-medium text-sm truncate">{contactName}</span>
+          <span className="font-medium text-sm truncate flex items-center gap-1">
+            {contactName}
+            {(atendimento as any).wac_conexao_id && (
+              <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary text-primary">Oficial</Badge>
+            )}
+          </span>
           <span className="text-[11px] text-muted-foreground whitespace-nowrap">{waitTime}</span>
         </div>
         <div className="flex items-center justify-between mt-0.5">
@@ -1391,6 +1396,7 @@ export default function OmniWhatsAppChat() {
                 <p className="text-xs text-white/70">
                   {formatPhoneDisplay(selectedAtendimento.contato?.telefone)}
                   {selectedAtendimento.fila && ` • ${selectedAtendimento.fila.nome}`}
+                  {(selectedAtendimento as any).wac_conexao_id && " • WhatsApp Oficial (Meta) — respostas livres só até 24h após a última mensagem do paciente"}
                 </p>
               </div>
 
