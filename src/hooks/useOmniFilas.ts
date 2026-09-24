@@ -24,6 +24,7 @@ export interface OmniFila {
   id: string;
   clinica_id: string;
   instancia_id: string | null;
+  wac_conexao_id?: string | null;
   nome: string;
   descricao: string | null;
   cor: string;
@@ -147,6 +148,7 @@ export function useOmniFilas(clinicaId: string | null) {
         mensagem_espera: data.mensagem_espera,
         horario_funcionamento: data.horario_funcionamento || { inicio: "08:00", fim: "18:00", dias_semana: [1,2,3,4,5] },
         instancia_id: data.instancia_id,
+        wac_conexao_id: data.wac_conexao_id ?? null,
         ativo: data.ativo ?? true,
       };
 
