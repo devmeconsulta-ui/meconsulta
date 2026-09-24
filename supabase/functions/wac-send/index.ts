@@ -26,6 +26,10 @@ interface Body {
   template_idioma?: string;
   template_componentes?: unknown[];
   enviado_por?: string;
+  internal?: boolean;
+  atendimento_id?: string;
+  agente_id?: string | null;
+  omni_tipo?: string;
 }
 
 Deno.serve(async (req) => {
@@ -35,8 +39,12 @@ Deno.serve(async (req) => {
     const body = (await req.json().catch(() => ({}))) as Body;
     const db = admin();
 
-    const auth = await requireUser(db, body.usuario_id, body.clinica_id ?? null);
-    if (!auth.ok) return json({ ok: false, message: auth.message }, auth.status);
+    const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const isInternal = body.internal === true && bearer === (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "#");
+    if (!isInternal) {
+      const auth = await requireUser(db, body.usuario_id, body.clinica_id ?? null);
+      if (!auth.ok) return json({ ok: false, message: auth.message }, auth.status);
+    }
 
     if (!body.conexao_id) return json({ ok: false, message: "conexao_id obrigatório" }, 400);
     const tipo: Tipo = body.tipo ?? "text";
@@ -161,6 +169,30 @@ Deno.serve(async (req) => {
       })
       .select("id")
       .single();
+
+    // Registra no fluxo de atendimentos (omni) quando vier de uma fila
+    if (body.atendimento_id) {
+      const { data: at } = await db.from("omni_atendimentos").select("contato_id, data_primeira_resposta")
+        .eq("id", body.atendimento_id).maybeSingle();
+      const omniTipo = body.omni_tipo ?? ({ text: "texto", image: "imagem", audio: "audio", video: "video", document: "documento", template: "texto" } as Record<string, string>)[tipo];
+      await db.from("omni_mensagens").insert({
+        atendimento_id: body.atendimento_id,
+        contato_id: at?.contato_id ?? null,
+        agente_id: body.agente_id ?? null,
+        tipo: omniTipo,
+        direcao: "saida",
+        conteudo: tipo === "text" ? body.texto : conteudo,
+        arquivo_url: body.link ?? null,
+        arquivo_nome: body.filename ?? null,
+        whatsapp_message_id: wamid,
+        status: res.ok ? "enviada" : "erro",
+        erro_descricao: erro,
+      });
+      if (res.ok && body.agente_id && at && !at.data_primeira_resposta) {
+        await db.from("omni_atendimentos").update({ data_primeira_resposta: new Date().toISOString() })
+          .eq("id", body.atendimento_id);
+      }
+    }
 
     if (res.ok) {
       await db
