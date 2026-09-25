@@ -156,6 +156,19 @@ Deno.serve(async (req) => {
           return json({ ok: false, message: msg }, 200);
         }
 
+        // Garante que a conta WhatsApp Business esteja inscrita no app,
+        // senão a Meta não envia as mensagens recebidas para o webhook.
+        let inscricao: unknown = null;
+        const { data: conRow } = await db.from("wac_conexoes").select("waba_id").eq("id", creds.id).maybeSingle();
+        if (conRow?.waba_id) {
+          const subRes = await fetch(`${GRAPH_BASE}/${conRow.waba_id}/subscribed_apps`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${creds.access_token}` },
+          });
+          inscricao = await subRes.json().catch(() => ({ status: subRes.status }));
+          console.log("[wac-admin] subscribed_apps", subRes.status, JSON.stringify(inscricao));
+        }
+
         await db
           .from("wac_conexoes")
           .update({
@@ -173,6 +186,7 @@ Deno.serve(async (req) => {
           verified_name: data.verified_name ?? null,
           quality_rating: data.quality_rating ?? null,
           token_mascarado: maskToken(creds.access_token),
+          inscricao,
         });
       }
 
