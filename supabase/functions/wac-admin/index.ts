@@ -186,6 +186,7 @@ Deno.serve(async (req) => {
           verified_name: data.verified_name ?? null,
           quality_rating: data.quality_rating ?? null,
           token_mascarado: maskToken(creds.access_token),
+          inscricao,
         });
       }
 
