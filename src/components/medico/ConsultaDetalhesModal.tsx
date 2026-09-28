@@ -269,20 +269,22 @@ export default function ConsultaDetalhesModal({
     setSavingProntuario(true);
 
     try {
-      const { error } = await supabase
+      const medicoId = currentUser.medicoId;
+      const { error } = await withRetry(() => supabase
         .from("prontuario_livre")
         .insert({
           consulta_id: consulta.id,
-          medico_id: currentUser.medicoId,
+          medico_id: medicoId,
           paciente_id: pacienteId,
           conteudo: prontuarioLivre,
-        });
+        }));
 
       if (error) {
         console.error("Erro insert prontuário livre:", error);
         toast.error("Erro ao salvar prontuário: " + error.message);
       } else {
         setProntuarioLivre("");
+        clearDraft("livre");
         await fetchData(true);
         setActiveTab("prontuarios");
         toast.success("Prontuário salvo com sucesso");
@@ -368,13 +370,13 @@ export default function ConsultaDetalhesModal({
     try {
       if (novaAnamneseId) {
         // Update existing
-        const { error } = await supabase
+        const { error } = await withRetry(() => supabase
           .from("anamneses")
           .update({
             ...novaAnamnese,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", novaAnamneseId);
+          .eq("id", novaAnamneseId));
 
         if (error) {
           console.error("Error updating prontuário:", error);
@@ -387,16 +389,17 @@ export default function ConsultaDetalhesModal({
         }
       } else {
         // Insert new
-        const { data, error } = await supabase
+        const medicoId = currentUser.medicoId;
+        const { error } = await withRetry(() => supabase
           .from("anamneses")
           .insert({
             consulta_id: consulta.id,
-            medico_id: currentUser.medicoId,
+            medico_id: medicoId,
             paciente_id: pacienteId,
             ...novaAnamnese,
           })
           .select("id")
-          .single();
+          .single());
 
         if (error) {
           console.error("Error saving prontuário:", error);
@@ -426,13 +429,13 @@ export default function ConsultaDetalhesModal({
 
     setSavingProntuario(true);
 
-    const { error } = await supabase
+    const { error } = await withRetry(() => supabase
       .from("prontuario_livre")
       .update({
         conteudo: editProntuarioLivre,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", selectedProntuarioLivre.id);
+      .eq("id", selectedProntuarioLivre.id));
 
     if (error) {
       toast.error("Erro ao atualizar prontuário livre");
@@ -472,6 +475,7 @@ export default function ConsultaDetalhesModal({
   };
 
   const resetNovoProntuarioForm = () => {
+    clearDraft("anamnese");
     setNovaAnamneseId(null);
     setNovaAnamnese({
       queixa_principal: "",
