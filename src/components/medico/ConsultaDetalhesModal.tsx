@@ -149,6 +149,55 @@ export default function ConsultaDetalhesModal({
     }
   }, [open, pacienteId, currentUser?.medicoId, consulta.id]);
 
+  // Rascunho local: evita perder o texto se a tela fechar, recarregar ou a conexão falhar
+  const draftKey = `prontuario-rascunho-${consulta.id}`;
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d.livre) setProntuarioLivre((cur) => cur || d.livre);
+        if (d.anamnese) setNovaAnamnese((cur) => (cur.queixa_principal ? cur : { ...cur, ...d.anamnese }));
+      }
+    } catch { /* ignore */ }
+  }, [open, draftKey]);
+  useEffect(() => {
+    if (!open) return;
+    const hasAnamnese = Object.values(novaAnamnese).some((v) => v);
+    try {
+      if (prontuarioLivre || hasAnamnese) {
+        localStorage.setItem(draftKey, JSON.stringify({ livre: prontuarioLivre, anamnese: hasAnamnese ? novaAnamnese : null }));
+      }
+    } catch { /* ignore */ }
+  }, [open, draftKey, prontuarioLivre, novaAnamnese]);
+  const clearDraft = (part: "livre" | "anamnese") => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      d[part] = null;
+      if (!d.livre && !d.anamnese) localStorage.removeItem(draftKey);
+      else localStorage.setItem(draftKey, JSON.stringify(d));
+    } catch { /* ignore */ }
+  };
+
+  // Tenta novamente em falhas de conexão/instabilidade temporária
+  async function withRetry<T extends { error: any }>(fn: () => PromiseLike<T>, tries = 3): Promise<T> {
+    let last: T | undefined;
+    for (let i = 0; i < tries; i++) {
+      try {
+        last = await fn();
+        const msg = String(last.error?.message || "");
+        if (!last.error || !/fetch|network|timeout|503|502|504|Failed/i.test(msg)) return last;
+      } catch (e: any) {
+        last = { error: e } as T;
+      }
+      await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+    }
+    return last as T;
+  }
+
   useEffect(() => {
     if (open) {
       setActiveTab("paciente");
