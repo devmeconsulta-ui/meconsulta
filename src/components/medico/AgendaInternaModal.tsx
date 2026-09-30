@@ -194,6 +194,20 @@ export function AgendaInternaModal({
   const valorFinal = calcularValorFinal();
   const valorDesconto = formData.valor - valorFinal;
 
+  const [examesTipos, setExamesTipos] = useState<{ id: string; nome: string; preparo: string | null; valor: number | null }[]>([]);
+  const [exameTipoId, setExameTipoId] = useState("");
+
+  useEffect(() => {
+    if (!open || !clinicaId) return;
+    setExameTipoId("");
+    (supabase as any)
+      .from("exames_tipos")
+      .select("id, nome, preparo, valor")
+      .eq("clinica_id", clinicaId)
+      .order("nome")
+      .then(({ data }: any) => setExamesTipos(data || []));
+  }, [open, clinicaId]);
+
   useEffect(() => {
     if (open) {
       searchPacientes("");
@@ -613,6 +627,7 @@ export function AgendaInternaModal({
         finalClinicaId = localData?.clinica_id || null;
       }
 
+      const exameSel = formData.procedimento === "exame" ? examesTipos.find((e) => e.id === exameTipoId) : undefined;
       // Create consultation - ALWAYS use effectiveMedicoId for consistency
       const { error: consultaError } = await supabase.from("consultas").insert({
         medico_id: effectiveMedicoId,
@@ -633,6 +648,7 @@ export function AgendaInternaModal({
         observacoes_paciente: formData.observacoes || null,
         tipo_atendimento: formData.tipoAtendimento,
         convenio_id: formData.tipoAtendimento === "convenio" && formData.convenioId ? formData.convenioId : null,
+        exame_tipo_id: exameSel?.id || null,
       } as any);
 
       if (consultaError) {
@@ -659,6 +675,7 @@ export function AgendaInternaModal({
             data_hora: finalDataHora,
             medico_nome: medicoSel?.nome || "",
             local_nome: localSel?.nome_local || "",
+            ...(exameSel ? { exame_nome: exameSel.nome, preparo: exameSel.preparo || null } : {}),
           },
         }).then(res => {
           if (res.data?.success) {
@@ -1051,6 +1068,33 @@ export function AgendaInternaModal({
               </Select>
             </div>
           </div>
+
+          {formData.procedimento === "exame" && (
+            <div className="space-y-2 rounded-lg border p-3">
+              <Label>Qual exame?</Label>
+              <Select
+                value={exameTipoId}
+                onValueChange={(v) => {
+                  setExameTipoId(v);
+                  const ex = examesTipos.find((e) => e.id === v);
+                  if (ex?.valor != null) setFormData((f) => ({ ...f, valor: Number(ex.valor) }));
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder={examesTipos.length ? "Escolha o exame" : "Nenhum exame cadastrado"} /></SelectTrigger>
+                <SelectContent>
+                  {examesTipos.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {examesTipos.find((e) => e.id === exameTipoId)?.preparo && (
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  <span className="font-medium text-foreground">Preparo (vai na mensagem): </span>
+                  {examesTipos.find((e) => e.id === exameTipoId)?.preparo}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Aviso de retorno elegível */}
           {isRetornoElegivel && formData.procedimento === "retorno" && (
