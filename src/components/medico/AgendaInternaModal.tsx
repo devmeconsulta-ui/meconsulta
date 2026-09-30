@@ -62,6 +62,8 @@ interface Paciente {
   cpf: string | null;
 }
 
+const enderecoVazio = { dataNascimento: "", endereco: "", bairro: "", cidade: "", estado: "" };
+
 interface OmniContato {
   id: string;
   nome: string;
@@ -160,6 +162,7 @@ export function AgendaInternaModal({
     nome: "",
     telefone: "",
     cpf: "",
+    ...enderecoVazio,
     localSelecionado: localId || (locais.length > 0 ? locais[0].id : ""),
     tipoAtendimento: "particular",
     convenioId: "",
@@ -400,7 +403,34 @@ export function AgendaInternaModal({
       nome: paciente.nome,
       telefone: paciente.telefone || "",
       cpf: paciente.cpf || "",
+      ...enderecoVazio,
     });
+    (supabase as any)
+      .from("pacientes")
+      .select("data_nascimento, endereco, bairro, cidade, estado")
+      .eq("id", paciente.id)
+      .maybeSingle()
+      .then(({ data }: any) => {
+        if (!data) return;
+        setFormData((f) => ({
+          ...f,
+          dataNascimento: data.data_nascimento || "",
+          endereco: data.endereco || "",
+          bairro: data.bairro || "",
+          cidade: data.cidade || "",
+          estado: data.estado || "",
+        }));
+      });
+  }
+
+  function dadosExtrasPaciente() {
+    return {
+      data_nascimento: formData.dataNascimento || null,
+      endereco: formData.endereco.trim() || null,
+      bairro: formData.bairro.trim() || null,
+      cidade: formData.cidade.trim() || null,
+      estado: formData.estado.trim() || null,
+    };
   }
 
   function handleNewPatient() {
@@ -411,6 +441,7 @@ export function AgendaInternaModal({
       nome: searchTerm,
       telefone: "",
       cpf: "",
+      ...enderecoVazio,
     });
   }
 
@@ -419,6 +450,7 @@ export function AgendaInternaModal({
       nome: "",
       telefone: "",
       cpf: "",
+      ...enderecoVazio,
       localSelecionado: localId || (locais.length > 0 ? locais[0].id : ""),
       tipoAtendimento: "particular",
       convenioId: "",
@@ -469,7 +501,8 @@ export function AgendaInternaModal({
             nome: formData.nome,
             telefone: formData.telefone,
             cpf: useCpf && formData.cpf ? formData.cpf : null,
-          })
+            ...dadosExtrasPaciente(),
+          } as any)
           .select()
           .single();
 
@@ -478,6 +511,11 @@ export function AgendaInternaModal({
         }
 
         pacienteId = newPaciente.id;
+      } else {
+        const extras = dadosExtrasPaciente();
+        if (Object.values(extras).some(Boolean)) {
+          await supabase.from("pacientes").update(extras as any).eq("id", pacienteId);
+        }
       }
 
       // Calculate values using the discounted final value
@@ -1297,6 +1335,43 @@ export function AgendaInternaModal({
                     className="h-9 text-sm flex-1"
                   />
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Data de nascimento + Endereço */}
+          {(formData.nome.trim() || selectedPaciente) && (
+            <div className="grid grid-cols-12 gap-3 sm:gap-4">
+              <div className="col-span-12 sm:col-span-4">
+                <Label className="text-xs sm:text-sm mb-1.5 block">Data de Nascimento</Label>
+                <Input
+                  type="date"
+                  value={formData.dataNascimento}
+                  onChange={(e) => setFormData({ ...formData, dataNascimento: e.target.value })}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="col-span-12 sm:col-span-8">
+                <Label className="text-xs sm:text-sm mb-1.5 block">Endereço (rua e número)</Label>
+                <Input
+                  value={formData.endereco}
+                  onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                  placeholder="Rua, número, complemento"
+                  maxLength={200}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="col-span-12 sm:col-span-5">
+                <Label className="text-xs sm:text-sm mb-1.5 block">Bairro</Label>
+                <Input value={formData.bairro} maxLength={100} onChange={(e) => setFormData({ ...formData, bairro: e.target.value })} className="h-9 text-sm" />
+              </div>
+              <div className="col-span-8 sm:col-span-5">
+                <Label className="text-xs sm:text-sm mb-1.5 block">Cidade</Label>
+                <Input value={formData.cidade} maxLength={100} onChange={(e) => setFormData({ ...formData, cidade: e.target.value })} className="h-9 text-sm" />
+              </div>
+              <div className="col-span-4 sm:col-span-2">
+                <Label className="text-xs sm:text-sm mb-1.5 block">UF</Label>
+                <Input value={formData.estado} maxLength={2} onChange={(e) => setFormData({ ...formData, estado: e.target.value.toUpperCase() })} className="h-9 text-sm" />
               </div>
             </div>
           )}
