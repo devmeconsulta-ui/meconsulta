@@ -3973,6 +3973,7 @@ export type Database = {
           cpf: string | null
           created_at: string | null
           data_nascimento: string | null
+          endereco: string | null
           estado: string | null
           foto_url: string | null
           id: string
@@ -3987,6 +3988,7 @@ export type Database = {
           cpf?: string | null
           created_at?: string | null
           data_nascimento?: string | null
+          endereco?: string | null
           estado?: string | null
           foto_url?: string | null
           id?: string
@@ -4001,6 +4003,7 @@ export type Database = {
           cpf?: string | null
           created_at?: string | null
           data_nascimento?: string | null
+          endereco?: string | null
           estado?: string | null
           foto_url?: string | null
           id?: string
