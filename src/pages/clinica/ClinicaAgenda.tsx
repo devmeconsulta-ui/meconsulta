@@ -399,6 +399,7 @@ export default function ClinicaAgenda() {
           medicos(nome)
         `)
         .in("local_id", localIds)
+        .is("exame_tipo_id", null)
         .gte("data_hora", start.toISOString())
         .lte("data_hora", end.toISOString())
         .order("data_hora", { ascending: true });

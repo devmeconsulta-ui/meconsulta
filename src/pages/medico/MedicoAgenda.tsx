@@ -204,6 +204,7 @@ export default function MedicoAgenda() {
         locais_atendimento(id, nome_local, tipo_atendimento)
       `)
       .eq("medico_id", medicoData.id)
+      .is("exame_tipo_id", null)
       .gte("data_hora", start.toISOString())
       .lte("data_hora", end.toISOString())
       .order("data_hora", { ascending: true });

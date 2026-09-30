@@ -38,7 +38,7 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { clinica_id, paciente_nome, paciente_telefone, data_hora, medico_nome, local_nome } = await req.json();
+    const { clinica_id, paciente_nome, paciente_telefone, data_hora, medico_nome, local_nome, exame_nome, preparo } = await req.json();
 
     if (!clinica_id || !paciente_telefone || !data_hora) {
       return new Response(
@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
       timeZone: "America/Sao_Paulo",
     });
 
-    const mensagem = `Olá ${paciente_nome || ""}! 🏥\n\nSeu horário foi reservado com sucesso:\n\n📅 *Data:* ${dataFormatada}\n🕐 *Horário:* ${horaFormatada}\n👨‍⚕️ *Médico(a):* Dr(a). ${medico_nome || ""}${local_nome ? `\n📍 *Local:* ${local_nome}` : ""}\n\nEm caso de dúvidas, entre em contato conosco.\nObrigado! 😊`;
+    const mensagem = `Olá ${paciente_nome || ""}! 🏥\n\nSeu horário foi reservado com sucesso:\n\n${exame_nome ? `🩺 *Exame:* ${exame_nome}\n` : ""}📅 *Data:* ${dataFormatada}\n🕐 *Horário:* ${horaFormatada}\n👨‍⚕️ *Médico(a):* Dr(a). ${medico_nome || ""}${local_nome ? `\n📍 *Local:* ${local_nome}` : ""}${preparo ? `\n\n📋 *Preparo:*\n${preparo}` : ""}\n\nEm caso de dúvidas, entre em contato conosco.\nObrigado! 😊`;
 
     const resp = await fetchWithRetry(
       `${EVO_URL}/message/sendText/${instancia.zapi_instance_id}`,

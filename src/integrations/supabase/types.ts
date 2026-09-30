@@ -19,6 +19,7 @@ export type Database = {
           created_at: string | null
           data_hora: string
           disponivel: boolean | null
+          exame_tipo_id: string | null
           hora_chegada: string | null
           id: string
           local_id: string
@@ -30,6 +31,7 @@ export type Database = {
           created_at?: string | null
           data_hora: string
           disponivel?: boolean | null
+          exame_tipo_id?: string | null
           hora_chegada?: string | null
           id?: string
           local_id: string
@@ -41,6 +43,7 @@ export type Database = {
           created_at?: string | null
           data_hora?: string
           disponivel?: boolean | null
+          exame_tipo_id?: string | null
           hora_chegada?: string | null
           id?: string
           local_id?: string
@@ -49,6 +52,13 @@ export type Database = {
           tipo_slot?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "agenda_slots_exame_tipo_id_fkey"
+            columns: ["exame_tipo_id"]
+            isOneToOne: false
+            referencedRelation: "exames_tipos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "agenda_slots_local_id_fkey"
             columns: ["local_id"]
@@ -1112,6 +1122,7 @@ export type Database = {
           data_hora_finalizacao_paciente: string | null
           dependente_id: string | null
           elegivel_repasse: boolean | null
+          exame_tipo_id: string | null
           finalizado_medico: boolean | null
           finalizado_medico_id: string | null
           finalizado_paciente: boolean | null
@@ -1153,6 +1164,7 @@ export type Database = {
           data_hora_finalizacao_paciente?: string | null
           dependente_id?: string | null
           elegivel_repasse?: boolean | null
+          exame_tipo_id?: string | null
           finalizado_medico?: boolean | null
           finalizado_medico_id?: string | null
           finalizado_paciente?: boolean | null
@@ -1194,6 +1206,7 @@ export type Database = {
           data_hora_finalizacao_paciente?: string | null
           dependente_id?: string | null
           elegivel_repasse?: boolean | null
+          exame_tipo_id?: string | null
           finalizado_medico?: boolean | null
           finalizado_medico_id?: string | null
           finalizado_paciente?: boolean | null
@@ -1256,6 +1269,13 @@ export type Database = {
             columns: ["dependente_id"]
             isOneToOne: false
             referencedRelation: "paciente_dependentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultas_exame_tipo_id_fkey"
+            columns: ["exame_tipo_id"]
+            isOneToOne: false
+            referencedRelation: "exames_tipos"
             referencedColumns: ["id"]
           },
           {
@@ -1751,6 +1771,89 @@ export type Database = {
             columns: ["usuario_clinica_id"]
             isOneToOne: false
             referencedRelation: "usuarios_clinica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exames_medicos: {
+        Row: {
+          created_at: string
+          exame_tipo_id: string
+          id: string
+          medico_id: string
+        }
+        Insert: {
+          created_at?: string
+          exame_tipo_id: string
+          id?: string
+          medico_id: string
+        }
+        Update: {
+          created_at?: string
+          exame_tipo_id?: string
+          id?: string
+          medico_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exames_medicos_exame_tipo_id_fkey"
+            columns: ["exame_tipo_id"]
+            isOneToOne: false
+            referencedRelation: "exames_tipos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exames_medicos_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exames_tipos: {
+        Row: {
+          ativo: boolean
+          clinica_id: string
+          cor: string
+          created_at: string
+          duracao_min: number
+          id: string
+          nome: string
+          preparo: string | null
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          ativo?: boolean
+          clinica_id: string
+          cor?: string
+          created_at?: string
+          duracao_min?: number
+          id?: string
+          nome: string
+          preparo?: string | null
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          ativo?: boolean
+          clinica_id?: string
+          cor?: string
+          created_at?: string
+          duracao_min?: number
+          id?: string
+          nome?: string
+          preparo?: string | null
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exames_tipos_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
             referencedColumns: ["id"]
           },
         ]
