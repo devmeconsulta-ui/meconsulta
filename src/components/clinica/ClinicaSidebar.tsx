@@ -29,6 +29,7 @@ import {
   ClipboardList,
   BarChart3,
   Upload,
+  FlaskConical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,8 @@ const menuItems: MenuItem[] = [
   { icon: Users, label: "Pacientes", path: "/clinica/pacientes", permission: "pacientes" },
   { icon: MapPin, label: "Locais de Atendimento", path: "/clinica/locais", permission: "locais" },
   { icon: Calendar, label: "Agenda", path: "/clinica/agenda", permission: "agenda" },
+  { icon: FlaskConical, label: "Agenda de Exames", path: "/clinica/agenda-exames", permission: "agenda" },
+  { icon: FlaskConical, label: "Exames", path: "/clinica/exames", permission: "agenda" },
   { icon: DollarSign, label: "Financeiro", path: "/clinica/financeiro", permission: "financeiro" },
   { icon: Wallet, label: "Dados Bancários", path: "/clinica/dados-bancarios" },
   { icon: Star, label: "Avaliações", path: "/clinica/avaliacoes" },

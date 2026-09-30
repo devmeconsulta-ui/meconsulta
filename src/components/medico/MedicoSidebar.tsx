@@ -16,7 +16,10 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useUnreadChatMessages } from "@/hooks/useUnreadChatMessages";
 import { Badge } from "@/components/ui/badge";
-PLACEHOLDER_KEEP
+
+const allMenuItems = [
+  { icon: LayoutDashboard, label: "Dashboard", path: "/medico", permKey: "dashboard" },
+  { icon: Stethoscope, label: "Consultas", path: "/medico/consultas", permKey: "consultas" },
   { icon: Calendar, label: "Agenda", path: "/medico/agenda", permKey: "agenda" },
   { icon: FlaskConical, label: "Agenda de Exames", path: "/medico/agenda-exames", permKey: "agenda" },
   { icon: Star, label: "Avaliações", path: "/medico/avaliacoes", permKey: "avaliacoes" },
