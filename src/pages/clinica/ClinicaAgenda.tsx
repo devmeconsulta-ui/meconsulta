@@ -122,6 +122,7 @@ interface Slot {
     paciente_id?: string | null;
     pacientes?: { nome: string };
     isRetorno?: boolean;
+    exameNome?: string | null;
   }>;
 }
 
@@ -422,6 +423,8 @@ export default function ClinicaAgenda() {
             data_hora,
             tipo_servico,
             valor_consulta,
+            exame_tipo_id,
+            exames_tipos(nome),
             pacientes(nome)
           `)
           .in("agenda_slot_id", slotIds)
@@ -431,8 +434,9 @@ export default function ClinicaAgenda() {
 
         const slotsWithConsultas = slotsData.map((slot) => ({
           ...slot,
-          consultas: consultasData?.filter((c) => c.agenda_slot_id === slot.id).map(c => ({
+          consultas: (consultasData as any[])?.filter((c) => c.agenda_slot_id === slot.id).map(c => ({
             ...c,
+            exameNome: c.exame_tipo_id ? (c.exames_tipos?.nome || "Exame") : (c.tipo_servico === "exame" ? "Exame" : null),
             // Retorno só aparece quando marcado manualmente no agendamento
             isRetorno: c.tipo_servico === "retorno" && c.valor_consulta === 0
           })) || [],
@@ -488,6 +492,7 @@ export default function ClinicaAgenda() {
         origem: consulta.origem || "interna",
         pacienteNome: slot.consultas!.map(c => c.nome_paciente_consulta || c.pacientes?.nome || "Paciente").join(", "),
         isRetorno: false,
+        exameNome: slot.consultas!.find(c => c.exameNome)?.exameNome || null,
         totalPacientes: slot.consultas!.length,
       };
     }
@@ -500,12 +505,13 @@ export default function ClinicaAgenda() {
           origem: consulta.origem || "online",
           pacienteNome: consulta.nome_paciente_consulta || consulta.pacientes?.nome || "Paciente",
           isRetorno: consulta.isRetorno || false,
+          exameNome: consulta.exameNome || null,
           totalPacientes: slot.consultas?.length || 1,
         };
       }
-      return { status: "indisponivel", origem: null, pacienteNome: null, isRetorno: false, totalPacientes: 0 };
+      return { status: "indisponivel", origem: null, pacienteNome: null, isRetorno: false, exameNome: null as string | null, totalPacientes: 0 };
     }
-    return { status: "livre", origem: null, pacienteNome: null, isRetorno: false, totalPacientes: 0 };
+    return { status: "livre", origem: null, pacienteNome: null, isRetorno: false, exameNome: null as string | null, totalPacientes: 0 };
   }
 
   function getFilteredSlots() {
@@ -885,6 +891,14 @@ export default function ClinicaAgenda() {
                     {slotInfo.pacienteNome}
                   </span>
                 </div>
+                {slotInfo.exameNome && (
+                  <div className="flex items-center gap-1 bg-background/30 rounded px-1">
+                    <FlaskConical className="w-2.5 h-2.5" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wide truncate">
+                      Exame
+                    </span>
+                  </div>
+                )}
                 {/* Badge de Retorno - elegível para valor zero (últimos 30 dias) */}
                 {slotInfo.isRetorno && (
                   <div className="flex items-center gap-1 bg-green-500/20 rounded px-1">
@@ -1163,6 +1177,12 @@ export default function ClinicaAgenda() {
                             </Badge>
                           )}
                           <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
+                          {slotInfo.exameNome && (
+                            <Badge variant="secondary" className="text-xs gap-1">
+                              <FlaskConical className="w-3 h-3" />
+                              Exame: {slotInfo.exameNome}
+                            </Badge>
+                          )}
                           {slotInfo.isRetorno && (
                             <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs gap-1">
                               <RotateCcw className="w-3 h-3" />
@@ -1439,6 +1459,12 @@ export default function ClinicaAgenda() {
                               </Badge>
                             )}
                             <span className="font-medium text-foreground">{slotInfo.pacienteNome}</span>
+                            {slotInfo.exameNome && (
+                              <Badge variant="secondary" className="text-xs gap-1">
+                                <FlaskConical className="w-3 h-3" />
+                                Exame: {slotInfo.exameNome}
+                              </Badge>
+                            )}
                             {slotInfo.isRetorno && (
                               <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs gap-1">
                                 <RotateCcw className="w-3 h-3" />
