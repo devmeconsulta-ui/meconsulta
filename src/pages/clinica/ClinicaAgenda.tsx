@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, Link } from "react-router-dom";
+import { FlaskConical } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1594,6 +1595,12 @@ export default function ClinicaAgenda() {
           <Button variant="outline" onClick={() => setListaEsperaModalOpen(true)} className="gap-2">
             <Users className="h-4 w-4" />
             Lista de Espera
+          </Button>
+          <Button asChild variant="outline" className="gap-2">
+            <Link to={location.pathname.startsWith("/medico") ? "/medico/agenda-exames" : "/clinica/agenda-exames"}>
+              <FlaskConical className="h-4 w-4" />
+              Exames
+            </Link>
           </Button>
           {podeGerenciarAgenda && (
             <Button onClick={() => setGerarSlotsModalOpen(true)} className="gap-2">
