@@ -64,6 +64,8 @@ import ClinicaConsultas from "./pages/clinica/ClinicaConsultas";
 import ClinicaPacientes from "./pages/clinica/ClinicaPacientes";
 import ClinicaLocais from "./pages/clinica/ClinicaLocais";
 import ClinicaAgenda from "./pages/clinica/ClinicaAgenda";
+import ClinicaExames from "./pages/clinica/ClinicaExames";
+import AgendaExames from "./pages/shared/AgendaExames";
 import ClinicaFinanceiro from "./pages/clinica/ClinicaFinanceiro";
 import ClinicaRelatorios from "./pages/clinica/ClinicaRelatorios";
 import ClinicaDadosBancarios from "./pages/clinica/ClinicaDadosBancarios";
@@ -153,6 +155,7 @@ const App = () => (
               <Route path="consultas" element={<MedicoConsultas />} />
               <Route path="locais" element={<MedicoLocais />} />
               <Route path="agenda" element={<MedicoAgenda />} />
+              <Route path="agenda-exames" element={<AgendaExames modoMedico />} />
               <Route path="financeiro" element={<MedicoFinanceiro />} />
               <Route path="usuarios-clinica" element={<MedicoUsuariosClinica />} />
               <Route path="pagina-publica" element={<MedicoPaginaPublica />} />
@@ -183,6 +186,8 @@ const App = () => (
               <Route path="pacientes" element={<ClinicaPacientes />} />
               <Route path="locais" element={<ClinicaLocais />} />
               <Route path="agenda" element={<ClinicaAgenda />} />
+              <Route path="agenda-exames" element={<AgendaExames />} />
+              <Route path="exames" element={<ClinicaExames />} />
               <Route path="financeiro" element={<ClinicaFinanceiro />} />
               <Route path="relatorios" element={<ClinicaRelatorios />} />
               <Route path="dados-bancarios" element={<ClinicaDadosBancarios />} />
