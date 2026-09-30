@@ -1384,7 +1384,7 @@ export function AgendaInternaModal({
           )}
 
           {/* Data de nascimento + Endereço */}
-          {(formData.nome.trim() || selectedPaciente) && (
+          {true && (
             <div className="grid grid-cols-12 gap-3 sm:gap-4">
               <div className="col-span-12 sm:col-span-4">
                 <Label className="text-xs sm:text-sm mb-1.5 block">Data de Nascimento</Label>
