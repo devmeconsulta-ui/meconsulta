@@ -736,6 +736,31 @@ export function AgendaInternaModal({
         </DialogHeader>
 
         <div className="space-y-4 sm:space-y-5 pt-3 sm:pt-4">
+          {/* Seletor Consulta / Exame */}
+          <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
+            {[
+              { v: "consulta", label: "Consulta" },
+              { v: "exame", label: "Exame" },
+            ].map((opt) => {
+              const ativo = opt.v === "exame"
+                ? formData.procedimento === "exame"
+                : formData.procedimento !== "exame";
+              return (
+                <button
+                  key={opt.v}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, procedimento: opt.v })}
+                  className={cn(
+                    "rounded-md py-2 text-sm font-semibold transition-colors",
+                    ativo ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Row 1: Patient search + Local */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4">
             <div className="sm:col-span-6">
