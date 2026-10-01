@@ -1622,6 +1622,10 @@ export default function ClinicaAgenda() {
             <Users className="h-4 w-4" />
             Lista de Espera
           </Button>
+          <Button variant="outline" onClick={() => { window.location.href = "/clinica/agenda-exames"; }} className="gap-2">
+            <FlaskConical className="h-4 w-4" />
+            Agenda de Exames
+          </Button>
           {podeGerenciarAgenda && (
             <Button onClick={() => setGerarSlotsModalOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" />
