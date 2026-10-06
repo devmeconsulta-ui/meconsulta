@@ -13,6 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Collapsible as RelCollapsible, CollapsibleContent as RelCollapsibleContent, CollapsibleTrigger as RelCollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown as RelChevronDown, RotateCcw as RelRotateCcw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -223,6 +225,11 @@ export default function ClinicaFinanceiro() {
   const [convenioFilter, setConvenioFilter] = useState("todos");
   const [formaPagamentoFilter, setFormaPagamentoFilter] = useState("todos");
   const [searchPaciente, setSearchPaciente] = useState("");
+  const [statusConsultaFilter, setStatusConsultaFilter] = useState("todos");
+  const [valorMinFilter, setValorMinFilter] = useState("");
+  const [valorMaxFilter, setValorMaxFilter] = useState("");
+  const [finalizadoFilter, setFinalizadoFilter] = useState("todos");
+  const [relFiltersOpen, setRelFiltersOpen] = useState(true);
   const [medicoComboboxOpen, setMedicoComboboxOpen] = useState(false);
   const [customDateStart, setCustomDateStart] = useState("");
   const [customDateEnd, setCustomDateEnd] = useState("");
@@ -563,9 +570,25 @@ export default function ClinicaFinanceiro() {
         matchFormaPagamento = formas.some((f: any) => f.tipo === formaPagamentoFilter);
       }
 
-      return matchMedico && matchStatus && matchOrigem && matchLocal && matchTipoAtendimento && matchConvenio && matchFormaPagamento && matchSearch;
+      const matchStatusConsulta = statusConsultaFilter === "todos" || c.status_consulta === statusConsultaFilter;
+      const valor = Number(c.valor_consulta) || 0;
+      const matchValorMin = valorMinFilter === "" || valor >= Number(valorMinFilter.replace(",", "."));
+      const matchValorMax = valorMaxFilter === "" || valor <= Number(valorMaxFilter.replace(",", "."));
+      const matchFinalizado = finalizadoFilter === "todos" || (finalizadoFilter === "sim" ? !!c.finalizado_medico : !c.finalizado_medico);
+
+      return matchMedico && matchStatus && matchOrigem && matchLocal && matchTipoAtendimento && matchConvenio && matchFormaPagamento && matchSearch && matchStatusConsulta && matchValorMin && matchValorMax && matchFinalizado;
     });
-  }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter, tipoAtendimentoFilter, convenioFilter, formaPagamentoFilter, searchPaciente]);
+  }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter, tipoAtendimentoFilter, convenioFilter, formaPagamentoFilter, searchPaciente, statusConsultaFilter, valorMinFilter, valorMaxFilter, finalizadoFilter]);
+
+  const relActiveFilters = [medicoFilter, statusFilter, origemFilter, localFilter, tipoAtendimentoFilter, convenioFilter, formaPagamentoFilter, statusConsultaFilter, finalizadoFilter].filter((v) => v !== "todos").length
+    + (searchPaciente.trim() ? 1 : 0) + (valorMinFilter ? 1 : 0) + (valorMaxFilter ? 1 : 0);
+
+  const limparFiltrosRelatorio = () => {
+    setMedicoFilter("todos"); setStatusFilter("todos"); setOrigemFilter("todos"); setLocalFilter("todos");
+    setTipoAtendimentoFilter("todos"); setConvenioFilter("todos"); setFormaPagamentoFilter("todos");
+    setStatusConsultaFilter("todos"); setFinalizadoFilter("todos"); setSearchPaciente("");
+    setValorMinFilter(""); setValorMaxFilter("");
+  };
 
   // Calcular novos pacientes do mês atual (pacientes que fizeram primeira consulta neste mês)
   const novosPacientesMesAtual = useMemo(() => {
@@ -3350,8 +3373,33 @@ export default function ClinicaFinanceiro() {
                 </div>
               </div>
             </CardHeader>
+            <RelCollapsible open={relFiltersOpen} onOpenChange={setRelFiltersOpen}>
+            <div className="px-6 pb-4 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
+              <RelCollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2 -ml-2">
+                  <Filter className="h-4 w-4" />
+                  Filtros
+                  {relActiveFilters > 0 && <Badge variant="secondary">{relActiveFilters} ativo{relActiveFilters > 1 ? "s" : ""}</Badge>}
+                  <RelChevronDown className={cn("h-4 w-4 transition-transform", relFiltersOpen && "rotate-180")} />
+                </Button>
+              </RelCollapsibleTrigger>
+              {relActiveFilters > 0 && (
+                <Button variant="outline" size="sm" className="gap-2" onClick={limparFiltrosRelatorio}>
+                  <RelRotateCcw className="h-4 w-4" />
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+            <RelCollapsibleContent>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm font-medium">
+                    <Search className="h-4 w-4" />
+                    Paciente
+                  </Label>
+                  <Input placeholder="Buscar pelo nome..." value={searchPaciente} onChange={(e) => setSearchPaciente(e.target.value)} />
+                </div>
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-sm font-medium">
                     <Users className="h-4 w-4" />
@@ -3480,8 +3528,70 @@ export default function ClinicaFinanceiro() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Status da Consulta</Label>
+                  <Select value={statusConsultaFilter} onValueChange={setStatusConsultaFilter}>
+                    <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="agendada">Agendada</SelectItem>
+                      <SelectItem value="confirmada">Confirmada</SelectItem>
+                      <SelectItem value="concluida">Concluída</SelectItem>
+                      <SelectItem value="cancelada">Cancelada</SelectItem>
+                      <SelectItem value="faltou">Faltou</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Tipo de Atendimento</Label>
+                  <Select value={tipoAtendimentoFilter} onValueChange={setTipoAtendimentoFilter}>
+                    <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="particular">Particular</SelectItem>
+                      <SelectItem value="convenio">Convênio</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Convênio</Label>
+                  <Select value={convenioFilter} onValueChange={setConvenioFilter}>
+                    <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      {convenios.map((cv) => (
+                        <SelectItem key={cv.id} value={cv.id}>{cv.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Atendimento finalizado</Label>
+                  <Select value={finalizadoFilter} onValueChange={setFinalizadoFilter}>
+                    <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="sim">Finalizado pelo médico</SelectItem>
+                      <SelectItem value="nao">Não finalizado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Valor (R$)</Label>
+                  <div className="flex gap-2">
+                    <Input inputMode="decimal" placeholder="Mín." value={valorMinFilter} onChange={(e) => setValorMinFilter(e.target.value)} />
+                    <Input inputMode="decimal" placeholder="Máx." value={valorMaxFilter} onChange={(e) => setValorMaxFilter(e.target.value)} />
+                  </div>
+                </div>
               </div>
             </CardContent>
+            </RelCollapsibleContent>
+            </RelCollapsible>
           </Card>
 
           {/* Métricas do Relatório */}
