@@ -1120,6 +1120,7 @@ export type Database = {
           data_hora: string
           data_hora_finalizacao_medico: string | null
           data_hora_finalizacao_paciente: string | null
+          data_pagamento: string | null
           dependente_id: string | null
           elegivel_repasse: boolean | null
           exame_tipo_id: string | null
@@ -1162,6 +1163,7 @@ export type Database = {
           data_hora: string
           data_hora_finalizacao_medico?: string | null
           data_hora_finalizacao_paciente?: string | null
+          data_pagamento?: string | null
           dependente_id?: string | null
           elegivel_repasse?: boolean | null
           exame_tipo_id?: string | null
@@ -1204,6 +1206,7 @@ export type Database = {
           data_hora?: string
           data_hora_finalizacao_medico?: string | null
           data_hora_finalizacao_paciente?: string | null
+          data_pagamento?: string | null
           dependente_id?: string | null
           elegivel_repasse?: boolean | null
           exame_tipo_id?: string | null
@@ -1364,6 +1367,8 @@ export type Database = {
           fornecedor: string | null
           id: string
           observacoes: string | null
+          recorrencia_origem_id: string | null
+          recorrente: boolean
           status: string | null
           valor: number
         }
@@ -1377,6 +1382,8 @@ export type Database = {
           fornecedor?: string | null
           id?: string
           observacoes?: string | null
+          recorrencia_origem_id?: string | null
+          recorrente?: boolean
           status?: string | null
           valor: number
         }
@@ -1390,6 +1397,8 @@ export type Database = {
           fornecedor?: string | null
           id?: string
           observacoes?: string | null
+          recorrencia_origem_id?: string | null
+          recorrente?: boolean
           status?: string | null
           valor?: number
         }
@@ -1406,6 +1415,13 @@ export type Database = {
             columns: ["clinica_id"]
             isOneToOne: false
             referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contas_pagar_recorrencia_origem_id_fkey"
+            columns: ["recorrencia_origem_id"]
+            isOneToOne: false
+            referencedRelation: "contas_pagar"
             referencedColumns: ["id"]
           },
         ]
@@ -1857,6 +1873,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      financeiro_auditoria: {
+        Row: {
+          acao: string
+          campos: Json | null
+          clinica_id: string | null
+          created_at: string
+          id: string
+          registro_id: string
+          tabela: string
+          usuario_nome: string | null
+        }
+        Insert: {
+          acao: string
+          campos?: Json | null
+          clinica_id?: string | null
+          created_at?: string
+          id?: string
+          registro_id: string
+          tabela: string
+          usuario_nome?: string | null
+        }
+        Update: {
+          acao?: string
+          campos?: Json | null
+          clinica_id?: string | null
+          created_at?: string
+          id?: string
+          registro_id?: string
+          tabela?: string
+          usuario_nome?: string | null
+        }
+        Relationships: []
       }
       historico_medico_paciente: {
         Row: {
