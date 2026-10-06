@@ -727,8 +727,8 @@ export default function ClinicaFinanceiro() {
 
     // Entradas: contas a receber recebidas
     contasReceber
-      .filter((c: any) => c.status === "pago" && c.data_pagamento)
-      .forEach((c: any) => add(c.data_pagamento, "entradas", Number(c.valor) || 0));
+      .filter((c) => (c.status === "recebido" || c.status === "pago") && c.data_recebimento)
+      .forEach((c) => add(c.data_recebimento!, "entradas", Number(c.valor) || 0));
 
     // Saídas: contas pagas
     contasPagar
