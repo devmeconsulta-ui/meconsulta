@@ -5,6 +5,7 @@ import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "@/components/ui/calendar";
 import jsPDF from "jspdf";
+import { addMonths as addMonthsFn } from "date-fns";
 import * as XLSX from "xlsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -112,6 +113,8 @@ interface ConsultaProcedimento {
 interface Consulta {
   id: string;
   data_hora: string;
+  data_pagamento?: string | null;
+  sincronizado_caixa?: boolean | null;
   valor_consulta: number;
   valor_medico: number;
   valor_plataforma: number;
@@ -419,7 +422,7 @@ export default function ClinicaFinanceiro() {
         id, data_hora, valor_consulta, valor_medico, valor_plataforma,
         status_consulta, status_pagamento, origem, medico_id, local_id,
         clinica_id, paciente_id, tipo_atendimento, convenio_id, formas_pagamento,
-        nome_paciente_consulta, finalizado_medico,
+        nome_paciente_consulta, finalizado_medico, data_pagamento, sincronizado_caixa,
         paciente:pacientes!consultas_paciente_id_fkey(nome),
         medico:medicos!consultas_medico_id_fkey(nome, especialidade),
         local:locais_atendimento!consultas_local_id_fkey(nome_local),
@@ -506,7 +509,38 @@ export default function ClinicaFinanceiro() {
       .eq("clinica_id", clinicaData.id)
       .order("data_vencimento", { ascending: true });
 
-    setContasPagar(data || []);
+    const lista: any[] = data || [];
+    // Gera automaticamente as despesas recorrentes até o próximo mês
+    const limite = endOfMonth(addMonthsFn(new Date(), 1));
+    const novas: any[] = [];
+    lista.filter((c) => c.recorrente && !c.recorrencia_origem_id).forEach((tpl) => {
+      let venc = addMonthsFn(parseISO(tpl.data_vencimento), 1);
+      while (venc <= limite) {
+        const vencStr = format(venc, "yyyy-MM-dd");
+        const existe = lista.some((c) => c.recorrencia_origem_id === tpl.id && c.data_vencimento === vencStr);
+        if (!existe) {
+          novas.push({
+            clinica_id: tpl.clinica_id, descricao: tpl.descricao, valor: tpl.valor,
+            data_vencimento: vencStr, fornecedor: tpl.fornecedor, centro_custo_id: tpl.centro_custo_id,
+            observacoes: tpl.observacoes, status: "pendente", recorrencia_origem_id: tpl.id,
+          });
+        }
+        venc = addMonthsFn(venc, 1);
+      }
+    });
+    if (novas.length > 0) {
+      for (const n of novas) {
+        await supabase.from("contas_pagar").insert(n as any);
+      }
+      const { data: again } = await supabase
+        .from("contas_pagar")
+        .select(`*, centro_custo:centros_custo(nome)`)
+        .eq("clinica_id", clinicaData.id)
+        .order("data_vencimento", { ascending: true });
+      setContasPagar(again || []);
+      return;
+    }
+    setContasPagar(lista);
   }
 
   async function fetchContasReceber() {
@@ -603,7 +637,7 @@ export default function ClinicaFinanceiro() {
       ...filteredConsultas
         .filter((c) => c.status_pagamento === "pago")
         .map((c) => ({
-          data: c.data_hora,
+          data: c.data_pagamento || c.data_hora,
           tipo: "Consulta",
           descricao: `${c.medico?.nome ? "Dr(a). " + c.medico.nome + " — " : ""}${c.nome_paciente_consulta || c.paciente?.nome || "Não informado"}`,
           categoria: c.origem === "online" ? "Online" : "Interna",
@@ -815,7 +849,7 @@ export default function ClinicaFinanceiro() {
     // Entradas: consultas pagas (online + interna)
     filteredConsultas
       .filter((c) => c.status_pagamento === "pago")
-      .forEach((c) => add(c.data_hora, "entradas", Number(c.valor_consulta) || 0));
+      .forEach((c) => add(c.data_pagamento || c.data_hora, "entradas", Number(c.valor_consulta) || 0));
 
     // Entradas: contas a receber recebidas
     contasReceber
@@ -1359,7 +1393,8 @@ export default function ClinicaFinanceiro() {
       fornecedor: formContaPagar.fornecedor || null,
       centro_custo_id: formContaPagar.centro_custo_id || null,
       observacoes: formContaPagar.observacoes || null,
-    };
+      recorrente: !!(formContaPagar as any).recorrente,
+    } as any;
 
     if (editingItem) {
       const { error } = await supabase
@@ -4323,6 +4358,10 @@ export default function ClinicaFinanceiro() {
               </div>
             </div>
             <div>
+              <label className="flex items-center gap-2 text-sm mb-3 cursor-pointer">
+                <input type="checkbox" checked={!!(formContaPagar as any).recorrente} onChange={(e) => setFormContaPagar({ ...formContaPagar, recorrente: e.target.checked } as any)} />
+                Repetir todo mês (aluguel, internet, salários...)
+              </label>
               <Label>Fornecedor</Label>
               <Input value={formContaPagar.fornecedor} onChange={(e) => setFormContaPagar({ ...formContaPagar, fornecedor: e.target.value })} />
             </div>
