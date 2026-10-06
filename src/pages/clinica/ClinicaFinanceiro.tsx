@@ -230,6 +230,7 @@ export default function ClinicaFinanceiro() {
   const [valorMaxFilter, setValorMaxFilter] = useState("");
   const [finalizadoFilter, setFinalizadoFilter] = useState("todos");
   const [relFiltersOpen, setRelFiltersOpen] = useState(true);
+  const [vgFiltersOpen, setVgFiltersOpen] = useState(true);
   const [medicoComboboxOpen, setMedicoComboboxOpen] = useState(false);
   const [customDateStart, setCustomDateStart] = useState("");
   const [customDateEnd, setCustomDateEnd] = useState("");
@@ -2198,7 +2199,18 @@ export default function ClinicaFinanceiro() {
         <TabsContent value="visao-geral" className="mt-6 space-y-6">
           {/* Filtros no topo da aba */}
           <Card>
-            <CardContent className="pt-6">
+            <RelCollapsible open={vgFiltersOpen} onOpenChange={setVgFiltersOpen}>
+            <div className="px-6 py-3">
+              <RelCollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2 -ml-2">
+                  <Filter className="h-4 w-4" />
+                  Filtros
+                  <RelChevronDown className={cn("h-4 w-4 transition-transform", vgFiltersOpen && "rotate-180")} />
+                </Button>
+              </RelCollapsibleTrigger>
+            </div>
+            <RelCollapsibleContent>
+            <CardContent className="pt-0">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Médico</label>
@@ -2302,6 +2314,8 @@ export default function ClinicaFinanceiro() {
                 </div>
               </div>
             </CardContent>
+            </RelCollapsibleContent>
+            </RelCollapsible>
           </Card>
 
           {/* Header de métricas */}
