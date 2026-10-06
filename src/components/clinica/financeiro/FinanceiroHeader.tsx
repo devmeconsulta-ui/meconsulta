@@ -158,7 +158,7 @@ export function FinanceiroHeader({
         <MetricCard
           title="Saldo Online"
           value={formatCurrency(saldoPrevistoOnline)}
-          subtitle="Entradas - Saídas online"
+          subtitle="Pagas + pendentes online"
           icon={<Globe className="w-5 h-5" />}
           variant={saldoPrevistoOnline >= 0 ? "success" : "danger"}
         />
