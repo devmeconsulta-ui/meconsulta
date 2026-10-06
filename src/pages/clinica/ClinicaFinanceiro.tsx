@@ -2292,7 +2292,7 @@ export default function ClinicaFinanceiro() {
 
       {/* Tabs - acima dos cards principais */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-5xl grid-cols-4 sm:grid-cols-7">
+        <TabsList className="grid w-full max-w-6xl grid-cols-4 sm:grid-cols-8">
           <TabsTrigger value="visao-geral" className="gap-1 text-xs sm:text-sm">
             <BarChart3 className="h-4 w-4 hidden sm:block" />
             <span>Visão Geral</span>
@@ -2312,6 +2312,10 @@ export default function ClinicaFinanceiro() {
           <TabsTrigger value="contas" className="gap-1 text-xs sm:text-sm">
             <CreditCard className="h-4 w-4 hidden sm:block" />
             <span>Contas</span>
+          </TabsTrigger>
+          <TabsTrigger value="receitas-despesas" className="gap-1 text-xs sm:text-sm">
+            <DollarSign className="h-4 w-4 hidden sm:block" />
+            <span>Receitas/Despesas</span>
           </TabsTrigger>
           <TabsTrigger value="relatorios" className="gap-1 text-xs sm:text-sm">
             <FileText className="h-4 w-4 hidden sm:block" />
@@ -3490,6 +3494,78 @@ export default function ClinicaFinanceiro() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Tab: Receitas e Despesas (clínica, separado do saldo online) */}
+        <TabsContent value="receitas-despesas" className="mt-6 space-y-6">
+          {(() => {
+            const totalRec = movimentos.entradas.reduce((s, m) => s + m.valor, 0);
+            const despPagas = movimentos.saidas.filter((m) => m.status === "Pago").reduce((s, m) => s + m.valor, 0);
+            const despPend = movimentos.saidas.filter((m) => m.status !== "Pago").reduce((s, m) => s + m.valor, 0);
+            const lista = [
+              ...movimentos.entradas.map((m) => ({ ...m, natureza: "receita" as const })),
+              ...movimentos.saidas.map((m) => ({ ...m, natureza: "despesa" as const })),
+            ].sort((a, b) => b.data.localeCompare(a.data));
+            return (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    Consultas pagas entram sozinhas. Lance aqui as despesas da clínica e outras receitas. Nada disso entra no Saldo Online.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => { setEditingItem(null); setFormContaReceber({ descricao: "", valor: "", data_vencimento: "", cliente: "", observacoes: "" }); setShowContaReceberModal(true); }}>
+                      <Plus className="h-4 w-4 mr-1" /> Nova receita
+                    </Button>
+                    <Button size="sm" onClick={() => { setEditingItem(null); setFormContaPagar({ descricao: "", valor: "", data_vencimento: "", fornecedor: "", centro_custo_id: "", observacoes: "" }); setShowContaPagarModal(true); }}>
+                      <Plus className="h-4 w-4 mr-1" /> Nova despesa
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <Card className="border-l-4 border-l-green-500"><CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Receitas</p>
+                    <p className="text-2xl font-bold text-green-500">{formatCurrency(totalRec)}</p>
+                  </CardContent></Card>
+                  <Card className="border-l-4 border-l-red-500"><CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Despesas pagas</p>
+                    <p className="text-2xl font-bold text-red-500">{formatCurrency(despPagas)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">+ {formatCurrency(despPend)} pendentes</p>
+                  </CardContent></Card>
+                  <Card className="border-l-4 border-l-primary"><CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Resultado da clínica</p>
+                    <p className="text-2xl font-bold text-primary">{formatCurrency(totalRec - despPagas)}</p>
+                  </CardContent></Card>
+                </div>
+                <Card className="card-shadow">
+                  <CardHeader><CardTitle>Lançamentos do período</CardTitle></CardHeader>
+                  <CardContent>
+                    {lista.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">Nenhum lançamento no período</div>
+                    ) : (
+                      <div className="divide-y max-h-[500px] overflow-auto">
+                        {lista.map((m, i) => (
+                          <div key={i} className="flex items-center justify-between py-2 gap-4">
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{m.descricao}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {format(parseISO(m.data), "dd/MM/yyyy")} • {m.tipo} • {m.categoria}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className={cn("font-bold", m.natureza === "receita" ? "text-green-500" : "text-red-500")}>
+                                {m.natureza === "receita" ? "+" : "−"} {formatCurrency(m.valor)}
+                              </p>
+                              <Badge variant="outline" className="text-xs">{m.status}</Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            );
+          })()}
         </TabsContent>
 
         {/* Tab: Relatórios */}
