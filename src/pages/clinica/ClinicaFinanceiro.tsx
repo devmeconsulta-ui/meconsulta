@@ -232,6 +232,8 @@ export default function ClinicaFinanceiro() {
   const [valorMinFilter, setValorMinFilter] = useState("");
   const [valorMaxFilter, setValorMaxFilter] = useState("");
   const [finalizadoFilter, setFinalizadoFilter] = useState("todos");
+  const [caixaEntradas, setCaixaEntradas] = useState<Array<{ created_at: string; valor: number; tipo: string }>>([]);
+  const [auditoria, setAuditoria] = useState<Array<{ id: string; tabela: string; acao: string; campos: any; usuario_nome: string | null; created_at: string }>>([]);
   const [tipoMovimentoFilter, setTipoMovimentoFilter] = useState<"todos" | "entradas" | "saidas">("todos");
   const [relFiltersOpen, setRelFiltersOpen] = useState(true);
   const [vgFiltersOpen, setVgFiltersOpen] = useState(true);
@@ -625,6 +627,42 @@ export default function ClinicaFinanceiro() {
     setStatusConsultaFilter("todos"); setFinalizadoFilter("todos"); setSearchPaciente("");
     setValorMinFilter(""); setValorMaxFilter(""); setTipoMovimentoFilter("todos");
   };
+
+  useEffect(() => {
+    if (!clinicaData?.id) return;
+    (async () => {
+      const [{ data: mov }, { data: aud }] = await Promise.all([
+        supabase.from("caixa_movimentos").select("created_at, valor, tipo")
+          .eq("clinica_id", clinicaData.id)
+          .gte("created_at", dateRange.start.toISOString())
+          .lte("created_at", dateRange.end.toISOString())
+          .limit(5000),
+        (supabase as any).from("financeiro_auditoria").select("id, tabela, acao, campos, usuario_nome, created_at")
+          .eq("clinica_id", clinicaData.id)
+          .order("created_at", { ascending: false })
+          .limit(100),
+      ]);
+      setCaixaEntradas((mov as any) || []);
+      setAuditoria(aud || []);
+    })();
+  }, [clinicaData?.id, dateRange, consultas, contasPagar, contasReceber]);
+
+  // Conferência: consultas internas pagas x entradas lançadas no caixa, por dia
+  const conferenciaCaixa = useMemo(() => {
+    const dias: Record<string, { sistema: number; caixa: number; semCaixa: number }> = {};
+    const get = (k: string) => (dias[k] ||= { sistema: 0, caixa: 0, semCaixa: 0 });
+    filteredConsultas
+      .filter((c) => c.status_pagamento === "pago" && c.origem !== "online")
+      .forEach((c) => {
+        const d = get(format(parseISO(c.data_pagamento || c.data_hora), "yyyy-MM-dd"));
+        d.sistema += Number(c.valor_consulta) || 0;
+        if (!c.sincronizado_caixa) d.semCaixa += 1;
+      });
+    caixaEntradas
+      .filter((m) => (m.tipo || "").toLowerCase() === "entrada")
+      .forEach((m) => { get(format(parseISO(m.created_at), "yyyy-MM-dd")).caixa += Number(m.valor) || 0; });
+    return Object.keys(dias).sort().reverse().map((k) => ({ dia: k, ...dias[k], diferenca: dias[k].sistema - dias[k].caixa }));
+  }, [filteredConsultas, caixaEntradas]);
 
   // Movimentos (entradas / saídas) no período, para filtro e exportação separada
   const movimentos = useMemo(() => {
@@ -3594,6 +3632,66 @@ export default function ClinicaFinanceiro() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card className="card-shadow">
+                  <CardHeader>
+                    <CardTitle>Conferência com o caixa</CardTitle>
+                    <CardDescription>Consultas pagas na clínica comparadas com o que entrou no caixa, dia a dia.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {conferenciaCaixa.length === 0 ? (
+                      <div className="text-center py-6 text-muted-foreground">Nada para conferir no período</div>
+                    ) : (
+                      <div className="overflow-auto max-h-[400px]">
+                        <table className="w-full text-sm">
+                          <thead><tr className="text-left text-muted-foreground border-b">
+                            <th className="py-2">Dia</th><th>Consultas pagas</th><th>Entrou no caixa</th><th>Diferença</th><th>Sem lançamento</th>
+                          </tr></thead>
+                          <tbody>
+                            {conferenciaCaixa.map((d) => (
+                              <tr key={d.dia} className="border-b last:border-0">
+                                <td className="py-2">{format(parseISO(d.dia), "dd/MM/yyyy")}</td>
+                                <td>{formatCurrency(d.sistema)}</td>
+                                <td>{formatCurrency(d.caixa)}</td>
+                                <td className={cn("font-semibold", Math.abs(d.diferenca) < 0.01 ? "text-green-600" : "text-red-500")}>
+                                  {Math.abs(d.diferenca) < 0.01 ? "OK" : formatCurrency(d.diferenca)}
+                                </td>
+                                <td>{d.semCaixa > 0 ? <Badge variant="destructive">{d.semCaixa} consulta(s)</Badge> : "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card className="card-shadow">
+                  <CardHeader>
+                    <CardTitle>Histórico de alterações</CardTitle>
+                    <CardDescription>Últimas mudanças em pagamentos, valores e contas.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {auditoria.length === 0 ? (
+                      <div className="text-center py-6 text-muted-foreground">Nenhuma alteração registrada ainda</div>
+                    ) : (
+                      <div className="divide-y max-h-[400px] overflow-auto text-sm">
+                        {auditoria.map((a) => {
+                          const origem = a.tabela === "consultas" ? "Consulta" : a.tabela === "contas_pagar" ? "Despesa" : "Receita";
+                          const nomes: Record<string, string> = { status_pagamento: "pagamento", valor_consulta: "valor", formas_pagamento: "forma de pagamento", valor_medico: "valor do médico", status: "situação", valor: "valor", data_pagamento: "data de pagamento", data_recebimento: "data de recebimento", data_vencimento: "vencimento", descricao: "descrição" };
+                          const fmt = (v: any) => v === null || v === undefined ? "vazio" : typeof v === "object" ? "alterada" : String(v);
+                          const detalhe = a.acao === "alterado"
+                            ? Object.entries(a.campos || {}).map(([k, v]: any) => `${nomes[k] || k}: ${fmt(v.de)} → ${fmt(v.para)}`).join(" • ")
+                            : `${a.campos?.descricao || ""} ${a.campos?.valor ? formatCurrency(Number(a.campos.valor)) : ""}`;
+                          return (
+                            <div key={a.id} className="py-2">
+                              <p><span className="font-medium">{origem} {a.acao}</span> <span className="text-muted-foreground">— {format(parseISO(a.created_at), "dd/MM/yyyy HH:mm")}{a.usuario_nome ? ` por ${a.usuario_nome}` : ""}</span></p>
+                              <p className="text-muted-foreground">{detalhe}</p>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </CardContent>
