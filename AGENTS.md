@@ -1,0 +1,3 @@
+- Financial change history is written by database triggers into `financeiro_auditoria`, never from the frontend — so no edit path can skip the log.
+- Consulta cash date comes from `consultas.data_pagamento`, set by a trigger when payment becomes 'pago' — reports must use it (fallback `data_hora`) to reflect when money actually came in.
+- Recurring expenses are template rows in `contas_pagar` (`recorrente=true`); monthly copies (`recorrencia_origem_id`) are generated up to next month on load, deduplicated by a unique index.

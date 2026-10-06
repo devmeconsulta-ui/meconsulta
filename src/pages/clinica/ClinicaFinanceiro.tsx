@@ -5,6 +5,7 @@ import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "@/components/ui/calendar";
 import jsPDF from "jspdf";
+import { addMonths as addMonthsFn } from "date-fns";
 import * as XLSX from "xlsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -112,6 +113,8 @@ interface ConsultaProcedimento {
 interface Consulta {
   id: string;
   data_hora: string;
+  data_pagamento?: string | null;
+  sincronizado_caixa?: boolean | null;
   valor_consulta: number;
   valor_medico: number;
   valor_plataforma: number;
@@ -229,6 +232,8 @@ export default function ClinicaFinanceiro() {
   const [valorMinFilter, setValorMinFilter] = useState("");
   const [valorMaxFilter, setValorMaxFilter] = useState("");
   const [finalizadoFilter, setFinalizadoFilter] = useState("todos");
+  const [caixaEntradas, setCaixaEntradas] = useState<Array<{ created_at: string; valor: number; tipo: string }>>([]);
+  const [auditoria, setAuditoria] = useState<Array<{ id: string; tabela: string; acao: string; campos: any; usuario_nome: string | null; created_at: string }>>([]);
   const [tipoMovimentoFilter, setTipoMovimentoFilter] = useState<"todos" | "entradas" | "saidas">("todos");
   const [relFiltersOpen, setRelFiltersOpen] = useState(true);
   const [vgFiltersOpen, setVgFiltersOpen] = useState(true);
@@ -419,7 +424,7 @@ export default function ClinicaFinanceiro() {
         id, data_hora, valor_consulta, valor_medico, valor_plataforma,
         status_consulta, status_pagamento, origem, medico_id, local_id,
         clinica_id, paciente_id, tipo_atendimento, convenio_id, formas_pagamento,
-        nome_paciente_consulta, finalizado_medico,
+        nome_paciente_consulta, finalizado_medico, data_pagamento, sincronizado_caixa,
         paciente:pacientes!consultas_paciente_id_fkey(nome),
         medico:medicos!consultas_medico_id_fkey(nome, especialidade),
         local:locais_atendimento!consultas_local_id_fkey(nome_local),
@@ -506,7 +511,38 @@ export default function ClinicaFinanceiro() {
       .eq("clinica_id", clinicaData.id)
       .order("data_vencimento", { ascending: true });
 
-    setContasPagar(data || []);
+    const lista: any[] = data || [];
+    // Gera automaticamente as despesas recorrentes até o próximo mês
+    const limite = endOfMonth(addMonthsFn(new Date(), 1));
+    const novas: any[] = [];
+    lista.filter((c) => c.recorrente && !c.recorrencia_origem_id).forEach((tpl) => {
+      let venc = addMonthsFn(parseISO(tpl.data_vencimento), 1);
+      while (venc <= limite) {
+        const vencStr = format(venc, "yyyy-MM-dd");
+        const existe = lista.some((c) => c.recorrencia_origem_id === tpl.id && c.data_vencimento === vencStr);
+        if (!existe) {
+          novas.push({
+            clinica_id: tpl.clinica_id, descricao: tpl.descricao, valor: tpl.valor,
+            data_vencimento: vencStr, fornecedor: tpl.fornecedor, centro_custo_id: tpl.centro_custo_id,
+            observacoes: tpl.observacoes, status: "pendente", recorrencia_origem_id: tpl.id,
+          });
+        }
+        venc = addMonthsFn(venc, 1);
+      }
+    });
+    if (novas.length > 0) {
+      for (const n of novas) {
+        await supabase.from("contas_pagar").insert(n as any);
+      }
+      const { data: again } = await supabase
+        .from("contas_pagar")
+        .select(`*, centro_custo:centros_custo(nome)`)
+        .eq("clinica_id", clinicaData.id)
+        .order("data_vencimento", { ascending: true });
+      setContasPagar(again || []);
+      return;
+    }
+    setContasPagar(lista);
   }
 
   async function fetchContasReceber() {
@@ -592,6 +628,42 @@ export default function ClinicaFinanceiro() {
     setValorMinFilter(""); setValorMaxFilter(""); setTipoMovimentoFilter("todos");
   };
 
+  useEffect(() => {
+    if (!clinicaData?.id) return;
+    (async () => {
+      const [{ data: mov }, { data: aud }] = await Promise.all([
+        supabase.from("caixa_movimentos").select("created_at, valor, tipo")
+          .eq("clinica_id", clinicaData.id)
+          .gte("created_at", dateRange.start.toISOString())
+          .lte("created_at", dateRange.end.toISOString())
+          .limit(5000),
+        (supabase as any).from("financeiro_auditoria").select("id, tabela, acao, campos, usuario_nome, created_at")
+          .eq("clinica_id", clinicaData.id)
+          .order("created_at", { ascending: false })
+          .limit(100),
+      ]);
+      setCaixaEntradas((mov as any) || []);
+      setAuditoria(aud || []);
+    })();
+  }, [clinicaData?.id, dateRange, consultas, contasPagar, contasReceber]);
+
+  // Conferência: consultas internas pagas x entradas lançadas no caixa, por dia
+  const conferenciaCaixa = useMemo(() => {
+    const dias: Record<string, { sistema: number; caixa: number; semCaixa: number }> = {};
+    const get = (k: string) => (dias[k] ||= { sistema: 0, caixa: 0, semCaixa: 0 });
+    filteredConsultas
+      .filter((c) => c.status_pagamento === "pago" && c.origem !== "online")
+      .forEach((c) => {
+        const d = get(format(parseISO(c.data_pagamento || c.data_hora), "yyyy-MM-dd"));
+        d.sistema += Number(c.valor_consulta) || 0;
+        if (!c.sincronizado_caixa) d.semCaixa += 1;
+      });
+    caixaEntradas
+      .filter((m) => (m.tipo || "").toLowerCase() === "entrada")
+      .forEach((m) => { get(format(parseISO(m.created_at), "yyyy-MM-dd")).caixa += Number(m.valor) || 0; });
+    return Object.keys(dias).sort().reverse().map((k) => ({ dia: k, ...dias[k], diferenca: dias[k].sistema - dias[k].caixa }));
+  }, [filteredConsultas, caixaEntradas]);
+
   // Movimentos (entradas / saídas) no período, para filtro e exportação separada
   const movimentos = useMemo(() => {
     const inRange = (iso?: string | null) => {
@@ -603,7 +675,7 @@ export default function ClinicaFinanceiro() {
       ...filteredConsultas
         .filter((c) => c.status_pagamento === "pago")
         .map((c) => ({
-          data: c.data_hora,
+          data: c.data_pagamento || c.data_hora,
           tipo: "Consulta",
           descricao: `${c.medico?.nome ? "Dr(a). " + c.medico.nome + " — " : ""}${c.nome_paciente_consulta || c.paciente?.nome || "Não informado"}`,
           categoria: c.origem === "online" ? "Online" : "Interna",
@@ -815,7 +887,7 @@ export default function ClinicaFinanceiro() {
     // Entradas: consultas pagas (online + interna)
     filteredConsultas
       .filter((c) => c.status_pagamento === "pago")
-      .forEach((c) => add(c.data_hora, "entradas", Number(c.valor_consulta) || 0));
+      .forEach((c) => add(c.data_pagamento || c.data_hora, "entradas", Number(c.valor_consulta) || 0));
 
     // Entradas: contas a receber recebidas
     contasReceber
@@ -1359,7 +1431,8 @@ export default function ClinicaFinanceiro() {
       fornecedor: formContaPagar.fornecedor || null,
       centro_custo_id: formContaPagar.centro_custo_id || null,
       observacoes: formContaPagar.observacoes || null,
-    };
+      recorrente: !!(formContaPagar as any).recorrente,
+    } as any;
 
     if (editingItem) {
       const { error } = await supabase
@@ -3563,6 +3636,66 @@ export default function ClinicaFinanceiro() {
                     )}
                   </CardContent>
                 </Card>
+                <Card className="card-shadow">
+                  <CardHeader>
+                    <CardTitle>Conferência com o caixa</CardTitle>
+                    <CardDescription>Consultas pagas na clínica comparadas com o que entrou no caixa, dia a dia.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {conferenciaCaixa.length === 0 ? (
+                      <div className="text-center py-6 text-muted-foreground">Nada para conferir no período</div>
+                    ) : (
+                      <div className="overflow-auto max-h-[400px]">
+                        <table className="w-full text-sm">
+                          <thead><tr className="text-left text-muted-foreground border-b">
+                            <th className="py-2">Dia</th><th>Consultas pagas</th><th>Entrou no caixa</th><th>Diferença</th><th>Sem lançamento</th>
+                          </tr></thead>
+                          <tbody>
+                            {conferenciaCaixa.map((d) => (
+                              <tr key={d.dia} className="border-b last:border-0">
+                                <td className="py-2">{format(parseISO(d.dia), "dd/MM/yyyy")}</td>
+                                <td>{formatCurrency(d.sistema)}</td>
+                                <td>{formatCurrency(d.caixa)}</td>
+                                <td className={cn("font-semibold", Math.abs(d.diferenca) < 0.01 ? "text-green-600" : "text-red-500")}>
+                                  {Math.abs(d.diferenca) < 0.01 ? "OK" : formatCurrency(d.diferenca)}
+                                </td>
+                                <td>{d.semCaixa > 0 ? <Badge variant="destructive">{d.semCaixa} consulta(s)</Badge> : "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card className="card-shadow">
+                  <CardHeader>
+                    <CardTitle>Histórico de alterações</CardTitle>
+                    <CardDescription>Últimas mudanças em pagamentos, valores e contas.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {auditoria.length === 0 ? (
+                      <div className="text-center py-6 text-muted-foreground">Nenhuma alteração registrada ainda</div>
+                    ) : (
+                      <div className="divide-y max-h-[400px] overflow-auto text-sm">
+                        {auditoria.map((a) => {
+                          const origem = a.tabela === "consultas" ? "Consulta" : a.tabela === "contas_pagar" ? "Despesa" : "Receita";
+                          const nomes: Record<string, string> = { status_pagamento: "pagamento", valor_consulta: "valor", formas_pagamento: "forma de pagamento", valor_medico: "valor do médico", status: "situação", valor: "valor", data_pagamento: "data de pagamento", data_recebimento: "data de recebimento", data_vencimento: "vencimento", descricao: "descrição" };
+                          const fmt = (v: any) => v === null || v === undefined ? "vazio" : typeof v === "object" ? "alterada" : String(v);
+                          const detalhe = a.acao === "alterado"
+                            ? Object.entries(a.campos || {}).map(([k, v]: any) => `${nomes[k] || k}: ${fmt(v.de)} → ${fmt(v.para)}`).join(" • ")
+                            : `${a.campos?.descricao || ""} ${a.campos?.valor ? formatCurrency(Number(a.campos.valor)) : ""}`;
+                          return (
+                            <div key={a.id} className="py-2">
+                              <p><span className="font-medium">{origem} {a.acao}</span> <span className="text-muted-foreground">— {format(parseISO(a.created_at), "dd/MM/yyyy HH:mm")}{a.usuario_nome ? ` por ${a.usuario_nome}` : ""}</span></p>
+                              <p className="text-muted-foreground">{detalhe}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </>
             );
           })()}
@@ -4323,6 +4456,10 @@ export default function ClinicaFinanceiro() {
               </div>
             </div>
             <div>
+              <label className="flex items-center gap-2 text-sm mb-3 cursor-pointer">
+                <input type="checkbox" checked={!!(formContaPagar as any).recorrente} onChange={(e) => setFormContaPagar({ ...formContaPagar, recorrente: e.target.checked } as any)} />
+                Repetir todo mês (aluguel, internet, salários...)
+              </label>
               <Label>Fornecedor</Label>
               <Input value={formContaPagar.fornecedor} onChange={(e) => setFormContaPagar({ ...formContaPagar, fornecedor: e.target.value })} />
             </div>
