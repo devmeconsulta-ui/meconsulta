@@ -229,6 +229,7 @@ export default function ClinicaFinanceiro() {
   const [valorMinFilter, setValorMinFilter] = useState("");
   const [valorMaxFilter, setValorMaxFilter] = useState("");
   const [finalizadoFilter, setFinalizadoFilter] = useState("todos");
+  const [tipoMovimentoFilter, setTipoMovimentoFilter] = useState<"todos" | "entradas" | "saidas">("todos");
   const [relFiltersOpen, setRelFiltersOpen] = useState(true);
   const [vgFiltersOpen, setVgFiltersOpen] = useState(true);
   const [medicoComboboxOpen, setMedicoComboboxOpen] = useState(false);
@@ -581,14 +582,105 @@ export default function ClinicaFinanceiro() {
     });
   }, [consultas, medicoFilter, statusFilter, origemFilter, localFilter, tipoAtendimentoFilter, convenioFilter, formaPagamentoFilter, searchPaciente, statusConsultaFilter, valorMinFilter, valorMaxFilter, finalizadoFilter]);
 
-  const relActiveFilters = [medicoFilter, statusFilter, origemFilter, localFilter, tipoAtendimentoFilter, convenioFilter, formaPagamentoFilter, statusConsultaFilter, finalizadoFilter].filter((v) => v !== "todos").length
+  const relActiveFilters = [medicoFilter, statusFilter, origemFilter, localFilter, tipoAtendimentoFilter, convenioFilter, formaPagamentoFilter, statusConsultaFilter, finalizadoFilter, tipoMovimentoFilter].filter((v) => v !== "todos").length
     + (searchPaciente.trim() ? 1 : 0) + (valorMinFilter ? 1 : 0) + (valorMaxFilter ? 1 : 0);
 
   const limparFiltrosRelatorio = () => {
     setMedicoFilter("todos"); setStatusFilter("todos"); setOrigemFilter("todos"); setLocalFilter("todos");
     setTipoAtendimentoFilter("todos"); setConvenioFilter("todos"); setFormaPagamentoFilter("todos");
     setStatusConsultaFilter("todos"); setFinalizadoFilter("todos"); setSearchPaciente("");
-    setValorMinFilter(""); setValorMaxFilter("");
+    setValorMinFilter(""); setValorMaxFilter(""); setTipoMovimentoFilter("todos");
+  };
+
+  // Movimentos (entradas / saídas) no período, para filtro e exportação separada
+  const movimentos = useMemo(() => {
+    const inRange = (iso?: string | null) => {
+      if (!iso) return false;
+      const d = parseISO(iso);
+      return d >= dateRange.start && d <= dateRange.end;
+    };
+    const entradas = [
+      ...filteredConsultas
+        .filter((c) => c.status_pagamento === "pago")
+        .map((c) => ({
+          data: c.data_hora,
+          tipo: "Consulta",
+          descricao: `${c.medico?.nome ? "Dr(a). " + c.medico.nome + " — " : ""}${c.nome_paciente_consulta || c.paciente?.nome || "Não informado"}`,
+          categoria: c.origem === "online" ? "Online" : "Interna",
+          status: "Pago",
+          valor: Number(c.valor_consulta) || 0,
+        })),
+      ...contasReceber
+        .filter((c) => (c.status === "recebido" || c.status === "pago") && inRange(c.data_recebimento))
+        .map((c) => ({
+          data: c.data_recebimento!,
+          tipo: "Conta a receber",
+          descricao: `${c.descricao}${c.cliente ? " — " + c.cliente : ""}`,
+          categoria: "Recebimento",
+          status: "Recebido",
+          valor: Number(c.valor) || 0,
+        })),
+    ].sort((a, b) => a.data.localeCompare(b.data));
+
+    const saidas = contasPagar
+      .filter((c) => (c.status === "pago" ? inRange(c.data_pagamento) : inRange(c.data_vencimento)))
+      .map((c) => ({
+        data: (c.status === "pago" ? c.data_pagamento : c.data_vencimento)!,
+        tipo: "Conta a pagar",
+        descricao: `${c.descricao}${c.fornecedor ? " — " + c.fornecedor : ""}`,
+        categoria: c.centro_custo?.nome || "—",
+        status: c.status === "pago" ? "Pago" : "Pendente",
+        valor: Number(c.valor) || 0,
+      }))
+      .sort((a, b) => a.data.localeCompare(b.data));
+
+    return { entradas, saidas };
+  }, [filteredConsultas, contasReceber, contasPagar, dateRange]);
+
+  const movimentoToRow = (m: { data: string; tipo: string; descricao: string; categoria: string; status: string; valor: number }) => ({
+    "Data": format(parseISO(m.data), "dd/MM/yyyy"),
+    "Tipo": m.tipo,
+    "Descrição": m.descricao,
+    "Categoria": m.categoria,
+    "Status": m.status,
+    "Valor": m.valor,
+  });
+
+  const exportMovimentosPDF = (lista: typeof movimentos.saidas, titulo: string, fileTag: string) => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 10;
+    const cols = [
+      { h: "Data", w: 25 }, { h: "Tipo", w: 35 }, { h: "Descrição", w: 120 },
+      { h: "Categoria", w: 40 }, { h: "Status", w: 25 }, { h: "Valor", w: 30 },
+    ];
+    let y = 16;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(14);
+    doc.text(`${titulo} — ${clinicaData?.nome_fantasia || ""}`, margin, y);
+    y += 6;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+    doc.text(`Período: ${format(dateRange.start, "dd/MM/yyyy")} a ${format(dateRange.end, "dd/MM/yyyy")}  •  Total: ${formatCurrency(lista.reduce((s, m) => s + m.valor, 0))}  •  ${lista.length} lançamento(s)`, margin, y);
+    y += 8;
+    const header = () => {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8);
+      let x = margin;
+      cols.forEach((c) => { doc.text(c.h, x, y); x += c.w; });
+      y += 2; doc.line(margin, y, pageWidth - margin, y); y += 4;
+      doc.setFont("helvetica", "normal");
+    };
+    header();
+    lista.forEach((m) => {
+      if (y > pageHeight - 14) { doc.addPage(); y = 16; header(); }
+      const vals = [format(parseISO(m.data), "dd/MM/yyyy"), m.tipo, m.descricao, m.categoria, m.status, formatCurrency(m.valor)];
+      let x = margin;
+      vals.forEach((v, i) => {
+        const t = doc.splitTextToSize(String(v), cols[i].w - 2)[0] || "";
+        doc.text(t, x, y); x += cols[i].w;
+      });
+      y += 5;
+    });
+    doc.save(`${fileTag}_${clinicaData?.nome_fantasia || "clinica"}_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`);
   };
 
   // Calcular novos pacientes do mês atual (pacientes que fizeram primeira consulta neste mês)
@@ -1776,6 +1868,14 @@ export default function ClinicaFinanceiro() {
   };
 
   const handleExportRelatorioExcel = async () => {
+    if (tipoMovimentoFilter === "saidas") {
+      if (!movimentos.saidas.length) { toast.error("Não há saídas no período"); return; }
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movimentos.saidas.map(movimentoToRow)), "Saídas");
+      XLSX.writeFile(wb, `saidas_${clinicaData?.nome_fantasia || "clinica"}_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`);
+      toast.success("Relatório de saídas gerado!");
+      return;
+    }
     if (!filteredConsultas.length) {
       toast.error("Não há dados para exportar");
       return;
@@ -1845,6 +1945,10 @@ export default function ClinicaFinanceiro() {
       if (procedimentosSheet.length > 0) {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(procedimentosSheet), "Procedimentos");
       }
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movimentos.entradas.map(movimentoToRow)), "Entradas");
+      if (tipoMovimentoFilter === "todos") {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movimentos.saidas.map(movimentoToRow)), "Saídas");
+      }
 
       const filename = `relatorio_financeiro_${clinicaData?.nome_fantasia || "clinica"}_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`;
       XLSX.writeFile(wb, filename);
@@ -1856,6 +1960,18 @@ export default function ClinicaFinanceiro() {
   };
 
   const handleExportRelatorioPDF = async () => {
+    if (tipoMovimentoFilter === "saidas") {
+      if (!movimentos.saidas.length) { toast.error("Não há saídas no período"); return; }
+      exportMovimentosPDF(movimentos.saidas, "Relatório de Saídas", "saidas");
+      toast.success("Relatório de saídas gerado!");
+      return;
+    }
+    if (tipoMovimentoFilter === "entradas") {
+      if (!movimentos.entradas.length) { toast.error("Não há entradas no período"); return; }
+      exportMovimentosPDF(movimentos.entradas, "Relatório de Entradas", "entradas");
+      toast.success("Relatório de entradas gerado!");
+      return;
+    }
     if (!filteredConsultas.length) {
       toast.error("Não há dados para exportar");
       return;
@@ -3427,6 +3543,17 @@ export default function ClinicaFinanceiro() {
                     Paciente
                   </Label>
                   <Input placeholder="Buscar pelo nome..." value={searchPaciente} onChange={(e) => setSearchPaciente(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Movimento</Label>
+                  <Select value={tipoMovimentoFilter} onValueChange={(v) => setTipoMovimentoFilter(v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Entradas e saídas</SelectItem>
+                      <SelectItem value="entradas">Só entradas</SelectItem>
+                      <SelectItem value="saidas">Só saídas</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-sm font-medium">
