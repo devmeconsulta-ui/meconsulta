@@ -2333,7 +2333,7 @@ export default function ClinicaFinanceiro() {
           {/* Header de métricas */}
           <FinanceiroHeader
             faturamentoOnline={metrics.pagoOnline}
-            saldoPrevistoOnline={(metrics.pagoOnline + metrics.pendenteOnline) - totalContasPagar}
+            saldoPrevistoOnline={metrics.pagoOnline + metrics.pendenteOnline}
             faturamentoInterno={metrics.pagoInterno}
             saldoPrevistoInterno={metrics.pagoInterno + metrics.pendenteInterno}
             convenioAFaturar={metrics.convenioAFaturar}
