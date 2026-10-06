@@ -229,6 +229,7 @@ export default function ClinicaFinanceiro() {
   const [valorMinFilter, setValorMinFilter] = useState("");
   const [valorMaxFilter, setValorMaxFilter] = useState("");
   const [finalizadoFilter, setFinalizadoFilter] = useState("todos");
+  const [tipoMovimentoFilter, setTipoMovimentoFilter] = useState<"todos" | "entradas" | "saidas">("todos");
   const [relFiltersOpen, setRelFiltersOpen] = useState(true);
   const [vgFiltersOpen, setVgFiltersOpen] = useState(true);
   const [medicoComboboxOpen, setMedicoComboboxOpen] = useState(false);
@@ -604,7 +605,7 @@ export default function ClinicaFinanceiro() {
         .map((c) => ({
           data: c.data_hora,
           tipo: "Consulta",
-          descricao: `${c.medico?.nome ? "Dr(a). " + c.medico.nome + " — " : ""}${getPatientName(c)}`,
+          descricao: `${c.medico?.nome ? "Dr(a). " + c.medico.nome + " — " : ""}${c.nome_paciente_consulta || c.paciente?.nome || "Não informado"}`,
           categoria: c.origem === "online" ? "Online" : "Interna",
           status: "Pago",
           valor: Number(c.valor_consulta) || 0,
@@ -1867,6 +1868,14 @@ export default function ClinicaFinanceiro() {
   };
 
   const handleExportRelatorioExcel = async () => {
+    if (tipoMovimentoFilter === "saidas") {
+      if (!movimentos.saidas.length) { toast.error("Não há saídas no período"); return; }
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movimentos.saidas.map(movimentoToRow)), "Saídas");
+      XLSX.writeFile(wb, `saidas_${clinicaData?.nome_fantasia || "clinica"}_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`);
+      toast.success("Relatório de saídas gerado!");
+      return;
+    }
     if (!filteredConsultas.length) {
       toast.error("Não há dados para exportar");
       return;
@@ -1936,6 +1945,10 @@ export default function ClinicaFinanceiro() {
       if (procedimentosSheet.length > 0) {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(procedimentosSheet), "Procedimentos");
       }
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movimentos.entradas.map(movimentoToRow)), "Entradas");
+      if (tipoMovimentoFilter === "todos") {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movimentos.saidas.map(movimentoToRow)), "Saídas");
+      }
 
       const filename = `relatorio_financeiro_${clinicaData?.nome_fantasia || "clinica"}_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`;
       XLSX.writeFile(wb, filename);
@@ -1947,6 +1960,18 @@ export default function ClinicaFinanceiro() {
   };
 
   const handleExportRelatorioPDF = async () => {
+    if (tipoMovimentoFilter === "saidas") {
+      if (!movimentos.saidas.length) { toast.error("Não há saídas no período"); return; }
+      exportMovimentosPDF(movimentos.saidas, "Relatório de Saídas", "saidas");
+      toast.success("Relatório de saídas gerado!");
+      return;
+    }
+    if (tipoMovimentoFilter === "entradas") {
+      if (!movimentos.entradas.length) { toast.error("Não há entradas no período"); return; }
+      exportMovimentosPDF(movimentos.entradas, "Relatório de Entradas", "entradas");
+      toast.success("Relatório de entradas gerado!");
+      return;
+    }
     if (!filteredConsultas.length) {
       toast.error("Não há dados para exportar");
       return;
@@ -3518,6 +3543,17 @@ export default function ClinicaFinanceiro() {
                     Paciente
                   </Label>
                   <Input placeholder="Buscar pelo nome..." value={searchPaciente} onChange={(e) => setSearchPaciente(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Movimento</Label>
+                  <Select value={tipoMovimentoFilter} onValueChange={(v) => setTipoMovimentoFilter(v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Entradas e saídas</SelectItem>
+                      <SelectItem value="entradas">Só entradas</SelectItem>
+                      <SelectItem value="saidas">Só saídas</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-sm font-medium">
