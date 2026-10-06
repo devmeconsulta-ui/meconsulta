@@ -714,29 +714,41 @@ export default function ClinicaFinanceiro() {
 
   const cashFlowData = useMemo(() => {
     const data: { [key: string]: { entradas: number; saidas: number } } = {};
-    
-    // Entradas das consultas pagas (online + interna)
+    const add = (iso: string, field: "entradas" | "saidas", v: number) => {
+      const key = format(parseISO(iso), "yyyy-MM-dd");
+      if (!data[key]) data[key] = { entradas: 0, saidas: 0 };
+      data[key][field] += v;
+    };
+
+    // Entradas: consultas pagas (online + interna)
     filteredConsultas
       .filter((c) => c.status_pagamento === "pago")
-      .forEach((c) => {
-        const date = format(parseISO(c.data_hora), "dd/MM");
-        if (!data[date]) data[date] = { entradas: 0, saidas: 0 };
-        data[date].entradas += c.valor_consulta;
-      });
+      .forEach((c) => add(c.data_hora, "entradas", Number(c.valor_consulta) || 0));
 
-    // Saídas das contas pagas
+    // Entradas: contas a receber recebidas
+    contasReceber
+      .filter((c) => (c.status === "recebido" || c.status === "pago") && c.data_recebimento)
+      .forEach((c) => add(c.data_recebimento!, "entradas", Number(c.valor) || 0));
+
+    // Saídas: contas pagas
     contasPagar
       .filter((c) => c.status === "pago" && c.data_pagamento)
-      .forEach((c) => {
-        const date = format(parseISO(c.data_pagamento!), "dd/MM");
-        if (!data[date]) data[date] = { entradas: 0, saidas: 0 };
-        data[date].saidas += Number(c.valor);
-      });
+      .forEach((c) => add(c.data_pagamento!, "saidas", Number(c.valor) || 0));
 
-    return Object.entries(data)
-      .map(([date, values]) => ({ date, ...values, saldo: values.entradas - values.saidas }))
-      .slice(-15);
-  }, [filteredConsultas, contasPagar]);
+    return Object.keys(data)
+      .sort()
+      .map((key) => ({
+        date: format(parseISO(key), "dd/MM"),
+        ...data[key],
+        saldo: data[key].entradas - data[key].saidas,
+      }));
+  }, [filteredConsultas, contasPagar, contasReceber]);
+
+  const fluxoTotais = useMemo(() => {
+    const entradas = cashFlowData.reduce((s, d) => s + d.entradas, 0);
+    const saidas = cashFlowData.reduce((s, d) => s + d.saidas, 0);
+    return { entradas, saidas };
+  }, [cashFlowData]);
 
   const medicoChartData = useMemo(() => {
     const data: { [key: string]: number } = {};
@@ -2795,20 +2807,22 @@ export default function ClinicaFinanceiro() {
             <Card className="border-l-4 border-l-green-500">
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground">Entradas</p>
-                <p className="text-2xl font-bold text-green-500">{formatCurrency(metrics.pago + totalContasReceber)}</p>
+                <p className="text-2xl font-bold text-green-500">{formatCurrency(fluxoTotais.entradas)}</p>
+                <p className="text-xs text-muted-foreground mt-1">+ {formatCurrency(totalContasReceber)} a receber</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-red-500">
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground">Saídas</p>
-                <p className="text-2xl font-bold text-red-500">{formatCurrency(totalContasPagar)}</p>
+                <p className="text-2xl font-bold text-red-500">{formatCurrency(fluxoTotais.saidas)}</p>
+                <p className="text-xs text-muted-foreground mt-1">+ {formatCurrency(totalContasPagar)} a pagar</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-primary">
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground">Saldo Previsto</p>
                 <p className="text-2xl font-bold text-primary">
-                  {formatCurrency((metrics.pago + totalContasReceber) - totalContasPagar)}
+                  {formatCurrency(fluxoTotais.entradas - fluxoTotais.saidas + totalContasReceber - totalContasPagar)}
                 </p>
               </CardContent>
             </Card>
