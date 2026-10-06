@@ -187,7 +187,13 @@ export default function ConsultaDetalhesModal({
     let last: T | undefined;
     for (let i = 0; i < tries; i++) {
       try {
-        last = await fn();
+        // Limite de 15s por tentativa: evita o botão "Salvando..." girar para sempre
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<T>((resolve) => {
+          timer = setTimeout(() => resolve({ error: { message: "timeout: o servidor demorou para responder" } } as T), 15000);
+        });
+        last = await Promise.race([Promise.resolve(fn()), timeout]);
+        if (timer) clearTimeout(timer);
         const msg = String(last.error?.message || "");
         if (!last.error || !/fetch|network|timeout|503|502|504|Failed/i.test(msg)) return last;
       } catch (e: any) {
@@ -285,15 +291,16 @@ export default function ConsultaDetalhesModal({
       } else {
         setProntuarioLivre("");
         clearDraft("livre");
-        await fetchData(true);
         setActiveTab("prontuarios");
         toast.success("Prontuário salvo com sucesso");
+        fetchData(true).catch((e) => console.error("Erro ao recarregar prontuários:", e));
       }
     } catch (err) {
       console.error("Exceção prontuário livre:", err);
       toast.error("Erro inesperado ao salvar prontuário");
+    } finally {
+      setSavingProntuario(false);
     }
-    setSavingProntuario(false);
   }
 
   async function handleUpdateAnamnese() {
@@ -429,27 +436,32 @@ export default function ConsultaDetalhesModal({
 
     setSavingProntuario(true);
 
-    const { error } = await withRetry(() => supabase
-      .from("prontuario_livre")
-      .update({
-        conteudo: editProntuarioLivre,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", selectedProntuarioLivre.id));
+    try {
+      const { error } = await withRetry(() => supabase
+        .from("prontuario_livre")
+        .update({
+          conteudo: editProntuarioLivre,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedProntuarioLivre.id));
 
-    if (error) {
-      toast.error("Erro ao atualizar prontuário livre");
-    } else {
-      setSelectedProntuarioLivre({
-        ...selectedProntuarioLivre,
-        conteudo: editProntuarioLivre,
-      });
-      setIsEditingProntuarioLivre(false);
-      await fetchData(true);
-      toast.success("Prontuário livre atualizado com sucesso");
+      if (error) {
+        toast.error("Erro ao atualizar prontuário livre: " + (error.message || ""));
+      } else {
+        setSelectedProntuarioLivre({
+          ...selectedProntuarioLivre,
+          conteudo: editProntuarioLivre,
+        });
+        setIsEditingProntuarioLivre(false);
+        toast.success("Prontuário livre atualizado com sucesso");
+        fetchData(true).catch((e) => console.error("Erro ao recarregar prontuários:", e));
+      }
+    } catch (err) {
+      console.error("Exceção ao atualizar prontuário livre:", err);
+      toast.error("Erro inesperado ao atualizar prontuário");
+    } finally {
+      setSavingProntuario(false);
     }
-
-    setSavingProntuario(false);
   }
 
   const alergias = historico.filter(h => h.tipo === "alergia");
