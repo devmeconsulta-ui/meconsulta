@@ -27,7 +27,7 @@ atual é próprio da aplicação e não produz sessões de Supabase Auth.
    `https://lovable.dev/projects/8bf12c8c-f61a-4f30-bda0-f89668d636c8`.
    O projeto antigo do README não deve ser usado para publicação. A Vercel
    também acompanha o repositório, mas não é o endereço informado pela clínica.
-   Após confirmar o frontend novo, aplicar `privatize_prontuario_images`
+   Após confirmar o frontend novo, aplicar `20261112181804_privatize_prontuario_images_after_frontend.sql`
    para fechar os acessos diretos e tornar o bucket privado. Solicitar novo login
    para as sessões antigas. Sessões de fotos duram oito horas e são revogadas
    no logout; mudança de senha ou desativação invalida o acesso no servidor.
@@ -64,3 +64,16 @@ permissiva global preexistente; service_role e outros buckets preservados.
   bucket não corrige a autorização geral do aplicativo.
 - Sessões protegidas aplicadas; API `prontuario-fotos` publicada e verificada
   com resposta 401 para requisição sem sessão.
+- `secure-auth` versão 166 e `prontuario-fotos` versão 1 publicadas.
+- PR #1 integrado; Lovable confirmou "Seu site foi atualizado" no endereço
+  `https://meconsulta-mirror.lovable.app`. Bundle público contém o recurso e
+  o cliente das sessões protegidas.
+- Bucket privado e acessos diretos revogados. Preservados três registros e
+  três objetos. Link assinado retornou HTTP 200, URL pública antiga HTTP 400
+  e acesso direto à tabela HTTP 401.
+- Testes de integração com sessões administrativas temporárias: recepção
+  acessa sua clínica (376 consultas), outra clínica recebe HTTP 403,
+  médico responsável lê imagens e possui permissão de exclusão. As sessões
+  de teste foram revogadas; reutilização retornou HTTP 401.
+- Câmera física e login com as credenciais pessoais não foram exercitados.
+  É necessário novo login após a atualização para obter a sessão de fotos.
