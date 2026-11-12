@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { clearPhotoSession } from "@/lib/prontuarioFotos";
 
 export interface CurrentUser {
   id: string;
@@ -132,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    clearPhotoSession();
     setCurrentUser(null);
     localStorage.removeItem("meconsulta_user");
   };

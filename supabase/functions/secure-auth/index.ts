@@ -1,9 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
+import { newSessionToken, tokenDigest, isSessionToken } from "../_shared/photo-session.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-photo-session",
 };
 
 // Convert ArrayBuffer to hex string
@@ -14,7 +15,7 @@ function bufferToHex(buffer: ArrayBuffer): string {
 }
 
 // Convert hex string to Uint8Array
-function hexToBuffer(hex: string): Uint8Array {
+function hexToBuffer(hex: string) {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) {
     bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
@@ -130,6 +131,21 @@ serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  async function issuePhotoSession(id: string, origem: "usuarios" | "usuarios_clinica", senhaHash: string) {
+    const token = newSessionToken();
+    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase.from("prontuario_foto_sessoes").insert({
+      token_hash: await tokenDigest(token), usuario_id: id, origem,
+      senha_fingerprint: await tokenDigest(senhaHash), expires_at: expiresAt,
+    });
+    if (error) {
+      // Photo access fails closed during a staged backend rollout.
+      console.error("Unable to create photo session");
+      return null;
+    }
+    return { token, expiresAt };
+  }
+
   try {
     const url = new URL(req.url);
     const action = url.pathname.split("/").pop();
@@ -215,6 +231,7 @@ serve(async (req) => {
               medicoId,
               clinicaId,
               deveTrocarSenha: usuario.deve_trocar_senha,
+              photoSession: await issuePhotoSession(usuario.id, "usuarios", usuario.senha_hash),
             },
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -262,6 +279,7 @@ serve(async (req) => {
               permissoes: clinicaUser.permissoes,
               deveTrocarSenha: clinicaUser.deve_trocar_senha,
               isClinicaUser: true,
+              photoSession: await issuePhotoSession(clinicaUser.id, "usuarios_clinica", clinicaUser.senha_hash),
             },
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -386,6 +404,19 @@ serve(async (req) => {
     } else if (action === "change-password") {
       const { userId, userTable, newPassword } = await req.json();
 
+      const token = req.headers.get("x-photo-session") || "";
+      if (!isSessionToken(token) || !["usuarios", "usuarios_clinica"].includes(userTable)) {
+        return new Response(JSON.stringify({ error: "Entre novamente para alterar sua senha." }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const { data: session, error: sessionError } = await supabase.from("prontuario_foto_sessoes")
+        .select("usuario_id, origem, senha_fingerprint").eq("token_hash", await tokenDigest(token))
+        .gt("expires_at", new Date().toISOString()).maybeSingle();
+      const { data: account, error: accountError } = await supabase.from(userTable)
+        .select("senha_hash, ativo").eq("id", userId).maybeSingle();
+      if (sessionError || accountError || !session || session.usuario_id !== userId || session.origem !== userTable || !account?.ativo || await tokenDigest(account.senha_hash) !== session.senha_fingerprint) {
+        return new Response(JSON.stringify({ error: "Sessão inválida para alterar esta senha." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
       if (!userId || !newPassword || !userTable) {
         return new Response(
           JSON.stringify({ error: "Parâmetros inválidos" }),
@@ -421,7 +452,7 @@ serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ success: true }),
+        JSON.stringify({ success: true, photoSession: await issuePhotoSession(userId, table, hashedPassword) }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

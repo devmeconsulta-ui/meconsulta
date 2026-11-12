@@ -20,23 +20,17 @@ import {
   Tag,
   SwitchCamera,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { photoRequest, type ProntuarioImagem } from "@/lib/prontuarioFotos";
 import { toast } from "sonner";
 
 interface ProntuarioImagensTabProps {
   consultaId: string;
   medicoId: string;
   pacienteId: string;
+  canDelete?: boolean;
 }
 
-interface ImagemProntuario {
-  id: string;
-  arquivo_url: string;
-  arquivo_nome: string | null;
-  legenda: string | null;
-  categoria: string;
-  created_at: string;
-}
+type ImagemProntuario = ProntuarioImagem;
 
 const CATEGORIAS = [
   { value: "geral", label: "Geral", color: "bg-slate-500" },
@@ -51,9 +45,12 @@ export default function ProntuarioImagensTab({
   consultaId,
   medicoId,
   pacienteId,
+  canDelete = true,
 }: ProntuarioImagensTabProps) {
   const [imagens, setImagens] = useState<ImagemProntuario[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [serverCanDelete, setServerCanDelete] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [legenda, setLegenda] = useState("");
   const [categoria, setCategoria] = useState("geral");
@@ -65,70 +62,99 @@ export default function ProntuarioImagensTab({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cameraRequestRef = useRef(0);
 
   const fetchImagens = useCallback(async () => {
-    // @ts-ignore
-    const { data, error } = await supabase
-      .from("prontuario_imagens")
-      .select("*")
-      .eq("consulta_id", consultaId)
-      .eq("medico_id", medicoId)
-      .order("created_at", { ascending: false });
-
-    if (!error) setImagens(data || []);
-    setLoading(false);
-  }, [consultaId, medicoId]);
+    try {
+      const data = await photoRequest<{ imagens: ImagemProntuario[]; canDelete: boolean }>({ action: "list", consultaId });
+      setImagens(data.imagens);
+      setServerCanDelete(data.canDelete);
+      setLoadError(null);
+    } catch (error) {
+      setImagens([]);
+      setServerCanDelete(false);
+      setLoadError(error instanceof Error ? error.message : "Não foi possível carregar as imagens.");
+    } finally {
+      setLoading(false);
+    }
+  }, [consultaId]);
 
   useEffect(() => {
     fetchImagens();
+    // Signed URLs last five minutes; refresh while the gallery remains open.
+    const interval = window.setInterval(fetchImagens, 4 * 60 * 1000);
+    return () => window.clearInterval(interval);
   }, [fetchImagens]);
 
+  useEffect(() => () => {
+    cameraRequestRef.current += 1;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
+
+  useEffect(() => {
+    if (!cameraOpen) return;
+    const request = ++cameraRequestRef.current;
+    let cancelled = false;
+    async function connectCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+        if (cancelled || request !== cameraRequestRef.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.onloadedmetadata = () => setCameraReady(true);
+          videoRef.current.srcObject = stream;
+        }
+      } catch {
+        if (!cancelled && request === cameraRequestRef.current) {
+          toast.error("Não foi possível acessar a câmera. Verifique a permissão do navegador.");
+          setCameraOpen(false);
+        }
+      }
+    }
+    // The dialog mounts its video in a portal; the callback ref below attaches
+    // the stream as well if permission is granted before that mount finishes.
+    connectCamera();
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+  }, [cameraOpen, facingMode]);
+
   async function uploadImage(file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem.");
+      return;
+    }
     if (file.size > 10 * 1024 * 1024) {
       toast.error("Imagem muito grande. Máximo 10MB.");
       return;
     }
     setUploading(true);
 
-    const ext = file.name.split(".").pop() || "jpg";
-    const path = `${medicoId}/${consultaId}/${Date.now()}.${ext}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("prontuario-imagens")
-      .upload(path, file, { contentType: file.type });
-
-    if (uploadError) {
-      toast.error("Erro ao fazer upload da imagem");
-      setUploading(false);
-      return;
-    }
-
-    const { data: urlData } = supabase.storage
-      .from("prontuario-imagens")
-      .getPublicUrl(path);
-
-    // @ts-ignore
-    const { error: insertError } = await supabase
-      .from("prontuario_imagens")
-      .insert({
-        consulta_id: consultaId,
-        medico_id: medicoId,
-        paciente_id: pacienteId,
-        arquivo_url: urlData.publicUrl,
-        arquivo_nome: file.name,
-        legenda: legenda || null,
-        categoria,
-      });
-
-    if (insertError) {
-      toast.error("Erro ao salvar registro da imagem");
-    } else {
+    try {
+      const form = new FormData();
+      form.set("action", "upload");
+      form.set("consultaId", consultaId);
+      form.set("file", file);
+      form.set("legenda", legenda);
+      form.set("categoria", categoria);
+      await photoRequest(form);
       toast.success("Imagem adicionada ao prontuário!");
       setLegenda("");
       setCategoria("geral");
-      fetchImagens();
+      await fetchImagens();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao salvar a imagem.");
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -137,55 +163,22 @@ export default function ProntuarioImagensTab({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  async function startCamera() {
+  function startCamera() {
     setCameraOpen(true);
     setCameraReady(false);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => setCameraReady(true);
-      }
-    } catch {
-      toast.error("Não foi possível acessar a câmera");
-      setCameraOpen(false);
-    }
   }
 
   function stopCamera() {
+    cameraRequestRef.current += 1;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setCameraOpen(false);
     setCameraReady(false);
   }
 
-  async function switchCamera() {
-    stopCamera();
-    const newMode = facingMode === "user" ? "environment" : "user";
-    setFacingMode(newMode);
-    setTimeout(() => {
-      setCameraOpen(true);
-      navigator.mediaDevices
-        .getUserMedia({
-          video: { facingMode: newMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
-          audio: false,
-        })
-        .then((stream) => {
-          streamRef.current = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.onloadedmetadata = () => setCameraReady(true);
-          }
-        })
-        .catch(() => {
-          toast.error("Não foi possível trocar a câmera");
-          setCameraOpen(false);
-        });
-    }, 200);
+  function switchCamera() {
+    setCameraReady(false);
+    setFacingMode((mode) => mode === "user" ? "environment" : "user");
   }
 
   async function capturePhoto() {
@@ -212,19 +205,17 @@ export default function ProntuarioImagensTab({
   }
 
   async function handleDelete(img: ImagemProntuario) {
+    if (!canDelete || !serverCanDelete) return;
     if (!confirm("Deseja remover esta imagem do prontuário?")) return;
 
-    // Extract path from URL
-    const urlParts = img.arquivo_url.split("/prontuario-imagens/");
-    if (urlParts[1]) {
-      await supabase.storage.from("prontuario-imagens").remove([urlParts[1]]);
+    try {
+      await photoRequest({ action: "delete", consultaId, imageId: img.id });
+      toast.success("Imagem removida");
+      setLightboxIndex(null);
+      await fetchImagens();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao remover a imagem.");
     }
-
-    // @ts-ignore
-    await supabase.from("prontuario_imagens").delete().eq("id", img.id);
-    toast.success("Imagem removida");
-    fetchImagens();
-    if (lightboxIndex !== null) setLightboxIndex(null);
   }
 
   function getCategoriaInfo(cat: string) {
@@ -235,6 +226,7 @@ export default function ProntuarioImagensTab({
 
   return (
     <div className="space-y-4">
+      {loadError && <div role="alert" className="p-3 rounded-md border border-destructive text-destructive">{loadError} <Button variant="outline" size="sm" onClick={fetchImagens}>Tentar novamente</Button></div>}
       {/* Upload Controls */}
       <Card className="border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
         <CardHeader className="pb-3">
@@ -283,7 +275,7 @@ export default function ProntuarioImagensTab({
             <Button
               variant="default"
               onClick={startCamera}
-              disabled={uploading}
+              disabled={uploading || !!loadError}
               className="gap-2 flex-1 min-w-[140px]"
             >
               <Camera className="w-4 h-4" />
@@ -292,7 +284,7 @@ export default function ProntuarioImagensTab({
             <Button
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
+              disabled={uploading || !!loadError}
               className="gap-2 flex-1 min-w-[140px]"
             >
               {uploading ? (
@@ -319,7 +311,13 @@ export default function ProntuarioImagensTab({
           <DialogContent className="max-w-2xl p-0 overflow-hidden bg-black">
             <div className="relative">
               <video
-                ref={videoRef}
+                ref={(video) => {
+                  videoRef.current = video;
+                  if (video) {
+                    video.onloadedmetadata = () => setCameraReady(true);
+                    if (streamRef.current) video.srcObject = streamRef.current;
+                  }
+                }}
                 autoPlay
                 playsInline
                 muted
@@ -492,7 +490,7 @@ export default function ProntuarioImagensTab({
                   >
                     <Download className="w-4 h-4" />
                   </a>
-                  <button
+                  {canDelete && serverCanDelete && <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDelete(lightboxImage);
@@ -500,7 +498,7 @@ export default function ProntuarioImagensTab({
                     className="w-8 h-8 rounded-full bg-red-500/20 hover:bg-red-500/40 flex items-center justify-center text-red-400 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </button>}
                 </div>
               </div>
             </div>

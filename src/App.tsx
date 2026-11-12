@@ -109,6 +109,7 @@ import AtendenteContatos from "./pages/atendente/AtendenteContatos";
 import AtendenteConfirmacaoAgenda from "./pages/atendente/AtendenteConfirmacaoAgenda";
 import AtendenteCRM from "./pages/atendente/AtendenteCRM";
 import AtendenteChatInterno from "./pages/atendente/AtendenteChatInterno";
+import ProntuarioFotosPage from "./pages/shared/ProntuarioFotosPage";
 
 // Public pages
 import ConfirmarConsulta from "./pages/ConfirmarConsulta";
@@ -184,6 +185,7 @@ const App = () => (
               <Route path="medicos" element={<ClinicaMedicos />} />
               <Route path="consultas" element={<ClinicaConsultas />} />
               <Route path="pacientes" element={<ClinicaPacientes />} />
+              <Route path="prontuario-fotos" element={<ProntuarioFotosPage />} />
               <Route path="locais" element={<ClinicaLocais />} />
               <Route path="agenda" element={<ClinicaAgenda />} />
               <Route path="agenda-exames" element={<AgendaExames />} />
@@ -216,6 +218,7 @@ const App = () => (
               <Route path="confirmacao-agenda" element={<AtendenteConfirmacaoAgenda />} />
               <Route path="crm" element={<AtendenteCRM />} />
               <Route path="chat-interno" element={<AtendenteChatInterno />} />
+              <Route path="prontuario-fotos" element={<ProntuarioFotosPage />} />
             </Route>
 
             {/* Admin routes */}
