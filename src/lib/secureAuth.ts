@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { savePhotoSession, photoSessionHeaders, type PhotoSession } from "@/lib/prontuarioFotos";
 
 interface LoginResponse {
   success: boolean;
@@ -15,6 +16,7 @@ interface LoginResponse {
     permissoes?: string[];
     deveTrocarSenha?: boolean;
     isClinicaUser?: boolean;
+    photoSession?: PhotoSession | null;
   };
   error?: string;
 }
@@ -34,6 +36,7 @@ interface RegisterData {
 }
 
 export async function secureLogin(email: string, password: string): Promise<LoginResponse> {
+  savePhotoSession(null);
   try {
     const { data, error } = await supabase.functions.invoke("secure-auth/login", {
       body: { email, password },
@@ -48,6 +51,7 @@ export async function secureLogin(email: string, password: string): Promise<Logi
       return { success: false, error: data.error };
     }
 
+    savePhotoSession(data.user.photoSession);
     return { success: true, user: data.user };
   } catch (err) {
     console.error("Unexpected login error:", err);
@@ -85,6 +89,7 @@ export async function secureChangePassword(
   try {
     const { data, error } = await supabase.functions.invoke("secure-auth/change-password", {
       body: { userId, userTable, newPassword },
+      headers: photoSessionHeaders(),
     });
 
     if (error) {
@@ -96,6 +101,7 @@ export async function secureChangePassword(
       return { success: false, error: data.error };
     }
 
+    savePhotoSession(data.photoSession);
     return { success: true };
   } catch (err) {
     console.error("Unexpected change password error:", err);

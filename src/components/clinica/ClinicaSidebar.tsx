@@ -30,6 +30,7 @@ import {
   BarChart3,
   Upload,
   FlaskConical,
+  Camera,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,7 @@ const atendimentoGroup: MenuGroup = {
   label: "Atendimento",
   items: [
     { icon: LayoutDashboard, label: "Dashboard", path: "/clinica/omnichannel" },
+    { icon: Camera, label: "Fotos do prontuário", path: "/clinica/prontuario-fotos" },
   ],
 };
 

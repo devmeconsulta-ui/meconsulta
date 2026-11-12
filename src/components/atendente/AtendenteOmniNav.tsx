@@ -6,7 +6,8 @@ import {
   User,
   CalendarCheck,
   Kanban,
-  ListChecks
+  ListChecks,
+  Camera
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -27,6 +28,7 @@ const navItems: NavItem[] = [
   { icon: User, label: "Contatos", path: "/atendente/contatos" },
   { icon: MessagesSquare, label: "Chat Interno", path: "/atendente/chat-interno" },
   { icon: CalendarCheck, label: "Confirmação Agenda", path: "/atendente/confirmacao-agenda" },
+  { icon: Camera, label: "Fotos do prontuário", path: "/atendente/prontuario-fotos" },
 ];
 
 interface AtendenteOmniNavProps {

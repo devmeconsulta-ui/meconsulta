@@ -1,5 +1,9 @@
 project_id = "dwqceailivjjacvqzfnh"
 
+[functions.prontuario-fotos]
+# Uses an opaque custom-login session, checked on every request in the handler.
+verify_jwt = false
+
 [functions.asaas-webhook]
 verify_jwt = false
 
