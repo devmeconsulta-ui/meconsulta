@@ -17,10 +17,18 @@ atual é próprio da aplicação e não produz sessões de Supabase Auth.
    elas precisam ser verificadas/corrigidas no banco antes de afirmar isolamento
    completo. Esta migração protege a tabela e o bucket das fotos, não substitui
    uma revisão de autorização das demais tabelas.
-2. Aplicar a migração `20261112151709_secure_prontuario_photos.sql` em transação
-   e publicar `secure-auth` e `prontuario-fotos` com os arquivos `_shared`.
+2. Aplicar a migração `20261112153157_prepare_prontuario_photo_sessions.sql`.
+   Ela é aditiva: cria somente o armazenamento privado das sessões.
+   Publicar `prontuario-fotos` e, junto à atualização do frontend, `secure-auth`,
+   com os arquivos `_shared`.
    A nova API verifica uma sessão opaca emitida após a validação da senha.
-3. Publicar o frontend pelo projeto Lovable existente. Solicitar novo login
+3. Publicar o frontend pelo projeto Lovable atual, identificado pelo badge em
+   `https://meconsulta-mirror.lovable.app`:
+   `https://lovable.dev/projects/8bf12c8c-f61a-4f30-bda0-f89668d636c8`.
+   O projeto antigo do README não deve ser usado para publicação. A Vercel
+   também acompanha o repositório, mas não é o endereço informado pela clínica.
+   Após confirmar o frontend novo, aplicar `privatize_prontuario_images`
+   para fechar os acessos diretos e tornar o bucket privado. Solicitar novo login
    para as sessões antigas. Sessões de fotos duram oito horas e são revogadas
    no logout; mudança de senha ou desativação invalida o acesso no servidor.
 4. Verificar com usuário de recepção e médico: busca, foto pela câmera,
@@ -42,6 +50,17 @@ Conteúdo já baixado ou armazenado anteriormente em caches não pode ser desfei
 - `npx deno check supabase/functions/prontuario-fotos/index.ts supabase/functions/secure-auth/index.ts`
 - `npx deno test supabase/functions/prontuario-fotos/index_test.ts`
 
-Migração também validada em Postgres local via PGlite: leitores anon/authenticated
+Migrações também validadas em Postgres local via PGlite: leitores anon/authenticated
 não acessam imagens ou sessões nem alteram objetos do bucket, mesmo com política
 permissiva global preexistente; service_role e outros buckets preservados.
+
+## Inspeção de produção em 12/11/2026
+
+- Projeto correto acessível pela conexão SUPABASE MECONSULTA.
+- Três registros de imagens e três objetos existentes, preservados.
+- Confirmados bucket público e políticas/grants permissivos nas fotos.
+- Confirmadas também políticas legadas permissivas em identidade, vínculos e
+  consultas. São riscos residuais fora desta migração; a proteção direta do
+  bucket não corrige a autorização geral do aplicativo.
+- Sessões protegidas aplicadas; API `prontuario-fotos` publicada e verificada
+  com resposta 401 para requisição sem sessão.
